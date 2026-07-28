@@ -1215,6 +1215,60 @@ test.describe('reachable without a touchscreen', () => {
   });
 });
 
+test.describe('coming back after a break', () => {
+
+  test('a month away does not turn into a punishing catch-up session', async ({page}) => {
+    await open(page, '2026-07-28');
+    const out = await page.evaluate(() => {
+      const a = window.__acorn;
+      const words = [];
+      for(let i = 0; i < 40; i++) words.push('word' + i);
+      a.state.words.lists = [{id:'big', name:'Big', words:words}];
+      a.state.words.activeId = 'big';
+      // every word learned, then a month passes with no practice at all
+      const m = {};
+      words.forEach(w => { m[w] = {right:3, wrong:0, box:3, lastSeen:'2026-06-20'}; });
+      a.state.words.mastery = m;
+      a.state.words.sessions = [];
+      a.save();
+      const due = words.filter(w => a.isDue(w, '2026-07-28')).length;
+      const s = a.buildSession(a.activeList(), '2026-07-28');
+      return {due, session: s.length};
+    });
+    // Everything is overdue at once; she must still get a normal sitting.
+    expect(out.due).toBe(40);
+    expect(out.session).toBeGreaterThan(3);
+    expect(out.session).toBeLessThanOrEqual(9);
+  });
+
+  test('the pace does not introduce new words on a rusty return', async ({page}) => {
+    await open(page, '2026-07-28');
+    const newWords = await page.evaluate(() => {
+      const a = window.__acorn;
+      const words = [];
+      for(let i = 0; i < 30; i++) words.push('word' + i);
+      a.state.words.lists = [{id:'big', name:'Big', words:words}];
+      a.state.words.activeId = 'big';
+      const m = {};
+      words.slice(0, 20).forEach(w => { m[w] = {right:3, wrong:0, box:3, lastSeen:'2026-06-20'}; });
+      a.state.words.mastery = m;
+      // Her last five sittings went badly. These are the fields the pace
+      // controller actually reads — distinct words, and how many she got
+      // right first time.
+      a.state.words.sessions = [1,2,3,4,5].map(i =>
+        ({date:'2026-07-2' + i, asked:10, words:8, right:6, firstTime:4}));
+      a.save();
+      return {acc: a.recentAccuracy(), newToday: a.newWordsToday(),
+              fresh: a.buildSession(a.activeList(), '2026-07-28')
+                      .filter(w => !a.state.words.mastery[w]).length};
+    });
+    // Under 70% right first time, nothing new goes in on top.
+    expect(newWords.acc).toBeLessThan(0.7);
+    expect(newWords.newToday).toBe(0);
+    expect(newWords.fresh).toBe(0);
+  });
+});
+
 test.describe('robustness', () => {
 
   test('a device that cannot save keeps working, and says so to a grown-up', async ({page}) => {

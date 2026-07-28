@@ -56,7 +56,7 @@ const LEARNER = `(function(ability){
 })`;
 
 async function run(page, opts){
-  const report = await page.evaluate(async ({days, listId, learnerSrc, seed, ability}) => {
+  const report = await page.evaluate(async ({days, listId, learnerSrc, seed, ability, attend}) => {
     const a = window.__acorn, L = eval(learnerSrc)(ability);
     let rngState = seed;
     const rnd = () => { rngState = (rngState * 1103515245 + 12345) & 0x7fffffff; return rngState / 0x7fffffff; };
@@ -82,8 +82,22 @@ async function run(page, opts){
     const iso = d => new Date(start.getTime() + d * 864e5).toISOString().slice(0, 10);
     const rows = [];
 
+    // Real practice is not daily. attend describes when she actually sits down:
+    //   'daily'    every day
+    //   'school'   Monday to Friday
+    //   'twice'    two evenings a week
+    //   'holiday'  daily, with a fortnight away in the middle
+    const attends = d => {
+      const dow = (new Date(start.getTime() + d * 864e5)).getUTCDay();
+      if(attend === 'school')  return dow >= 1 && dow <= 5;
+      if(attend === 'twice')   return dow === 2 || dow === 5;
+      if(attend === 'holiday') return !(d >= Math.floor(days/2) && d < Math.floor(days/2) + 14);
+      return true;
+    };
+
     for(let day = 0; day < days; day++){
       a.setToday(iso(day));
+      if(!attends(day)){ rows.push({day, away:true, skipped:true}); continue; }
       if(!a.start()){ rows.push({day, skipped:true}); continue; }
       const S = a.session();
       const opened = S.words.slice();
@@ -158,6 +172,7 @@ function abilityOf(i){ return .75 + .55 * (i / Math.max(1, COHORT - 1)); }
 async function main(){
   const days = Number(process.argv[2]) || 30;
   const only = process.argv[3];
+  const attend = (process.argv.find(x => /^--attend=/.test(x)) || '').split('=')[1] || 'daily';
   const one  = process.argv[4] ? Number(process.argv[4]) : null;
   const lists = only ? [only] : ['easy', 'tricky', 'longvowel', 'silent', 'tionsion', 'aussie'];
 
@@ -172,13 +187,14 @@ async function main(){
     const runs = [];
     const n = one ? 1 : COHORT;
     for(let i = 0; i < n; i++){
-      const r = await run(page, {days, listId, learnerSrc: LEARNER,
+      const r = await run(page, {days, listId, learnerSrc: LEARNER, attend,
                                  seed: 10007 + i * 7919, ability: one ? 1 : abilityOf(i)});
       runs.push({...r, stats: stats(r.rows)});
     }
     const total = runs[0].total;
     console.log('\n=== ' + listId + ' — ' + total + ' words, ' + days + ' days, ' +
-                n + (n === 1 ? ' learner' : ' learners') + ' ===');
+                n + (n === 1 ? ' learner' : ' learners') +
+                (attend === 'daily' ? '' : ', practising ' + attend) + ' ===');
 
     if(one){
       console.log('day  asked words 1st-go  review%  new  known-well  pace');
