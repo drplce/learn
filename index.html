@@ -856,7 +856,8 @@ function next(){
 }
 function finish(){
   var distinct = W.words.filter(function(w, i, a){ return a.indexOf(w) === i; }).length;
-  S.words.sessions.push({date:todayISO(), asked:W.words.length, words:distinct,
+  S.words.sessions.push({date:todayISO(), list:(activeList() || {}).id,
+                         asked:W.words.length, words:distinct,
                          right:W.right, firstTime:W.firstTime});
   if(S.words.sessions.length > 60) S.words.sessions = S.words.sessions.slice(-60);
   save();
@@ -1163,9 +1164,21 @@ function toast(msg){
   clearTimeout(_toastT);
   _toastT = setTimeout(function(){ t.classList.remove('on'); }, 2200);
 }
+// Has she already finished a sitting on this list today? Keyed to the list,
+// because a grown-up pasting this week's words has given her a new task, not
+// more of the one she just completed.
+function finishedToday(){
+  var id = (activeList() || {}).id, t = todayISO();
+  return (S.words.sessions || []).some(function(x){ return x.date === t && x.list === id; });
+}
 function go(s){
-  if(s !== 'day') W = null;
-  screen = s; saying = ''; window.scrollTo(0, 0); render();
+  if(s !== 'day'){ W = null; screen = s; saying = ''; window.scrollTo(0, 0); render(); return; }
+  // Landing on her screen with no session used to render "All done for today",
+  // so a grown-up who pasted the week's list and tapped Back handed her a
+  // screen saying there was nothing to do.
+  screen = s; saying = ''; window.scrollTo(0, 0);
+  if(!W && !finishedToday() && start()) return;
+  render();
 }
 
 /* =========================================================

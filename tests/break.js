@@ -211,9 +211,19 @@ async function main(){
     if(!await alive(page)) bad('into the grown-ups area', 'blank screen');
     await page.evaluate(() => window.__acorn.go('day'));
     if(!await alive(page)) bad('back out of the grown-ups area', 'blank screen');
-    const s = await page.evaluate(() => window.__acorn.session());
-    if(s) bad('back out of the grown-ups area', 'a stale session survived');
-    else ok('leaving ends the session; coming back lands somewhere sane');
+    // Coming back must hand her a word, not a screen saying there is nothing to
+    // do — but it must be a fresh sitting, carrying none of the half-typed
+    // attempt and nothing from a list that may have changed while he was in there.
+    const s = await page.evaluate(() => {
+      const S = window.__acorn.session();
+      return S && {attempt:S.attempt, i:S.i, stage:S.stage,
+                   fromList: S.words.every(w =>
+                     window.__acorn.wordsOf(window.__acorn.activeList()).indexOf(w) >= 0)};
+    });
+    if(!s) bad('back out of the grown-ups area', 'she is left with no sitting at all');
+    else if(s.attempt) bad('back out of the grown-ups area', 'the half-typed attempt survived: ' + s.attempt);
+    else if(!s.fromList) bad('back out of the grown-ups area', 'the sitting holds words from another list');
+    else ok('coming back hands her a fresh sitting (' + JSON.stringify(s) + ')');
     // and she can start again
     await page.evaluate(() => window.__acorn.start());
     if(!await alive(page)) bad('restart after wandering', 'blank screen');

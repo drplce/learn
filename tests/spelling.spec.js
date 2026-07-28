@@ -1333,6 +1333,67 @@ test.describe('reachable without a touchscreen', () => {
   });
 });
 
+test.describe('the grown-ups screen hands her back a word', () => {
+
+  test('pasting this week’s list and tapping Back lands her on a word', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => window.__acorn.go('parent'));
+    await page.locator('#paste').fill('because friend thought beautiful together');
+    await page.locator('#pname2').fill('Week 6');
+    await page.locator('#pasteSave').click();
+    await page.locator('.back').click();
+    // She used to get "All done for today" over a list she had never seen.
+    expect(await page.evaluate(() => !!window.__acorn.session())).toBe(true);
+    await expect(page.locator('.word')).toBeVisible();
+    await expect(page.locator('.headline')).toHaveCount(0);
+    expect(await page.evaluate(() => window.__acorn.wordsOf(window.__acorn.activeList())))
+      .toContain(await page.locator('.word').textContent());
+  });
+
+  test('switching to another saved list lands her on a word from it', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => window.__acorn.go('parent'));
+    await page.locator('[data-list="tricky"]').click();
+    await page.locator('.back').click();
+    expect(await page.evaluate(() => window.__acorn.activeList().id)).toBe('tricky');
+    expect(await page.evaluate(() => !!window.__acorn.session())).toBe(true);
+  });
+
+  test('a sitting she already finished is not silently restarted', async ({page}) => {
+    await open(page, '2026-08-01');
+    await startOn(page, ['rain','boat']);
+    await finishSession(page);
+    const before = await page.evaluate(() => window.__acorn.state.words.sessions.length);
+    await page.evaluate(() => window.__acorn.go('parent'));
+    await page.locator('.back').click();
+    // "All done for today" is the honest answer here, with a way to ask for more.
+    expect(await page.evaluate(() => !!window.__acorn.session())).toBe(false);
+    await expect(page.locator('.headline')).toBeVisible();
+    await expect(page.locator('#again')).toBeVisible();
+    expect(await page.evaluate(() => window.__acorn.state.words.sessions.length)).toBe(before);
+  });
+
+  test('a grown-up looking in mid-word hands her back a sitting, not a dead end', async ({page}) => {
+    await open(page, '2026-08-01');
+    await startOn(page, ['because','friend','thought']);
+    await page.evaluate(() => window.__acorn.go('parent'));       // long-press, then a look around
+    await page.locator('.back').click();
+    expect(await page.evaluate(() => !!window.__acorn.session())).toBe(true);
+    await expect(page.locator('.word, #type')).toHaveCount(1);
+  });
+
+  test('finishing on one list still offers the next list fresh', async ({page}) => {
+    await open(page, '2026-08-01');
+    await startOn(page, ['rain','boat']);
+    await finishSession(page);
+    await page.evaluate(() => window.__acorn.go('parent'));
+    await page.locator('[data-list="tricky"]').click();
+    await page.locator('.back').click();
+    // A different list is a different task, so today's finish does not apply.
+    expect(await page.evaluate(() => !!window.__acorn.session())).toBe(true);
+  });
+});
+
 test.describe('coming back after a break', () => {
 
   test('a month away does not turn into a punishing catch-up session', async ({page}) => {
