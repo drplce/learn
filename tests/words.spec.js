@@ -355,7 +355,7 @@ test.describe('a practice session', () => {
     await page.locator('#wcover').click();
     await page.locator('#wtype').fill('becuase');
     await page.locator('#wcheck').click();
-    await expect(page.locator('.verdict.again')).toBeVisible();
+    await expect(page.locator('.verdict.again')).toHaveText(/So close/);
     await expect(page.locator('.marked u')).not.toHaveCount(0);     // letters to look at
     // Seeing wrong orthography is what sets spelling back, so it is never shown.
     const body = await page.locator('#screen').innerText();
@@ -364,6 +364,18 @@ test.describe('a practice session', () => {
     await expect(page.locator('#wretry')).toHaveCount(0);           // no immediate re-copy
     await expect(page.locator('#wnext')).toBeVisible();
     expect(await page.evaluate(() => window.__acorn.mastery('because').box)).toBe(1);
+  });
+
+  // Marking every letter says only "all of this is wrong", which helps nobody.
+  test('a wild guess shows the word plainly instead of marking it all wrong', async ({page}) => {
+    await open(page, '2026-07-28');
+    await startOn(page, ['because','rain','boat']);
+    await page.locator('#wcover').click();
+    await page.locator('#wtype').fill('zzqq');
+    await page.locator('#wcheck').click();
+    await expect(page.locator('.verdict.again')).toHaveText(/Here it is/);
+    await expect(page.locator('.marked')).toHaveCount(0);           // no all-underlined word
+    await expect(page.locator('.bigword')).toHaveText('because');
   });
 
   test('a missed word comes back later in the same session, from memory', async ({page}) => {

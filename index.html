@@ -1408,15 +1408,19 @@
       const hit = matchedTargetIndices(W.attempt, word);
       const marked = word.split('').map((c,i) => hit.has(i) ? '<b>' + esc(c) + '</b>' : '<u>' + esc(c) + '</u>').join('');
       const more = (W.i + 1 < W.words.length) || W.requeue.length;
+      // Marking every letter tells her nothing except "all of this is wrong".
+      // If she was nowhere near, show the word plainly instead — and don't say
+      // "nearly" when she wasn't.
+      const close = word.length ? hit.size / word.length >= .5 : false;
       // Only ever the correct spelling on screen. Her own misspelling is not
       // shown back to her — seeing wrong orthography is the one thing that
       // measurably sets spelling back.
       body = '<div class="verdict ' + (ok ? 'ok' : 'again') + '">'
            +   (ok ? (W.tries > 1 || W.failed.indexOf(word) >= 0 ? 'You got there.' : 'Yes — that’s it.')
-                   : 'Nearly. Look at these letters.')
+                   : close ? 'So close. Look at these letters.' : 'Here it is. Have a good look.')
            + '</div>'
-           + (ok ? '<div class="bigword">' + esc(word) + '</div>'
-                 : '<div class="marked">' + marked + '</div>')
+           + (ok || !close ? '<div class="bigword">' + esc(word) + '</div>'
+                           : '<div class="marked">' + marked + '</div>')
            + sylRow
            + '<button class="hearbtn" id="whear">' + SPK + 'Hear it</button>'
            + (!ok ? '<div class="wmeta" style="margin:1.1rem 0 0">You’ll see this one again in a moment.</div>' : '')
