@@ -914,6 +914,23 @@ function render(){
   if(screen === 'parent') renderParent();
   else if(W) renderWord();
   else renderDone();
+  restoreFocus();
+}
+// Focus follows the render: the spelling box when there is one, otherwise the
+// action, otherwise whatever the first control is — the finished screen offers
+// only a quiet button, and dropping to the top of the document there would
+// leave a keyboard user hunting for it. Touch users get none of this: a focus
+// ring appearing from nowhere is only noise.
+function restoreFocus(){
+  var inp = el('#type');
+  if(inp){
+    inp.focus({preventScroll:true});
+    inp.setSelectionRange(inp.value.length, inp.value.length);
+    return;
+  }
+  if(!_kbd) return;
+  var go = el('#screen .primary') || el('#screen button');
+  if(go) go.focus({preventScroll:true});
 }
 // Her header: the wordmark (press and hold for grown-ups) and today's progress.
 function header(done, total){
@@ -1000,9 +1017,6 @@ function renderWord(){
   }
 
   el('#screen').innerHTML = dots + body;
-  var inp = el('#type');
-  if(inp){ inp.focus({preventScroll:true}); inp.setSelectionRange(inp.value.length, inp.value.length); }
-  else if(_kbd && el('.primary')) el('.primary').focus({preventScroll:true});
 }
 
 function renderDone(){

@@ -1295,6 +1295,35 @@ test.describe('reachable without a touchscreen', () => {
     expect([...reachable].join(' ')).toMatch(/cover/);
   });
 
+  test('driven by keyboard, focus is never dropped to the document', async ({page}) => {
+    await open(page, '2026-08-01');
+    await startOn(page, ['rain','boat']);
+    // Keyboard only. A tap deliberately turns this off — a focus ring
+    // appearing from nowhere on a touchscreen is only noise — so a test that
+    // clicks would be testing the touch path instead.
+    const landed = [];
+    for(let i = 0; i < 14; i++){
+      const stage = await page.evaluate(() =>
+        window.__acorn.session() ? window.__acorn.session().stage : 'done');
+      if(stage === 'done') break;
+      if(stage === 'write'){
+        const w = await page.evaluate(() => { const s = window.__acorn.session(); return s.words[s.i]; });
+        await page.keyboard.type(w);
+        await page.keyboard.press('Enter');
+      }else{
+        for(let t = 0; t < 8; t++){
+          if(/primary/.test(await page.evaluate(() => document.activeElement.className || ''))) break;
+          await page.keyboard.press('Tab');
+        }
+        await page.keyboard.press('Enter');
+      }
+      landed.push(await page.evaluate(() => document.activeElement.tagName));
+    }
+    // The finished screen offers only a quiet button; it still takes focus.
+    landed.push(await page.evaluate(() => document.activeElement.tagName));
+    expect(landed).not.toContain('BODY');
+  });
+
   test('the finished screen says where she is up to', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['rain','boat']);

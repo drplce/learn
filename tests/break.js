@@ -391,6 +391,88 @@ async function main(){
     await ctx.close();
   }
 
+  // ---- 15. a whole session with no touchscreen at all
+  {
+    console.log('\n15. keyboard only, no taps');
+    const {page, ctx, errs} = await fresh(browser, '2026-08-01');
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'w1', name:'T', words:['rain','boat','light']}];
+      a.state.words.activeId = 'w1'; a.state.words.mastery = {}; a.state.words.sessions = [];
+      a.save(); a.go('day'); a.start();
+    });
+    let stuck = null, steps = 0;
+    for(; steps < 40; steps++){
+      const st = await page.evaluate(() => {
+        const s = window.__acorn.session();
+        return {stage: s && s.stage, focus: document.activeElement.id || document.activeElement.className};
+      });
+      if(!st.stage) break;
+      if(st.stage === 'write'){
+        if(!await page.evaluate(() => document.activeElement.id === 'type')){
+          stuck = 'the spelling box does not take focus (focus was ' + st.focus + ')'; break;
+        }
+        const w = await page.evaluate(() => { const s = window.__acorn.session(); return s.words[s.i]; });
+        await page.keyboard.type(w);
+        await page.keyboard.press('Enter');
+        continue;
+      }
+      let reached = false;
+      for(let t = 0; t < 8 && !reached; t++){
+        if(/primary/.test(await page.evaluate(() => document.activeElement.className || ''))) reached = true;
+        else await page.keyboard.press('Tab');
+      }
+      if(!reached){ stuck = 'could not reach the action by Tab at the ' + st.stage + ' stage'; break; }
+      await page.keyboard.press('Enter');
+    }
+    if(stuck) bad('keyboard only', stuck);
+    else ok('a whole session finishes with no taps at all (' + steps + ' steps)');
+    const done = await page.evaluate(() => ({
+      sessions: window.__acorn.state.words.sessions.length,
+      boxes: Object.values(window.__acorn.state.words.mastery).map(m => m.box)}));
+    if(done.sessions !== 1 || done.boxes.length !== 3)
+      bad('keyboard only', 'the session did not record: ' + JSON.stringify(done));
+    else ok('and it records exactly as a tapped one does');
+    // The finished screen must not drop her back to the top of the document.
+    const landed = await page.evaluate(() => document.activeElement.tagName);
+    if(landed === 'BODY') bad('keyboard only', 'focus is lost on the finished screen');
+    else ok('focus lands on a control when the session ends (' + landed + ')');
+    if(errs.length) bad('keyboard only', errs.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 16. every control reachable, and labelled, on every screen
+  {
+    console.log('\n16. nothing unreachable or unlabelled');
+    const {page, ctx, errs} = await fresh(browser, '2026-08-01');
+    for(const [where, stage] of [['day','look'], ['day','write'], ['day','check'], ['parent','-']]){
+      await page.evaluate(o => {
+        const a = window.__acorn;
+        a.state.words.lists = [{id:'w1', name:'T', words:['because','rain','boat']}];
+        a.state.words.activeId = 'w1';
+        a.state.words.mastery = {said:{right:1, wrong:4, box:1, lastSeen:'2026-07-31'}};
+        a.save();
+        if(o.where === 'parent'){ a.go('parent'); return; }
+        a.go('day'); a.start();
+        if(o.stage === 'write') a.cover();
+        if(o.stage === 'check'){ a.cover(); a.type('becuase'); a.check(); }
+      }, {where, stage});
+      const problems = await page.evaluate(() =>
+        [...document.querySelectorAll('#app button, #app input, #app textarea')].map(el => {
+          const name = (el.getAttribute('aria-label') || el.textContent || el.placeholder || '').trim();
+          const r = el.getBoundingClientRect();
+          if(!r.width || !r.height) return null;
+          if(!name) return (el.id || el.className || el.tagName) + ' has no accessible name';
+          if(el.tabIndex < 0) return name + ' cannot be reached by Tab';
+          return null;
+        }).filter(Boolean));
+      if(problems.length) bad('screen ' + where + '/' + stage, problems.join('; '));
+    }
+    if(!fails.length) ok('every control on every screen is named and tabbable');
+    if(errs.length) bad('control audit', errs.join(' | '));
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));
