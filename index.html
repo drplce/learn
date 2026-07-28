@@ -379,7 +379,9 @@ function parseWordList(text){
   return String(text || '')
     .split(/[\s,;]+/)
     .map(function(w){ return w.replace(/^[\d]+[.)]?/, '').replace(/[^A-Za-z'\-]/g, '').toLowerCase(); })
-    .filter(function(w){ return w.length >= 2; })
+    // Two letters up to the longest word a child would be set — anything
+    // longer came from pasting something that wasn't a word list.
+    .filter(function(w){ return w.length >= 2 && w.length <= 24; })
     .filter(function(w, i, a){ return a.indexOf(w) === i; });
 }
 
@@ -686,6 +688,8 @@ function word(){ return W && W.words[W.i]; }
 function check(){
   var w = word();
   W.attempt = (el('#type') ? el('#type').value : W.attempt) || '';
+  // An empty box isn't an attempt — a fumbled tap must not cost her a word.
+  if(!W.attempt.trim()){ toast('Have a go — type what you hear.'); return; }
   W.tries++;
   var ok = sameWord(W.attempt, w);
   var firstAsk = W.asked.indexOf(w) < 0;

@@ -156,6 +156,32 @@ test.describe('getting it wrong', () => {
     await expect(page.locator('#next')).toBeVisible();            // no immediate re-copy
   });
 
+  test('an empty box is not an attempt and costs her nothing', async ({page}) => {
+    await open(page, '2026-07-28');
+    await startOn(page, ['because','rain','boat']);
+    await page.locator('#cover').click();
+    await page.locator('#check').click();
+    // still on the same word, nothing recorded against it
+    await expect(page.locator('#type')).toBeVisible();
+    await expect(page.locator('.verdict')).toHaveCount(0);
+    expect(await page.evaluate(() => window.__acorn.mastery('because')))
+      .toMatchObject({right:0, wrong:0, box:1});
+    // and blank-tapping through cannot walk the session at all
+    for(let i = 0; i < 10; i++) await page.locator('#check').click();
+    expect(await page.evaluate(() => window.__acorn.session().i)).toBe(0);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
+  test('spaces alone are not an attempt either', async ({page}) => {
+    await open(page, '2026-07-28');
+    await startOn(page, ['rain']);
+    await page.locator('#cover').click();
+    await page.locator('#type').fill('   ');
+    await page.locator('#check').click();
+    await expect(page.locator('.verdict')).toHaveCount(0);
+    expect(await page.evaluate(() => window.__acorn.mastery('rain').wrong)).toBe(0);
+  });
+
   test('a wild guess shows the word plainly rather than marking it all wrong', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['because','rain','boat']);
@@ -187,14 +213,6 @@ test.describe('getting it wrong', () => {
     expect(m.box).toBe(1);                                        // no penalty, no advance
   });
 
-  test('an empty answer is treated as a miss, not a crash', async ({page}) => {
-    await open(page, '2026-07-28');
-    await startOn(page, ['rain','boat','light']);
-    await page.locator('#cover').click();
-    await page.locator('#check').click();
-    await expect(page.locator('.verdict.again')).toBeVisible();
-    expect(errorsOf(page)).toEqual([]);
-  });
 });
 
 test.describe('finishing', () => {
@@ -574,6 +592,13 @@ test.describe('her own list', () => {
     const out = await page.evaluate(() => window.__acorn.parseWordList(
       '1. because\n2) friend\n- thought,  through\n\nENOUGH  together'));
     expect(out).toEqual(['because','friend','thought','through','enough','together']);
+  });
+
+  test('drops anything too long to be a spelling word', async ({page}) => {
+    await open(page, '2026-07-28');
+    const out = await page.evaluate(() =>
+      window.__acorn.parseWordList('because, ' + 'z'.repeat(300) + ', rain'));
+    expect(out).toEqual(['because','rain']);
   });
 
   test('drops duplicates and single letters', async ({page}) => {
