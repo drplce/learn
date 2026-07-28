@@ -6,14 +6,17 @@ test.describe('syllable splitting', () => {
 
   // Splits the built-in lists use are hand-checked in the app; this splitter
   // only has to serve pasted school words. These are the cases it must get right.
+  // Checked against Longman LDOCE4 and Oxford Advanced Learner's 7th.
   const MUST = {
     happen:'hap·pen', water:'wa·ter', robot:'ro·bot', open:'o·pen',
-    mother:'mo·ther', teacher:'tea·cher',                       // digraph never split
+    mother:'moth·er', teacher:'teach·er', singer:'sing·er', brother:'broth·er', // suffix after a digraph
     neighbour:'neigh·bour', pocket:'pock·et',                   // coda digraph closes the syllable
     table:'ta·ble', little:'lit·tle', apple:'ap·ple', castle:'cas·tle',
+    summer:'sum·mer',                                           // doubled consonant is not a suffix boundary
     centre:'cen·tre', metre:'me·tre',                           // consonant + re is a syllable
     afraid:'a·fraid', between:'be·tween', display:'dis·play',   // onset blends lead
     basket:'bas·ket', listen:'lis·ten', island:'is·land', question:'ques·tion',  // s closes it
+    lion:'li·on',                                               // two vowels, two sounds
     station:'sta·tion', division:'di·vi·sion', beautiful:'beau·ti·ful',
     winter:'win·ter', rabbit:'rab·bit', magnet:'mag·net', tomorrow:'to·mor·row'
   };
@@ -57,12 +60,24 @@ test.describe('syllable splitting', () => {
 
   test('built-in lists use their hand-checked splits, not the splitter', async ({page}) => {
     await open(page, '2026-07-28');
-    // "february" would never come out as Feb·ru·ar·y algorithmically
     const parts = await page.evaluate(() => {
       window.__acorn.state.words.activeId = 'tricky';
       return window.__acorn.activeList().words['february'];
     });
-    expect(parts).toBe('Feb·ru·ar·y');
+    // Longman and Oxford both keep "-ary" whole; no dictionary splits off a lone final y
+    expect(parts).toBe('Feb·ru·ary');
+  });
+
+  // Known limitation, kept visible rather than hidden: after a SHORT vowel the
+  // dictionaries break after the consonant (hon·est, sev·en, cit·y); after a
+  // long one they break before it (o·pen, ro·bot, wa·ter). Spelling alone can't
+  // tell the two apart, so the splitter always chooses the long-vowel form.
+  // The built-in lists are hand-checked, so this only affects pasted words.
+  test('the short-vowel split is the documented known miss', async ({page}) => {
+    await open(page, '2026-07-28');
+    const got = await page.evaluate(() => ['honest','seven','lemon','city']
+      .map(w => window.__acorn.syllables(w).join('·')));
+    expect(got).toEqual(['ho·nest','se·ven','le·mon','ci·ty']);   // dictionary: hon·est, sev·en, lem·on, cit·y
   });
 });
 
@@ -401,6 +416,42 @@ test.describe('voice choice', () => {
     expect(out.plainAU).toBeGreaterThan(out.gb);
     expect(out.gb).toBeGreaterThan(out.us);
     expect(out.compact).toBeLessThan(out.plainAU);
+  });
+
+  test('novelty and robotic voices are filtered out of the list', async ({page}) => {
+    await open(page, '2026-07-28');
+    const kept = await page.evaluate(() => {
+      // stand in for what macOS actually hands back
+      const fake = [
+        {name:'Albert',            lang:'en-US', voiceURI:'1'},
+        {name:'Bad News',          lang:'en-US', voiceURI:'2'},
+        {name:'Bells',             lang:'en-US', voiceURI:'3'},
+        {name:'Bubbles',           lang:'en-US', voiceURI:'4'},
+        {name:'Bahh',              lang:'en-US', voiceURI:'5'},
+        {name:'Zarvox',            lang:'en-US', voiceURI:'6'},
+        {name:'Matilda (Premium)', lang:'en-AU', voiceURI:'7'},
+        {name:'Karen',             lang:'en-AU', voiceURI:'8'},
+        {name:'Daniel',            lang:'en-GB', voiceURI:'9'}
+      ];
+      speechSynthesis.getVoices = () => fake;
+      return window.__acorn.englishVoices().map(v => v.name);
+    });
+    expect(kept).toEqual(['Matilda (Premium)', 'Karen', 'Daniel']);
+  });
+
+  test('a downloaded Premium Australian voice is chosen automatically', async ({page}) => {
+    await open(page, '2026-07-28');
+    const best = await page.evaluate(() => {
+      speechSynthesis.getVoices = () => [
+        {name:'Albert',            lang:'en-US', voiceURI:'1'},
+        {name:'Daniel',            lang:'en-GB', voiceURI:'2'},
+        {name:'Karen',             lang:'en-AU', voiceURI:'3'},
+        {name:'Matilda (Premium)', lang:'en-AU', voiceURI:'4'}
+      ];
+      window.__acorn.state.settings.voice = null;
+      return window.__acorn.offerVoices().map(v => v.name);
+    });
+    expect(best[0]).toBe('Matilda (Premium)');
   });
 
   test('a chosen voice is remembered across a reload', async ({page}) => {

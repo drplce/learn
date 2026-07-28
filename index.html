@@ -209,6 +209,46 @@
   .pbar{height:.6rem; border-radius:.3rem; background:var(--line); overflow:hidden; margin:0 0 1.6rem;}
   .pbar i{display:block; height:100%; background:var(--acc); border-radius:.3rem; transition:width .6s var(--ease);}
 
+  /* ---------- book chat ---------- */
+  .chat{display:flex; flex-direction:column; gap:.8rem; margin-bottom:1.2rem;}
+  .bub{
+    max-width:min(30ch,88%); padding:.85rem 1.05rem; border-radius:1.2rem; line-height:1.65;
+  }
+  .bub.them{
+    align-self:flex-start; background:var(--surface-2); border:1px solid var(--line);
+    border-bottom-left-radius:.4rem;
+  }
+  .bub.me{
+    align-self:flex-end; background:var(--acc-soft); color:var(--acc);
+    border-bottom-right-radius:.4rem;
+  }
+  @media (prefers-color-scheme:dark){ .bub.me{color:var(--ink);} }
+  .bub .spk{
+    display:block; margin-top:.4rem; font-size:.8rem; font-weight:700; color:var(--ink-soft);
+  }
+  .thinking{align-self:flex-start; display:flex; gap:.3rem; padding:1rem 1.1rem;}
+  .thinking i{
+    width:.5rem; height:.5rem; border-radius:50%; background:var(--line-2);
+    animation:blink 1.4s infinite both;
+  }
+  .thinking i:nth-child(2){animation-delay:.2s}
+  .thinking i:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,80%,100%{opacity:.3}40%{opacity:1}}
+  .saybox{display:flex; gap:.6rem; align-items:flex-end;}
+  .saybox textarea{
+    flex:1; min-height:3.4rem; max-height:8rem; padding:.8rem .9rem; border-radius:1rem;
+    background:var(--surface-2); border:1px solid var(--line-2); line-height:1.6; resize:none;
+  }
+  .saybox button{
+    flex:none; width:3.4rem; height:3.4rem; border-radius:1rem; display:flex;
+    align-items:center; justify-content:center; background:var(--acc); color:var(--acc-ink);
+  }
+  .saybox button.mic{background:var(--surface-2); color:var(--acc); border:1px solid var(--line-2);}
+  .saybox button.mic.on{background:var(--retry); color:#fff; border-color:transparent;}
+  .saybox button svg{width:1.4rem; height:1.4rem;}
+  .saybox button[disabled]{opacity:.45;}
+  .chaterr{color:var(--retry); font-size:.95rem; margin:.6rem 0; max-width:34ch;}
+
   /* ---------- parent area ---------- */
   .sect{margin-bottom:1.8rem;}
   .sect h2{font-size:.78rem; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:.8rem;}
@@ -469,9 +509,24 @@
      which matters because tapping a word to hear it is the core of
      the Words module. See README for the higher-quality options.
      --------------------------------------------------------------- */
+  // macOS and iOS list their novelty voices (Albert, Bells with actual bell
+  // sounds, Bubbles, Zarvox…) and the robotic Eloquence family alongside the
+  // real ones, all tagged English. getVoices() is the only list the browser
+  // gives us, so the filtering has to happen here.
+  const NOVELTY = /\b(albert|bad news|bahh|bells|boing|bubbles|cellos|deranged|good news|hysterical|jester|junior|kathy|organ|princess|ralph|superstar|trinoids|whisper|wobble|zarvox|grandma|grandpa|rocko|sandy|shelley|reed|flo|eddy|bruce|fred|agnes|vicki|victoria|maged|zuzana)\b/i;
+
   function englishVoices(){
-    try{ return (speechSynthesis.getVoices() || []).filter(v => /^en([-_]|$)/i.test(v.lang || '')); }
-    catch(e){ return []; }
+    try{
+      return (speechSynthesis.getVoices() || []).filter(v =>
+        /^en([-_]|$)/i.test(v.lang || '') && !NOVELTY.test(v.name || ''));
+    }catch(e){ return []; }
+  }
+  // What the parent picker offers: her own accent first, then near neighbours.
+  // Other English accents only appear if the phone has nothing closer.
+  function offerVoices(){
+    const all = englishVoices().slice().sort((a,b) => voiceScore(b) - voiceScore(a));
+    const near = all.filter(v => /^en-(AU|GB|NZ)/i.test(v.lang));
+    return (near.length >= 3 ? near : near.concat(all.filter(v => near.indexOf(v) < 0))).slice(0, 6);
   }
   // Higher is better. Names are the only reliable quality signal exposed to the web.
   function voiceScore(v){
@@ -482,7 +537,7 @@
     if(/^en-AU/i.test(v.lang)) s += 30;                                     // her own accent first
     else if(/^en-(GB|NZ)/i.test(v.lang)) s += 18;
     else if(/^en-(IE|ZA)/i.test(v.lang)) s += 8;
-    if(/karen|matilda|catherine|lee|tina|serena|kate|google uk/i.test(n)) s += 10;
+    if(/matilda|karen|catherine|lee|tina|serena|kate|google uk/i.test(n)) s += 10;
     if(/compact|eloquence|espeak/i.test(n)) s -= 50;                        // the robotic fallbacks
     if(v.default) s += 2;
     return s;
@@ -633,15 +688,15 @@
       because:'be·cause', friend:'friend', people:'peo·ple', beautiful:'beau·ti·ful',
       different:'dif·fer·ent', thought:'thought', through:'through', enough:'e·nough',
       together:'to·geth·er', favourite:'fa·vour·ite', straight:'straight', height:'height',
-      business:'busi·ness', february:'Feb·ru·ar·y', separate:'sep·a·rate', government:'gov·ern·ment'}},
+      business:'busi·ness', february:'Feb·ru·ary', separate:'sep·a·rate', government:'gov·ern·ment'}},
     {id:'tionsion', name:'-tion and -sion', words:{
       station:'sta·tion', question:'ques·tion', action:'ac·tion', attention:'at·ten·tion',
       direction:'di·rec·tion', invention:'in·ven·tion', division:'di·vi·sion', decision:'de·ci·sion',
       television:'tel·e·vi·sion', explosion:'ex·plo·sion', discussion:'dis·cus·sion', permission:'per·mis·sion'}},
     {id:'aussie', name:'Australian spellings', words:{
       colour:'col·our', favour:'fa·vour', neighbour:'neigh·bour', harbour:'har·bour',
-      realise:'re·al·ise', organise:'or·gan·ise', recognise:'rec·og·nise', centre:'cen·tre',
-      metre:'me·tre', theatre:'the·a·tre', travelled:'trav·elled', licence:'li·cence',
+      realise:'real·ise', organise:'or·gan·ise', recognise:'rec·og·nise', centre:'cen·tre',
+      metre:'me·tre', theatre:'thea·tre', travelled:'trav·elled', licence:'li·cence',
       practise:'prac·tise', jewellery:'jew·el·lery'}},
     {id:'silent', name:'Silent letters', words:{
       knee:'knee', knife:'knife', know:'know', wrist:'wrist', write:'write', wrong:'wrong',
@@ -662,13 +717,35 @@
   // s-clusters deliberately excluded: medially the s closes the syllable before it
   // (bas·ket, lis·ten, is·land, ques·tion), even though they open a word fine.
   const ONSET_BLENDS = ['bl','br','cl','cr','dr','fl','fr','gl','gr','pl','pr','tr','tw','thr','shr'];
+  // Vowel pairs that make a single sound, so must never be split apart.
+  const VOWEL_DIGRAPHS = ['ai','ay','ea','ee','ei','ey','ie','oa','oe','oi','oo','ou','ow','oy',
+                          'ue','ui','au','aw','eu','ew','ya','ye','yo'];
 
   // A teaching-style splitter for words we don't have a hand-checked split for.
   // English syllabification has no exact rule set, so this aims for readable
   // chunks rather than dictionary correctness — see the tests for real accuracy.
+  // A suffix after a consonant digraph is its own syllable: moth·er, teach·er,
+  // sing·er. Deliberately narrow — a general "-er is a suffix" rule would turn
+  // wa·ter into wat·er, and English orthography gives no way to tell the two
+  // apart without knowing whether the stem vowel is long.
+  const SUFFIXES = ['er','est','ing','ly','ful','ness','less','ment','able','ible'];
+  function suffixSplit(s){
+    for(const suf of SUFFIXES){
+      if(s.length <= suf.length + 3 || !s.endsWith(suf)) continue;
+      const stem = s.slice(0, -suf.length);
+      if(DIGRAPHS.indexOf(stem.slice(-2)) < 0) continue;      // digraph stems only
+      return [stem, suf];
+    }
+    return null;
+  }
+
   function syllables(word){
     const s = String(word || '').toLowerCase().replace(/[^a-z']/g, '');
     if(s.length <= 3) return s ? [s] : [];
+
+    const suf = suffixSplit(s);
+    if(suf) return syllables(suf[0]).concat([suf[1]]);
+
     const isV = (c, i) => 'aeiou'.indexOf(c) >= 0 || (c === 'y' && i > 0);
 
     // vowel groups are the syllable nuclei
@@ -678,8 +755,21 @@
         let j = i;
         while(j + 1 < s.length && isV(s[j+1], j+1)) j++;
         // 'u' after 'q' is part of the consonant, not a nucleus
-        if(!(s[i] === 'u' && i > 0 && s[i-1] === 'q' && j > i)) groups.push([i, j]);
-        else groups.push([i+1, j]);
+        let a = i;
+        if(s[i] === 'u' && i > 0 && s[i-1] === 'q' && j > i) a = i + 1;
+        // A run of vowels is usually one sound (rain, boat) but sometimes two
+        // (li·on, qui·et). Split the pairs that aren't digraphs — while keeping
+        // the -tion / -sion / -cial family intact, which is the whole point of
+        // one of the built-in lists.
+        let start = a;
+        for(let k = a; k < j; k++){
+          const pair = s.slice(k, k+2);
+          const before = s[k-1] || '', after = s[k+2] || '';
+          const oneSound = VOWEL_DIGRAPHS.indexOf(pair) >= 0
+                        || ('tscx'.indexOf(before) >= 0 && 'nl'.indexOf(after) >= 0);
+          if(!oneSound){ groups.push([start, k]); start = k + 1; }
+        }
+        groups.push([start, j]);
         i = j;
       }
     }
@@ -1092,7 +1182,7 @@
     const info = streakInfo(S.reading.log, todayISO());
     const longest = Math.max(S.reading.longest||0, longestRun(S.reading.log));
     const scales = [['Smaller',.9],['Normal',1],['Large',1.15],['Larger',1.3],['Largest',1.5]];
-    const voiceList = englishVoices().slice().sort((a,b) => voiceScore(b) - voiceScore(a)).slice(0, 8);
+    const voiceList = offerVoices();
     const chosen = pickVoice();
     const tints  = [['cream','#FBF6EC'],['peach','#FBF0E8'],['mint','#EDF6F0'],['blue','#EDF2F8'],['grey','#F2F1EE']];
 
@@ -1154,11 +1244,12 @@
       +   '<div class="field"><label>Voice</label><div class="seg" id="segVoice">'
       +     (voiceList.length
               ? voiceList.map(v => '<button data-voice="' + esc(v.voiceURI) + '" aria-pressed="'
-                  + (chosen && chosen.voiceURI === v.voiceURI) + '">' + esc(v.name.replace(/\s*\(.*\)$/, ''))
+                  // keep a "(Premium)" / "(Enhanced)" suffix — that is the part worth seeing
+                  + (chosen && chosen.voiceURI === v.voiceURI) + '">' + esc(v.name.replace(/\s*\((?!premium|enhanced)[^)]*\)\s*$/i, ''))
                   + ' <span style="opacity:.6">' + esc((v.lang||'').replace('_','-')) + '</span></button>').join('')
               : '<span class="hint">Tap anything that speaks once, then come back — the phone only lists its voices after the first bit of speech.</span>')
-      +   '</div><div class="hint">Tap one to hear it. On an iPhone, Settings → Accessibility → Spoken Content → Voices '
-      +   'lets you download a much better “Enhanced” or “Premium” Australian voice, which then appears here.</div></div>'
+      +   '</div><div class="hint">Australian voices first. Novelty voices (Bells, Bubbles, Zarvox and friends) are filtered out. '
+      +   'A downloaded “Premium” or “Enhanced” voice — Matilda is the good Australian one — is picked automatically.</div></div>'
       + '</div>'
 
       + '<div class="sect"><h2>Text size</h2><div class="seg" id="segScale">'
@@ -1377,7 +1468,8 @@
     startWords: startWords, checkWord: checkWord, nextWord: nextWord,
     session: function(){ return W && {words:W.words.slice(), i:W.i, stage:W.stage, tries:W.tries, right:W.right, firstTime:W.firstTime}; },
     setAttempt: function(v){ if(W) W.attempt = v; },
-    voiceScore: voiceScore, BOX_DAYS: BOX_DAYS, MASTER_BOX: MASTER_BOX, SESSION_LEN: SESSION_LEN
+    voiceScore: voiceScore, englishVoices: englishVoices, offerVoices: offerVoices,
+    BOX_DAYS: BOX_DAYS, MASTER_BOX: MASTER_BOX, SESSION_LEN: SESSION_LEN
   };
 
   load();

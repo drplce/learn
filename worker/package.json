@@ -1,0 +1,16 @@
+{
+  "name": "acorn-chat-worker",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Cloudflare Worker that holds the Anthropic API key and the system prompt for Acorn's 'talk about your book' feature. The app itself never sees either.",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.70.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

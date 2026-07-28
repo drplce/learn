@@ -1,0 +1,11 @@
+name = "acorn-chat"
+main = "worker.js"
+compatibility_date = "2026-07-01"
+
+[vars]
+# Only this origin may call the Worker. Set it to the app's URL before deploying.
+ALLOWED_ORIGIN = "https://drplce.github.io"
+
+# Secrets are NOT set here — they would end up in git. Set them with:
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put APP_TOKEN
