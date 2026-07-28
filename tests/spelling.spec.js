@@ -805,6 +805,101 @@ test.describe('voices', () => {
   });
 });
 
+test.describe('reachable without a touchscreen', () => {
+
+  test('the app has a heading', async ({page}) => {
+    await open(page, '2026-07-28');
+    await expect(page.locator('h1')).toHaveText('Acorn');
+  });
+
+  test('the syllables are buttons, labelled and focusable', async ({page}) => {
+    await open(page, '2026-07-28');
+    await startOn(page, ['because']);
+    const syls = page.locator('.syl');
+    await expect(syls).toHaveCount(2);
+    expect(await syls.first().evaluate(n => n.tagName)).toBe('BUTTON');
+    await expect(syls.first()).toHaveAttribute('aria-label', 'Hear be');
+    await syls.first().focus();
+    expect(await page.evaluate(() => document.activeElement.className)).toContain('syl');
+  });
+
+  test('the tricky-word chips are buttons too', async ({page}) => {
+    await open(page, '2026-07-28');
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.mastery = {said:{right:1, wrong:4, box:2, lastSeen:'2026-07-27'}};
+      a.save(); a.go('parent');
+    });
+    const chip = page.locator('.chip').first();
+    expect(await chip.evaluate(n => n.tagName)).toBe('BUTTON');
+    await expect(chip).toHaveAttribute('aria-label', 'Hear said');
+  });
+
+  test('the verdict is announced, spelt out letter by letter', async ({page}) => {
+    await open(page, '2026-07-28');
+    await startOn(page, ['because','rain','boat']);
+    await page.locator('#cover').click();
+    await page.locator('#type').fill('becuase');
+    await page.locator('#check').click();
+    const said = await page.locator('#say').textContent();
+    expect(said).toContain('So close');
+    expect(said).toContain('b e c a u s e');
+  });
+
+  test('the word is never announced while she is writing it', async ({page}) => {
+    await open(page, '2026-07-28');
+    await startOn(page, ['because']);
+    await page.locator('#cover').click();
+    const said = await page.locator('#say').textContent();
+    expect(said).not.toContain('because');
+    expect(said).not.toContain('b e c a u s e');
+    expect(said).toMatch(/write it/);
+  });
+
+  test('the live region exists before anything renders into it', async ({page}) => {
+    await open(page, '2026-07-28');
+    const live = await page.locator('#say').evaluate(n => ({
+      role: n.getAttribute('role'), live: n.getAttribute('aria-live'),
+      inScreen: !!n.closest('#screen')}));
+    // Inside #screen it would be destroyed on every render and never announce.
+    expect(live).toEqual({role:'status', live:'polite', inScreen:false});
+  });
+
+  test('a repeated announcement is still re-read', async ({page}) => {
+    await open(page, '2026-07-28');
+    const seen = await page.evaluate(() => {
+      const a = window.__acorn, n = document.querySelector('#say');
+      a.announce('Same thing'); const first = n.textContent;
+      a.announce('Same thing'); const second = n.textContent;
+      return [first, second];
+    });
+    expect(seen[0].trim()).toBe('Same thing');
+    expect(seen[1]).not.toBe(seen[0]);
+  });
+
+  test('tabbing reaches every control on the word screen', async ({page}) => {
+    await open(page, '2026-07-28');
+    await startOn(page, ['because']);
+    const reachable = new Set();
+    for(let i = 0; i < 8; i++){
+      await page.keyboard.press('Tab');
+      reachable.add(await page.evaluate(() =>
+        document.activeElement.id || document.activeElement.className || document.activeElement.tagName));
+    }
+    expect([...reachable].join(' ')).toMatch(/syl/);
+    expect([...reachable].join(' ')).toMatch(/hear/);
+    expect([...reachable].join(' ')).toMatch(/cover/);
+  });
+
+  test('the finished screen says where she is up to', async ({page}) => {
+    await open(page, '2026-07-28');
+    await startOn(page, ['rain','boat']);
+    await finishSession(page);
+    expect(await page.locator('#say').textContent()).toMatch(/words known well/);
+    await expect(page.locator('.pbar')).toHaveAttribute('aria-label', /per cent of this list/);
+  });
+});
+
 test.describe('robustness', () => {
 
   test('corrupt stored data does not stop the app loading', async ({page}) => {

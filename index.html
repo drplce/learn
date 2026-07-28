@@ -203,6 +203,10 @@ main{flex:1;}
 .stamp{display:block; text-align:center; font-size:var(--t-xs); letter-spacing:.1em;
        color:var(--ink-soft); opacity:.6; margin-top:var(--s6);}
 
+/* Visible to a screen reader, not to the eye. */
+.sr{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+    clip:rect(0 0 0 0); white-space:nowrap; border:0;}
+
 /* ---------- toast ---------- */
 #toast{position:fixed; left:50%; bottom:calc(var(--s5) + env(safe-area-inset-bottom));
        transform:translateX(-50%); padding:var(--s3) var(--s4); border-radius:var(--r-md);
@@ -221,6 +225,7 @@ main{flex:1;}
   <div class="bar" id="bar"></div>
   <main id="screen"></main>
 </div>
+<p id="say" class="sr" role="status" aria-live="polite"></p>
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -814,6 +819,21 @@ function withName(s){
 var SPK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         + '<path d="M11 5 6.5 9H3.5v6h3L11 19V5Z"/><path d="M15.5 9.2a4 4 0 0 1 0 5.6"/><path d="M18.4 6.6a8 8 0 0 1 0 10.8"/></svg>';
 
+// The one live region in the app. It exists in the document from the start,
+// because a region created inside fresh innerHTML is not reliably announced.
+var _said = '';
+function announce(text){
+  var n = el('#say');
+  if(!n) return;
+  n.textContent = (text === _said ? text + ' ' : text);   // nudge a repeat so it is re-read
+  _said = n.textContent;
+}
+// Only move focus for someone driving by keyboard; on a touchscreen a focus
+// ring appearing out of nowhere is just noise.
+var _kbd = false;
+addEventListener('keydown', function(e){ if(e.key === 'Tab') _kbd = true; }, true);
+addEventListener('pointerdown', function(){ _kbd = false; }, true);
+
 function applySettings(){
   var r = document.documentElement;
   r.style.setProperty('--scale', S.settings.textScale || 1);
@@ -830,7 +850,7 @@ function header(done, total){
   var bar = (done != null && total)
     ? '<span class="daybar" role="status" aria-label="' + done + ' of ' + total + ' words done">'
       + '<i style="width:' + Math.round(100 * Math.min(done, total) / total) + '%"></i></span>' : '';
-  el('#bar').innerHTML = '<span class="wordmark" id="wordmark"><b>Acorn</b></span><span class="sp"></span>' + bar;
+  el('#bar').innerHTML = '<h1 class="wordmark" id="wordmark">Acorn</h1><span class="sp"></span>' + bar;
 }
 
 function renderWord(){
@@ -846,7 +866,8 @@ function renderWord(){
   // A one-syllable word needs no syllable row — it would just repeat itself.
   var sylRow = parts.length > 1
     ? '<div class="syls">' + parts.map(function(p){
-        return '<span class="syl" data-syl="' + esc(p) + '">' + esc(p) + '</span>'; }).join('') + '</div>'
+        return '<button class="syl" data-syl="' + esc(p) + '" aria-label="Hear ' + esc(p)
+             + '">' + esc(p) + '</button>'; }).join('') + '</div>'
     : '';
   var hear = '<button class="hear" id="hear">' + SPK + 'Hear it</button>';
   var body;
@@ -854,6 +875,7 @@ function renderWord(){
   var wl = ' style="--wl:' + w.length + '"';
 
   if(W.stage === 'look'){
+    announce('Look at this word: ' + w + '. ' + w.split('').join(' ') + '.');
     body = '<div class="word"' + wl + '>' + esc(w) + '</div>' + sylRow
          // Saying it aloud and tracing it are free wins, and neither is checked,
          // so there is no way for them to go wrong.
@@ -863,6 +885,8 @@ function renderWord(){
   }
   else if(W.stage === 'write'){
     var fresh = W.shown.indexOf(w) < 0 && W.failed.indexOf(w) < 0;
+    // Never the word itself here — announcing it would give the spelling away.
+    announce(fresh ? 'Listen, then write it.' : 'Now write it from memory.');
     body = '<div class="note">' + (fresh ? 'Listen, then write it.' : 'Now write it from memory.') + '</div>'
          + '<input class="spellin" id="type" type="text" inputmode="text" autocomplete="off" '
          +   'autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" '
@@ -879,12 +903,14 @@ function renderWord(){
     var marks = w.split('').map(function(c, i){
       return m.hit[i] ? '<b>' + esc(c) + '</b>' : '<u>' + esc(c) + '</u>'; }).join('');
     var more = (W.i + 1 < W.words.length) || W.requeue.length;
-    body = '<div class="verdict ' + (ok ? 'ok' : 'again') + '">'
-         +   (ok ? (W.failed.indexOf(w) >= 0 ? 'You got there.' : 'Yes — that’s it.')
-                 : close ? (w.length - m.count === 1 ? 'So close. Look at this letter.'
-                                                     : 'So close. Look at these letters.')
-                         : 'Here it is. Have a good look.')
-         + '</div>'
+    var verdict = ok ? (W.failed.indexOf(w) >= 0 ? 'You got there.' : 'Yes — that’s it.')
+                : close ? (w.length - m.count === 1 ? 'So close. Look at this letter.'
+                                                    : 'So close. Look at these letters.')
+                        : 'Here it is. Have a good look.';
+    // Spelt out letter by letter: a screen reader would otherwise read the word
+    // as a word and never convey the spelling, which is the whole point here.
+    announce(verdict + ' ' + w + '. ' + w.split('').join(' ') + '.');
+    body = '<div class="verdict ' + (ok ? 'ok' : 'again') + '">' + verdict + '</div>'
          // Only ever the correct spelling on screen. Seeing her own misspelling
          // is the one thing that measurably sets spelling back.
          + (ok || !close ? '<div class="word"' + wl + '>' + esc(w) + '</div>'
@@ -900,21 +926,26 @@ function renderWord(){
   el('#screen').innerHTML = dots + body;
   var inp = el('#type');
   if(inp){ inp.focus({preventScroll:true}); inp.setSelectionRange(inp.value.length, inp.value.length); }
+  else if(_kbd && el('.primary')) el('.primary').focus({preventScroll:true});
 }
 
 function renderDone(){
   var list = activeList(), all = wordsOf(list), known = knownCount(list);
   var pct = all.length ? Math.round(100 * known / all.length) : 0;
+  var head = saying || 'All done for today';
+  var count = all.length ? known + ' of ' + all.length + ' words known well'
+                         : 'No words yet. A grown-up can add her list.';
   header();
+  announce(head + ' ' + count);
   el('#screen').innerHTML =
-      (saying ? '<div class="headline" style="color:var(--good)">' + esc(saying) + '</div>'
-              : '<div class="headline">All done for today</div>')
+      '<div class="headline"' + (saying ? ' style="color:var(--good)"' : '') + '>' + esc(head) + '</div>'
     + '<div class="tick" aria-hidden="true">✓</div>'
+    + '<div class="note">' + esc(count) + '</div>'
     + (all.length
-        ? '<div class="note">' + known + ' of ' + all.length + ' words known well</div>'
-          + '<div class="pbar"><i style="width:' + pct + '%"></i></div>'
+        ? '<div class="pbar" role="img" aria-label="' + pct + ' per cent of this list known well">'
+          + '<i style="width:' + pct + '%"></i></div>'
           + '<button class="quiet" id="again">Practise a bit more</button>'
-        : '<div class="note">No words yet. A grown-up can add her list.</div>');
+        : '');
 }
 
 function renderParent(){
@@ -943,7 +974,8 @@ function renderParent(){
 
     + (tricky.length
       ? '<div class="sect"><h2>Still tricky</h2><div class="chips">'
-        + tricky.map(function(w){ return '<span class="chip" data-hear="' + esc(w) + '">' + esc(w) + '</span>'; }).join('')
+        + tricky.map(function(w){ return '<button class="chip" data-hear="' + esc(w)
+              + '" aria-label="Hear ' + esc(w) + '">' + esc(w) + '</button>'; }).join('')
         + '</div><div class="hint">Tap one to hear it. These come back most often.</div></div>'
       : '')
 
@@ -1007,13 +1039,13 @@ function renderParent(){
 
     + '<div class="sect"><h2>Background</h2><div class="seg">'
     +   tints.map(function(t){ return '<button class="swatch" data-tn="' + t[0] + '" style="background:'
-          + t[1] + '" aria-pressed="' + ((S.settings.tint||'cream') === t[0]) + '" aria-label="' + t[0] + '"></button>'; }).join('')
+          + t[1] + '" aria-pressed="' + ((S.settings.tint||'cream') === t[0]) + '" aria-label="' + t[0] + ' background"></button>'; }).join('')
     + '</div><div class="hint">A tint some readers find easier. Light mode only.</div></div>'
 
     + '<div class="sect"><h2>Backup</h2>'
     +   '<button class="quiet" id="copy">Copy her progress</button>'
     +   '<div class="hint">Copies everything as text you can paste somewhere safe.</div>'
-    +   '<button class="quiet danger" id="reset" style="margin-top:.9rem">Erase everything</button>'
+    +   '<button class="quiet danger" id="reset" style="margin-top:var(--s3)">Erase everything</button>'
     + '</div>'
     + '<span class="stamp" id="stamp">Build ' + esc(VERSION) + '</span>';
 }
@@ -1171,7 +1203,7 @@ window.__acorn = {
   newWordsToday: newWordsToday, poolCap: poolCap, stageFor: stageFor,
   allLists: allLists, activeList: activeList, wordsOf: wordsOf,
   englishVoices: englishVoices, offerVoices: offerVoices, voiceScore: voiceScore,
-  start: start, check: check, next: next, paceLabel: paceLabel,
+  start: start, check: check, next: next, paceLabel: paceLabel, announce: announce,
   // Enough of a handle to drive a whole session from a script — the
   // simulations in tests/sim.js run the real flow, not a copy of it.
   reset: function(){ localStorage.removeItem(KEY); load(); },
