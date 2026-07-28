@@ -35,6 +35,15 @@ name it.
 - **She stays in the sweet spot:** difficulty auto-tunes to ~80% success.
 
 ## 3. Tech & hosting (reused from Goal Girls)
+_Reference app: `drplce/crush` (single `index.html`; the app is titled "Goal Girls").
+Patterns to lift directly: the PWA meta shell (`viewport-fit=cover`, `user-scalable=no`,
+`apple-mobile-web-app-capable`, status-bar style, `theme-color`); the iOS audio-unlock
+trick (`audioCtx()`/`unlockAudio()` on first user tap — Acorn adds a matching
+`speechSynthesis` unlock); the Web Audio tone engine for chimes; the `try/catch`
+localStorage save/load; the deploy-bumped build-version stamp in the menu; and the
+paste-in JSON import pattern (used there for "Copy game", here for the weekly spelling
+list). Note: crush has **no test harness** — Acorn's Playwright rig is fresh work._
+
 - Single `index.html`, inline CSS/JS, no build step.
 - State in `localStorage`; installable PWA (add to home screen), works offline.
 - Hosted on GitHub Pages, own repo.
@@ -106,8 +115,15 @@ without standing up a backend and without any secret in the public app code.
 - **Calm mechanics:** short sessions (~10–15 questions), no countdown; a gentle chime
   and a growing "correct in a row" that never scolds. Wrong → soft "try again", then
   show the answer with its visual.
-- **Parent sets the starting point** (e.g. "working on 6/7/8×") so it's neither
-  babyish nor overwhelming.
+- **Self-calibrating (deploy then let the data find the level).** Seed the full 2–12
+  fact set, but pre-place the easy anchors (×1, ×2, ×5, ×10, squares, commutative twins)
+  in higher Leitner boxes so they surface rarely; the ~80%-success targeting discovers
+  her real level from her own answers within a session or two. Australian Curriculum
+  context: all facts to 10×10 + related division become automatic in **Year 4**, so the
+  likely sticking points are the hard middle facts (**6/7/8**, and 11/12 beyond the
+  10×10 grid).
+- **Parent starting point is an optional nudge, not required setup** (e.g. "working on
+  6/7/8×") — handy to skip babyish facts on day one, but the app converges without it.
 
 ### C. Words (spelling + read-aloud)
 - **Method:** classic **look → cover → write → check**. Hear the word (speech), see it
