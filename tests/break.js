@@ -483,6 +483,56 @@ async function main(){
     await ctx.close();
   }
 
+  // ---- 17. typing with the software keyboard up
+  {
+    console.log('\n17. the keyboard eating the screen');
+    const ctx = await browser.newContext({viewport:{width:375, height:667}, deviceScaleFactor:2});
+    const page = await ctx.newPage();
+    const errs = [];
+    page.on('pageerror', e => errs.push(String(e)));
+    await page.goto('file://' + require('path').resolve(__dirname, '..', 'index.html'));
+    await page.waitForFunction(() => !!window.__acorn);
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.setToday('2026-08-01'); a.state.settings.textScale = 1.5;
+      a.state.words.lists = [{id:'w1', name:'T', words:['because','friend','thought']}];
+      a.state.words.activeId = 'w1'; a.state.words.mastery = {}; a.state.words.sessions = [];
+      a.save(); a.go('parent'); a.go('day'); a.cover();
+    });
+    // The keyboard sliding up and down, repeatedly, mid-word.
+    let worst = null;
+    for(const h of [360, 300, 240, 200, 300, 667, 240, 667]){
+      await page.setViewportSize({width:375, height:h});
+      await page.waitForTimeout(60);
+      await page.locator('#type').fill('becau');
+      const m = await page.evaluate(() => {
+        const vh = window.innerHeight, main = document.querySelector('main');
+        const acts = [...document.querySelectorAll('#act button')];
+        const box = document.querySelector('#type');
+        const br = box && box.getBoundingClientRect(), mr = main.getBoundingClientRect();
+        return {box: !!br && br.top >= mr.top - 1 && br.bottom <= mr.bottom + 1,
+                below: acts.filter(x => x.getBoundingClientRect().bottom > vh + 1).length,
+                small: acts.filter(x => { const r = x.getBoundingClientRect();
+                                          return r.width < 44 || r.height < 44; }).length,
+                typed: box && box.value};
+      });
+      if(!m.box) worst = worst || ('at ' + h + 'px the box she types into is off screen');
+      if(m.below) worst = worst || ('at ' + h + 'px an action is below the fold');
+      if(m.small) worst = worst || ('at ' + h + 'px an action is under 44px');
+      if(m.typed !== 'becau') worst = worst || ('at ' + h + 'px her half-typed word was lost');
+    }
+    if(worst) bad('the keyboard eating the screen', worst);
+    else ok('the box and the action survive the keyboard sliding up and down');
+    // and she can still finish the word
+    await page.locator('#type').fill('because');
+    await page.locator('#check').click();
+    if(!await page.locator('.verdict.ok').count()) bad('keyboard', 'could not finish the word');
+    else ok('and she can still finish it');
+    if(errs.length) bad('keyboard', errs.join(' | '));
+    await page.screenshot({path: OUT + '/break-17-keyboard.png'});
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));

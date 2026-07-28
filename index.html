@@ -83,7 +83,8 @@ h1,h2{line-height:1.3; letter-spacing:0; margin:0; font-weight:700;}
 
 #app{max-width:34rem; margin:0 auto;
      padding:calc(var(--s4) * var(--ornament)) var(--s4);
-     height:100vh; height:100dvh; display:flex; flex-direction:column;}
+     height:100vh; height:100dvh; height:var(--vh, 100dvh);
+     display:flex; flex-direction:column;}
 /* The content scrolls inside itself so the action below it can never be
    scrolled away from. At the larger text sizes — which is who this app is for —
    the column is taller than the phone, and the one button she needs sat up to
@@ -256,6 +257,27 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
        z-index:30; opacity:0; pointer-events:none; transition:opacity .3s var(--ease);
        max-width:88vw; text-align:center;}
 #toast.on{opacity:.96;}
+
+/* The software keyboard takes half the screen, and at the larger text sizes that
+   left the box she is typing into entirely off screen — she would have been
+   spelling blind. This cannot be a height media query: rem in a media query
+   resolves against the initial font size, not her chosen one, and on iOS the
+   keyboard does not change the layout viewport at all. data-tight is set from
+   visualViewport, measured against the real root font size. Scoped to the
+   writing stage — on the grown-ups screen this would hide the way back out. */
+:root[data-tight][data-stage=write] .bar,
+:root[data-tight][data-stage=write] .dots,
+:root[data-tight][data-stage=write] .note{ display:none; }
+:root[data-tight][data-stage=write] .spellin{ padding:var(--s2); }
+:root[data-cramped][data-stage=write] .spellin{ font-size:var(--t-lg); letter-spacing:.08em; }
+/* Landscape with a keyboard up leaves almost nothing. The action keeps a real
+   44px target but stops scaling with her text, and the page padding tightens,
+   so the box she is typing into still has somewhere to be. */
+:root[data-cramped][data-stage=write] #act .primary{
+  min-height:calc(var(--tap) * var(--ornament)); font-size:var(--t-md); padding:0 var(--s3); }
+:root[data-cramped][data-stage=write] #act .hear{
+  min-height:calc(var(--tap) * var(--ornament)); }
+:root[data-cramped][data-stage=write] #app{ padding-top:0; padding-bottom:var(--s1); }
 
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms!important; transition-duration:.001ms!important;}
@@ -944,13 +966,39 @@ var _kbd = false;
 addEventListener('keydown', function(e){ if(e.key === 'Tab') _kbd = true; }, true);
 addEventListener('pointerdown', function(){ _kbd = false; }, true);
 
+/* The visual viewport is what the software keyboard changes; on iOS the layout
+   viewport and 100dvh both stay put. Following it keeps the footer above the
+   keyboard, and tells the stylesheet how little room is left — measured against
+   her actual root font size, because that is what decides whether the box fits. */
+function fitViewport(){
+  var vv = window.visualViewport;
+  var h = Math.round(vv ? vv.height : window.innerHeight);
+  var r = document.documentElement;
+  if(!h) return;
+  r.style.setProperty('--vh', h + 'px');
+  var em = parseFloat(getComputedStyle(r).fontSize) || 16;
+  // 20em is what the writing screen needs with everything on it; 13em is what it
+  // needs with the box and the action alone. Both measured, not guessed.
+  if(h < 20 * em) r.setAttribute('data-tight', ''); else r.removeAttribute('data-tight');
+  if(h < 13 * em) r.setAttribute('data-cramped', ''); else r.removeAttribute('data-cramped');
+}
+if(window.visualViewport){
+  visualViewport.addEventListener('resize', fitViewport);
+  visualViewport.addEventListener('scroll', fitViewport);
+}
+addEventListener('resize', fitViewport);
+addEventListener('orientationchange', fitViewport);
+
 function applySettings(){
   var r = document.documentElement;
   r.style.setProperty('--scale', S.settings.textScale || 1);
   r.setAttribute('data-tint', S.settings.tint || 'cream');
+  fitViewport();                      // her text size changes what will fit
 }
 function render(){
   applySettings();
+  document.documentElement.setAttribute('data-stage',
+    screen === 'parent' ? 'parent' : W ? W.stage : 'done');
   if(screen === 'parent') renderParent();
   else if(W) renderWord();
   else renderDone();

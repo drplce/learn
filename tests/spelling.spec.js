@@ -1097,6 +1097,109 @@ test.describe('she never has to scroll to answer', () => {
   });
 });
 
+test.describe('with the software keyboard up', () => {
+
+  // The keyboard takes half the screen and this is where she spends most of her
+  // time. On iOS it does not change the layout viewport at all, so the app
+  // follows visualViewport; these tests stand in for that by shrinking the
+  // viewport to what is left.
+  const LEFTOVER = [
+    ['a phone with the keyboard up',       375, 360],
+    ['a big accessibility keyboard',       375, 300],
+    ['a very big keyboard',                375, 260],
+    ['landscape with the keyboard up',     667, 200],
+    ['a taller phone, keyboard up',        390, 370],
+    ['a taller phone, big keyboard',       390, 310],
+  ];
+
+  for(const [name, w, h] of LEFTOVER){
+    for(const scale of [0.9, 1, 1.25, 1.5]){
+      test(`${name} at ${scale}x still shows the box and the action`, async ({page}) => {
+        await open(page, '2026-08-01');
+        await page.setViewportSize({width:w, height:h});
+        await page.evaluate(s2 => {
+          const a = window.__acorn;
+          a.state.settings.textScale = s2;
+          a.state.words.lists = [{id:'w1', name:'T', words:['because','friend','thought']}];
+          a.state.words.activeId = 'w1'; a.state.words.mastery = {}; a.state.words.sessions = [];
+          a.save(); a.go('parent'); a.go('day'); a.cover();
+        }, scale);
+        const m = await page.evaluate(() => {
+          const vh = window.innerHeight, main = document.querySelector('main');
+          const acts = [...document.querySelectorAll('#act button')];
+          const box = document.querySelector('#type');
+          const br = box.getBoundingClientRect(), mr = main.getBoundingClientRect();
+          return {
+            boxVisible: br.top >= mr.top - 1 && br.bottom <= mr.bottom + 1,
+            boxHeight: Math.round(br.height),
+            below: acts.filter(x => x.getBoundingClientRect().bottom > vh + 1).length,
+            tooSmall: acts.filter(x => { const r = x.getBoundingClientRect();
+                                         return r.width < 44 || r.height < 44; })
+                          .map(x => x.id + ' ' + Math.round(x.getBoundingClientRect().height)),
+          };
+        });
+        // She must be able to see what she is typing.
+        expect(m.boxVisible, 'the spelling box is cut off').toBe(true);
+        expect(m.boxHeight).toBeGreaterThan(30);
+        expect(m.below, 'an action is below the fold').toBe(0);
+        // Tap targets hold at 44px even when everything else gives way.
+        expect(m.tooSmall).toEqual([]);
+      });
+    }
+  }
+
+  test('what gives way, gives way in the right order', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.settings.textScale = 1.5;
+      a.state.words.lists = [{id:'w1', name:'T', words:['because','friend']}];
+      a.state.words.activeId = 'w1'; a.state.words.mastery = {}; a.state.words.sessions = [];
+      a.save(); a.go('parent'); a.go('day'); a.cover();
+    });
+    // setViewportSize resolves before the resize handler has run, so wait for
+    // the mode to settle rather than reading straight away.
+    const settle = async want => page.waitForFunction(w => {
+      const r = document.documentElement;
+      const mode = r.hasAttribute('data-cramped') ? 'cramped'
+                 : r.hasAttribute('data-tight') ? 'tight' : 'roomy';
+      return mode === w;
+    }, want, {timeout:3000});
+    const seen = async () => page.evaluate(() => ({
+      mode: document.documentElement.hasAttribute('data-cramped') ? 'cramped'
+          : document.documentElement.hasAttribute('data-tight') ? 'tight' : 'roomy',
+      header: !!document.querySelector('.bar')?.getBoundingClientRect().height,
+      dots: !!document.querySelector('.dots')?.getBoundingClientRect().height,
+      note: !!document.querySelector('.note')?.getBoundingClientRect().height,
+      box: !!document.querySelector('#type')?.getBoundingClientRect().height,
+    }));
+    await page.setViewportSize({width:375, height:667});
+    await settle('roomy');
+    expect(await seen()).toEqual({mode:'roomy', header:true, dots:true, note:true, box:true});
+    // Tight: the wordmark, the dots and the instruction step aside. The box stays.
+    await page.setViewportSize({width:375, height:360});
+    await settle('tight');
+    expect(await seen()).toEqual({mode:'tight', header:false, dots:false, note:false, box:true});
+    // Cramped: the controls stop scaling with her text, still 44px. The box stays.
+    await page.setViewportSize({width:375, height:240});
+    await settle('cramped');
+    expect(await seen()).toEqual({mode:'cramped', header:false, dots:false, note:false, box:true});
+  });
+
+  test('a scarce screen never hides the way out of the grown-ups area', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.setViewportSize({width:375, height:240});
+    await page.evaluate(() => {
+      window.__acorn.state.settings.textScale = 1.5;
+      window.__acorn.save(); window.__acorn.go('parent');
+    });
+    // The tight rules are scoped to the writing stage for exactly this reason.
+    await expect(page.locator('.back')).toBeVisible();
+    const r = await page.locator('.back').boundingBox();
+    expect(r.height).toBeGreaterThanOrEqual(44);
+  });
+});
+
 test.describe('a long word stays whole', () => {
 
   // Half a word on each line teaches the wrong shape, so it shrinks instead.
