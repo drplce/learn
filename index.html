@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<title>Acorn</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Acorn">
+<meta name="theme-color" content="#FBF6EC" media="(prefers-color-scheme:light)">
+<meta name="theme-color" content="#22242A" media="(prefers-color-scheme:dark)">
+<meta name="description" content="A calm daily practice app — reading, maths and words.">
+<style>
+  /* ---------------------------------------------------------------
+     Acorn — dyslexia-friendly by default.
+     Cream surface, dark-slate (never black) ink, large well-spaced
+     type, short lines, left-aligned. One task per screen.
+     --------------------------------------------------------------- */
+  :root{
+    --surface:#FBF6EC; --surface-2:#FFFDF7; --ink:#3B4149; --ink-soft:#6E747C;
+    --line:rgba(59,65,73,.14); --line-2:rgba(59,65,73,.26);
+    --acc:#35705A; --acc-ink:#FFFFFF; --acc-soft:#E4EFE8;
+    --good:#3F7D63; --retry:#B4703A;
+    --acorn:#A87445; --acorn-2:#8A5E36;      /* the fruit — its own colour, not the "try again" one */
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"Helvetica Neue",sans-serif;
+    --scale:1;          /* driven by settings.textScale */
+    --shadow:0 1px 2px rgba(59,65,73,.05), 0 6px 18px rgba(59,65,73,.06);
+    --ease:cubic-bezier(.22,.61,.36,1);
+  }
+  /* Background tints — some readers find a specific tint easier. */
+  [data-tint="peach"]{--surface:#FBF0E8;--surface-2:#FFF8F2;}
+  [data-tint="mint"] {--surface:#EDF6F0;--surface-2:#F7FCF9;}
+  [data-tint="blue"] {--surface:#EDF2F8;--surface-2:#F8FAFD;}
+  [data-tint="grey"] {--surface:#F2F1EE;--surface-2:#FAFAF8;}
+
+  @media (prefers-color-scheme:dark){
+    :root{
+      --surface:#22242A; --surface-2:#2A2D34; --ink:#E8E3D9; --ink-soft:#A9A49B;
+      --line:rgba(232,227,217,.13); --line-2:rgba(232,227,217,.26);
+      --acc:#7CC0A2; --acc-ink:#14231C; --acc-soft:#2C3A34;
+      --good:#7CC0A2; --retry:#DCA173;
+      --acorn:#C08A56; --acorn-2:#9C6E42;
+      --shadow:0 1px 2px rgba(0,0,0,.2), 0 6px 18px rgba(0,0,0,.24);
+    }
+    /* tints are a light-mode comfort setting; dark mode stays warm-neutral */
+    [data-tint]{--surface:#22242A;--surface-2:#2A2D34;}
+  }
+
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html{
+    -webkit-text-size-adjust:100%; text-size-adjust:100%;   /* stop iOS inflating text on rotate */
+    /* rem here resolves against the browser's own base size, so the OS/browser
+       text-size setting is respected and our control scales on top of it. */
+    font-size:calc(1.0625rem * var(--scale));
+  }
+  html,body{margin:0; min-height:100%; background:var(--surface);}
+  body{
+    color:var(--ink); font-family:var(--sans);
+    line-height:1.7; letter-spacing:.01em; word-spacing:.06em;
+    text-align:left;                                        /* never justified */
+    -webkit-font-smoothing:antialiased;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  button,input,textarea,select{font:inherit; color:inherit; letter-spacing:inherit;}
+  button{border:0; background:none; cursor:pointer; touch-action:manipulation;}
+  h1,h2,h3{line-height:1.3; letter-spacing:0; margin:0; font-weight:700;}
+
+  #app{max-width:34rem; margin:0 auto; padding:1.1rem 1.1rem 2.5rem; min-height:100vh; display:flex; flex-direction:column;}
+  main{flex:1;}
+
+  /* ---------- header ---------- */
+  .bar{display:flex; align-items:center; gap:.7rem; min-height:2.8rem; margin-bottom:1.4rem;}
+  .wordmark{font-size:.82rem; font-weight:800; letter-spacing:.18em; text-transform:uppercase; color:var(--ink-soft);}
+  .wordmark b{color:var(--acc);}
+  .bar .sp{flex:1;}
+  .iconbtn{
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:2.9rem; min-height:2.9rem; border-radius:1rem; color:var(--ink-soft);
+    border:1px solid transparent;
+  }
+  .iconbtn:active{background:var(--surface-2); border-color:var(--line);}
+  .back{gap:.4rem; padding:0 .9rem; font-size:.95rem; font-weight:600; color:var(--ink-soft);}
+
+  /* ---------- home ---------- */
+  .greet{margin:0 0 1.6rem; max-width:26ch;}
+  .greet h1{font-size:1.55rem;}
+  .greet p{margin:.35rem 0 0; color:var(--ink-soft); font-size:1rem;}
+
+  .cards{display:flex; flex-direction:column; gap:.85rem;}
+  .card{
+    display:flex; align-items:center; gap:1rem; width:100%; text-align:left;
+    min-height:5.4rem; padding:1.1rem 1.15rem; border-radius:1.25rem;
+    background:var(--surface-2); border:1px solid var(--line); box-shadow:var(--shadow);
+    transition:transform .18s var(--ease);
+  }
+  .card:active{transform:scale(.985);}
+  .card .ic{flex:none; display:flex; color:var(--acc);}
+  .card .ic svg{width:1.75rem; height:1.75rem; display:block;}
+  .card.soon .ic{color:var(--ink-soft);}
+  .card .tx{flex:1; min-width:0;}
+  .card .tx b{display:block; font-size:1.15rem; font-weight:700;}
+  .card .tx span{display:block; font-size:.92rem; color:var(--ink-soft); margin-top:.1rem;}
+  .card .chip{
+    flex:none; font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    padding:.3rem .6rem; border-radius:.6rem; background:var(--acc-soft); color:var(--acc);
+  }
+  @media (prefers-color-scheme:dark){ .card .chip{color:var(--ink);} }
+  .card.soon{opacity:.72;}
+  .card.soon .chip{background:transparent; border:1px solid var(--line-2); color:var(--ink-soft);}
+
+  /* ---------- reading screen ---------- */
+  .plantwrap{display:flex; justify-content:center; padding:.2rem 0 .4rem;}
+  .plantwrap svg{width:min(14rem,58vw); height:auto; display:block;}
+  /* the plant eases up out of the soil on the day it grows */
+  #plantGrow{transform-box:view-box; transform-origin:120px 270px;}
+  #plantGrow.grow{animation:sprout 1.2s var(--ease);}
+  @keyframes sprout{
+    from{transform:scaleY(.90) scaleX(.96); opacity:.75;}
+    to{transform:none; opacity:1;}
+  }
+
+  .count{text-align:center; margin:.2rem 0 1.5rem;}
+  .count .n{font-size:2.6rem; font-weight:800; line-height:1.1; letter-spacing:-.01em;}
+  .count .lbl{font-size:1.02rem; color:var(--ink-soft);}
+  .count .sub{font-size:.9rem; color:var(--ink-soft); margin-top:.45rem;}
+
+  .primary{
+    display:flex; align-items:center; justify-content:center; gap:.6rem;
+    width:100%; min-height:4rem; padding:1rem 1.2rem; border-radius:1.25rem;
+    background:var(--acc); color:var(--acc-ink); font-size:1.15rem; font-weight:700;
+    box-shadow:var(--shadow); transition:transform .18s var(--ease);
+  }
+  .primary:active{transform:scale(.985);}
+  .primary.done{
+    background:var(--acc-soft); color:var(--acc); box-shadow:none; border:1px solid var(--line);
+  }
+  @media (prefers-color-scheme:dark){ .primary.done{color:var(--ink);} }
+
+  .quiet{
+    display:block; width:100%; margin-top:.8rem; min-height:3.2rem; border-radius:1rem;
+    color:var(--ink-soft); font-size:.98rem; font-weight:600; border:1px solid var(--line);
+    background:var(--surface-2);
+  }
+  .quiet:active{border-color:var(--line-2);}
+
+  .say{margin:1.15rem 0 0; text-align:center; font-size:1.02rem; color:var(--good);}
+
+  /* note editor */
+  .note{margin-top:1rem; padding:1rem; border-radius:1.1rem; background:var(--surface-2); border:1px solid var(--line);}
+  .note label{display:block; font-size:.86rem; font-weight:700; color:var(--ink-soft); margin:.2rem 0 .35rem;}
+  .note input,.note textarea{
+    width:100%; padding:.75rem .85rem; border-radius:.8rem; background:var(--surface);
+    border:1px solid var(--line-2); line-height:1.6;
+  }
+  .note textarea{min-height:5rem; resize:vertical;}
+  .note .row{display:flex; gap:.6rem; margin-top:.9rem;}
+  .note .row button{flex:1; min-height:3.1rem; border-radius:.9rem; font-weight:700;}
+  .note .row .ok{background:var(--acc); color:var(--acc-ink);}
+  .note .row .no{border:1px solid var(--line-2); color:var(--ink-soft);}
+
+  /* log */
+  .logwrap{margin-top:2rem;}
+  .logwrap h2{font-size:.78rem; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:.7rem;}
+  .entry{padding:.8rem 0; border-top:1px solid var(--line);}
+  .entry .d{font-size:.82rem; color:var(--ink-soft);}
+  .entry .t{font-weight:700; margin-top:.1rem;}
+  .entry .n{margin-top:.15rem; max-width:40ch;}
+
+  /* ---------- parent area ---------- */
+  .sect{margin-bottom:1.8rem;}
+  .sect h2{font-size:.78rem; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:.8rem;}
+  .field{margin-bottom:1.1rem;}
+  .field label{display:block; font-size:.92rem; font-weight:700; margin-bottom:.4rem;}
+  .field .hint{font-size:.85rem; color:var(--ink-soft); margin-top:.35rem; max-width:40ch;}
+  .field input[type=text]{
+    width:100%; padding:.8rem .9rem; border-radius:.9rem; background:var(--surface-2); border:1px solid var(--line-2);
+  }
+  .seg{display:flex; flex-wrap:wrap; gap:.5rem;}
+  .seg button{
+    min-height:3rem; padding:0 1rem; border-radius:.85rem; border:1px solid var(--line-2);
+    background:var(--surface-2); font-weight:600; color:var(--ink-soft);
+  }
+  .seg button[aria-pressed=true]{background:var(--acc); color:var(--acc-ink); border-color:transparent;}
+  .swatch{
+    position:relative; width:3rem; min-height:3rem; border-radius:.85rem; border:2px solid var(--line-2);
+    transition:transform .18s var(--ease);
+  }
+  .swatch[aria-pressed=true]{
+    border-color:var(--acc); box-shadow:0 0 0 3px var(--acc-soft); transform:scale(1.07);
+  }
+  /* a tick, so the chosen tint is unmistakable even between two pale colours */
+  .swatch[aria-pressed=true]::after{
+    content:"✓"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:#35705A; font-size:1.15rem; font-weight:800;
+  }
+  .stats{display:flex; gap:.55rem;}
+  .stat{flex:1 1 0; min-width:0; padding:.8rem .75rem; border-radius:1rem; background:var(--surface-2); border:1px solid var(--line);}
+  .stat b{display:block; font-size:1.45rem; font-weight:800; line-height:1.2;}
+  .stat span{display:block; font-size:.78rem; line-height:1.4; color:var(--ink-soft);}
+  .danger{color:var(--retry); border-color:var(--retry)!important;}
+
+  /* ---------- footer / build stamp ---------- */
+  footer{margin-top:2.4rem; text-align:center;}
+  .stamp{font-size:.72rem; letter-spacing:.1em; color:var(--ink-soft); opacity:.6; padding:.9rem 1.2rem; border-radius:.8rem; user-select:none;}
+  .stamp:active{opacity:1;}
+
+  /* ---------- milestone moment ---------- */
+  .scrim{
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:1.4rem;
+    background:rgba(59,65,73,.42); backdrop-filter:blur(3px); z-index:20;
+    animation:fade .5s var(--ease);
+  }
+  .moment{
+    max-width:22rem; width:100%; padding:1.8rem 1.5rem; border-radius:1.5rem; text-align:center;
+    background:var(--surface-2); border:1px solid var(--line); box-shadow:0 12px 40px rgba(0,0,0,.18);
+    animation:rise .6s var(--ease);
+  }
+  .moment .em{font-size:2.6rem; line-height:1;}
+  .moment h2{font-size:1.35rem; margin:.7rem 0 .5rem;}
+  .moment p{margin:0 auto; max-width:26ch; color:var(--ink-soft);}
+  .moment button{margin-top:1.4rem; width:100%; min-height:3.4rem; border-radius:1rem; background:var(--acc); color:var(--acc-ink); font-weight:700;}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  @keyframes rise{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+
+  /* ---------- toast ---------- */
+  #toast{
+    position:fixed; left:50%; bottom:calc(1.6rem + env(safe-area-inset-bottom)); transform:translateX(-50%);
+    padding:.75rem 1.15rem; border-radius:.9rem; background:var(--ink); color:var(--surface);
+    font-size:.92rem; font-weight:600; z-index:30; opacity:0; pointer-events:none;
+    transition:opacity .3s var(--ease); max-width:88vw;
+  }
+  #toast.on{opacity:.96;}
+
+  .sr{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;}
+
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important; transition-duration:.001ms!important;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="bar" id="bar"></div>
+  <!-- No aria-live here: the whole screen re-renders, and announcing all of it
+       on every render would bury the one line that actually changed. The pieces
+       that matter carry role="status" themselves. -->
+  <main id="screen"></main>
+  <footer>
+    <button class="stamp" id="stamp" aria-label="Build version. Press and hold to open the grown-ups area."></button>
+  </footer>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+  'use strict';
+
+  const VERSION = '1 · reading streak';
+  const KEY = 'acorn.v1';
+
+  /* =========================================================
+     Dates — always LOCAL dates. A 9pm read in Australia must
+     not land on tomorrow's UTC date.
+     ========================================================= */
+  let _todayOverride = null;                       // tests only, via window.__acorn.setToday()
+  function toISO(d){
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function todayISO(){ return _todayOverride || toISO(new Date()); }
+  function parseISO(s){ const p = String(s).split('-').map(Number); return new Date(p[0], p[1]-1, p[2]); }
+  // Whole-day difference a-b. Math.round absorbs 23/25-hour DST days.
+  function dayDiff(a,b){ return Math.round((parseISO(a) - parseISO(b)) / 86400000); }
+  function prettyDate(iso){
+    const d = parseISO(iso), t = todayISO();
+    if(iso === t) return 'Today';
+    if(dayDiff(t, iso) === 1) return 'Yesterday';
+    return d.toLocaleDateString('en-AU', {weekday:'short', day:'numeric', month:'short'});
+  }
+
+  /* =========================================================
+     Streak, with forgiveness.
+     One missed day between two read days is forgiven (a "rest
+     day"); two missed days in a row starts a fresh streak.
+     Losing a long streak is a confidence-killer, so the rule is
+     deliberately generous — and it never expires or runs out.
+     The streak counts DAYS READ, never calendar days spanned,
+     so it can't quietly inflate.
+     ========================================================= */
+  const GRACE = 1;                                 // forgiven missed days between reads
+  const MILESTONES = [7, 30, 100];
+
+  function readDays(log){                          // unique dates, newest first
+    return Array.from(new Set((log||[]).map(e => e.date))).sort().reverse();
+  }
+  function streakInfo(log, today){
+    const days = readDays(log);
+    const readToday = days[0] === today;
+    if(!days.length) return {current:0, rests:0, alive:false, readToday:false};
+    // Today isn't a miss until it's over, so the streak survives a gap of GRACE+1.
+    if(dayDiff(today, days[0]) > GRACE + 1) return {current:0, rests:0, alive:false, readToday:readToday};
+    let count = 1, rests = 0;
+    for(let i=1; i<days.length; i++){
+      const gap = dayDiff(days[i-1], days[i]);
+      if(gap === 1){ count++; }
+      else if(gap === GRACE + 1){ count++; rests++; }   // one day off, forgiven
+      else break;                                       // two or more off — earlier run
+    }
+    return {current:count, rests:rests, alive:true, readToday:readToday};
+  }
+  function longestRun(log){
+    const days = readDays(log).slice().reverse();   // oldest first
+    let best = 0, run = 0;
+    for(let i=0; i<days.length; i++){
+      if(i === 0) run = 1;
+      else { const gap = dayDiff(days[i], days[i-1]); run = (gap === 1 || gap === GRACE+1) ? run+1 : 1; }
+      if(run > best) best = run;
+    }
+    return best;
+  }
+
+  /* =========================================================
+     State
+     ========================================================= */
+  let S;
+  function fresh(){
+    return {
+      profile:  { name:'', mathsLevel:null, createdAt:todayISO() },
+      maths:    { facts:{}, sessions:[] },
+      words:    { lists:[], mastery:{} },
+      reading:  { streak:0, longest:0, freezes:0, milestones:[], log:[] },
+      settings: { textScale:1, tint:'cream', readAloud:true, sound:true, voice:null }
+    };
+  }
+  function load(){
+    try{
+      const raw = localStorage.getItem(KEY);
+      if(raw){
+        const o = JSON.parse(raw);
+        S = fresh();
+        // merge defensively — a stored file from an older build must never crash the app
+        if(o && typeof o === 'object'){
+          Object.assign(S.profile,  o.profile  || {});
+          Object.assign(S.maths,    o.maths    || {});
+          Object.assign(S.words,    o.words    || {});
+          Object.assign(S.reading,  o.reading  || {});
+          Object.assign(S.settings, o.settings || {});
+        }
+        if(!Array.isArray(S.reading.log)) S.reading.log = [];
+        if(!Array.isArray(S.reading.milestones)) S.reading.milestones = [];
+        return;
+      }
+    }catch(e){}
+    S = fresh();
+  }
+  function save(){
+    // streak / longest / freezes are DERIVED from the log; we mirror them into
+    // state so the synced progress.json is readable at a glance (see PLAN §3a).
+    const info = streakInfo(S.reading.log, todayISO());
+    S.reading.streak  = info.current;
+    S.reading.freezes = info.rests;
+    S.reading.longest = Math.max(S.reading.longest || 0, longestRun(S.reading.log));
+    try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){}
+  }
+
+  function markRead(){
+    const t = todayISO();
+    if(S.reading.log.some(e => e.date === t)) return false;   // idempotent — double taps are free
+    S.reading.log.push({date:t});
+    save();
+    return true;
+  }
+  // Notes attach to a day that has already been marked. A note must never be
+  // what silently creates the day — that would tick the streak up with no
+  // "I read today" tap, skipping the affirmation and any milestone moment.
+  function setNote(title, note){
+    const t = todayISO();
+    const e = S.reading.log.find(x => x.date === t);
+    if(!e) return false;
+    title = (title||'').trim(); note = (note||'').trim();
+    if(title) e.title = title; else delete e.title;
+    if(note)  e.note  = note;  else delete e.note;
+    save();
+    return true;
+  }
+
+  /* =========================================================
+     Sound (Web Audio, no asset files) + speech.
+     Both need a real user gesture before iOS will let them play,
+     so every tap runs unlock() first.
+     ========================================================= */
+  let _ac = null;
+  function audioCtx(){
+    try{
+      if(!_ac) _ac = new (window.AudioContext || window.webkitAudioContext)();
+      if(_ac.state === 'suspended') _ac.resume();
+    }catch(e){ _ac = null; }
+    return _ac;
+  }
+  function tone(freq, at, dur, vol){
+    const ac = audioCtx(); if(!ac) return;
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.connect(g); g.connect(ac.destination);
+    o.type = 'sine'; o.frequency.value = freq;
+    const t = ac.currentTime + at;
+    g.gain.setValueAtTime(.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + .03);
+    g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.start(t); o.stop(t + dur + .03);
+  }
+  function chime(name){
+    if(S.settings.sound === false) return;
+    if(name === 'done'){ tone(523.25, 0, .28, .16); tone(783.99, .13, .42, .13); }   // soft rising fifth
+    else if(name === 'milestone'){ tone(523.25,0,.3,.15); tone(659.25,.16,.3,.14); tone(783.99,.32,.6,.13); }
+  }
+
+  let _voice = null, _voiceTried = false;
+  function pickVoice(){
+    if(_voiceTried && _voice) return _voice;
+    try{
+      const vs = speechSynthesis.getVoices() || [];
+      _voice = vs.find(v => v.lang === 'en-AU') || vs.find(v => /^en-(GB|NZ)/.test(v.lang)) || vs.find(v => /^en/.test(v.lang)) || null;
+      if(vs.length) _voiceTried = true;
+    }catch(e){ _voice = null; }
+    return _voice;
+  }
+  function speak(text){
+    if(S.settings.readAloud === false || !text) return;
+    try{
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      const v = pickVoice(); if(v) u.voice = v;
+      u.lang = (v && v.lang) || 'en-AU';
+      u.rate = .95; u.pitch = 1;
+      speechSynthesis.speak(u);
+    }catch(e){}
+  }
+  let _unlocked = false;
+  function unlock(){
+    if(_unlocked) return;
+    _unlocked = true;
+    audioCtx();
+    // iOS only populates voices, and only permits speech, after a gesture.
+    try{ speechSynthesis.getVoices(); }catch(e){}
+    pickVoice();
+  }
+  try{ speechSynthesis.onvoiceschanged = function(){ _voiceTried = false; pickVoice(); }; }catch(e){}
+
+  /* =========================================================
+     The plant. Grows with the streak: a seed, then a sprout that
+     gains height and leaves, then acorns. Slow and soft — the
+     reward is watching it accumulate, not a score.
+     ========================================================= */
+  function bez(p0,p1,p2,p3,t){
+    const m = 1-t, a = m*m*m, b = 3*m*m*t, c = 3*m*t*t, d = t*t*t;
+    return {x: a*p0.x + b*p1.x + c*p2.x + d*p3.x, y: a*p0.y + b*p1.y + c*p2.y + d*p3.y};
+  }
+  // A single acorn hanging off the stem at point pt, on the given side.
+  function acornAt(pt, side){
+    const x = (pt.x + side*8).toFixed(1), y = (pt.y + 6).toFixed(1);
+    return '<g transform="translate('+x+' '+y+')">'
+      +   '<path d="M0 0 q'+(side*9)+' 3 '+(side*11)+' 11" fill="none" stroke="var(--acc)" stroke-width="2" stroke-linecap="round"/>'
+      +   '<g transform="translate('+(side*11)+' 11)">'
+      +     '<ellipse cx="0" cy="10" rx="8.5" ry="10.5" fill="var(--acorn)"/>'
+      +     '<path d="M-9.5 1 Q-9.5 -7 0 -7 Q9.5 -7 9.5 1 Z" fill="var(--acorn-2)"/>'
+      +     '<path d="M0 -7 v-3.5" stroke="var(--acorn-2)" stroke-width="2" stroke-linecap="round"/>'
+      +   '</g>'
+      + '</g>';
+  }
+
+  function plantSVG(streak){
+    const GY = 270;                                        // ground line
+    // a low mound of earth, not a flat plate
+    const soil = '<ellipse cx="120" cy="'+(GY+3)+'" rx="64" ry="6" fill="var(--acc-soft)" opacity=".5"/>'
+               + '<path d="M54 '+GY+' Q120 '+(GY-26)+' 186 '+GY+' Z" fill="var(--acc-soft)"/>';
+
+    if(streak <= 0){                                       // dormant: a seed, ready when she is
+      return '<svg viewBox="0 0 240 300" role="img" aria-label="An acorn resting in the soil, ready to grow.">'
+        + soil
+        + '<g id="plantGrow" opacity=".8">'
+        +   '<ellipse cx="120" cy="256" rx="9" ry="11" fill="var(--acorn)"/>'
+        +   '<path d="M110 247 Q110 239 120 239 Q130 239 130 247 Z" fill="var(--acorn-2)"/>'
+        +   '<path d="M120 239 v-4" stroke="var(--acorn-2)" stroke-width="2" stroke-linecap="round"/>'
+        + '</g></svg>';
+    }
+
+    // Height keeps climbing well past the point the leaves stop multiplying, so
+    // day 12 and day 45 never look like the same plant.
+    const g = Math.min(1, Math.pow(streak/120, .45));
+    const H = 60 + g*195;
+    const p0 = {x:120, y:GY-2},
+          p1 = {x:120 - 18*g, y:GY - H*.42},
+          p2 = {x:120 + 20*g, y:GY - H*.76},
+          p3 = {x:120, y:GY - H};
+    const stem = 'M'+p0.x+' '+p0.y+' C'+p1.x+' '+p1.y+','+p2.x+' '+p2.y+','+p3.x+' '+p3.y;
+
+    const nLeaves = Math.min(12, 1 + Math.floor(streak/3.2));
+    let leaves = '';
+    for(let i=0; i<nLeaves; i++){
+      const t = nLeaves === 1 ? .42 : .20 + .74*(i/(nLeaves-1));
+      const pt = bez(p0,p1,p2,p3,t);
+      const side = i % 2 ? -1 : 1;                         // alternate sides
+      const size = (0.60 + 0.40*(1-t)) * (0.52 + 0.48*g);  // lower leaves bigger
+      const rot = side > 0 ? -26 : -154;
+      leaves += '<g transform="translate('+pt.x.toFixed(1)+' '+pt.y.toFixed(1)+') rotate('+rot+') scale('+size.toFixed(2)+')">'
+             +   '<path d="M0 0 C16 -13 40 -8 48 4 C38 16 14 14 0 0 Z" fill="var(--acc)" opacity=".9"/>'
+             +   '<path d="M3 1 C16 1 34 3 45 4" fill="none" stroke="var(--surface-2)" stroke-width="1.6" opacity=".45"/>'
+             + '</g>';
+    }
+
+    let acorns = '';
+    const nA = streak >= 100 ? 3 : streak >= 60 ? 2 : streak >= 30 ? 1 : 0;
+    const aSpots = [[.52,1],[.66,-1],[.38,-1]];
+    for(let i=0; i<nA; i++) acorns += acornAt(bez(p0,p1,p2,p3,aSpots[i][0]), aSpots[i][1]);
+
+    const label = 'A plant with ' + nLeaves + (nLeaves === 1 ? ' leaf' : ' leaves')
+                + (nA ? ' and ' + nA + (nA === 1 ? ' acorn' : ' acorns') : '')
+                + ', grown from ' + streak + (streak === 1 ? ' day' : ' days') + ' of reading.';
+    return '<svg viewBox="0 0 240 300" role="img" aria-label="' + label + '">'
+      + soil
+      + '<g id="plantGrow"' + (justGrew ? ' class="grow"' : '') + '>'
+      +   '<path d="'+stem+'" fill="none" stroke="var(--acc)" stroke-width="'+(3.4 + 2.6*g).toFixed(1)+'" stroke-linecap="round"/>'
+      +   leaves + acorns
+      + '</g></svg>';
+  }
+
+  /* =========================================================
+     Copy — warm, never scolding, never a score.
+     ========================================================= */
+  const AFFIRM = [
+    'Nice work{n}.', 'That’s another day{n}.', 'Lovely reading{n}.',
+    'Good on you{n}.', 'Every day counts{n}.', 'That’s the way{n}.'
+  ];
+  function withName(s){
+    const n = (S.profile.name||'').trim();
+    return s.replace('{n}', n ? ', ' + n : '');
+  }
+  const MOMENTS = {
+    7:   {em:'\u{1F331}', h:'A whole week', p:'Seven days of reading{n}. That’s a habit taking root.'},
+    30:  {em:'\u{1F33F}', h:'Thirty days',  p:'A full month{n}. Look how much your plant has grown.'},
+    100: {em:'\u{1F333}', h:'One hundred', p:'A hundred days of reading{n}. That is something to be proud of.'}
+  };
+
+  /* =========================================================
+     Render
+     ========================================================= */
+  let screen = 'home';
+  let noteOpen = false;
+  let saying = '';
+  let pendingMoment = null;
+  let justGrew = false;        // set on the tap that marks the day; consumed by the next render
+
+  const ICONS = {
+    read: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<path d="M12 6.6C10.5 5.2 8.6 4.6 6 4.6H3.6v13.8H6c2.6 0 4.5.6 6 2 1.5-1.4 3.4-2 6-2h2.4V4.6H18c-2.6 0-4.5.6-6 2Z"/><path d="M12 6.6v13.8"/></svg>',
+    // a 3x3 array — the same representation the maths module will use for multiplication
+    maths:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'
+        + [5,12,19].map(y => [5,12,19].map(x => '<circle cx="'+x+'" cy="'+y+'" r="2.1"/>').join('')).join('') + '</svg>',
+    words:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<path d="M20.4 12.2c0 3.5-3.6 6.4-8 6.4-1 0-2-.15-2.9-.42L5 20.4l1.2-3.2c-1.3-1.2-2.2-2.9-2.2-5 0-3.5 3.6-6.4 8-6.4s8.4 2.9 8.4 6.4Z"/>'
+        + '<path d="M8.6 12.3h6.8M10.2 9.4h3.6"/></svg>'
+  };
+
+  const el = s => document.querySelector(s);
+  const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  function applySettings(){
+    const r = document.documentElement;
+    r.style.setProperty('--scale', S.settings.textScale || 1);
+    r.setAttribute('data-tint', S.settings.tint || 'cream');
+  }
+
+  function render(){
+    applySettings();
+    el('#stamp').textContent = 'Build ' + VERSION.split(' ')[0];
+    if(screen === 'home')   renderHome();
+    if(screen === 'read')   renderRead();
+    if(screen === 'parent') renderParent();
+    renderMoment();
+    justGrew = false;              // one-shot: the growth animation plays once
+  }
+
+  function renderHome(){
+    const info = streakInfo(S.reading.log, todayISO());
+    const n = (S.profile.name||'').trim();
+    const h = new Date().getHours();
+    const part = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+    el('#bar').innerHTML = '<span class="wordmark"><b>Acorn</b></span><span class="sp"></span>';
+    el('#screen').innerHTML =
+        '<div class="greet"><h1>' + part + (n ? ', ' + esc(n) : '') + '</h1>'
+      +   '<p>' + (info.readToday
+            ? 'You’ve read today. Nothing else is needed.'
+            : 'One small thing today: read for a little while.') + '</p></div>'
+      + '<div class="cards">'
+      +   '<button class="card" data-go="read">'
+      +     '<span class="ic">' + ICONS.read + '</span>'
+      +     '<span class="tx"><b>Read</b><span>' + (info.current > 0 ? info.current + (info.current === 1 ? ' day' : ' days') + ' so far' : 'Start your streak') + '</span></span>'
+      +     '<span class="chip">' + (info.readToday ? 'Done' : 'Today') + '</span>'
+      +   '</button>'
+      +   '<button class="card soon" data-soon="Maths">'
+      +     '<span class="ic">' + ICONS.maths + '</span>'
+      +     '<span class="tx"><b>Maths</b><span>Times tables</span></span>'
+      +     '<span class="chip">Soon</span>'
+      +   '</button>'
+      +   '<button class="card soon" data-soon="Words">'
+      +     '<span class="ic">' + ICONS.words + '</span>'
+      +     '<span class="tx"><b>Words</b><span>Spelling, out loud</span></span>'
+      +     '<span class="chip">Soon</span>'
+      +   '</button>'
+      + '</div>';
+  }
+
+  function renderRead(){
+    const t = todayISO();
+    const info = streakInfo(S.reading.log, t);
+    const today = S.reading.log.find(e => e.date === t);
+    const longest = Math.max(S.reading.longest||0, longestRun(S.reading.log));
+
+    let sub = '';
+    if(info.current === 0 && S.reading.log.length) sub = 'Longest so far: ' + longest + ' days. A fresh start is fine.';
+    else if(info.rests === 1) sub = '1 rest day along the way — that’s fine.';
+    else if(info.rests > 1)   sub = info.rests + ' rest days along the way — that’s fine.';
+    else if(longest > info.current) sub = 'Longest so far: ' + longest + ' days.';
+
+    const recent = S.reading.log.slice()
+      .sort((a,b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0)   // newest first
+      .slice(0, 8);
+
+    el('#bar').innerHTML = '<button class="iconbtn back" data-go="home" aria-label="Back to home">← Home</button><span class="sp"></span>';
+
+    el('#screen').innerHTML =
+        '<div class="plantwrap">' + plantSVG(info.current) + '</div>'
+      + '<div class="count">'
+      +   (info.current > 0
+            ? '<div class="n">' + info.current + '</div><div class="lbl">' + (info.current === 1 ? 'day of reading' : 'days of reading') + '</div>'
+            : '<div class="lbl">Ready when you are</div>')
+      +   (sub ? '<div class="sub">' + esc(sub) + '</div>' : '')
+      + '</div>'
+      + (info.readToday
+          ? '<div class="primary done">✓ You read today</div>'
+          : '<button class="primary" id="mark">I read today</button>')
+      + (saying ? '<div class="say" role="status">' + esc(saying) + '</div>' : '')
+      // The note belongs to a day already marked — see setNote().
+      + (!info.readToday ? ''
+         : noteOpen
+          ? '<div class="note">'
+            + '<label for="bt">What are you reading?</label>'
+            + '<input type="text" id="bt" value="' + esc(today && today.title || '') + '" placeholder="Book title" autocomplete="off">'
+            + '<label for="bn">What happened?</label>'
+            + '<textarea id="bn" placeholder="One line is plenty">' + esc(today && today.note || '') + '</textarea>'
+            + '<div class="row"><button class="no" id="ncancel">Cancel</button><button class="ok" id="nsave">Save</button></div>'
+            + '</div>'
+          : '<button class="quiet" id="nopen">' + (today && (today.title || today.note) ? 'Edit today’s note' : 'Add a note about your book') + '</button>')
+      + (recent.length
+          ? '<div class="logwrap"><h2>Recent</h2>'
+            + recent.map(e =>
+                '<div class="entry"><div class="d">' + esc(prettyDate(e.date)) + '</div>'
+                + (e.title ? '<div class="t">' + esc(e.title) + '</div>' : '')
+                + (e.note ? '<div class="n">' + esc(e.note) + '</div>' : '')
+                + '</div>').join('')
+            + '</div>'
+          : '');
+  }
+
+  function renderParent(){
+    const info = streakInfo(S.reading.log, todayISO());
+    const longest = Math.max(S.reading.longest||0, longestRun(S.reading.log));
+    const scales = [['Smaller',.9],['Normal',1],['Large',1.15],['Larger',1.3],['Largest',1.5]];
+    const tints  = [['cream','#FBF6EC'],['peach','#FBF0E8'],['mint','#EDF6F0'],['blue','#EDF2F8'],['grey','#F2F1EE']];
+
+    el('#bar').innerHTML = '<button class="iconbtn back" data-go="home" aria-label="Back to home">← Home</button>'
+      + '<span class="sp"></span><span class="wordmark">Grown-ups</span>';
+
+    el('#screen').innerHTML =
+        '<div class="sect"><h2>Progress</h2><div class="stats">'
+      +   '<div class="stat"><b>' + info.current + '</b><span>day streak</span></div>'
+      +   '<div class="stat"><b>' + longest + '</b><span>longest</span></div>'
+      +   '<div class="stat"><b>' + readDays(S.reading.log).length + '</b><span>days read</span></div>'
+      + '</div></div>'
+
+      + '<div class="sect"><h2>Her details</h2>'
+      +   '<div class="field"><label for="pname">Name</label>'
+      +     '<input type="text" id="pname" value="' + esc(S.profile.name||'') + '" placeholder="First name" autocomplete="off" autocapitalize="words">'
+      +     '<div class="hint">Used for gentle encouragement. Stored only on this device — it never appears in the app’s code.</div>'
+      +   '</div></div>'
+
+      + '<div class="sect"><h2>Reading &amp; sound</h2>'
+      +   '<div class="field"><label>Read aloud</label><div class="seg" id="segRead">'
+      +     '<button data-ra="1" aria-pressed="' + (S.settings.readAloud !== false) + '">On</button>'
+      +     '<button data-ra="0" aria-pressed="' + (S.settings.readAloud === false) + '">Off</button>'
+      +   '</div><div class="hint">Speaks encouragement out loud. Needed for Words later.</div></div>'
+      +   '<div class="field"><label>Sound</label><div class="seg" id="segSnd">'
+      +     '<button data-sn="1" aria-pressed="' + (S.settings.sound !== false) + '">On</button>'
+      +     '<button data-sn="0" aria-pressed="' + (S.settings.sound === false) + '">Off</button>'
+      +   '</div></div></div>'
+
+      + '<div class="sect"><h2>Text size</h2><div class="seg" id="segScale">'
+      +   scales.map(s => '<button data-sc="' + s[1] + '" aria-pressed="' + (Number(S.settings.textScale||1) === s[1]) + '">' + s[0] + '</button>').join('')
+      + '</div></div>'
+
+      + '<div class="sect"><h2>Background</h2><div class="seg" id="segTint">'
+      +   tints.map(t => '<button class="swatch" data-tn="' + t[0] + '" style="background:' + t[1] + '" aria-pressed="' + ((S.settings.tint||'cream') === t[0]) + '" aria-label="' + t[0] + '"></button>').join('')
+      + '</div><div class="hint">A tint some readers find easier. Light mode only.</div></div>'
+
+      + '<div class="sect"><h2>Backup</h2>'
+      +   '<button class="quiet" id="copyBtn">Copy my progress</button>'
+      +   '<div class="hint">Copies everything as text you can paste somewhere safe. Automatic backup to a private repo comes later.</div>'
+      +   '<button class="quiet danger" id="resetBtn" style="margin-top:.9rem">Erase everything</button>'
+      + '</div>';
+  }
+
+  function renderMoment(){
+    const old = el('#moment'); if(old) old.remove();
+    if(!pendingMoment) return;
+    const m = MOMENTS[pendingMoment]; if(!m){ pendingMoment = null; return; }
+    const d = document.createElement('div');
+    d.className = 'scrim'; d.id = 'moment';
+    d.innerHTML = '<div class="moment" role="dialog" aria-modal="true" aria-label="' + esc(m.h) + '">'
+      + '<div class="em" aria-hidden="true">' + m.em + '</div>'
+      + '<h2>' + esc(m.h) + '</h2><p>' + esc(withName(m.p)) + '</p>'
+      + '<button id="momentOk">Lovely</button></div>';
+    document.body.appendChild(d);
+    const ok = d.querySelector('#momentOk');
+    if(ok) ok.focus({preventScroll:true});
+  }
+
+  let _toastT = null;
+  function toast(msg){
+    const t = el('#toast');
+    t.textContent = msg; t.classList.add('on');
+    clearTimeout(_toastT);
+    _toastT = setTimeout(() => t.classList.remove('on'), 2200);
+  }
+
+  function go(s){ screen = s; saying = ''; noteOpen = false; window.scrollTo(0,0); render(); }
+
+  /* =========================================================
+     Events — one delegated handler; unlock() on every tap so
+     iOS lets sound and speech through later.
+     ========================================================= */
+  document.addEventListener('click', function(ev){
+    const t = ev.target;
+    unlock();
+
+    const goBtn = t.closest('[data-go]');
+    if(goBtn){ go(goBtn.dataset.go); return; }
+
+    const soon = t.closest('[data-soon]');
+    if(soon){ toast(soon.dataset.soon + ' practice is on its way.'); return; }
+
+    if(t.closest('#mark')){
+      if(markRead()){
+        justGrew = true;
+        const info = streakInfo(S.reading.log, todayISO());
+        const next = MILESTONES.find(m => info.current >= m && !S.reading.milestones.includes(m));
+        if(next){
+          S.reading.milestones.push(next); save();
+          pendingMoment = next;
+          chime('milestone');
+          speak(withName(MOMENTS[next].p));
+        }else{
+          saying = withName(AFFIRM[Math.floor(Math.random()*AFFIRM.length)]);
+          chime('done');
+          speak(saying);
+        }
+      }
+      render(); return;
+    }
+
+    if(t.closest('#momentOk')){ pendingMoment = null; render(); return; }
+    if(t.closest('#nopen'))   { noteOpen = true;  render(); return; }
+    if(t.closest('#ncancel')) { noteOpen = false; render(); return; }
+    if(t.closest('#nsave')){
+      setNote(el('#bt').value, el('#bn').value);
+      noteOpen = false; render(); toast('Saved.'); return;
+    }
+
+    // ---- parent area controls
+    const ra = t.closest('[data-ra]'); if(ra){ S.settings.readAloud = ra.dataset.ra === '1'; save(); render(); return; }
+    const sn = t.closest('[data-sn]'); if(sn){ S.settings.sound     = sn.dataset.sn === '1'; save(); render(); if(S.settings.sound) chime('done'); return; }
+    const sc = t.closest('[data-sc]'); if(sc){ S.settings.textScale = Number(sc.dataset.sc); save(); render(); return; }
+    const tn = t.closest('[data-tn]'); if(tn){ S.settings.tint      = tn.dataset.tn; save(); render(); return; }
+
+    if(t.closest('#copyBtn')){
+      const text = JSON.stringify(S, null, 2);
+      const done = () => toast('Progress copied.');
+      try{
+        if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => toast('Could not copy.'));
+        else { const a = document.createElement('textarea'); a.value = text; document.body.appendChild(a); a.select(); document.execCommand('copy'); a.remove(); done(); }
+      }catch(e){ toast('Could not copy.'); }
+      return;
+    }
+    if(t.closest('#resetBtn')){
+      const b = t.closest('#resetBtn');
+      if(b.dataset.armed){ localStorage.removeItem(KEY); load(); go('home'); toast('Everything erased.'); return; }
+      b.dataset.armed = '1'; b.textContent = 'Tap again to erase everything';
+      setTimeout(() => { if(b.isConnected){ delete b.dataset.armed; b.textContent = 'Erase everything'; } }, 3000);
+      return;
+    }
+  });
+
+  // Name field saves as she types (no Save button to forget).
+  document.addEventListener('input', function(ev){
+    if(ev.target.id === 'pname'){ S.profile.name = ev.target.value; save(); }
+  });
+
+  // Parent area: press and hold the build stamp. No PIN to forget.
+  (function(){
+    const stamp = el('#stamp');
+    let timer = null;
+    const start = () => { clearTimeout(timer); timer = setTimeout(() => { unlock(); go('parent'); }, 700); };
+    const stop  = () => clearTimeout(timer);
+    stamp.addEventListener('pointerdown', start);
+    ['pointerup','pointercancel','pointerleave'].forEach(e => stamp.addEventListener(e, stop));
+    stamp.addEventListener('contextmenu', e => e.preventDefault());
+  })();
+
+  // Midnight must roll the day over: on resume, and also while the app simply
+  // sits open on the bedside table. Marking a day always uses a fresh todayISO(),
+  // so this only keeps what's on screen honest.
+  let _renderedDay = null;
+  function checkDayRollover(){
+    if(_renderedDay && _renderedDay !== todayISO()){
+      _renderedDay = todayISO(); saying = ''; noteOpen = false; render();
+    }
+  }
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible') checkDayRollover();
+  });
+  setInterval(checkDayRollover, 60000);
+
+  /* =========================================================
+     Test hook — Playwright drives the pure logic and can travel
+     through time. No behaviour depends on this existing.
+     ========================================================= */
+  window.__acorn = {
+    VERSION: VERSION,
+    get state(){ return S; },
+    save: save, load: load,
+    setToday: function(iso){ _todayOverride = iso; _renderedDay = todayISO(); render(); },
+    todayISO: todayISO, dayDiff: dayDiff,
+    streakInfo: streakInfo, longestRun: longestRun,
+    markRead: markRead, setNote: setNote,
+    seed: function(dates){                       // dates: array of ISO strings
+      S.reading.log = (dates||[]).map(d => ({date:d}));
+      S.reading.milestones = []; S.reading.longest = 0;
+      save(); render();
+    },
+    go: go, screen: function(){ return screen; }
+  };
+
+  load();
+  _renderedDay = todayISO();
+  render();
+})();
+</script>
+</body>
+</html>
