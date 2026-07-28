@@ -2,3 +2,11 @@ node_modules/
 test-results/
 playwright-report/
 .shot.js
+
+# Secrets never belong in this repo — it is public, and the app is served from it.
+# The Anthropic API key lives in Cloudflare's secret store instead:
+#   cd worker && npx wrangler secret put ANTHROPIC_API_KEY
+.env
+.env.*
+.dev.vars
+*.pem
