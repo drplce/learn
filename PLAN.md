@@ -11,6 +11,36 @@ name it.
 
 ---
 
+## Where it actually landed
+
+This document is the original plan and is kept as the record of it. What shipped
+diverges deliberately — see **README.md** for the app as it stands.
+
+**Built:** spelling only. Reading and the book chat were built (phases 1 and 3
+below) and then removed to keep the app to one thing; they are preserved in
+`reference/reading-and-chat.html`. Maths (§5B) was never started.
+
+**Changed from this plan:**
+- No home screen. She opens the app and is on a word. The three-card home in §5
+  and the plant/milestone rewards in §8 are gone — she asked for minimal.
+- The grown-ups gate is a press-and-hold on the **ACORN** wordmark, not on the
+  build stamp. The stamp is only inside the grown-ups area.
+- Look-cover-write-check applies to a word she has *not* met. Every word she has
+  met goes straight to writing from memory — the research on the testing effect
+  made "show it every time" the wrong default (§5C said look-cover-write-check
+  throughout).
+- Pacing self-adapts to her accuracy rather than a fixed words-per-day setting.
+  Session length, new-word intake and pool size all move together; new material
+  is capped at a third of a sitting.
+- Testing grew a third leg: `tests/sim.js` simulates the real engine against a
+  cohort of learners, because simulation caught defects the unit tests did not.
+
+**Still open:** §3a private-repo sync, §5B maths, and interleaving spelling
+patterns once a pattern is established (currently every list is practised on its
+own).
+
+---
+
 ## 1. Who it's for & the guiding intent
 - One child, one iPhone (single profile — no multi-user complexity).
 - **Local-first, privately synced.** localStorage is the fast source of truth and

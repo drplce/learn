@@ -148,12 +148,23 @@ test.describe('getting it wrong', () => {
     await page.locator('#cover').click();
     await page.locator('#type').fill('becuase');
     await page.locator('#check').click();
-    await expect(page.locator('.verdict.again')).toHaveText(/So close/);
-    await expect(page.locator('.marked u')).not.toHaveCount(0);   // the letters to look at
+    // one letter out of place, so the wording is singular
+    await expect(page.locator('.verdict.again')).toHaveText('So close. Look at this letter.');
+    await expect(page.locator('.marked u')).toHaveCount(1);       // the letter to look at
     const body = await page.locator('#screen').innerText();
     expect(body).not.toContain('becuase');
     expect(body).not.toMatch(/wrong|incorrect|failed|bad/i);
     await expect(page.locator('#next')).toBeVisible();            // no immediate re-copy
+  });
+
+  test('several letters out of place reads as plural', async ({page}) => {
+    await open(page, '2026-07-28');
+    await startOn(page, ['together','rain','boat']);
+    await page.locator('#cover').click();
+    await page.locator('#type').fill('togthr');        // drops the e and an e, so two unmatched
+    await page.locator('#check').click();
+    await expect(page.locator('.verdict.again')).toHaveText(/Look at these letters/);
+    expect(await page.locator('.marked u').count()).toBeGreaterThan(1);
   });
 
   test('an empty box is not an attempt and costs her nothing', async ({page}) => {

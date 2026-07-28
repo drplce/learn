@@ -821,7 +821,9 @@ function renderWord(){
     var more = (W.i + 1 < W.words.length) || W.requeue.length;
     body = '<div class="verdict ' + (ok ? 'ok' : 'again') + '">'
          +   (ok ? (W.failed.indexOf(w) >= 0 ? 'You got there.' : 'Yes — that’s it.')
-                 : close ? 'So close. Look at these letters.' : 'Here it is. Have a good look.')
+                 : close ? (w.length - m.count === 1 ? 'So close. Look at this letter.'
+                                                     : 'So close. Look at these letters.')
+                         : 'Here it is. Have a good look.')
          + '</div>'
          // Only ever the correct spelling on screen. Seeing her own misspelling
          // is the one thing that measurably sets spelling back.
@@ -870,9 +872,11 @@ function renderParent(){
     +   '<div class="stat"><b>' + Object.keys(S.words.mastery).length + '</b><span>words tried</span></div>'
     +   '<div class="stat"><b>' + S.words.sessions.length + '</b><span>sessions</span></div>'
     + '</div>'
-    + '<div class="hint">' + esc(paceLabel()) + '. The pace follows her: two new words a session above '
-    + '85% right first time, one in the middle, none at all under 70% — so a hard week slows the '
-    + 'intake instead of piling up.</div></div>'
+    + '<div class="hint">' + esc(paceLabel()) + '. The pace follows her over her last five '
+    + 'sessions: above 85% right first time she gets a nine-word sitting and up to three new '
+    + 'words, in the middle eight words and one new, under 70% six words and nothing new — so a '
+    + 'hard week slows the intake instead of piling up. New words never take more than a third '
+    + 'of a sitting; the rest is words she can already spell.</div></div>'
 
     + (tricky.length
       ? '<div class="sect"><h2>Still tricky</h2><div class="chips">'
@@ -880,7 +884,7 @@ function renderParent(){
         + '</div><div class="hint">Tap one to hear it. These come back most often.</div></div>'
       : '')
 
-    + '<div class="sect"><h2>Which list</h2><div class="seg" id="segList">'
+    + '<div class="sect"><h2>Which list</h2><div class="seg">'
     +   allLists().map(function(l){
           return '<button data-list="' + esc(l.id) + '" aria-pressed="' + (l.id === list.id) + '">'
                + esc(l.name) + ' <span style="opacity:.6">' + wordsOf(l).length + '</span></button>'; }).join('')
