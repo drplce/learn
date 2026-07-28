@@ -317,17 +317,17 @@ test.describe('a practice session', () => {
       a.state.words.lists = [{id:'w1', name:'Test', words:ws}];
       a.state.words.activeId = 'w1';
       a.state.words.mastery = {};
+      a.state.words.sessions = [];
       a.save();
-      a.go('words');
+      a.startWords();
     }, words);
-    await page.locator('#wstart').click();
   }
 
   test('look, cover, write, check — the whole way through', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['friend']);
     await expect(page.locator('.bigword')).toHaveText('friend');
-    await expect(page.locator('.syl')).toHaveCount(1);
+    await expect(page.locator('.syls')).toHaveCount(0);   // one syllable needs no row
     await page.locator('#wcover').click();
     await expect(page.locator('#wtype')).toBeVisible();
     await expect(page.locator('.bigword')).toHaveCount(0);          // the word is genuinely hidden
@@ -400,9 +400,8 @@ test.describe('a practice session', () => {
       a.state.words.lists = [{id:'w1', name:'Test', words:['friend']}];
       a.state.words.activeId = 'w1';
       a.state.words.mastery = {friend:{right:3, wrong:0, box:3, lastSeen:'2026-07-20'}};
-      a.save(); a.go('words');
+      a.save(); a.startWords();
     });
-    await page.locator('#wstart').click();
     await expect(page.locator('#wtype')).toBeVisible();              // straight to writing
     await expect(page.locator('.bigword')).toHaveCount(0);           // the word is not on screen
     await expect(page.locator('#wcover')).toHaveCount(0);
@@ -427,7 +426,7 @@ test.describe('a practice session', () => {
       await page.locator('#wcheck').click();
       await page.locator('#wnext').click();
     }
-    expect(await page.evaluate(() => window.__acorn.screen())).toBe('words');
+    expect(await page.evaluate(() => window.__acorn.screen())).toBe('day');
     await expect(page.locator('.say')).toHaveText(/first go|All done/);
     const s = await page.evaluate(() => window.__acorn.state.words.sessions);
     expect(s.length).toBe(1);
@@ -441,7 +440,7 @@ test.describe('a practice session', () => {
     await page.locator('#wcover').click();
     await page.locator('#wtype').fill('rain');
     await page.locator('#wcheck').click();
-    await page.locator('[data-go="words"]').click();
+    await page.evaluate(() => window.__acorn.go('parent'));   // walking away mid-session
     expect(await page.evaluate(() => window.__acorn.mastery('rain').box)).toBe(2);
     expect(await page.evaluate(() => window.__acorn.session())).toBeNull();
   });
@@ -456,27 +455,26 @@ test.describe('a practice session', () => {
 
 test.describe('words screen and home', () => {
 
-  test('home is words and nothing else for now', async ({page}) => {
+  test('the app opens straight onto a word — no landing screen', async ({page}) => {
     await open(page, '2026-07-28');
-    await expect(page.locator('.card')).toHaveCount(1);
-    await expect(page.locator('.card.soon')).toHaveCount(0);
-    await page.locator('[data-go="words"]').click();
-    expect(await page.evaluate(() => window.__acorn.screen())).toBe('words');
+    expect(await page.evaluate(() => window.__acorn.screen())).toBe('day');
+    await expect(page.locator('.bigword')).toBeVisible();
+    await expect(page.locator('.card')).toHaveCount(0);
+    await expect(page.locator('#stamp')).toHaveCount(0);
   });
 
   test('the words screen shows the list and how much is known', async ({page}) => {
     await open(page, '2026-07-28');
-    await page.evaluate(() => window.__acorn.go('words'));
-    await expect(page.locator('.wlistname')).toHaveText('Tricky words');
-    await expect(page.locator('.wmeta').first()).toHaveText(/0 of 16 words known well/);
+    await page.evaluate(() => { window.__acorn.go('day'); });
+    await expect(page.locator('.bigword')).toBeVisible();
   });
 
   test('changing the list in the grown-ups area changes what she practises', async ({page}) => {
     await open(page, '2026-07-28');
     await page.evaluate(() => window.__acorn.go('parent'));
     await page.locator('[data-list="silent"]').click();
-    await page.evaluate(() => window.__acorn.go('words'));
-    await expect(page.locator('.wlistname')).toHaveText('Silent letters');
+    await page.evaluate(() => { window.__acorn.state.words.mastery={}; window.__acorn.startWords(); });
+    expect(await page.evaluate(() => window.__acorn.wordsOf(window.__acorn.activeList()).length)).toBe(14);
   });
 
   test('a saved list can be deleted, and needs two taps', async ({page}) => {

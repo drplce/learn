@@ -4,23 +4,20 @@ const {open, errorsOf} = require('./helpers');
 
 test.describe('shell', () => {
 
-  test('home shows words only — reading and maths are hidden for now', async ({page}) => {
+  test('it opens on a word, with nothing to choose from first', async ({page}) => {
     await open(page, '2026-07-28');
-    await expect(page.locator('.card')).toHaveCount(1);
-    await expect(page.locator('.card', {hasText:'Words'}).first()).toBeVisible();
-    await expect(page.locator('.card.soon')).toHaveCount(0);
-    expect(await page.evaluate(() => window.__acorn.SHOW)).toEqual({read:false, maths:false});
+    expect(await page.evaluate(() => window.__acorn.screen())).toBe('day');
+    await expect(page.locator('.bigword')).toBeVisible();
+    await expect(page.locator('.card')).toHaveCount(0);
     expect(errorsOf(page)).toEqual([]);
   });
 
   // Reading and the book chat are built and tested; they are only hidden.
-  test('the hidden modules come straight back when switched on', async ({page}) => {
+  test('reading is still reachable in code while hidden from her', async ({page}) => {
     await open(page, '2026-07-28');
-    await page.evaluate(() => { window.__acorn.SHOW.read = true; window.__acorn.SHOW.maths = true; });
-    await page.evaluate(() => window.__acorn.go('home'));
-    await expect(page.locator('.card')).toHaveCount(3);
-    await page.locator('[data-soon="Maths"]').click();
-    await expect(page.locator('#toast')).toHaveText(/on its way/);
+    await page.evaluate(() => window.__acorn.go('read'));
+    await expect(page.locator('#mark')).toBeVisible();
+    expect(await page.evaluate(() => window.__acorn.SHOW)).toEqual({read:false, maths:false});
   });
 
   test('no build stamp on her screens — it lives in the grown-ups area', async ({page}) => {
@@ -28,6 +25,8 @@ test.describe('shell', () => {
     await expect(page.locator('#stamp')).toHaveCount(0);
     await page.evaluate(() => window.__acorn.go('parent'));
     await expect(page.locator('#stamp')).toHaveText(/Build/);
+    await page.evaluate(() => window.__acorn.go('day'));
+    await expect(page.locator('#stamp')).toHaveCount(0);
   });
 });
 
@@ -167,7 +166,7 @@ test.describe('reading streak', () => {
     await page.evaluate(() => window.__acorn.go('read'));
     await page.locator('#mark').click();
     await expect(page.locator('#plantGrow')).toHaveClass(/grow/);
-    await page.evaluate(() => window.__acorn.go('home'));
+    await page.evaluate(() => window.__acorn.go('read'));
     await page.evaluate(() => window.__acorn.go('read'));
     await expect(page.locator('#plantGrow')).not.toHaveClass(/grow/);
   });
@@ -188,7 +187,7 @@ test.describe('milestones', () => {
     await expect(page.locator('#moment')).toHaveCount(0);
 
     // leaving and returning must not replay it
-    await page.evaluate(() => window.__acorn.go('home'));
+    await page.evaluate(() => window.__acorn.go('read'));
     await page.evaluate(() => window.__acorn.go('read'));
     await expect(page.locator('#moment')).toHaveCount(0);
     const seen = await page.evaluate(() => window.__acorn.state.reading.milestones);
@@ -214,7 +213,7 @@ test.describe('grown-ups area', () => {
   test('press and hold the wordmark to open it; a short tap does not', async ({page}) => {
     await open(page, '2026-07-28');
     await page.locator('#wordmark').click();
-    expect(await page.evaluate(() => window.__acorn.screen())).toBe('home');
+    expect(await page.evaluate(() => window.__acorn.screen())).toBe('day');
 
     const box = await page.locator('#wordmark').boundingBox();
     await page.mouse.move(box.x + box.width/2, box.y + box.height/2);
@@ -232,7 +231,7 @@ test.describe('grown-ups area', () => {
     await page.reload();
     await page.waitForFunction(() => !!window.__acorn);
     await page.evaluate(() => window.__acorn.setToday('2026-07-28'));
-    await expect(page.locator('.greet h1')).toHaveText(/Harriet/);
+    expect(await page.evaluate(() => window.__acorn.state.profile.name)).toBe('Harriet');
     await page.evaluate(() => window.__acorn.go('read'));
     await page.locator('#mark').click();
     await expect(page.locator('.say')).toHaveText(/Harriet/);
@@ -277,7 +276,7 @@ test.describe('robustness', () => {
     await page.evaluate(() => localStorage.setItem('acorn.v1', '{not json at all'));
     await page.reload();
     await page.waitForFunction(() => !!window.__acorn);
-    await expect(page.locator('.card')).toHaveCount(1);
+    await expect(page.locator('.bigword')).toBeVisible();
   });
 
   test('state from an older shape is merged, not fatal', async ({page}) => {
@@ -301,14 +300,16 @@ test.describe('robustness', () => {
 
   test('no page errors across the whole flow', async ({page}) => {
     await open(page, '2026-07-28');
-    await page.evaluate(() => window.__acorn.go('read'));
-    await page.locator('#mark').click();
-    await page.locator('#nopen').click();
-    await page.locator('#nsave').click();
-    await page.locator('[data-go="home"]').click();
+    const word = await page.evaluate(() => window.__acorn.session().words[0]);
+    await page.locator('#wcover').click();
+    await page.locator('#wtype').fill(word);
+    await page.locator('#wcheck').click();
+    await page.locator('#wnext').click();
     await page.evaluate(() => window.__acorn.go('parent'));
     await page.locator('[data-sc="1.15"]').click();
-    await page.locator('[data-go="home"]').click();
+    await page.locator('[data-go="day"]').click();
+    await page.evaluate(() => window.__acorn.go('read'));
+    await page.locator('#mark').click();
     expect(errorsOf(page)).toEqual([]);
   });
 });

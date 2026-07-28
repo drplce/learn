@@ -186,6 +186,9 @@
   }
   .hearbtn svg{width:1.4rem; height:1.4rem; flex:none;}
   .hearbtn:active{background:var(--acc-soft);}
+  .daybar{flex:none; width:5.5rem; height:.45rem; border-radius:.25rem; background:var(--line); overflow:hidden;}
+  .daybar i{display:block; height:100%; background:var(--acc); border-radius:.25rem; transition:width .4s var(--ease);}
+  .donetick{text-align:center; font-size:3.4rem; color:var(--acc); line-height:1; margin:.6rem 0 1.4rem;}
   .dots{display:flex; justify-content:center; gap:.4rem; margin-bottom:1.6rem;}
   .dots i{width:.55rem; height:.55rem; border-radius:50%; background:var(--line-2);}
   .dots i.on{background:var(--acc);}
@@ -337,7 +340,7 @@
 (function(){
   'use strict';
 
-  const VERSION = '2 · words';
+  const VERSION = '3 · straight to a word';
   const KEY = 'acorn.v1';
 
   /* =========================================================
@@ -854,7 +857,48 @@
   // past three is where accuracy fell away for children with learning
   // difficulties in the studies this is drawn from.
   const ACQUIRING_CAP = 3;
+  const SEED_NEW = 3;                 // the very first session, to give her a set to work with
   const acquiring = w => (mastery(w).box || 1) <= 1;
+
+  /* ---- self-adapting pace ----
+     Practice works best at roughly 80-85% success: below that she is being
+     overloaded, above it she is coasting. So the pace follows her accuracy
+     rather than a fixed number — how many words she got right first time,
+     across her last few sessions. */
+  // Judged over enough words to mean something: sessions are only a handful of
+  // words, so a 3-session window would swing 30 points on a single miss.
+  const PACE_WINDOW = 5;              // sessions to judge on
+  const PACE_MIN_WORDS = 12;          // ...and at least this many words within them
+  const PACE_HIGH = .85, PACE_LOW = .70;
+
+  function recentAccuracy(){
+    const ss = (S.words.sessions || []).slice(-PACE_WINDOW);
+    const words = ss.reduce((n, s) => n + (s.words || s.asked || 0), 0);
+    const first = ss.reduce((n, s) => n + (s.firstTime || 0), 0);
+    return words >= PACE_MIN_WORDS ? first / words : null;   // null = not enough to judge yet
+  }
+  // New words to introduce in this session.
+  function newWordsToday(){
+    if(!(S.words.sessions || []).length) return SEED_NEW;   // her first ever session
+    const acc = recentAccuracy();
+    if(acc === null) return 1;
+    if(acc >= PACE_HIGH) return 2;    // flying — she can take more
+    if(acc >= PACE_LOW)  return 1;    // in the sweet spot
+    return 0;                         // struggling — consolidate, add nothing
+  }
+  // How many still-being-learned words may appear at once.
+  function poolCap(){
+    const acc = recentAccuracy();
+    if(acc === null) return ACQUIRING_CAP;
+    if(acc >= PACE_HIGH) return ACQUIRING_CAP + 1;
+    if(acc <  PACE_LOW)  return Math.max(1, ACQUIRING_CAP - 1);
+    return ACQUIRING_CAP;
+  }
+  function paceLabel(){
+    const acc = recentAccuracy(), n = newWordsToday();
+    return (acc === null ? 'Finding her level' : Math.round(acc * 100) + '% right first time')
+         + ' · ' + (n === 0 ? 'no new words yet' : n + (n === 1 ? ' new word' : ' new words') + ' a session');
+  }
   function mastery(word){
     const m = S.words.mastery[word];
     return m || {right:0, wrong:0, box:1, lastSeen:null};
@@ -909,19 +953,43 @@
                        .sort((a,b) => String(mastery(a).lastSeen).localeCompare(String(mastery(b).lastSeen)));
     const fresh = all.filter(w => !seen(w));                          // never met
 
-    // The acquiring slots go to words already started, before any new ones.
-    const acq = started.slice(0, ACQUIRING_CAP);
-    for(const w of fresh){ if(acq.length >= ACQUIRING_CAP) break; acq.push(w); }
+    // Words already begun keep their slots. Only then, and only as many as her
+    // recent accuracy justifies, does anything new come in — so a 20-word list
+    // is dripped one or two at a time, and paused entirely on a bad run.
+    const cap = poolCap();
+    const acq = started.slice(0, cap);
+    let room = Math.min(newWordsToday(), cap - acq.length);
+    for(const w of fresh){ if(room-- <= 0) break; acq.push(w); }
 
-    const revSlots = Math.max(0, SESSION_LEN - acq.length);
-    const rev = review.slice(0, revSlots);
-    // If nothing is due, top up with the nearest-to-due so a session is never empty.
+    /* Most of a session must be words she can already spell — around 80% is
+       where practice works best, and a session made only of hard words is the
+       one thing guaranteed to put her off. So the review is sized against the
+       acquiring words, and if not enough is strictly due we pull forward the
+       nearest-to-due rather than let her face a screen of nothing but misses. */
+    const wantRev = Math.max(3, Math.ceil(acq.length * 2.5));
+    const rev = review.slice(0, wantRev);
+    if(rev.length < wantRev){
+      const spare = all.filter(w => seen(w) && !acquiring(w) && rev.indexOf(w) < 0)
+                       .sort((a,b) => overdueRatio(b, today) - overdueRatio(a, today));
+      for(const w of spare){ if(rev.length >= wantRev) break; rev.push(w); }
+    }
+    /* A floor, so a run of bad luck cannot freeze the app. If holding back new
+       words would leave her with almost nothing to do, one new word is better
+       than a thirty-second session she has no reason to come back to. */
+    const MIN_SESSION = 4;
+    if(acq.length + rev.length < MIN_SESSION){
+      for(const w of fresh){
+        if(acq.length + rev.length >= MIN_SESSION || acq.length >= cap) break;
+        if(acq.indexOf(w) < 0) acq.push(w);
+      }
+    }
     if(!rev.length && !acq.length){
       return all.slice().sort((a,b) => overdueRatio(b, today) - overdueRatio(a, today)).slice(0, SESSION_LEN);
     }
 
     // Open with the safest word she has, then thread the acquiring words through
     // the review rather than blocking them together at the front.
+    const total = acq.length + rev.length;    // before rev is consumed below
     const out = [];
     if(rev.length) out.push(rev.shift());
     const gap = Math.max(1, Math.ceil((rev.length + 1) / (acq.length + 1)));
@@ -930,7 +998,10 @@
       for(let k = 0; k < gap && ri < rev.length; k++) out.push(rev[ri++]);
       if(ai < acq.length) out.push(acq[ai++]);
     }
-    return out.filter((w, i, a) => a.indexOf(w) === i).slice(0, SESSION_LEN);
+    // Long enough to hold the review the acquiring words need, short enough to
+    // stay a two-minute thing.
+    const limit = Math.min(SESSION_LEN + ACQUIRING_CAP, total);
+    return out.filter((w, i, a) => a.indexOf(w) === i).slice(0, limit);
   }
   function masteredCount(list){
     return wordsOf(list).filter(w => (mastery(w).box || 1) >= MASTER_BOX).length;
@@ -1109,8 +1180,7 @@
     applySettings();
     if(screen === 'home')     renderHome();
     if(screen === 'read')     renderRead();
-    if(screen === 'words')    renderWords();
-    if(screen === 'wsession') renderSession();
+    if(screen === 'day')      { W ? renderSession() : renderDone(); }
     if(screen === 'chat')     renderChat();
     if(screen === 'parent')   renderParent();
     renderMoment();
@@ -1247,32 +1317,32 @@
     if(inp && !listening()) inp.focus({preventScroll:true});
   }
 
-  /* ---- words: home ---- */
-  function renderWords(){
+  /* ---- the day is finished (or there is nothing to do yet) ---- */
+  function renderDone(){
     const list = activeList();
     const all = wordsOf(list);
     const done = masteredCount(list);
     const pct = all.length ? Math.round(100 * done / all.length) : 0;
-    const tricky = all.filter(w => mastery(w).wrong > 0 && (mastery(w).box || 1) < MASTER_BOX)
-                      .sort((a,b) => mastery(b).wrong - mastery(a).wrong).slice(0, 6);
-
-    el('#bar').innerHTML = '<button class="iconbtn back" data-go="home" aria-label="Back to home">← Home</button><span class="sp"></span>';
+    dayBar();
     el('#screen').innerHTML =
-        '<div class="wlistname">' + esc(list ? list.name : 'No list') + '</div>'
-      + '<div class="wmeta">' + done + ' of ' + all.length + ' words known well</div>'
-      + '<div class="pbar"><i style="width:' + pct + '%"></i></div>'
-      + (saying ? '<div class="say" role="status" style="margin:0 0 1.2rem">' + esc(saying) + '</div>' : '')
+        (saying ? '<div class="say" role="status" style="margin:.4rem 0 1.4rem;font-size:1.3rem">' + esc(saying) + '</div>'
+                : '<div class="wlistname" style="margin-top:1rem">All done for today</div>')
+      + '<div class="donetick" aria-hidden="true">✓</div>'
       + (all.length
-          ? '<button class="primary" id="wstart">Practise</button>'
-          : '<div class="wmeta">Add her list in the grown-ups area.</div>')
-      + (tricky.length
-          ? '<div class="logwrap"><h2>Worth another look</h2><div class="syls" style="justify-content:flex-start">'
-            + tricky.map(w => '<span class="syl" data-hear="' + esc(w) + '">' + esc(w) + '</span>').join('')
-            + '</div></div>'
-          : '')
-      + '<div class="logwrap"><h2>How it works</h2>'
-      + '<p style="color:var(--ink-soft); max-width:34ch; margin:0">Look at the word and hear it. '
-      + 'Cover it up, type it, then check. Words she finds tricky come back again in a few days.</p></div>';
+          ? '<div class="wmeta">' + done + ' of ' + all.length + ' words known well</div>'
+            + '<div class="pbar"><i style="width:' + pct + '%"></i></div>'
+            + '<button class="quiet" id="wstart">Practise a bit more</button>'
+          : '<div class="wmeta">No words yet. A grown-up can add her list.</div>');
+  }
+
+  // Her header: the wordmark (press and hold for grown-ups) and today's progress.
+  function dayBar(pos, total){
+    const bar = (pos != null && total)
+      ? '<span class="daybar" aria-label="' + pos + ' of ' + total + '"><i style="width:'
+        + Math.round(100 * pos / total) + '%"></i></span>'
+      : '';
+    el('#bar').innerHTML = '<span class="wordmark" id="wordmark"><b>Acorn</b></span>'
+      + '<span class="sp"></span>' + bar;
   }
 
   /* ---- words: a look-cover-write-check session ---- */
@@ -1292,8 +1362,8 @@
     const words = buildSession(list, todayISO());
     if(!words.length) return false;
     W = {words:words, i:0, stage:stageFor(words[0]), attempt:'', tries:0,
-         right:0, firstTime:0, requeue:[], failed:[]};
-    screen = 'wsession';
+         right:0, firstTime:0, requeue:[], failed:[], total:words.length};
+    screen = 'day';
     render();
     say(words[0]);
     return true;
@@ -1304,17 +1374,21 @@
     if(!W){ go('words'); return; }
     const word = wordNow();
     const parts = splitOf(word);
-    el('#bar').innerHTML = '<button class="iconbtn back" data-go="words" aria-label="Stop and go back">← Back</button><span class="sp"></span>';
+    dayBar(W.i, W.words.length);
 
     let dots = '<div class="dots" aria-label="Word ' + (W.i+1) + ' of ' + W.words.length + '">';
     for(let k = 0; k < W.words.length; k++)
       dots += '<i class="' + (k < W.i ? 'on' : k === W.i ? 'now' : '') + '"></i>';
     dots += '</div>';
 
+    // A single-syllable word needs no syllable row — it would just repeat itself.
+    const sylRow = parts.length > 1
+      ? '<div class="syls">' + parts.map(x => '<span class="syl" data-syl="' + esc(x) + '">' + esc(x) + '</span>').join('') + '</div>'
+      : '';
     let body = '';
     if(W.stage === 'look'){
       body = '<div class="bigword">' + esc(word) + '</div>'
-           + '<div class="syls">' + parts.map(p => '<span class="syl" data-syl="' + esc(p) + '">' + esc(p) + '</span>').join('') + '</div>'
+           + sylRow
            // Saying it aloud and tracing it are free wins; neither is checked,
            // so there is no way for them to go wrong.
            + '<div class="wmeta" style="margin:1.1rem 0 0">Say it out loud. Trace it with your finger.</div>'
@@ -1343,7 +1417,7 @@
            + '</div>'
            + (ok ? '<div class="bigword">' + esc(word) + '</div>'
                  : '<div class="marked">' + marked + '</div>')
-           + '<div class="syls">' + parts.map(p => '<span class="syl" data-syl="' + esc(p) + '">' + esc(p) + '</span>').join('') + '</div>'
+           + sylRow
            + '<button class="hearbtn" id="whear">' + SPK + 'Hear it</button>'
            + (!ok ? '<div class="wmeta" style="margin:1.1rem 0 0">You’ll see this one again in a moment.</div>' : '')
            + '<button class="primary" id="wnext" style="margin-top:1.6rem">'
@@ -1391,12 +1465,15 @@
   }
   function finishWords(){
     const n = W.words.length, first = W.firstTime;
-    S.words.sessions.push({date:todayISO(), asked:n, right:W.right, firstTime:first});
+    // "words" is the distinct count — a word re-asked after a miss is one word,
+    // two prompts. The pace is judged on words, so it isn't skewed by re-asks.
+    const distinct = W.words.filter((w, i, a) => a.indexOf(w) === i).length;
+    S.words.sessions.push({date:todayISO(), asked:n, words:distinct, right:W.right, firstTime:first});
     if(S.words.sessions.length > 40) S.words.sessions = S.words.sessions.slice(-40);
     save();
     W = null;
     saying = withName(first === n ? 'Every one, first go{n}.' : 'All done{n}.');
-    screen = 'words'; render();
+    screen = 'day'; render();
     chime('milestone');
     speak(saying);
   }
@@ -1411,8 +1488,8 @@
       .sort((a,b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0).slice(0, 5);
     const tints  = [['cream','#FBF6EC'],['peach','#FBF0E8'],['mint','#EDF6F0'],['blue','#EDF2F8'],['grey','#F2F1EE']];
 
-    el('#bar').innerHTML = '<button class="iconbtn back" data-go="home" aria-label="Back to home">← Home</button>'
-      + '<span class="sp"></span><span class="wordmark">Grown-ups</span>';
+    el('#bar').innerHTML = '<button class="iconbtn back" data-go="day" aria-label="Back">← Back</button>'
+      + '<span class="sp"></span><span class="wordmark" style="color:var(--ink-soft)">Grown-ups</span>';
 
     el('#screen').innerHTML =
         '<div class="sect"><h2>Progress</h2><div class="stats">'
@@ -1424,7 +1501,12 @@
       +   '<div class="stat"><b>' + masteredCount(activeList()) + '</b><span>words known</span></div>'
       +   '<div class="stat"><b>' + Object.keys(S.words.mastery).length + '</b><span>words tried</span></div>'
       +   '<div class="stat"><b>' + S.words.sessions.length + '</b><span>spelling goes</span></div>'
-      + '</div></div>'
+      + '</div>'
+      + '<div class="hint" style="margin-top:.7rem">' + esc(paceLabel())
+      + '. The pace follows her: two new words a session when she is above 85% right first time, '
+      + 'one in the middle, and none at all while she is under 70% — so a hard week slows the intake '
+      + 'instead of piling up.</div>'
+      + '</div>'
 
       + '<div class="sect"><h2>Her details</h2>'
       +   '<div class="field"><label for="pname">Name</label>'
@@ -1540,7 +1622,7 @@
   }
 
   function go(s){
-    if(s !== 'wsession') W = null;            // leaving a session abandons it; progress already saved per word
+    if(s !== 'day') W = null;            // leaving a session abandons it; progress already saved per word
     if(s !== 'chat'){ C = null; stopListening(); }
     screen = s; saying = ''; noteOpen = false; window.scrollTo(0,0); render();
   }
@@ -1735,7 +1817,8 @@
     matchedTargetIndices: function(a,b){ return Array.from(matchedTargetIndices(a,b)).sort((x,y)=>x-y); },
     buildSession: buildSession, isDue: isDue, recordWord: recordWord, mastery: mastery,
     overdueRatio: overdueRatio, stageFor: stageFor, acquiring: acquiring,
-    ACQUIRING_CAP: ACQUIRING_CAP, MAX_BOX: MAX_BOX, SHOW: SHOW,
+    recentAccuracy: recentAccuracy, newWordsToday: newWordsToday, poolCap: poolCap,
+    ACQUIRING_CAP: ACQUIRING_CAP, SEED_NEW: SEED_NEW, MAX_BOX: MAX_BOX, SHOW: SHOW,
     allLists: allLists, activeList: activeList, wordsOf: wordsOf, masteredCount: masteredCount,
     startWords: startWords, checkWord: checkWord, nextWord: nextWord,
     session: function(){ return W && {words:W.words.slice(), i:W.i, stage:W.stage, tries:W.tries, right:W.right, firstTime:W.firstTime}; },
@@ -1751,7 +1834,8 @@
 
   load();
   _renderedDay = todayISO();
-  render();
+  // No landing screen: she opens the app and is on a word.
+  if(!startWords()){ screen = 'day'; render(); }
 })();
 </script>
 </body>
