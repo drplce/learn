@@ -86,9 +86,13 @@ h1,h2{line-height:1.3; letter-spacing:0; margin:0; font-weight:700;}
 main{flex:1;}
 
 /* ---------- header: wordmark + today's progress ---------- */
-.bar{display:flex; align-items:center; gap:var(--s3); min-height:var(--tap); margin-bottom:var(--s5);}
+.bar{display:flex; align-items:center; gap:var(--s3); min-height:var(--tap); margin-bottom:var(--s5);
+     flex-wrap:wrap; row-gap:var(--s2);}
+/* At the largest text size on a narrow phone the label and the back button
+   cannot share a line. Stacking is fine; breaking "GROWN-UPS" in half is not. */
 .wordmark{font-size:var(--t-xs); font-weight:800; letter-spacing:.18em; text-transform:uppercase;
-          color:var(--acc); user-select:none;}
+          color:var(--acc); user-select:none; white-space:nowrap;}
+.wordmark.crumb{color:var(--ink-soft);}
 .bar .sp{flex:1;}
 .daybar{flex:none; width:5.5rem; height:var(--s1); border-radius:var(--r-pill);
         background:var(--line); overflow:hidden;}
@@ -96,7 +100,7 @@ main{flex:1;}
           transition:width .4s var(--ease);}
 .back{display:inline-flex; align-items:center; gap:var(--s2); min-height:var(--tap);
       padding-right:var(--s3); border-radius:var(--r-md); font-size:var(--t-md);
-      font-weight:600; color:var(--ink-soft);}
+      font-weight:600; color:var(--ink-soft); white-space:nowrap;}
 
 /* ---------- the word ---------- */
 .dots{display:flex; justify-content:center; gap:var(--s2); margin-bottom:var(--s5);}
@@ -181,6 +185,11 @@ main{flex:1;}
   width:100%; padding:var(--s3); border-radius:var(--r-md); background:var(--surface-2);
   border:1px solid var(--line-2); line-height:1.6;}
 .field textarea{min-height:5.5rem; resize:vertical;}
+/* Left to the browser, the placeholder is a fixed grey that ignores the colour
+   scheme — 2.99:1 in dark mode. These carry real information about the format
+   a list is expected in, so they sit on the same token as other soft text. */
+.field input[type=text]::placeholder, .field textarea::placeholder{
+  color:var(--ink-soft); opacity:1;}
 .seg{display:flex; flex-wrap:wrap; gap:var(--s2);}
 .seg button{min-height:var(--tap); padding:0 var(--s4); border-radius:var(--r-sm);
             border:1px solid var(--line-2); background:var(--surface-2); font-weight:600;
@@ -1012,7 +1021,7 @@ function renderParent(){
   var tints  = [['cream','#FBF6EC'],['peach','#FBF0E8'],['mint','#EDF6F0'],['blue','#EDF2F8'],['grey','#F2F1EE']];
 
   el('#bar').innerHTML = '<button class="back" data-go="day" aria-label="Back">← Back</button>'
-    + '<span class="sp"></span><span class="wordmark" style="color:var(--ink-soft)">Grown-ups</span>';
+    + '<span class="sp"></span><span class="wordmark crumb">Grown-ups</span>';
 
   el('#screen').innerHTML =
       // A device that will not store anything loses every session silently. Her

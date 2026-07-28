@@ -956,6 +956,51 @@ test.describe('voices', () => {
   });
 });
 
+test.describe('the header at every text size', () => {
+
+  // Counts real line boxes of the text itself — the button's 44px tap target
+  // makes its height a useless proxy for how many lines the label takes.
+  const lineBoxes = (page, sel) => page.evaluate(s => {
+    const el = document.querySelector(s);
+    if(!el) return 0;
+    const r = document.createRange(); r.selectNodeContents(el);
+    return r.getClientRects().length;
+  }, sel);
+
+  for(const scale of [0.9, 1, 1.25, 1.5]){
+    test(`no label breaks mid-word at ${scale}x`, async ({page}) => {
+      await open(page, '2026-08-01');
+      await page.setViewportSize({width:375, height:667});          // iPhone SE, the narrowest
+      await page.evaluate(s => {
+        window.__acorn.state.settings.textScale = s;
+        window.__acorn.save(); window.__acorn.go('parent');
+      }, scale);
+      // "GROWN-UPS" used to break to "GROWN-" / "UPS", and "← Back" to two lines.
+      expect(await lineBoxes(page, '.back')).toBe(1);
+      expect(await lineBoxes(page, '.wordmark')).toBe(1);
+      const past = await page.evaluate(() => {
+        const w = document.documentElement.clientWidth;
+        return [...document.querySelectorAll('#bar *')]
+          .map(n => Math.round(n.getBoundingClientRect().right - w)).filter(x => x > 1);
+      });
+      expect(past).toEqual([]);
+    });
+  }
+
+  test('her own header keeps the wordmark and bar on one line', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.setViewportSize({width:375, height:667});
+    await page.evaluate(() => {
+      window.__acorn.state.settings.textScale = 1.5;
+      window.__acorn.save(); window.__acorn.go('day'); window.__acorn.start();
+    });
+    expect(await lineBoxes(page, '.wordmark')).toBe(1);
+    const bar = await page.locator('.daybar').boundingBox();
+    const mark = await page.locator('.wordmark').boundingBox();
+    expect(bar.y).toBeLessThan(mark.y + mark.height);      // side by side, not stacked
+  });
+});
+
 test.describe('the words she reads', () => {
 
   // Every string on her screens, gathered by walking the app rather than by
