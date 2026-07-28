@@ -134,7 +134,10 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 
 /* ---------- the word ---------- */
 .dots{display:flex; justify-content:center; gap:var(--s2);
-      margin-bottom:calc(var(--s4) * var(--ornament));}
+      /* The current dot is scaled up, and main clips: without this the top of it
+         is shaved off. */
+      padding-block:calc(var(--s1) * var(--ornament));
+      margin-bottom:calc(var(--s3) * var(--ornament));}
 .dots i{width:calc(.5rem * var(--ornament)); height:calc(.5rem * var(--ornament));
         border-radius:50%; background:var(--line-2);
         transition:transform .3s var(--ease);}
@@ -399,11 +402,14 @@ function voiceScore(v){
   if(v.default) s += 2;
   return s;
 }
-// Her own accent first; other English accents only if the phone has nothing closer.
+// Her own accent first, and never truncated: if the phone has an en-AU voice it
+// is offered, however many others there are. Other accents fill any room left.
 function offerVoices(){
   var all = englishVoices().slice().sort(function(a,b){ return voiceScore(b) - voiceScore(a); });
-  var near = all.filter(function(v){ return /^en-(AU|GB|NZ)/i.test(v.lang); });
-  return (near.length >= 3 ? near : near.concat(all.filter(function(v){ return near.indexOf(v) < 0; }))).slice(0, 6);
+  var mine = all.filter(function(v){ return /^en-AU/i.test(v.lang); });
+  var near = all.filter(function(v){ return /^en-(GB|NZ)/i.test(v.lang); });
+  var rest = all.filter(function(v){ return mine.indexOf(v) < 0 && near.indexOf(v) < 0; });
+  return mine.concat(near, rest).slice(0, Math.max(6, mine.length));
 }
 var _voice = null, _voiceKey = null;
 function pickVoice(){
@@ -416,11 +422,79 @@ function pickVoice(){
   _voiceKey = key;
   return _voice;
 }
+/* =========================================================
+   3a. Pre-recorded audio. Studio clips for the built-in words, keyed by the
+   text itself; anything without a clip — a list a grown-up pasted in — falls
+   through to the phone's own voice, so she never meets silence. The manifest
+   loads in the background and its absence is simply the old behaviour.
+   ========================================================= */
+/* The index is inline rather than fetched: it is a couple of kilobytes, it costs
+   no request, it cannot 404 on a half-finished deploy, and it keeps working with
+   no network at all. tools/voice.mjs rewrites the two lines below. */
+var CLIP_DIR = 'audio/', CLIP_EXT = '.mp3';
+var CLIPS = [];                                        /* GENERATED */
+var _clips = null;
+var _clipEl = null, _clipSeq = 0;
+
+// Must match slug() in tools/voice.mjs.
+function clipSlug(text){ return String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-'); }
+function loadClips(){
+  _clips = {};
+  for(var i = 0; i < CLIPS.length; i++) _clips[CLIPS[i]] = clipSlug(CLIPS[i]) + CLIP_EXT;
+}
+function clipFor(text){
+  if(!_clips) return null;
+  var k = String(text || '').trim().toLowerCase();
+  return _clips[k] ? CLIP_DIR + _clips[k] : null;
+}
+// True only when every part of what is about to be said has a clip. Half
+// recorded and half synthesised in one breath sounds worse than either.
+function haveClips(list){
+  if(!_clips || !CLIPS.length) return false;
+  for(var i = 0; i < list.length; i++) if(!clipFor(list[i])) return false;
+  return true;
+}
+function stopClips(){
+  _clipSeq++;
+  if(_clipEl){ try{ _clipEl.pause(); }catch(e){} }
+}
+// Plays through a list of [text, rate] pairs, and hands the whole thing back to
+// the phone's voice if any clip fails to arrive — offline, or a bad deploy.
+function playClips(items, onFail){
+  var mine = ++_clipSeq, i = 0;
+  function next(){
+    if(mine !== _clipSeq) return;                     // something newer started
+    if(i >= items.length) return;
+    var it = items[i++], src = clipFor(it[0]);
+    if(!src) return onFail && onFail();
+    var el = _clipEl || (_clipEl = new Audio());
+    el.onended = el.onerror = null;
+    el.src = src;
+    el.playbackRate = it[1] || 1;
+    if('preservesPitch' in el) el.preservesPitch = true;
+    el.onended = next;
+    el.onerror = function(){ if(mine === _clipSeq && onFail) onFail(); };
+    var p = el.play();
+    if(p && p.catch) p.catch(function(){ if(mine === _clipSeq && onFail) onFail(); });
+  }
+  next();
+  return true;
+}
+
 // One seam for all spoken output.
 function say(text, opts){
   opts = opts || {};
   if(!text) return;
   if(opts.force !== true && S.settings.readAloud === false) return;
+  // A recorded clip if there is one for exactly this text.
+  if(!opts.noClip && haveClips([text])){
+    try{ speechSynthesis.cancel(); }catch(e){}
+    var base = Number(S.settings.speechRate) || .95;
+    var rate = (opts.rate || base) / .95;              // her speed setting, relative
+    return void playClips([[text, Math.max(.7, Math.min(1.25, rate))]],
+                          function(){ say(text, Object.assign({}, opts, {noClip:true})); });
+  }
+  stopClips();
   try{
     speechSynthesis.cancel();
     var u = new SpeechSynthesisUtterance(String(text));
@@ -439,6 +513,17 @@ function sylRate(){ return Math.max(.5, (Number(S.settings.speechRate) || .95) -
 function sayParts(word, parts){
   if(S.settings.readAloud === false) return;
   var queue = (parts && parts.length > 1) ? [word].concat(parts) : [word];
+  if(haveClips(queue)){
+    try{ speechSynthesis.cancel(); }catch(e){}
+    var whole = Math.max(.7, Math.min(1.25, (Number(S.settings.speechRate) || .95) / .95));
+    return void playClips(queue.map(function(p, i){ return [p, i === 0 ? whole : whole * .8]; }),
+                          function(){ sayPartsSpoken(word, parts); });
+  }
+  sayPartsSpoken(word, parts);
+}
+function sayPartsSpoken(word, parts){
+  var queue = (parts && parts.length > 1) ? [word].concat(parts) : [word];
+  stopClips();
   try{
     speechSynthesis.cancel();
     var v = pickVoice();
@@ -459,8 +544,29 @@ function unlock(){
   audioCtx();
   try{ speechSynthesis.getVoices(); }catch(e){}
   pickVoice();
+  // iOS will not play an audio element that was not created under a gesture,
+  // so the one element the app reuses is primed here, on her first tap.
+  try{
+    if(!_clipEl){ _clipEl = new Audio(); _clipEl.muted = true;
+                  var p = _clipEl.play(); if(p && p.catch) p.catch(function(){});
+                  _clipEl.pause(); _clipEl.muted = false; }
+  }catch(e){}
 }
-try{ speechSynthesis.onvoiceschanged = function(){ _voiceKey = null; pickVoice(); }; }catch(e){}
+var _voiceCount = -1;
+// iOS routinely answers the first getVoices() with nothing and fills the list in
+// a moment later. Without a redraw the grown-ups screen kept whatever was there
+// at the time — which is how a downloaded Matilda can be missing from settings.
+function voicesChanged(){
+  _voiceKey = null;
+  var n = englishVoices().length;
+  if(n === _voiceCount) return;
+  _voiceCount = n;
+  pickVoice();
+  if(screen === 'parent') render();
+}
+try{ speechSynthesis.onvoiceschanged = voicesChanged; }catch(e){}
+// Some browsers never fire the event; a few cheap looks settle it either way.
+[0, 250, 800, 2000].forEach(function(ms){ setTimeout(voicesChanged, ms); });
 
 /* =========================================================
    4. The words. Splits checked against Longman LDOCE4 and Oxford
@@ -1219,8 +1325,12 @@ function renderParent(){
                    + ' <span style="opacity:.6">' + esc((v.lang||'').replace('_','-')) + '</span></button>'; }).join('')
           : '<span class="hint">Tap anything that speaks once, then come back — the phone only lists '
             + 'its voices after the first bit of speech.</span>')
-    +   '</div><div class="hint">Australian voices first; novelty voices are filtered out. A downloaded '
-    +   '“Premium” or “Enhanced” voice — Matilda is the good Australian one — is chosen automatically.</div></div>'
+    +   '</div><div class="hint">Your phone is offering ' + voices.length + ' English '
+    +   (voices.length === 1 ? 'voice' : 'voices')
+    +   ', Australian first. Safari only ever offers the handful built into iOS — '
+    +   'voices you download under Accessibility are not available to a web page, '
+    +   'so Karen is usually the best it can do. Recorded words, where this app has '
+    +   'them, do not use the phone voice at all.</div></div>'
 
     + '<div class="sect"><h2>Text size</h2><div class="seg">'
     +   scales.map(function(s){ return '<button data-sc="' + s[1] + '" aria-pressed="'
@@ -1378,7 +1488,8 @@ document.addEventListener('keydown', function(ev){
 var _renderedDay = null;
 function checkRollover(){
   if(_renderedDay && _renderedDay !== todayISO()){
-    _renderedDay = todayISO(); saying = '';
+    _renderedDay = todayISO();
+loadClips(); saying = '';
     if(screen !== 'parent'){ W = null; if(!start()) render(); }
   }
 }
@@ -1395,7 +1506,8 @@ window.__acorn = {
   VERSION: VERSION,
   get state(){ return S; },
   save: save, load: load,
-  setToday: function(d){ _today = d; _renderedDay = todayISO(); render(); },
+  setToday: function(d){ _today = d; _renderedDay = todayISO();
+loadClips(); render(); },
   todayISO: todayISO, dayDiff: dayDiff,
   syllables: syllables, splitOf: splitOf, offerVoices: offerVoices,
   clearVoiceCache: function(){ _voice = null; _voiceKey = null; }, parseWordList: parseWordList, COMPOUNDS: COMPOUNDS,
@@ -1406,6 +1518,11 @@ window.__acorn = {
   newWordsToday: newWordsToday, poolCap: poolCap, stageFor: stageFor,
   allLists: allLists, activeList: activeList, wordsOf: wordsOf,
   englishVoices: englishVoices, offerVoices: offerVoices, voiceScore: voiceScore,
+  voicesChanged: voicesChanged,
+  // Tests drive the clip index directly rather than depending on what happens to
+  // be recorded in the repo at the time.
+  setClips: function(list){ CLIPS = list || []; loadClips(); },
+  clipFor: clipFor,
   start: start, check: check, next: next, paceLabel: paceLabel, announce: announce,
   // Enough of a handle to drive a whole session from a script — the
   // simulations in tests/sim.js run the real flow, not a copy of it.
@@ -1423,6 +1540,7 @@ window.__acorn = {
 /* ---- boot: she opens the app and is on a word ---- */
 load();
 _renderedDay = todayISO();
+loadClips();
 if(!start()) render();
 })();
 </script>

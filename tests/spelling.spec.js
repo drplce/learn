@@ -956,6 +956,45 @@ test.describe('voices', () => {
   });
 });
 
+test.describe('the progress dots', () => {
+
+  test('the current dot is not clipped by the scrolling panel', async ({page}) => {
+    await open(page, '2026-08-01');
+    await startOn(page, ['because','friend','thought']);
+    const m = await page.evaluate(() => {
+      const main = document.querySelector('main');
+      const now = document.querySelector('.dots i.now');
+      const r = now.getBoundingClientRect(), mr = main.getBoundingClientRect();
+      return {shavedTop: Math.round(mr.top - r.top), shavedBottom: Math.round(r.bottom - mr.bottom),
+              scaled: getComputedStyle(now).transform !== 'none'};
+    });
+    // It is scaled up to mark where she is, and main clips its overflow.
+    expect(m.scaled).toBe(true);
+    expect(m.shavedTop, 'the top of the current dot is cut off').toBeLessThanOrEqual(0);
+    expect(m.shavedBottom).toBeLessThanOrEqual(0);
+  });
+
+  test('nor at any text size', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.setViewportSize({width:375, height:667});
+    for(const scale of [0.9, 1, 1.25, 1.5]){
+      await page.evaluate(s => {
+        const a = window.__acorn;
+        a.state.settings.textScale = s;
+        a.state.words.lists = [{id:'w1', name:'T', words:['because','friend','thought']}];
+        a.state.words.activeId = 'w1'; a.state.words.mastery = {};
+        a.save(); a.go('parent'); a.go('day');
+      }, scale);
+      const shaved = await page.evaluate(() => {
+        const mr = document.querySelector('main').getBoundingClientRect();
+        const r = document.querySelector('.dots i.now').getBoundingClientRect();
+        return Math.round(mr.top - r.top);
+      });
+      expect(shaved, `at ${scale}x`).toBeLessThanOrEqual(0);
+    }
+  });
+});
+
 test.describe('the header at every text size', () => {
 
   // Counts real line boxes of the text itself — the button's 44px tap target

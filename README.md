@@ -117,3 +117,22 @@ being switched on: **Settings → Pages → Source: Deploy from a branch**, pick
 
 Pages on a **private** repo needs a paid plan. There are no secrets in this app,
 so public is safe — and her name is not in the code.
+
+## Recorded audio
+
+Safari only exposes the handful of voices built into iOS. Voices downloaded under
+Accessibility → Spoken Content are not available to a web page, so the phone
+voice cannot be improved from inside the app. Studio clips are recorded once,
+committed, and used in preference; anything without a clip — a list a grown-up
+pastes in — falls back to the phone voice, so she never meets silence.
+
+    node tools/phrases.mjs                       # what needs recording, from the app itself
+    GOOGLE_TTS_KEY=... node tools/voice.mjs      # record it, write audio/, update index.html
+
+Azure and ElevenLabs are supported too; see the header of `tools/voice.mjs`.
+The key is only ever read from the environment on the machine doing the
+recording — this repo is public and must never contain one. Only the mp3 files
+and the inline index are committed.
+
+The index of what is recorded lives inline in `index.html`, so playback costs no
+request, cannot 404 on a half-finished deploy, and works with no network.
