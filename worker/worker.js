@@ -111,21 +111,26 @@ export default {
     try{
       const client = new Anthropic({apiKey: env.ANTHROPIC_API_KEY});
 
-      // Haiku is fast and cheap, which suits one-or-two-sentence replies to a
-      // child waiting on a phone. Set MODEL in wrangler.toml to try a bigger
-      // model if the tone isn't warm enough.
-      const model = env.MODEL || 'claude-haiku-4-5';
+      // Set MODEL in wrangler.toml to change this without touching code.
+      const model = env.MODEL || 'claude-sonnet-5';
       const req = {
         model: model,
         max_tokens: MAX_TOKENS,
         system: system,
         messages: messages
       };
-      // Haiku 4.5 has no effort parameter and rejects it. The Opus/Sonnet 5
-      // family takes effort, and needs thinking off explicitly for a fast reply.
+      // Haiku 4.5 has no effort parameter and rejects it outright. The Sonnet 5
+      // and Opus 5 family takes effort, and needs thinking turned off explicitly
+      // or it thinks by default and she waits.
+      //
+      // Effort "medium", not "low": these models follow instructions more
+      // literally at low effort, which reads as terse and makes them worse at
+      // following what she actually said — the opposite of what this feature is
+      // for. Her reply is capped at 300 tokens either way, so the cost of
+      // medium is fractions of a cent.
       if(!/haiku/.test(model)){
         req.thinking = {type:'disabled'};
-        req.output_config = {effort: 'low'};
+        req.output_config = {effort: 'medium'};
       }
       const reply = await client.messages.create(req);
 
