@@ -411,7 +411,11 @@
       maths:    { facts:{}, sessions:[] },
       words:    { lists:[], mastery:{}, activeId:'tricky', sessions:[] },
       reading:  { streak:0, longest:0, freezes:0, milestones:[], log:[] },
-      settings: { textScale:1, tint:'cream', readAloud:true, sound:true, voice:null, speechRate:.95 }
+      settings: { textScale:1, tint:'cream', readAloud:true, sound:true, voice:null, speechRate:.95,
+                  // The chat endpoint. Empty until a grown-up fills it in, and the
+                  // whole feature stays hidden until then. The token is not an API
+                  // key — see worker/worker.js.
+                  chatUrl:'', chatToken:'' }
     };
   }
   function load(){
@@ -904,6 +908,101 @@
   const sameWord = (a,b) => String(a||'').trim().toLowerCase() === String(b||'').trim().toLowerCase();
 
   /* =========================================================
+     BOOK CHAT — a short talk about what she read today.
+     The endpoint holds the API key and the system prompt; this
+     side only carries the conversation. Off unless configured.
+     ========================================================= */
+  const MAX_ANSWERS = 4;                 // her turns, then it closes warmly
+  const chatReady = () => !!(S.settings.chatUrl || '').trim() && !!(S.settings.chatToken || '').trim();
+
+  let C = null;   // {turns:[{role,text}], book, busy, err, done}
+
+  function chatTurnsFor(entry){ return (entry && Array.isArray(entry.chat)) ? entry.chat : []; }
+  function answersGiven(){ return C ? C.turns.filter(t => t.role === 'user').length - 1 : 0; }
+
+  async function chatSend(){
+    C.busy = true; C.err = ''; render();
+    try{
+      const res = await fetch(S.settings.chatUrl.trim(), {
+        method:'POST',
+        headers:{'content-type':'application/json', 'x-acorn-token':S.settings.chatToken.trim()},
+        body: JSON.stringify({turns: C.turns.map(t => ({role:t.role, text:t.text})), book: C.book || ''})
+      });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok || !data.reply) throw new Error(data.error || 'no reply');
+      C.turns.push({role:'assistant', text:String(data.reply)});
+      // She answers, it replies, and after MAX_ANSWERS the reply is the last word.
+      if(answersGiven() >= MAX_ANSWERS) C.done = true;
+      saveChat();
+      C.busy = false; render();
+      say(data.reply);
+    }catch(err){
+      C.busy = false;
+      // Never a status code on her screen.
+      C.err = 'I can’t chat just now. Your reading is still saved.';
+      render();
+    }
+  }
+
+  function startChatSession(){
+    if(!chatReady()) return false;
+    const today = S.reading.log.find(e => e.date === todayISO());
+    if(!today) return false;                       // only after she has marked the day
+    C = {turns:[{role:'user', text:'I finished reading for today.'}],
+         book:(today.title || ''), busy:false, err:'', done:false};
+    screen = 'chat'; render();
+    chatSend();
+    return true;
+  }
+  function chatAnswer(text){
+    text = String(text || '').trim();
+    if(!text || !C || C.busy || C.done) return false;
+    C.turns.push({role:'user', text:text});
+    saveChat();
+    chatSend();
+    return true;
+  }
+  // Kept on the day's reading entry, so the grown-ups area can show it in context.
+  function saveChat(){
+    const t = todayISO();
+    const e = S.reading.log.find(x => x.date === t);
+    if(!e || !C) return;
+    e.chat = C.turns.slice(1).map(x => ({role:x.role, text:x.text}));   // drop the synthetic opener
+    save();
+  }
+
+  /* ---- her voice, because typing is the hard part ---- */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  let _rec = null, _recOn = false;
+  function listening(){ return _recOn; }
+  function stopListening(){
+    try{ if(_rec) _rec.stop(); }catch(e){}
+    _rec = null; _recOn = false;
+  }
+  function startListening(onText){
+    if(!SR) return false;
+    stopListening();
+    try{
+      _rec = new SR();
+      _rec.lang = 'en-AU';
+      _rec.interimResults = false;
+      _rec.maxAlternatives = 1;
+      _rec.continuous = false;
+      _rec.onresult = ev => {
+        const said = (ev.results && ev.results[0] && ev.results[0][0] && ev.results[0][0].transcript) || '';
+        _recOn = false; _rec = null;
+        if(said) onText(said);
+        else render();
+      };
+      _rec.onerror = () => { _recOn = false; _rec = null; render(); };
+      _rec.onend   = () => { if(_recOn){ _recOn = false; render(); } };
+      _rec.start();
+      _recOn = true;
+      return true;
+    }catch(e){ _recOn = false; _rec = null; return false; }
+  }
+
+  /* =========================================================
      Copy — warm, never scolding, never a score.
      ========================================================= */
   const AFFIRM = [
@@ -956,6 +1055,7 @@
     if(screen === 'read')     renderRead();
     if(screen === 'words')    renderWords();
     if(screen === 'wsession') renderSession();
+    if(screen === 'chat')     renderChat();
     if(screen === 'parent')   renderParent();
     renderMoment();
     justGrew = false;              // one-shot: the growth animation plays once
@@ -1033,6 +1133,10 @@
             + '<div class="row"><button class="no" id="ncancel">Cancel</button><button class="ok" id="nsave">Save</button></div>'
             + '</div>'
           : '<button class="quiet" id="nopen">' + (today && (today.title || today.note) ? 'Edit today’s note' : 'Add a note about your book') + '</button>')
+      // Only once the day is marked, and only if a grown-up has set the endpoint up.
+      + (info.readToday && chatReady() && !noteOpen
+          ? '<button class="quiet" id="cstart">' + (chatTurnsFor(today).length ? 'Talk more about your book' : 'Talk about your book') + '</button>'
+          : '')
       + (recent.length
           ? '<div class="logwrap"><h2>Recent</h2>'
             + recent.map(e =>
@@ -1042,6 +1146,44 @@
                 + '</div>').join('')
             + '</div>'
           : '');
+  }
+
+  const MIC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+            + '<rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/></svg>';
+  const SENDI = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+            + '<path d="M4 12h15"/><path d="M13 6l6 6-6 6"/></svg>';
+
+  function renderChat(){
+    el('#bar').innerHTML = '<button class="iconbtn back" data-go="read" aria-label="Back to reading">← Back</button><span class="sp"></span>';
+    if(!C){ go('read'); return; }
+
+    const shown = C.turns.slice(1);            // hide the synthetic opener
+    let body = '<div class="chat">';
+    shown.forEach(t => {
+      body += '<div class="bub ' + (t.role === 'assistant' ? 'them' : 'me') + '">' + esc(t.text)
+            + (t.role === 'assistant' ? '<button class="spk" data-hear="' + esc(t.text) + '">Hear it again</button>' : '')
+            + '</div>';
+    });
+    if(C.busy) body += '<div class="thinking" aria-label="thinking"><i></i><i></i><i></i></div>';
+    body += '</div>';
+
+    if(C.err) body += '<div class="chaterr" role="status">' + esc(C.err) + '</div>';
+
+    if(C.done){
+      body += '<button class="primary" data-go="read">All done</button>';
+    }else if(!C.busy){
+      body += '<div class="saybox">'
+           +   '<textarea id="csay" placeholder="Say or type your answer" rows="1" '
+           +     'autocapitalize="sentences" enterkeyhint="send"></textarea>'
+           +   (SR ? '<button class="mic' + (listening() ? ' on' : '') + '" id="cmic" aria-label="'
+                   + (listening() ? 'Stop listening' : 'Talk instead of typing') + '">' + MIC + '</button>' : '')
+           +   '<button id="csend" aria-label="Send">' + SENDI + '</button>'
+           + '</div>';
+      if(listening()) body += '<div class="wmeta" style="margin:.6rem 0 0">Listening…</div>';
+    }
+    el('#screen').innerHTML = body;
+    const inp = el('#csay');
+    if(inp && !listening()) inp.focus({preventScroll:true});
   }
 
   /* ---- words: home ---- */
@@ -1184,6 +1326,8 @@
     const scales = [['Smaller',.9],['Normal',1],['Large',1.15],['Larger',1.3],['Largest',1.5]];
     const voiceList = offerVoices();
     const chosen = pickVoice();
+    const chats = S.reading.log.filter(e => chatTurnsFor(e).length)
+      .sort((a,b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0).slice(0, 5);
     const tints  = [['cream','#FBF6EC'],['peach','#FBF0E8'],['mint','#EDF6F0'],['blue','#EDF2F8'],['grey','#F2F1EE']];
 
     el('#bar').innerHTML = '<button class="iconbtn back" data-go="home" aria-label="Back to home">← Home</button>'
@@ -1260,6 +1404,29 @@
       +   tints.map(t => '<button class="swatch" data-tn="' + t[0] + '" style="background:' + t[1] + '" aria-pressed="' + ((S.settings.tint||'cream') === t[0]) + '" aria-label="' + t[0] + '"></button>').join('')
       + '</div><div class="hint">A tint some readers find easier. Light mode only.</div></div>'
 
+      + '<div class="sect"><h2>Book chat</h2>'
+      +   '<div class="field"><label for="curl">Chat address</label>'
+      +     '<input type="text" id="curl" value="' + esc(S.settings.chatUrl||'') + '" placeholder="https://…workers.dev" '
+      +       'autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="url"></div>'
+      +   '<div class="field"><label for="ctok">Access token</label>'
+      +     '<input type="text" id="ctok" value="' + esc(S.settings.chatToken||'') + '" placeholder="paste the app token" '
+      +       'autocomplete="off" autocapitalize="off" spellcheck="false"></div>'
+      +   '<div class="hint">' + (chatReady()
+            ? 'Set up. After she marks a day read, she can talk about her book — 4 questions, then it finishes.'
+            : 'Until both are filled in, the chat is hidden from her entirely.')
+      +   ' This token is not the API key; it only unlocks the chat address, and it can be replaced at any time.</div>'
+      +   (chats.length
+        ? '<div class="field" style="margin-top:1.1rem"><label>What she has talked about</label>'
+          + chats.map(e => '<div class="entry"><div class="d">' + esc(prettyDate(e.date))
+              + (e.title ? ' · ' + esc(e.title) : '') + '</div>'
+              + chatTurnsFor(e).map(t => '<div class="n" style="margin-top:.35rem"><b>'
+                  + (t.role === 'assistant' ? 'Buddy' : esc((S.profile.name||'She').split(' ')[0]))
+                  + ':</b> ' + esc(t.text) + '</div>').join('')
+              + '</div>').join('')
+          + '<div class="hint">Every conversation, in full. Nothing is hidden from you.</div></div>'
+        : '')
+      + '</div>'
+
       + '<div class="sect"><h2>Backup</h2>'
       +   '<button class="quiet" id="copyBtn">Copy my progress</button>'
       +   '<div class="hint">Copies everything as text you can paste somewhere safe. Automatic backup to a private repo comes later.</div>'
@@ -1292,6 +1459,7 @@
 
   function go(s){
     if(s !== 'wsession') W = null;            // leaving a session abandons it; progress already saved per word
+    if(s !== 'chat'){ C = null; stopListening(); }
     screen = s; saying = ''; noteOpen = false; window.scrollTo(0,0); render();
   }
 
@@ -1326,6 +1494,16 @@
         }
       }
       render(); return;
+    }
+
+    // ---- book chat
+    if(t.closest('#cstart')){ if(!startChatSession()) toast('Not set up yet.'); return; }
+    if(t.closest('#csend')){ chatAnswer(el('#csay') ? el('#csay').value : ''); return; }
+    if(t.closest('#cmic')){
+      if(listening()){ stopListening(); render(); }
+      else if(!startListening(said => chatAnswer(said))) toast('Talking isn’t available on this phone.');
+      else render();
+      return;
     }
 
     // ---- words
@@ -1408,12 +1586,15 @@
   document.addEventListener('input', function(ev){
     if(ev.target.id === 'pname'){ S.profile.name = ev.target.value; save(); }
     if(ev.target.id === 'wtype' && W) W.attempt = ev.target.value;
+    if(ev.target.id === 'curl'){ S.settings.chatUrl   = ev.target.value.trim(); save(); }
+    if(ev.target.id === 'ctok'){ S.settings.chatToken = ev.target.value.trim(); save(); }
   });
 
   // Enter on the keyboard checks the word — she shouldn't have to find a button.
   document.addEventListener('keydown', function(ev){
     if(ev.key !== 'Enter') return;
     if(ev.target.id === 'wtype' && W && W.stage === 'write'){ ev.preventDefault(); unlock(); checkWord(); }
+    if(ev.target.id === 'csay' && !ev.shiftKey){ ev.preventDefault(); unlock(); chatAnswer(ev.target.value); }
   });
 
   // Parent area: press and hold the build stamp. No PIN to forget.
@@ -1468,6 +1649,11 @@
     startWords: startWords, checkWord: checkWord, nextWord: nextWord,
     session: function(){ return W && {words:W.words.slice(), i:W.i, stage:W.stage, tries:W.tries, right:W.right, firstTime:W.firstTime}; },
     setAttempt: function(v){ if(W) W.attempt = v; },
+    // book chat
+    chatReady: chatReady, startChatSession: startChatSession, chatAnswer: chatAnswer,
+    chat: function(){ return C && {turns:C.turns.slice(), busy:C.busy, err:C.err, done:C.done, book:C.book}; },
+    MAX_ANSWERS: MAX_ANSWERS,
+
     voiceScore: voiceScore, englishVoices: englishVoices, offerVoices: offerVoices,
     BOX_DAYS: BOX_DAYS, MASTER_BOX: MASTER_BOX, SESSION_LEN: SESSION_LEN
   };

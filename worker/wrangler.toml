@@ -6,6 +6,11 @@ compatibility_date = "2026-07-01"
 # Only this origin may call the Worker. Set it to the app's URL before deploying.
 ALLOWED_ORIGIN = "https://drplce.github.io"
 
+# Which model answers her. Haiku is ~5x cheaper than Opus and plenty for
+# one-or-two-sentence replies. Change and redeploy to compare tone;
+# "claude-sonnet-5" is the sensible middle step.
+MODEL = "claude-haiku-4-5"
+
 # Secrets are NOT set here — they would end up in git. Set them with:
 #   npx wrangler secret put ANTHROPIC_API_KEY
 #   npx wrangler secret put APP_TOKEN

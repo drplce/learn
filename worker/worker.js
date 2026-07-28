@@ -110,17 +110,24 @@ export default {
 
     try{
       const client = new Anthropic({apiKey: env.ANTHROPIC_API_KEY});
-      const reply = await client.messages.create({
-        model: 'claude-opus-5',
+
+      // Haiku is fast and cheap, which suits one-or-two-sentence replies to a
+      // child waiting on a phone. Set MODEL in wrangler.toml to try a bigger
+      // model if the tone isn't warm enough.
+      const model = env.MODEL || 'claude-haiku-4-5';
+      const req = {
+        model: model,
         max_tokens: MAX_TOKENS,
         system: system,
-        // She is waiting on a phone, and the reply is one or two sentences, so
-        // trade depth for speed. Disabling thinking is permitted at effort
-        // "high" or below; pairing it with xhigh/max would be rejected.
-        thinking: {type:'disabled'},
-        output_config: {effort: 'low'},
         messages: messages
-      });
+      };
+      // Haiku 4.5 has no effort parameter and rejects it. The Opus/Sonnet 5
+      // family takes effort, and needs thinking off explicitly for a fast reply.
+      if(!/haiku/.test(model)){
+        req.thinking = {type:'disabled'};
+        req.output_config = {effort: 'low'};
+      }
+      const reply = await client.messages.create(req);
 
       if(reply.stop_reason === 'refusal')
         return json({reply:'Let’s talk about your book instead. What happened in it today?'}, 200, allowed);

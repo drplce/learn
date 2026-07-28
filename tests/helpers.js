@@ -7,7 +7,14 @@ const APP = 'file://' + path.join(__dirname, '..', 'index.html');
 async function open(page, today){
   const errors = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-  page.on('console', m => { if(m.type() === 'error') errors.push('console: ' + m.text()); });
+  page.on('console', m => {
+    if(m.type() !== 'error') return;
+    // The app is one file and loads nothing external, so a failed resource can
+    // only be a deliberately-stubbed endpoint in a test. That is the scenario,
+    // not a defect — what matters is that the app handled it without throwing.
+    if(/Failed to load resource/i.test(m.text())) return;
+    errors.push('console: ' + m.text());
+  });
   page.__errors = errors;
 
   await page.goto(APP);
