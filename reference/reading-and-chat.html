@@ -1,0 +1,1872 @@
+<!--
+  REFERENCE ONLY — not served, not tested, not linked from the app.
+
+  This is Acorn as it stood at build 3, when it still contained the daily
+  reading streak (with the growing plant and its forgiveness rules) and the
+  "talk about your book" chat that runs against the Cloudflare Worker in
+  ../worker/. Both worked; both were removed from the app so it could be a
+  single-purpose spelling tool.
+
+  Kept so they can be brought back rather than rewritten. If you do bring one
+  back, the pieces you want are:
+
+  * Reading streak    — streakInfo(), longestRun(), plantSVG(), renderRead(),
+                        markRead(), setNote(), and the MILESTONES/MOMENTS copy.
+                        The forgiveness rule is: one missed day is a rest day,
+                        two in a row starts a fresh run. Streak counts days
+                        read, never calendar days spanned.
+  * Book chat         — chatSend(), startChatSession(), chatAnswer(), saveChat(),
+                        renderChat(), the SpeechRecognition wrapper, and the
+                        chatUrl/chatToken settings. The system prompt and the
+                        API key live server-side in ../worker/worker.js.
+                        The chat hangs off a marked reading day, so it needs
+                        the reading streak to come back first.
+
+  Tests for both are preserved in ../reference/tests/.
+-->
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<title>Acorn</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Acorn">
+<meta name="theme-color" content="#FBF6EC" media="(prefers-color-scheme:light)">
+<meta name="theme-color" content="#22242A" media="(prefers-color-scheme:dark)">
+<meta name="description" content="A calm daily practice app — reading, maths and words.">
+<style>
+  /* ---------------------------------------------------------------
+     Acorn — dyslexia-friendly by default.
+     Cream surface, dark-slate (never black) ink, large well-spaced
+     type, short lines, left-aligned. One task per screen.
+     --------------------------------------------------------------- */
+  :root{
+    --surface:#FBF6EC; --surface-2:#FFFDF7; --ink:#3B4149; --ink-soft:#6E747C;
+    --line:rgba(59,65,73,.14); --line-2:rgba(59,65,73,.26);
+    --acc:#35705A; --acc-ink:#FFFFFF; --acc-soft:#E4EFE8;
+    --good:#3F7D63; --retry:#B4703A;
+    --acorn:#A87445; --acorn-2:#8A5E36;      /* the fruit — its own colour, not the "try again" one */
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"Helvetica Neue",sans-serif;
+    --scale:1;          /* driven by settings.textScale */
+    --shadow:0 1px 2px rgba(59,65,73,.05), 0 6px 18px rgba(59,65,73,.06);
+    --ease:cubic-bezier(.22,.61,.36,1);
+  }
+  /* Background tints — some readers find a specific tint easier. */
+  [data-tint="peach"]{--surface:#FBF0E8;--surface-2:#FFF8F2;}
+  [data-tint="mint"] {--surface:#EDF6F0;--surface-2:#F7FCF9;}
+  [data-tint="blue"] {--surface:#EDF2F8;--surface-2:#F8FAFD;}
+  [data-tint="grey"] {--surface:#F2F1EE;--surface-2:#FAFAF8;}
+
+  @media (prefers-color-scheme:dark){
+    :root{
+      --surface:#22242A; --surface-2:#2A2D34; --ink:#E8E3D9; --ink-soft:#A9A49B;
+      --line:rgba(232,227,217,.13); --line-2:rgba(232,227,217,.26);
+      --acc:#7CC0A2; --acc-ink:#14231C; --acc-soft:#2C3A34;
+      --good:#7CC0A2; --retry:#DCA173;
+      --acorn:#C08A56; --acorn-2:#9C6E42;
+      --shadow:0 1px 2px rgba(0,0,0,.2), 0 6px 18px rgba(0,0,0,.24);
+    }
+    /* tints are a light-mode comfort setting; dark mode stays warm-neutral */
+    [data-tint]{--surface:#22242A;--surface-2:#2A2D34;}
+  }
+
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html{
+    -webkit-text-size-adjust:100%; text-size-adjust:100%;   /* stop iOS inflating text on rotate */
+    /* rem here resolves against the browser's own base size, so the OS/browser
+       text-size setting is respected and our control scales on top of it. */
+    font-size:calc(1.0625rem * var(--scale));
+  }
+  html,body{margin:0; min-height:100%; background:var(--surface);}
+  body{
+    color:var(--ink); font-family:var(--sans);
+    line-height:1.7; letter-spacing:.01em; word-spacing:.06em;
+    text-align:left;                                        /* never justified */
+    -webkit-font-smoothing:antialiased;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  button,input,textarea,select{font:inherit; color:inherit; letter-spacing:inherit;}
+  button{border:0; background:none; cursor:pointer; touch-action:manipulation;}
+  h1,h2,h3{line-height:1.3; letter-spacing:0; margin:0; font-weight:700;}
+
+  #app{max-width:34rem; margin:0 auto; padding:1.1rem 1.1rem 2.5rem; min-height:100vh; display:flex; flex-direction:column;}
+  main{flex:1;}
+
+  /* ---------- header ---------- */
+  .bar{display:flex; align-items:center; gap:.7rem; min-height:2.8rem; margin-bottom:1.4rem;}
+  .wordmark{font-size:.82rem; font-weight:800; letter-spacing:.18em; text-transform:uppercase; color:var(--ink-soft);}
+  .wordmark b{color:var(--acc);}
+  .bar .sp{flex:1;}
+  .iconbtn{
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:2.9rem; min-height:2.9rem; border-radius:1rem; color:var(--ink-soft);
+    border:1px solid transparent;
+  }
+  .iconbtn:active{background:var(--surface-2); border-color:var(--line);}
+  .back{gap:.4rem; padding:0 .9rem; font-size:.95rem; font-weight:600; color:var(--ink-soft);}
+
+  /* ---------- home ---------- */
+  .greet{margin:0 0 1.6rem; max-width:26ch;}
+  .greet h1{font-size:1.55rem;}
+  .greet p{margin:.35rem 0 0; color:var(--ink-soft); font-size:1rem;}
+
+  .cards{display:flex; flex-direction:column; gap:.85rem;}
+  .card{
+    display:flex; align-items:center; gap:1rem; width:100%; text-align:left;
+    min-height:5.4rem; padding:1.1rem 1.15rem; border-radius:1.25rem;
+    background:var(--surface-2); border:1px solid var(--line); box-shadow:var(--shadow);
+    transition:transform .18s var(--ease);
+  }
+  .card:active{transform:scale(.985);}
+  .card .ic{flex:none; display:flex; color:var(--acc);}
+  .card .ic svg{width:1.75rem; height:1.75rem; display:block;}
+  .card.soon .ic{color:var(--ink-soft);}
+  .card .tx{flex:1; min-width:0;}
+  .card .tx b{display:block; font-size:1.15rem; font-weight:700;}
+  .card .tx span{display:block; font-size:.92rem; color:var(--ink-soft); margin-top:.1rem;}
+  .card .chip{
+    flex:none; font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    padding:.3rem .6rem; border-radius:.6rem; background:var(--acc-soft); color:var(--acc);
+  }
+  @media (prefers-color-scheme:dark){ .card .chip{color:var(--ink);} }
+  .card.soon{opacity:.72;}
+  .card.soon .chip{background:transparent; border:1px solid var(--line-2); color:var(--ink-soft);}
+
+  /* ---------- reading screen ---------- */
+  .plantwrap{display:flex; justify-content:center; padding:.2rem 0 .4rem;}
+  .plantwrap svg{width:min(14rem,58vw); height:auto; display:block;}
+  /* the plant eases up out of the soil on the day it grows */
+  #plantGrow{transform-box:view-box; transform-origin:120px 270px;}
+  #plantGrow.grow{animation:sprout 1.2s var(--ease);}
+  @keyframes sprout{
+    from{transform:scaleY(.90) scaleX(.96); opacity:.75;}
+    to{transform:none; opacity:1;}
+  }
+
+  .count{text-align:center; margin:.2rem 0 1.5rem;}
+  .count .n{font-size:2.6rem; font-weight:800; line-height:1.1; letter-spacing:-.01em;}
+  .count .lbl{font-size:1.02rem; color:var(--ink-soft);}
+  .count .sub{font-size:.9rem; color:var(--ink-soft); margin-top:.45rem;}
+
+  .primary{
+    display:flex; align-items:center; justify-content:center; gap:.6rem;
+    width:100%; min-height:4rem; padding:1rem 1.2rem; border-radius:1.25rem;
+    background:var(--acc); color:var(--acc-ink); font-size:1.15rem; font-weight:700;
+    box-shadow:var(--shadow); transition:transform .18s var(--ease);
+  }
+  .primary:active{transform:scale(.985);}
+  .primary.done{
+    background:var(--acc-soft); color:var(--acc); box-shadow:none; border:1px solid var(--line);
+  }
+  @media (prefers-color-scheme:dark){ .primary.done{color:var(--ink);} }
+
+  .quiet{
+    display:block; width:100%; margin-top:.8rem; min-height:3.2rem; border-radius:1rem;
+    color:var(--ink-soft); font-size:.98rem; font-weight:600; border:1px solid var(--line);
+    background:var(--surface-2);
+  }
+  .quiet:active{border-color:var(--line-2);}
+
+  .say{margin:1.15rem 0 0; text-align:center; font-size:1.02rem; color:var(--good);}
+
+  /* note editor */
+  .note{margin-top:1rem; padding:1rem; border-radius:1.1rem; background:var(--surface-2); border:1px solid var(--line);}
+  .note label{display:block; font-size:.86rem; font-weight:700; color:var(--ink-soft); margin:.2rem 0 .35rem;}
+  .note input,.note textarea{
+    width:100%; padding:.75rem .85rem; border-radius:.8rem; background:var(--surface);
+    border:1px solid var(--line-2); line-height:1.6;
+  }
+  .note textarea{min-height:5rem; resize:vertical;}
+  .note .row{display:flex; gap:.6rem; margin-top:.9rem;}
+  .note .row button{flex:1; min-height:3.1rem; border-radius:.9rem; font-weight:700;}
+  .note .row .ok{background:var(--acc); color:var(--acc-ink);}
+  .note .row .no{border:1px solid var(--line-2); color:var(--ink-soft);}
+
+  /* log */
+  .logwrap{margin-top:2rem;}
+  .logwrap h2{font-size:.78rem; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:.7rem;}
+  .entry{padding:.8rem 0; border-top:1px solid var(--line);}
+  .entry .d{font-size:.82rem; color:var(--ink-soft);}
+  .entry .t{font-weight:700; margin-top:.1rem;}
+  .entry .n{margin-top:.15rem; max-width:40ch;}
+
+  /* ---------- words ---------- */
+  .bigword{
+    text-align:center; font-size:2.5rem; font-weight:700; line-height:1.35;
+    letter-spacing:.03em; word-spacing:.1em; margin:.4rem 0 .2rem; word-break:break-word;
+  }
+  .syls{display:flex; flex-wrap:wrap; justify-content:center; gap:.4rem; margin:.9rem 0 0;}
+  .syl{
+    padding:.5rem .85rem; border-radius:.8rem; background:var(--acc-soft); color:var(--acc);
+    font-size:1.3rem; font-weight:700; letter-spacing:.03em; border:1px solid transparent;
+  }
+  @media (prefers-color-scheme:dark){ .syl{color:var(--ink);} }
+  .syl:active{border-color:var(--acc);}
+  .hearbtn{
+    display:flex; align-items:center; justify-content:center; gap:.6rem; margin:1.2rem auto 0;
+    min-height:3.6rem; padding:0 1.4rem; border-radius:1.1rem;
+    background:var(--surface-2); border:1px solid var(--line-2); font-weight:700; font-size:1.05rem;
+  }
+  .hearbtn svg{width:1.4rem; height:1.4rem; flex:none;}
+  .hearbtn:active{background:var(--acc-soft);}
+  .daybar{flex:none; width:5.5rem; height:.45rem; border-radius:.25rem; background:var(--line); overflow:hidden;}
+  .daybar i{display:block; height:100%; background:var(--acc); border-radius:.25rem; transition:width .4s var(--ease);}
+  .donetick{text-align:center; font-size:3.4rem; color:var(--acc); line-height:1; margin:.6rem 0 1.4rem;}
+  .dots{display:flex; justify-content:center; gap:.4rem; margin-bottom:1.6rem;}
+  .dots i{width:.55rem; height:.55rem; border-radius:50%; background:var(--line-2);}
+  .dots i.on{background:var(--acc);}
+  .dots i.now{background:var(--acc); transform:scale(1.5);}
+  .spellin{
+    width:100%; text-align:center; font-size:2rem; font-weight:700; letter-spacing:.12em;
+    padding:1rem .8rem; border-radius:1.1rem; background:var(--surface-2); border:2px solid var(--line-2);
+  }
+  .spellin:focus{outline:none; border-color:var(--acc);}
+  .verdict{text-align:center; font-size:1.15rem; font-weight:700; margin:.2rem 0 1rem;}
+  .verdict.ok{color:var(--good);}
+  .verdict.again{color:var(--retry);}
+  .marked{text-align:center; font-size:2.2rem; font-weight:700; letter-spacing:.06em; margin:.3rem 0;}
+  .marked b{color:var(--ink);}
+  .marked u{color:var(--retry); text-decoration:none; border-bottom:3px solid var(--retry); padding-bottom:.1em;}
+  .attempt{text-align:center; color:var(--ink-soft); font-size:1rem; margin-bottom:1rem;}
+  .attempt s{text-decoration:none; letter-spacing:.08em; font-weight:700;}
+  .wlistname{text-align:center; font-size:1.3rem; font-weight:700; margin:.2rem 0 .3rem;}
+  .wmeta{text-align:center; color:var(--ink-soft); margin-bottom:1.4rem;}
+  /* .pbar, not .bar — .bar is the header */
+  .pbar{height:.6rem; border-radius:.3rem; background:var(--line); overflow:hidden; margin:0 0 1.6rem;}
+  .pbar i{display:block; height:100%; background:var(--acc); border-radius:.3rem; transition:width .6s var(--ease);}
+
+  /* ---------- book chat ---------- */
+  .chat{display:flex; flex-direction:column; gap:.8rem; margin-bottom:1.2rem;}
+  .bub{
+    max-width:min(30ch,88%); padding:.85rem 1.05rem; border-radius:1.2rem; line-height:1.65;
+  }
+  .bub.them{
+    align-self:flex-start; background:var(--surface-2); border:1px solid var(--line);
+    border-bottom-left-radius:.4rem;
+  }
+  .bub.me{
+    align-self:flex-end; background:var(--acc-soft); color:var(--acc);
+    border-bottom-right-radius:.4rem;
+  }
+  @media (prefers-color-scheme:dark){ .bub.me{color:var(--ink);} }
+  .bub .spk{
+    display:block; margin-top:.4rem; font-size:.8rem; font-weight:700; color:var(--ink-soft);
+  }
+  .thinking{align-self:flex-start; display:flex; gap:.3rem; padding:1rem 1.1rem;}
+  .thinking i{
+    width:.5rem; height:.5rem; border-radius:50%; background:var(--line-2);
+    animation:blink 1.4s infinite both;
+  }
+  .thinking i:nth-child(2){animation-delay:.2s}
+  .thinking i:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,80%,100%{opacity:.3}40%{opacity:1}}
+  .saybox{display:flex; gap:.6rem; align-items:flex-end;}
+  .saybox textarea{
+    flex:1; min-height:3.4rem; max-height:8rem; padding:.8rem .9rem; border-radius:1rem;
+    background:var(--surface-2); border:1px solid var(--line-2); line-height:1.6; resize:none;
+  }
+  .saybox button{
+    flex:none; width:3.4rem; height:3.4rem; border-radius:1rem; display:flex;
+    align-items:center; justify-content:center; background:var(--acc); color:var(--acc-ink);
+  }
+  .saybox button.mic{background:var(--surface-2); color:var(--acc); border:1px solid var(--line-2);}
+  .saybox button.mic.on{background:var(--retry); color:#fff; border-color:transparent;}
+  .saybox button svg{width:1.4rem; height:1.4rem;}
+  .saybox button[disabled]{opacity:.45;}
+  .chaterr{color:var(--retry); font-size:.95rem; margin:.6rem 0; max-width:34ch;}
+
+  /* ---------- parent area ---------- */
+  .sect{margin-bottom:1.8rem;}
+  .sect h2{font-size:.78rem; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:.8rem;}
+  .field{margin-bottom:1.1rem;}
+  .field label{display:block; font-size:.92rem; font-weight:700; margin-bottom:.4rem;}
+  .field .hint{font-size:.85rem; color:var(--ink-soft); margin-top:.35rem; max-width:40ch;}
+  .field input[type=text]{
+    width:100%; padding:.8rem .9rem; border-radius:.9rem; background:var(--surface-2); border:1px solid var(--line-2);
+  }
+  .seg{display:flex; flex-wrap:wrap; gap:.5rem;}
+  .seg button{
+    min-height:3rem; padding:0 1rem; border-radius:.85rem; border:1px solid var(--line-2);
+    background:var(--surface-2); font-weight:600; color:var(--ink-soft);
+  }
+  .seg button[aria-pressed=true]{background:var(--acc); color:var(--acc-ink); border-color:transparent;}
+  .swatch{
+    position:relative; width:3rem; min-height:3rem; border-radius:.85rem; border:2px solid var(--line-2);
+    transition:transform .18s var(--ease);
+  }
+  .swatch[aria-pressed=true]{
+    border-color:var(--acc); box-shadow:0 0 0 3px var(--acc-soft); transform:scale(1.07);
+  }
+  /* a tick, so the chosen tint is unmistakable even between two pale colours */
+  .swatch[aria-pressed=true]::after{
+    content:"✓"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:#35705A; font-size:1.15rem; font-weight:800;
+  }
+  .stats{display:flex; gap:.55rem;}
+  .stat{flex:1 1 0; min-width:0; padding:.8rem .75rem; border-radius:1rem; background:var(--surface-2); border:1px solid var(--line);}
+  .stat b{display:block; font-size:1.45rem; font-weight:800; line-height:1.2;}
+  .stat span{display:block; font-size:.78rem; line-height:1.4; color:var(--ink-soft);}
+  .danger{color:var(--retry); border-color:var(--retry)!important;}
+
+  /* ---------- footer / build stamp ---------- */
+  footer{margin-top:2.4rem; text-align:center;}
+  .stamp{font-size:.72rem; letter-spacing:.1em; color:var(--ink-soft); opacity:.6; padding:.9rem 1.2rem; border-radius:.8rem; user-select:none;}
+  .stamp:active{opacity:1;}
+
+  /* ---------- milestone moment ---------- */
+  .scrim{
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:1.4rem;
+    background:rgba(59,65,73,.42); backdrop-filter:blur(3px); z-index:20;
+    animation:fade .5s var(--ease);
+  }
+  .moment{
+    max-width:22rem; width:100%; padding:1.8rem 1.5rem; border-radius:1.5rem; text-align:center;
+    background:var(--surface-2); border:1px solid var(--line); box-shadow:0 12px 40px rgba(0,0,0,.18);
+    animation:rise .6s var(--ease);
+  }
+  .moment .em{font-size:2.6rem; line-height:1;}
+  .moment h2{font-size:1.35rem; margin:.7rem 0 .5rem;}
+  .moment p{margin:0 auto; max-width:26ch; color:var(--ink-soft);}
+  .moment button{margin-top:1.4rem; width:100%; min-height:3.4rem; border-radius:1rem; background:var(--acc); color:var(--acc-ink); font-weight:700;}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  @keyframes rise{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+
+  /* ---------- toast ---------- */
+  #toast{
+    position:fixed; left:50%; bottom:calc(1.6rem + env(safe-area-inset-bottom)); transform:translateX(-50%);
+    padding:.75rem 1.15rem; border-radius:.9rem; background:var(--ink); color:var(--surface);
+    font-size:.92rem; font-weight:600; z-index:30; opacity:0; pointer-events:none;
+    transition:opacity .3s var(--ease); max-width:88vw;
+  }
+  #toast.on{opacity:.96;}
+
+  .sr{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;}
+
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important; transition-duration:.001ms!important;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="bar" id="bar"></div>
+  <!-- No aria-live here: the whole screen re-renders, and announcing all of it
+       on every render would bury the one line that actually changed. The pieces
+       that matter carry role="status" themselves. -->
+  <main id="screen"></main>
+  <!-- No build stamp on her screens. Press and hold the ACORN wordmark to reach
+       the grown-ups area; the build number is shown in there. -->
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+  'use strict';
+
+  const VERSION = '3 · straight to a word';
+  const KEY = 'acorn.v1';
+
+  /* =========================================================
+     Dates — always LOCAL dates. A 9pm read in Australia must
+     not land on tomorrow's UTC date.
+     ========================================================= */
+  let _todayOverride = null;                       // tests only, via window.__acorn.setToday()
+  function toISO(d){
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function todayISO(){ return _todayOverride || toISO(new Date()); }
+  function parseISO(s){ const p = String(s).split('-').map(Number); return new Date(p[0], p[1]-1, p[2]); }
+  // Whole-day difference a-b. Math.round absorbs 23/25-hour DST days.
+  function dayDiff(a,b){ return Math.round((parseISO(a) - parseISO(b)) / 86400000); }
+  function prettyDate(iso){
+    const d = parseISO(iso), t = todayISO();
+    if(iso === t) return 'Today';
+    if(dayDiff(t, iso) === 1) return 'Yesterday';
+    return d.toLocaleDateString('en-AU', {weekday:'short', day:'numeric', month:'short'});
+  }
+
+  /* =========================================================
+     Streak, with forgiveness.
+     One missed day between two read days is forgiven (a "rest
+     day"); two missed days in a row starts a fresh streak.
+     Losing a long streak is a confidence-killer, so the rule is
+     deliberately generous — and it never expires or runs out.
+     The streak counts DAYS READ, never calendar days spanned,
+     so it can't quietly inflate.
+     ========================================================= */
+  const GRACE = 1;                                 // forgiven missed days between reads
+  const MILESTONES = [7, 30, 100];
+
+  function readDays(log){                          // unique dates, newest first
+    return Array.from(new Set((log||[]).map(e => e.date))).sort().reverse();
+  }
+  function streakInfo(log, today){
+    const days = readDays(log);
+    const readToday = days[0] === today;
+    if(!days.length) return {current:0, rests:0, alive:false, readToday:false};
+    // Today isn't a miss until it's over, so the streak survives a gap of GRACE+1.
+    if(dayDiff(today, days[0]) > GRACE + 1) return {current:0, rests:0, alive:false, readToday:readToday};
+    let count = 1, rests = 0;
+    for(let i=1; i<days.length; i++){
+      const gap = dayDiff(days[i-1], days[i]);
+      if(gap === 1){ count++; }
+      else if(gap === GRACE + 1){ count++; rests++; }   // one day off, forgiven
+      else break;                                       // two or more off — earlier run
+    }
+    return {current:count, rests:rests, alive:true, readToday:readToday};
+  }
+  function longestRun(log){
+    const days = readDays(log).slice().reverse();   // oldest first
+    let best = 0, run = 0;
+    for(let i=0; i<days.length; i++){
+      if(i === 0) run = 1;
+      else { const gap = dayDiff(days[i], days[i-1]); run = (gap === 1 || gap === GRACE+1) ? run+1 : 1; }
+      if(run > best) best = run;
+    }
+    return best;
+  }
+
+  /* =========================================================
+     State
+     ========================================================= */
+  let S;
+  function fresh(){
+    return {
+      profile:  { name:'', mathsLevel:null, createdAt:todayISO() },
+      maths:    { facts:{}, sessions:[] },
+      words:    { lists:[], mastery:{}, activeId:'tricky', sessions:[] },
+      reading:  { streak:0, longest:0, freezes:0, milestones:[], log:[] },
+      settings: { textScale:1, tint:'cream', readAloud:true, sound:true, voice:null, speechRate:.95,
+                  // The chat endpoint. Empty until a grown-up fills it in, and the
+                  // whole feature stays hidden until then. The token is not an API
+                  // key — see worker/worker.js.
+                  chatUrl:'', chatToken:'' }
+    };
+  }
+  function load(){
+    try{
+      const raw = localStorage.getItem(KEY);
+      if(raw){
+        const o = JSON.parse(raw);
+        S = fresh();
+        // merge defensively — a stored file from an older build must never crash the app
+        if(o && typeof o === 'object'){
+          Object.assign(S.profile,  o.profile  || {});
+          Object.assign(S.maths,    o.maths    || {});
+          Object.assign(S.words,    o.words    || {});
+          Object.assign(S.reading,  o.reading  || {});
+          Object.assign(S.settings, o.settings || {});
+        }
+        if(!Array.isArray(S.reading.log)) S.reading.log = [];
+        if(!Array.isArray(S.reading.milestones)) S.reading.milestones = [];
+        if(!Array.isArray(S.words.lists)) S.words.lists = [];
+        if(!Array.isArray(S.words.sessions)) S.words.sessions = [];
+        if(!S.words.mastery || typeof S.words.mastery !== 'object') S.words.mastery = {};
+        return;
+      }
+    }catch(e){}
+    S = fresh();
+  }
+  function save(){
+    // streak / longest / freezes are DERIVED from the log; we mirror them into
+    // state so the synced progress.json is readable at a glance (see PLAN §3a).
+    const info = streakInfo(S.reading.log, todayISO());
+    S.reading.streak  = info.current;
+    S.reading.freezes = info.rests;
+    S.reading.longest = Math.max(S.reading.longest || 0, longestRun(S.reading.log));
+    try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){}
+  }
+
+  function markRead(){
+    const t = todayISO();
+    if(S.reading.log.some(e => e.date === t)) return false;   // idempotent — double taps are free
+    S.reading.log.push({date:t});
+    save();
+    return true;
+  }
+  // Notes attach to a day that has already been marked. A note must never be
+  // what silently creates the day — that would tick the streak up with no
+  // "I read today" tap, skipping the affirmation and any milestone moment.
+  function setNote(title, note){
+    const t = todayISO();
+    const e = S.reading.log.find(x => x.date === t);
+    if(!e) return false;
+    title = (title||'').trim(); note = (note||'').trim();
+    if(title) e.title = title; else delete e.title;
+    if(note)  e.note  = note;  else delete e.note;
+    save();
+    return true;
+  }
+
+  /* =========================================================
+     Sound (Web Audio, no asset files) + speech.
+     Both need a real user gesture before iOS will let them play,
+     so every tap runs unlock() first.
+     ========================================================= */
+  let _ac = null;
+  function audioCtx(){
+    try{
+      if(!_ac) _ac = new (window.AudioContext || window.webkitAudioContext)();
+      if(_ac.state === 'suspended') _ac.resume();
+    }catch(e){ _ac = null; }
+    return _ac;
+  }
+  function tone(freq, at, dur, vol){
+    const ac = audioCtx(); if(!ac) return;
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.connect(g); g.connect(ac.destination);
+    o.type = 'sine'; o.frequency.value = freq;
+    const t = ac.currentTime + at;
+    g.gain.setValueAtTime(.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + .03);
+    g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.start(t); o.stop(t + dur + .03);
+  }
+  function chime(name){
+    if(S.settings.sound === false) return;
+    if(name === 'done'){ tone(523.25, 0, .28, .16); tone(783.99, .13, .42, .13); }   // soft rising fifth
+    else if(name === 'milestone'){ tone(523.25,0,.3,.15); tone(659.25,.16,.3,.14); tone(783.99,.32,.6,.13); }
+  }
+
+  /* ---- voices --------------------------------------------------
+     Voice quality varies enormously between devices, and the default
+     pick is often the worst one installed. So: score every English
+     voice, default to the best, and let the parent override and
+     audition in the grown-ups area (settings.voice holds voiceURI).
+
+     Everything here is on-device: free, instant, and works offline —
+     which matters because tapping a word to hear it is the core of
+     the Words module. See README for the higher-quality options.
+     --------------------------------------------------------------- */
+  // macOS and iOS list their novelty voices (Albert, Bells with actual bell
+  // sounds, Bubbles, Zarvox…) and the robotic Eloquence family alongside the
+  // real ones, all tagged English. getVoices() is the only list the browser
+  // gives us, so the filtering has to happen here.
+  const NOVELTY = /\b(albert|bad news|bahh|bells|boing|bubbles|cellos|deranged|good news|hysterical|jester|junior|kathy|organ|princess|ralph|superstar|trinoids|whisper|wobble|zarvox|grandma|grandpa|rocko|sandy|shelley|reed|flo|eddy|bruce|fred|agnes|vicki|victoria|maged|zuzana)\b/i;
+
+  function englishVoices(){
+    try{
+      return (speechSynthesis.getVoices() || []).filter(v =>
+        /^en([-_]|$)/i.test(v.lang || '') && !NOVELTY.test(v.name || ''));
+    }catch(e){ return []; }
+  }
+  // What the parent picker offers: her own accent first, then near neighbours.
+  // Other English accents only appear if the phone has nothing closer.
+  function offerVoices(){
+    const all = englishVoices().slice().sort((a,b) => voiceScore(b) - voiceScore(a));
+    const near = all.filter(v => /^en-(AU|GB|NZ)/i.test(v.lang));
+    return (near.length >= 3 ? near : near.concat(all.filter(v => near.indexOf(v) < 0))).slice(0, 6);
+  }
+  // Higher is better. Names are the only reliable quality signal exposed to the web.
+  function voiceScore(v){
+    const n = (v.name || '') + ' ' + (v.voiceURI || '');
+    let s = 0;
+    if(/premium|enhanced|neural|natural|wavenet|studio/i.test(n)) s += 60;  // downloadable HQ voices
+    if(/siri/i.test(n)) s += 40;
+    if(/^en-AU/i.test(v.lang)) s += 30;                                     // her own accent first
+    else if(/^en-(GB|NZ)/i.test(v.lang)) s += 18;
+    else if(/^en-(IE|ZA)/i.test(v.lang)) s += 8;
+    if(/matilda|karen|catherine|lee|tina|serena|kate|google uk/i.test(n)) s += 10;
+    if(/compact|eloquence|espeak/i.test(n)) s -= 50;                        // the robotic fallbacks
+    if(v.default) s += 2;
+    return s;
+  }
+  let _voice = null, _voiceKey = null;
+  function pickVoice(){
+    const vs = englishVoices();
+    if(!vs.length) return null;
+    const want = S.settings.voice;
+    const key = want + '|' + vs.length;
+    if(_voiceKey === key && _voice) return _voice;
+    _voice = (want && vs.find(v => v.voiceURI === want))
+          || vs.slice().sort((a,b) => voiceScore(b) - voiceScore(a))[0]
+          || null;
+    _voiceKey = key;
+    return _voice;
+  }
+
+  // One seam for all spoken output, so a different engine can be dropped in
+  // later without touching the modules that call it.
+  function say(text, opts){
+    opts = opts || {};
+    if(!text) return;
+    if(opts.force !== true && S.settings.readAloud === false) return;
+    try{
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(String(text));
+      const v = opts.voice || pickVoice();
+      if(v){ u.voice = v; u.lang = v.lang; } else { u.lang = 'en-AU'; }
+      u.rate = opts.rate || Number(S.settings.speechRate) || .95;
+      u.pitch = 1;
+      speechSynthesis.speak(u);
+    }catch(e){}
+  }
+  const speak = say;                                   // reading-streak affirmations
+  // A word, then its syllables in chunks — see it, hear it, hear the parts.
+  function sayInParts(parts){
+    if(S.settings.readAloud === false || !parts.length) return;
+    try{
+      speechSynthesis.cancel();
+      const v = pickVoice();
+      parts.forEach((p, i) => {
+        const u = new SpeechSynthesisUtterance(p);
+        if(v){ u.voice = v; u.lang = v.lang; }
+        u.rate = Math.max(.5, (Number(S.settings.speechRate) || .95) - .25);
+        if(i) u.text = ' ' + p;
+        speechSynthesis.speak(u);
+      });
+    }catch(e){}
+  }
+  let _unlocked = false;
+  function unlock(){
+    if(_unlocked) return;
+    _unlocked = true;
+    audioCtx();
+    // iOS only populates voices, and only permits speech, after a gesture.
+    try{ speechSynthesis.getVoices(); }catch(e){}
+    pickVoice();
+  }
+  try{ speechSynthesis.onvoiceschanged = function(){ _voiceKey = null; pickVoice(); }; }catch(e){}
+
+  /* =========================================================
+     The plant. Grows with the streak: a seed, then a sprout that
+     gains height and leaves, then acorns. Slow and soft — the
+     reward is watching it accumulate, not a score.
+     ========================================================= */
+  function bez(p0,p1,p2,p3,t){
+    const m = 1-t, a = m*m*m, b = 3*m*m*t, c = 3*m*t*t, d = t*t*t;
+    return {x: a*p0.x + b*p1.x + c*p2.x + d*p3.x, y: a*p0.y + b*p1.y + c*p2.y + d*p3.y};
+  }
+  // A single acorn hanging off the stem at point pt, on the given side.
+  function acornAt(pt, side){
+    const x = (pt.x + side*8).toFixed(1), y = (pt.y + 6).toFixed(1);
+    return '<g transform="translate('+x+' '+y+')">'
+      +   '<path d="M0 0 q'+(side*9)+' 3 '+(side*11)+' 11" fill="none" stroke="var(--acc)" stroke-width="2" stroke-linecap="round"/>'
+      +   '<g transform="translate('+(side*11)+' 11)">'
+      +     '<ellipse cx="0" cy="10" rx="8.5" ry="10.5" fill="var(--acorn)"/>'
+      +     '<path d="M-9.5 1 Q-9.5 -7 0 -7 Q9.5 -7 9.5 1 Z" fill="var(--acorn-2)"/>'
+      +     '<path d="M0 -7 v-3.5" stroke="var(--acorn-2)" stroke-width="2" stroke-linecap="round"/>'
+      +   '</g>'
+      + '</g>';
+  }
+
+  function plantSVG(streak){
+    const GY = 270;                                        // ground line
+    // a low mound of earth, not a flat plate
+    const soil = '<ellipse cx="120" cy="'+(GY+3)+'" rx="64" ry="6" fill="var(--acc-soft)" opacity=".5"/>'
+               + '<path d="M54 '+GY+' Q120 '+(GY-26)+' 186 '+GY+' Z" fill="var(--acc-soft)"/>';
+
+    if(streak <= 0){                                       // dormant: a seed, ready when she is
+      return '<svg viewBox="0 0 240 300" role="img" aria-label="An acorn resting in the soil, ready to grow.">'
+        + soil
+        + '<g id="plantGrow" opacity=".8">'
+        +   '<ellipse cx="120" cy="256" rx="9" ry="11" fill="var(--acorn)"/>'
+        +   '<path d="M110 247 Q110 239 120 239 Q130 239 130 247 Z" fill="var(--acorn-2)"/>'
+        +   '<path d="M120 239 v-4" stroke="var(--acorn-2)" stroke-width="2" stroke-linecap="round"/>'
+        + '</g></svg>';
+    }
+
+    // Height keeps climbing well past the point the leaves stop multiplying, so
+    // day 12 and day 45 never look like the same plant.
+    const g = Math.min(1, Math.pow(streak/120, .45));
+    const H = 60 + g*195;
+    const p0 = {x:120, y:GY-2},
+          p1 = {x:120 - 18*g, y:GY - H*.42},
+          p2 = {x:120 + 20*g, y:GY - H*.76},
+          p3 = {x:120, y:GY - H};
+    const stem = 'M'+p0.x+' '+p0.y+' C'+p1.x+' '+p1.y+','+p2.x+' '+p2.y+','+p3.x+' '+p3.y;
+
+    const nLeaves = Math.min(12, 1 + Math.floor(streak/3.2));
+    let leaves = '';
+    for(let i=0; i<nLeaves; i++){
+      const t = nLeaves === 1 ? .42 : .20 + .74*(i/(nLeaves-1));
+      const pt = bez(p0,p1,p2,p3,t);
+      const side = i % 2 ? -1 : 1;                         // alternate sides
+      const size = (0.60 + 0.40*(1-t)) * (0.52 + 0.48*g);  // lower leaves bigger
+      const rot = side > 0 ? -26 : -154;
+      leaves += '<g transform="translate('+pt.x.toFixed(1)+' '+pt.y.toFixed(1)+') rotate('+rot+') scale('+size.toFixed(2)+')">'
+             +   '<path d="M0 0 C16 -13 40 -8 48 4 C38 16 14 14 0 0 Z" fill="var(--acc)" opacity=".9"/>'
+             +   '<path d="M3 1 C16 1 34 3 45 4" fill="none" stroke="var(--surface-2)" stroke-width="1.6" opacity=".45"/>'
+             + '</g>';
+    }
+
+    let acorns = '';
+    const nA = streak >= 100 ? 3 : streak >= 60 ? 2 : streak >= 30 ? 1 : 0;
+    const aSpots = [[.52,1],[.66,-1],[.38,-1]];
+    for(let i=0; i<nA; i++) acorns += acornAt(bez(p0,p1,p2,p3,aSpots[i][0]), aSpots[i][1]);
+
+    const label = 'A plant with ' + nLeaves + (nLeaves === 1 ? ' leaf' : ' leaves')
+                + (nA ? ' and ' + nA + (nA === 1 ? ' acorn' : ' acorns') : '')
+                + ', grown from ' + streak + (streak === 1 ? ' day' : ' days') + ' of reading.';
+    return '<svg viewBox="0 0 240 300" role="img" aria-label="' + label + '">'
+      + soil
+      + '<g id="plantGrow"' + (justGrew ? ' class="grow"' : '') + '>'
+      +   '<path d="'+stem+'" fill="none" stroke="var(--acc)" stroke-width="'+(3.4 + 2.6*g).toFixed(1)+'" stroke-linecap="round"/>'
+      +   leaves + acorns
+      + '</g></svg>';
+  }
+
+  /* =========================================================
+     WORDS — look, cover, write, check.
+     Australian spellings throughout. Built-in lists carry
+     hand-checked syllable splits; pasted school words fall back
+     to the splitter below.
+     ========================================================= */
+  const WORD_LISTS = [
+    {id:'tricky', name:'Tricky words', words:{
+      because:'be·cause', friend:'friend', people:'peo·ple', beautiful:'beau·ti·ful',
+      different:'dif·fer·ent', thought:'thought', through:'through', enough:'e·nough',
+      together:'to·geth·er', favourite:'fa·vour·ite', straight:'straight', height:'height',
+      business:'busi·ness', february:'Feb·ru·ary', separate:'sep·a·rate', government:'gov·ern·ment'}},
+    {id:'tionsion', name:'-tion and -sion', words:{
+      station:'sta·tion', question:'ques·tion', action:'ac·tion', attention:'at·ten·tion',
+      direction:'di·rec·tion', invention:'in·ven·tion', division:'di·vi·sion', decision:'de·ci·sion',
+      television:'tel·e·vi·sion', explosion:'ex·plo·sion', discussion:'dis·cus·sion', permission:'per·mis·sion'}},
+    {id:'aussie', name:'Australian spellings', words:{
+      colour:'col·our', favour:'fa·vour', neighbour:'neigh·bour', harbour:'har·bour',
+      realise:'real·ise', organise:'or·gan·ise', recognise:'rec·og·nise', centre:'cen·tre',
+      metre:'me·tre', theatre:'thea·tre', travelled:'trav·elled', licence:'li·cence',
+      practise:'prac·tise', jewellery:'jew·el·lery'}},
+    {id:'silent', name:'Silent letters', words:{
+      knee:'knee', knife:'knife', know:'know', wrist:'wrist', write:'write', wrong:'wrong',
+      lamb:'lamb', thumb:'thumb', climb:'climb', castle:'cas·tle', listen:'lis·ten',
+      whistle:'whis·tle', island:'is·land', honest:'hon·est'}},
+    {id:'longvowel', name:'Long vowel patterns', words:{
+      rain:'rain', afraid:'a·fraid', display:'dis·play', reason:'rea·son', between:'be·tween',
+      complete:'com·plete', light:'light', might:'might', delight:'de·light', boat:'boat',
+      window:'win·dow', tomorrow:'to·mor·row', tune:'tune', music:'mu·sic'}}
+  ];
+
+  // Onset digraphs lead the next syllable (mo·ther); coda digraphs close the
+  // previous one (neigh·bour, pock·et). Splitting them apart is never right.
+  const ONSET_DIGRAPHS = ['ch','sh','th','ph','wh'];
+  const CODA_DIGRAPHS  = ['ck','ng','gh'];
+  const DIGRAPHS = ONSET_DIGRAPHS.concat(CODA_DIGRAPHS);
+  // Consonant + liquid clusters start the next syllable (ta·ble, a·fraid, cen·tre).
+  // s-clusters deliberately excluded: medially the s closes the syllable before it
+  // (bas·ket, lis·ten, is·land, ques·tion), even though they open a word fine.
+  const ONSET_BLENDS = ['bl','br','cl','cr','dr','fl','fr','gl','gr','pl','pr','tr','tw','thr','shr'];
+  // Vowel pairs that make a single sound, so must never be split apart.
+  const VOWEL_DIGRAPHS = ['ai','ay','ea','ee','ei','ey','ie','oa','oe','oi','oo','ou','ow','oy',
+                          'ue','ui','au','aw','eu','ew','ya','ye','yo'];
+
+  // A teaching-style splitter for words we don't have a hand-checked split for.
+  // English syllabification has no exact rule set, so this aims for readable
+  // chunks rather than dictionary correctness — see the tests for real accuracy.
+  // A suffix after a consonant digraph is its own syllable: moth·er, teach·er,
+  // sing·er. Deliberately narrow — a general "-er is a suffix" rule would turn
+  // wa·ter into wat·er, and English orthography gives no way to tell the two
+  // apart without knowing whether the stem vowel is long.
+  const SUFFIXES = ['er','est','ing','ly','ful','ness','less','ment','able','ible'];
+  function suffixSplit(s){
+    for(const suf of SUFFIXES){
+      if(s.length <= suf.length + 3 || !s.endsWith(suf)) continue;
+      const stem = s.slice(0, -suf.length);
+      if(DIGRAPHS.indexOf(stem.slice(-2)) < 0) continue;      // digraph stems only
+      return [stem, suf];
+    }
+    return null;
+  }
+
+  function syllables(word){
+    const s = String(word || '').toLowerCase().replace(/[^a-z']/g, '');
+    if(s.length <= 3) return s ? [s] : [];
+
+    const suf = suffixSplit(s);
+    if(suf) return syllables(suf[0]).concat([suf[1]]);
+
+    const isV = (c, i) => 'aeiou'.indexOf(c) >= 0 || (c === 'y' && i > 0);
+
+    // vowel groups are the syllable nuclei
+    let groups = [];
+    for(let i = 0; i < s.length; i++){
+      if(isV(s[i], i)){
+        let j = i;
+        while(j + 1 < s.length && isV(s[j+1], j+1)) j++;
+        // 'u' after 'q' is part of the consonant, not a nucleus
+        let a = i;
+        if(s[i] === 'u' && i > 0 && s[i-1] === 'q' && j > i) a = i + 1;
+        // A run of vowels is usually one sound (rain, boat) but sometimes two
+        // (li·on, qui·et). Split the pairs that aren't digraphs — while keeping
+        // the -tion / -sion / -cial family intact, which is the whole point of
+        // one of the built-in lists.
+        let start = a;
+        for(let k = a; k < j; k++){
+          const pair = s.slice(k, k+2);
+          const before = s[k-1] || '', after = s[k+2] || '';
+          const oneSound = VOWEL_DIGRAPHS.indexOf(pair) >= 0
+                        || ('tscx'.indexOf(before) >= 0 && 'nl'.indexOf(after) >= 0);
+          if(!oneSound){ groups.push([start, k]); start = k + 1; }
+        }
+        groups.push([start, j]);
+        i = j;
+      }
+    }
+    if(groups.length < 2) return [s];
+
+    // a final consonant + "le"/"re" is its own syllable (ta·ble, cas·tle, cen·tre)
+    const leEnding = /[^aeiou](le|re)$/.test(s);
+    // otherwise a silent final 'e' is not a nucleus of its own (com·plete, not com·plet·e)
+    if(!leEnding && s.slice(-1) === 'e' && groups.length > 1){
+      const last = groups[groups.length-1];
+      if(last[0] === last[1] && last[0] === s.length-1) groups.pop();
+    }
+    if(groups.length < 2) return [s];
+
+    const cuts = [];
+    for(let k = 0; k < groups.length - 1; k++){
+      const a = groups[k][1], b = groups[k+1][0];
+      const L = b - a - 1;                                  // consonants between the nuclei
+      if(L <= 0){ cuts.push(a + 1); continue; }              // li·on
+      if(L === 1){ cuts.push(a + 1); continue; }             // wa·ter  (V|CV)
+      const pair = s.slice(a+1, a+3);
+      if(ONSET_DIGRAPHS.indexOf(pair) >= 0){ cuts.push(a + 1); continue; }  // mo·ther
+      if(CODA_DIGRAPHS.indexOf(pair) >= 0){ cuts.push(a + 3); continue; }   // neigh·bour, pock·et
+      const tail = s.slice(b - 2, b);
+      if(ONSET_BLENDS.indexOf(tail) >= 0){ cuts.push(b - 2); continue; }    // ta·ble, a·fraid, cen·tre
+      const nextPair = s.slice(a+2, a+4);
+      if(L >= 3 && DIGRAPHS.indexOf(nextPair) >= 0){ cuts.push(a + 2); continue; }
+      cuts.push(a + 2);                                     // hap·pen  (VC|CV)
+    }
+
+    const out = [];
+    let start = 0;
+    cuts.forEach(c => { if(c > start && c < s.length){ out.push(s.slice(start, c)); start = c; } });
+    out.push(s.slice(start));
+    return out.filter(Boolean);
+  }
+
+  function splitOf(word){
+    const list = activeList();
+    const hand = list && list.words && list.words[word];
+    if(hand) return String(hand).split('·');
+    return syllables(word);
+  }
+
+  /* ---- lists ---- */
+  function allLists(){
+    const built = WORD_LISTS.map(l => ({id:l.id, name:l.name, words:l.words, builtIn:true}));
+    return built.concat((S.words.lists || []).map(l => ({id:l.id, name:l.name, words:l.words, builtIn:false})));
+  }
+  function activeList(){
+    const all = allLists();
+    return all.find(l => l.id === S.words.activeId) || all[0];
+  }
+  function wordsOf(list){
+    if(!list) return [];
+    return Array.isArray(list.words) ? list.words.slice() : Object.keys(list.words);
+  }
+
+  // Parsing her weekly list: accept whatever the school sends — commas, new
+  // lines, numbered lists, stray bullets.
+  function parseWordList(text){
+    return String(text || '')
+      .split(/[\s,;]+/)
+      .map(w => w.replace(/^[\d]+[.)]?/, '').replace(/[^A-Za-z'\-]/g, '').toLowerCase())
+      .filter(w => w.length >= 2)
+      .filter((w, i, a) => a.indexOf(w) === i);
+  }
+
+  /* ---- spaced repetition (Leitner) ----
+     Boxes 1..7 in elapsed days. The ramp roughly doubles, which is where both
+     Cepeda's spacing data and FSRS's fitted intervals land; boxes 6 and 7 exist
+     so a word she knows well stops coming back every week forever. Box 5 is
+     "known well" — four correct retrievals on four different days, which is
+     where the benefit asymptotes. */
+  const BOX_DAYS = {1:0, 2:1, 3:2, 4:4, 5:8, 6:21, 7:60};
+  const MAX_BOX = 7;
+  const MASTER_BOX = 5;
+  // At most this many words she is still acquiring, per session. Overloading
+  // past three is where accuracy fell away for children with learning
+  // difficulties in the studies this is drawn from.
+  const ACQUIRING_CAP = 3;
+  const SEED_NEW = 3;                 // the very first session, to give her a set to work with
+  const acquiring = w => (mastery(w).box || 1) <= 1;
+
+  /* ---- self-adapting pace ----
+     Practice works best at roughly 80-85% success: below that she is being
+     overloaded, above it she is coasting. So the pace follows her accuracy
+     rather than a fixed number — how many words she got right first time,
+     across her last few sessions. */
+  // Judged over enough words to mean something: sessions are only a handful of
+  // words, so a 3-session window would swing 30 points on a single miss.
+  const PACE_WINDOW = 5;              // sessions to judge on
+  const PACE_MIN_WORDS = 12;          // ...and at least this many words within them
+  const PACE_HIGH = .85, PACE_LOW = .70;
+
+  function recentAccuracy(){
+    const ss = (S.words.sessions || []).slice(-PACE_WINDOW);
+    const words = ss.reduce((n, s) => n + (s.words || s.asked || 0), 0);
+    const first = ss.reduce((n, s) => n + (s.firstTime || 0), 0);
+    return words >= PACE_MIN_WORDS ? first / words : null;   // null = not enough to judge yet
+  }
+  // New words to introduce in this session.
+  function newWordsToday(){
+    if(!(S.words.sessions || []).length) return SEED_NEW;   // her first ever session
+    const acc = recentAccuracy();
+    if(acc === null) return 1;
+    if(acc >= PACE_HIGH) return 2;    // flying — she can take more
+    if(acc >= PACE_LOW)  return 1;    // in the sweet spot
+    return 0;                         // struggling — consolidate, add nothing
+  }
+  // How many still-being-learned words may appear at once.
+  function poolCap(){
+    const acc = recentAccuracy();
+    if(acc === null) return ACQUIRING_CAP;
+    if(acc >= PACE_HIGH) return ACQUIRING_CAP + 1;
+    if(acc <  PACE_LOW)  return Math.max(1, ACQUIRING_CAP - 1);
+    return ACQUIRING_CAP;
+  }
+  function paceLabel(){
+    const acc = recentAccuracy(), n = newWordsToday();
+    return (acc === null ? 'Finding her level' : Math.round(acc * 100) + '% right first time')
+         + ' · ' + (n === 0 ? 'no new words yet' : n + (n === 1 ? ' new word' : ' new words') + ' a session');
+  }
+  function mastery(word){
+    const m = S.words.mastery[word];
+    return m || {right:0, wrong:0, box:1, lastSeen:null};
+  }
+  function isDue(word, today){
+    const m = mastery(word);
+    if(!m.lastSeen) return true;                          // never seen
+    return dayDiff(today, m.lastSeen) >= BOX_DAYS[m.box || 1];
+  }
+  function recordWord(word, outcome){                     // 'first' | 'retry' | 'wrong'
+    const m = Object.assign({right:0, wrong:0, box:1, lastSeen:null}, S.words.mastery[word]);
+    const box = m.box || 1;
+    const alreadyAdvancedToday = m.lastSeen === todayISO();
+    if(outcome === 'first'){
+      m.right++;
+      // One box per calendar day. Two sessions in an evening shouldn't fast-track
+      // a word past intervals that are measured in days.
+      if(!alreadyAdvancedToday) m.box = Math.min(MAX_BOX, box + 1);
+    }
+    else if(outcome === 'retry'){ m.right++; }            // got there — no penalty, no advance
+    else {
+      m.wrong++;
+      // A large but partial reduction, not a reset: a long-known word that slips
+      // gets a one-day retry rather than starting again from nothing.
+      m.box = box <= 2 ? 1 : Math.max(2, box - 2);
+    }
+    m.lastSeen = todayISO();
+    S.words.mastery[word] = m;
+    save();
+    return m;
+  }
+  const SESSION_LEN = 8;
+  // How far past its interval a word is. Sorting by this rather than by box
+  // means the word closest to being forgotten comes back first.
+  function overdueRatio(word, today){
+    const m = mastery(word);
+    if(!m.lastSeen) return Infinity;
+    const days = dayDiff(today, m.lastSeen), want = BOX_DAYS[m.box || 1] || 1;
+    return days / Math.max(1, want);
+  }
+
+  /* Yesterday's words come back before anything new is introduced, and no more
+     than three words she is still acquiring appear in one session. The rest of a
+     pasted list waits its turn — a 20-word list is dripped, never dumped. */
+  function buildSession(list, today){
+    const all = wordsOf(list);
+    const seen = w => !!S.words.mastery[w];
+
+    const review = all.filter(w => seen(w) && !acquiring(w) && isDue(w, today))
+                      .sort((a,b) => overdueRatio(b, today) - overdueRatio(a, today));
+    const started = all.filter(w => seen(w) && acquiring(w))          // already begun, not yet known
+                       .sort((a,b) => String(mastery(a).lastSeen).localeCompare(String(mastery(b).lastSeen)));
+    const fresh = all.filter(w => !seen(w));                          // never met
+
+    // Words already begun keep their slots. Only then, and only as many as her
+    // recent accuracy justifies, does anything new come in — so a 20-word list
+    // is dripped one or two at a time, and paused entirely on a bad run.
+    const cap = poolCap();
+    const acq = started.slice(0, cap);
+    let room = Math.min(newWordsToday(), cap - acq.length);
+    for(const w of fresh){ if(room-- <= 0) break; acq.push(w); }
+
+    /* Most of a session must be words she can already spell — around 80% is
+       where practice works best, and a session made only of hard words is the
+       one thing guaranteed to put her off. So the review is sized against the
+       acquiring words, and if not enough is strictly due we pull forward the
+       nearest-to-due rather than let her face a screen of nothing but misses. */
+    const wantRev = Math.max(3, Math.ceil(acq.length * 2.5));
+    const rev = review.slice(0, wantRev);
+    if(rev.length < wantRev){
+      const spare = all.filter(w => seen(w) && !acquiring(w) && rev.indexOf(w) < 0)
+                       .sort((a,b) => overdueRatio(b, today) - overdueRatio(a, today));
+      for(const w of spare){ if(rev.length >= wantRev) break; rev.push(w); }
+    }
+    /* A floor, so a run of bad luck cannot freeze the app. If holding back new
+       words would leave her with almost nothing to do, one new word is better
+       than a thirty-second session she has no reason to come back to. */
+    const MIN_SESSION = 4;
+    if(acq.length + rev.length < MIN_SESSION){
+      for(const w of fresh){
+        if(acq.length + rev.length >= MIN_SESSION || acq.length >= cap) break;
+        if(acq.indexOf(w) < 0) acq.push(w);
+      }
+    }
+    if(!rev.length && !acq.length){
+      return all.slice().sort((a,b) => overdueRatio(b, today) - overdueRatio(a, today)).slice(0, SESSION_LEN);
+    }
+
+    // Open with the safest word she has, then thread the acquiring words through
+    // the review rather than blocking them together at the front.
+    const total = acq.length + rev.length;    // before rev is consumed below
+    const out = [];
+    if(rev.length) out.push(rev.shift());
+    const gap = Math.max(1, Math.ceil((rev.length + 1) / (acq.length + 1)));
+    let ri = 0, ai = 0;
+    while(ri < rev.length || ai < acq.length){
+      for(let k = 0; k < gap && ri < rev.length; k++) out.push(rev[ri++]);
+      if(ai < acq.length) out.push(acq[ai++]);
+    }
+    // Long enough to hold the review the acquiring words need, short enough to
+    // stay a two-minute thing.
+    const limit = Math.min(SESSION_LEN + ACQUIRING_CAP, total);
+    return out.filter((w, i, a) => a.indexOf(w) === i).slice(0, limit);
+  }
+  function masteredCount(list){
+    return wordsOf(list).filter(w => (mastery(w).box || 1) >= MASTER_BOX).length;
+  }
+
+  /* ---- comparing her attempt with the word ----
+     Longest common subsequence, so one extra or missing letter early doesn't
+     mark the whole word wrong. Returns which letters of the target she got. */
+  function matchedTargetIndices(attempt, target){
+    const a = String(attempt||'').toLowerCase(), b = String(target||'').toLowerCase();
+    const n = a.length, m = b.length;
+    const dp = [];
+    for(let i = 0; i <= n; i++) dp.push(new Array(m+1).fill(0));
+    for(let i = 1; i <= n; i++)
+      for(let j = 1; j <= m; j++)
+        dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1]);
+    const hit = new Set();
+    let i = n, j = m;
+    while(i > 0 && j > 0){
+      if(a[i-1] === b[j-1]){ hit.add(j-1); i--; j--; }
+      else if(dp[i-1][j] >= dp[i][j-1]) i--;
+      else j--;
+    }
+    return hit;
+  }
+  const sameWord = (a,b) => String(a||'').trim().toLowerCase() === String(b||'').trim().toLowerCase();
+
+  /* =========================================================
+     BOOK CHAT — a short talk about what she read today.
+     The endpoint holds the API key and the system prompt; this
+     side only carries the conversation. Off unless configured.
+     ========================================================= */
+  const MAX_ANSWERS = 4;                 // her turns, then it closes warmly
+  const chatReady = () => !!(S.settings.chatUrl || '').trim() && !!(S.settings.chatToken || '').trim();
+
+  let C = null;   // {turns:[{role,text}], book, busy, err, done}
+
+  function chatTurnsFor(entry){ return (entry && Array.isArray(entry.chat)) ? entry.chat : []; }
+  function answersGiven(){ return C ? C.turns.filter(t => t.role === 'user').length - 1 : 0; }
+
+  async function chatSend(){
+    C.busy = true; C.err = ''; render();
+    try{
+      const res = await fetch(S.settings.chatUrl.trim(), {
+        method:'POST',
+        headers:{'content-type':'application/json', 'x-acorn-token':S.settings.chatToken.trim()},
+        body: JSON.stringify({turns: C.turns.map(t => ({role:t.role, text:t.text})), book: C.book || ''})
+      });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok || !data.reply) throw new Error(data.error || 'no reply');
+      C.turns.push({role:'assistant', text:String(data.reply)});
+      // She answers, it replies, and after MAX_ANSWERS the reply is the last word.
+      if(answersGiven() >= MAX_ANSWERS) C.done = true;
+      saveChat();
+      C.busy = false; render();
+      say(data.reply);
+    }catch(err){
+      C.busy = false;
+      // Never a status code on her screen.
+      C.err = 'I can’t chat just now. Your reading is still saved.';
+      render();
+    }
+  }
+
+  function startChatSession(){
+    if(!chatReady()) return false;
+    const today = S.reading.log.find(e => e.date === todayISO());
+    if(!today) return false;                       // only after she has marked the day
+    C = {turns:[{role:'user', text:'I finished reading for today.'}],
+         book:(today.title || ''), busy:false, err:'', done:false};
+    screen = 'chat'; render();
+    chatSend();
+    return true;
+  }
+  function chatAnswer(text){
+    text = String(text || '').trim();
+    if(!text || !C || C.busy || C.done) return false;
+    C.turns.push({role:'user', text:text});
+    saveChat();
+    chatSend();
+    return true;
+  }
+  // Kept on the day's reading entry, so the grown-ups area can show it in context.
+  function saveChat(){
+    const t = todayISO();
+    const e = S.reading.log.find(x => x.date === t);
+    if(!e || !C) return;
+    e.chat = C.turns.slice(1).map(x => ({role:x.role, text:x.text}));   // drop the synthetic opener
+    save();
+  }
+
+  /* ---- her voice, because typing is the hard part ---- */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  let _rec = null, _recOn = false;
+  function listening(){ return _recOn; }
+  function stopListening(){
+    try{ if(_rec) _rec.stop(); }catch(e){}
+    _rec = null; _recOn = false;
+  }
+  function startListening(onText){
+    if(!SR) return false;
+    stopListening();
+    try{
+      _rec = new SR();
+      _rec.lang = 'en-AU';
+      _rec.interimResults = false;
+      _rec.maxAlternatives = 1;
+      _rec.continuous = false;
+      _rec.onresult = ev => {
+        const said = (ev.results && ev.results[0] && ev.results[0][0] && ev.results[0][0].transcript) || '';
+        _recOn = false; _rec = null;
+        if(said) onText(said);
+        else render();
+      };
+      _rec.onerror = () => { _recOn = false; _rec = null; render(); };
+      _rec.onend   = () => { if(_recOn){ _recOn = false; render(); } };
+      _rec.start();
+      _recOn = true;
+      return true;
+    }catch(e){ _recOn = false; _rec = null; return false; }
+  }
+
+  /* =========================================================
+     Copy — warm, never scolding, never a score.
+     ========================================================= */
+  const AFFIRM = [
+    'Nice work{n}.', 'That’s another day{n}.', 'Lovely reading{n}.',
+    'Good on you{n}.', 'Every day counts{n}.', 'That’s the way{n}.'
+  ];
+  function withName(s){
+    const n = (S.profile.name||'').trim();
+    return s.replace('{n}', n ? ', ' + n : '');
+  }
+  const MOMENTS = {
+    7:   {em:'\u{1F331}', h:'A whole week', p:'Seven days of reading{n}. That’s a habit taking root.'},
+    30:  {em:'\u{1F33F}', h:'Thirty days',  p:'A full month{n}. Look how much your plant has grown.'},
+    100: {em:'\u{1F333}', h:'One hundred', p:'A hundred days of reading{n}. That is something to be proud of.'}
+  };
+
+  /* =========================================================
+     Render
+     ========================================================= */
+  let screen = 'home';
+  let noteOpen = false;
+  let saying = '';
+  let pendingMoment = null;
+  let justGrew = false;        // set on the tap that marks the day; consumed by the next render
+
+  /* Which cards she sees. Reading and maths are built and tested but hidden
+     while we concentrate on words — flip either to true to bring it back.
+     Note: the book chat lives on the reading screen, so it is dormant while
+     read is false. */
+  const SHOW = {read:false, maths:false};
+
+  const ICONS = {
+    read: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<path d="M12 6.6C10.5 5.2 8.6 4.6 6 4.6H3.6v13.8H6c2.6 0 4.5.6 6 2 1.5-1.4 3.4-2 6-2h2.4V4.6H18c-2.6 0-4.5.6-6 2Z"/><path d="M12 6.6v13.8"/></svg>',
+    // a 3x3 array — the same representation the maths module will use for multiplication
+    maths:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'
+        + [5,12,19].map(y => [5,12,19].map(x => '<circle cx="'+x+'" cy="'+y+'" r="2.1"/>').join('')).join('') + '</svg>',
+    words:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<path d="M20.4 12.2c0 3.5-3.6 6.4-8 6.4-1 0-2-.15-2.9-.42L5 20.4l1.2-3.2c-1.3-1.2-2.2-2.9-2.2-5 0-3.5 3.6-6.4 8-6.4s8.4 2.9 8.4 6.4Z"/>'
+        + '<path d="M8.6 12.3h6.8M10.2 9.4h3.6"/></svg>'
+  };
+
+  const el = s => document.querySelector(s);
+  const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  function applySettings(){
+    const r = document.documentElement;
+    r.style.setProperty('--scale', S.settings.textScale || 1);
+    r.setAttribute('data-tint', S.settings.tint || 'cream');
+  }
+
+  function render(){
+    applySettings();
+    if(screen === 'home')     renderHome();
+    if(screen === 'read')     renderRead();
+    if(screen === 'day')      { W ? renderSession() : renderDone(); }
+    if(screen === 'chat')     renderChat();
+    if(screen === 'parent')   renderParent();
+    renderMoment();
+    justGrew = false;              // one-shot: the growth animation plays once
+  }
+
+  function renderHome(){
+    const info = streakInfo(S.reading.log, todayISO());
+    const n = (S.profile.name||'').trim();
+    const h = new Date().getHours();
+    const part = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+    const wl = activeList(), wall = wordsOf(wl).length, wdone = masteredCount(wl);
+    // The wordmark is the way in to the grown-ups area: press and hold it.
+    el('#bar').innerHTML = '<span class="wordmark" id="wordmark"><b>Acorn</b></span><span class="sp"></span>';
+    el('#screen').innerHTML =
+        '<div class="greet"><h1>' + part + (n ? ', ' + esc(n) : '') + '</h1>'
+      +   '<p>' + (info.readToday
+            ? 'You’ve read today. Nothing else is needed.'
+            : 'One small thing today: read for a little while.') + '</p></div>'
+      + '<div class="cards">'
+      +   (SHOW.read
+        ? '<button class="card" data-go="read">'
+          + '<span class="ic">' + ICONS.read + '</span>'
+          + '<span class="tx"><b>Read</b><span>' + (info.current > 0 ? info.current + (info.current === 1 ? ' day' : ' days') + ' so far' : 'Start your streak') + '</span></span>'
+          + '<span class="chip">' + (info.readToday ? 'Done' : 'Today') + '</span>'
+          + '</button>'
+        : '')
+      +   (SHOW.maths
+        ? '<button class="card soon" data-soon="Maths">'
+          + '<span class="ic">' + ICONS.maths + '</span>'
+          + '<span class="tx"><b>Maths</b><span>Times tables</span></span>'
+          + '<span class="chip">Soon</span>'
+          + '</button>'
+        : '')
+      +   '<button class="card" data-go="words">'
+      +     '<span class="ic">' + ICONS.words + '</span>'
+      +     '<span class="tx"><b>Words</b><span>' + esc(wl ? wl.name : 'Spelling, out loud') + '</span></span>'
+      +     '<span class="chip">' + (wdone && wall ? wdone + '/' + wall : 'Spelling') + '</span>'
+      +   '</button>'
+      + '</div>';
+  }
+
+  function renderRead(){
+    const t = todayISO();
+    const info = streakInfo(S.reading.log, t);
+    const today = S.reading.log.find(e => e.date === t);
+    const longest = Math.max(S.reading.longest||0, longestRun(S.reading.log));
+
+    let sub = '';
+    if(info.current === 0 && S.reading.log.length) sub = 'Longest so far: ' + longest + ' days. A fresh start is fine.';
+    else if(info.rests === 1) sub = '1 rest day along the way — that’s fine.';
+    else if(info.rests > 1)   sub = info.rests + ' rest days along the way — that’s fine.';
+    else if(longest > info.current) sub = 'Longest so far: ' + longest + ' days.';
+
+    const recent = S.reading.log.slice()
+      .sort((a,b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0)   // newest first
+      .slice(0, 8);
+
+    el('#bar').innerHTML = '<button class="iconbtn back" data-go="home" aria-label="Back to home">← Home</button><span class="sp"></span>';
+
+    el('#screen').innerHTML =
+        '<div class="plantwrap">' + plantSVG(info.current) + '</div>'
+      + '<div class="count">'
+      +   (info.current > 0
+            ? '<div class="n">' + info.current + '</div><div class="lbl">' + (info.current === 1 ? 'day of reading' : 'days of reading') + '</div>'
+            : '<div class="lbl">Ready when you are</div>')
+      +   (sub ? '<div class="sub">' + esc(sub) + '</div>' : '')
+      + '</div>'
+      + (info.readToday
+          ? '<div class="primary done">✓ You read today</div>'
+          : '<button class="primary" id="mark">I read today</button>')
+      + (saying ? '<div class="say" role="status">' + esc(saying) + '</div>' : '')
+      // The note belongs to a day already marked — see setNote().
+      + (!info.readToday ? ''
+         : noteOpen
+          ? '<div class="note">'
+            + '<label for="bt">What are you reading?</label>'
+            + '<input type="text" id="bt" value="' + esc(today && today.title || '') + '" placeholder="Book title" autocomplete="off">'
+            + '<label for="bn">What happened?</label>'
+            + '<textarea id="bn" placeholder="One line is plenty">' + esc(today && today.note || '') + '</textarea>'
+            + '<div class="row"><button class="no" id="ncancel">Cancel</button><button class="ok" id="nsave">Save</button></div>'
+            + '</div>'
+          : '<button class="quiet" id="nopen">' + (today && (today.title || today.note) ? 'Edit today’s note' : 'Add a note about your book') + '</button>')
+      // Only once the day is marked, and only if a grown-up has set the endpoint up.
+      + (info.readToday && chatReady() && !noteOpen
+          ? '<button class="quiet" id="cstart">' + (chatTurnsFor(today).length ? 'Talk more about your book' : 'Talk about your book') + '</button>'
+          : '')
+      + (recent.length
+          ? '<div class="logwrap"><h2>Recent</h2>'
+            + recent.map(e =>
+                '<div class="entry"><div class="d">' + esc(prettyDate(e.date)) + '</div>'
+                + (e.title ? '<div class="t">' + esc(e.title) + '</div>' : '')
+                + (e.note ? '<div class="n">' + esc(e.note) + '</div>' : '')
+                + '</div>').join('')
+            + '</div>'
+          : '');
+  }
+
+  const MIC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+            + '<rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/></svg>';
+  const SENDI = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+            + '<path d="M4 12h15"/><path d="M13 6l6 6-6 6"/></svg>';
+
+  function renderChat(){
+    el('#bar').innerHTML = '<button class="iconbtn back" data-go="read" aria-label="Back to reading">← Back</button><span class="sp"></span>';
+    if(!C){ go('read'); return; }
+
+    const shown = C.turns.slice(1);            // hide the synthetic opener
+    let body = '<div class="chat">';
+    shown.forEach(t => {
+      body += '<div class="bub ' + (t.role === 'assistant' ? 'them' : 'me') + '">' + esc(t.text)
+            + (t.role === 'assistant' ? '<button class="spk" data-hear="' + esc(t.text) + '">Hear it again</button>' : '')
+            + '</div>';
+    });
+    if(C.busy) body += '<div class="thinking" aria-label="thinking"><i></i><i></i><i></i></div>';
+    body += '</div>';
+
+    if(C.err) body += '<div class="chaterr" role="status">' + esc(C.err) + '</div>';
+
+    if(C.done){
+      body += '<button class="primary" data-go="read">All done</button>';
+    }else if(!C.busy){
+      body += '<div class="saybox">'
+           +   '<textarea id="csay" placeholder="Say or type your answer" rows="1" '
+           +     'autocapitalize="sentences" enterkeyhint="send"></textarea>'
+           +   (SR ? '<button class="mic' + (listening() ? ' on' : '') + '" id="cmic" aria-label="'
+                   + (listening() ? 'Stop listening' : 'Talk instead of typing') + '">' + MIC + '</button>' : '')
+           +   '<button id="csend" aria-label="Send">' + SENDI + '</button>'
+           + '</div>';
+      if(listening()) body += '<div class="wmeta" style="margin:.6rem 0 0">Listening…</div>';
+    }
+    el('#screen').innerHTML = body;
+    const inp = el('#csay');
+    if(inp && !listening()) inp.focus({preventScroll:true});
+  }
+
+  /* ---- the day is finished (or there is nothing to do yet) ---- */
+  function renderDone(){
+    const list = activeList();
+    const all = wordsOf(list);
+    const done = masteredCount(list);
+    const pct = all.length ? Math.round(100 * done / all.length) : 0;
+    dayBar();
+    el('#screen').innerHTML =
+        (saying ? '<div class="say" role="status" style="margin:.4rem 0 1.4rem;font-size:1.3rem">' + esc(saying) + '</div>'
+                : '<div class="wlistname" style="margin-top:1rem">All done for today</div>')
+      + '<div class="donetick" aria-hidden="true">✓</div>'
+      + (all.length
+          ? '<div class="wmeta">' + done + ' of ' + all.length + ' words known well</div>'
+            + '<div class="pbar"><i style="width:' + pct + '%"></i></div>'
+            + '<button class="quiet" id="wstart">Practise a bit more</button>'
+          : '<div class="wmeta">No words yet. A grown-up can add her list.</div>');
+  }
+
+  // Her header: the wordmark (press and hold for grown-ups) and today's progress.
+  function dayBar(pos, total){
+    const bar = (pos != null && total)
+      ? '<span class="daybar" aria-label="' + pos + ' of ' + total + '"><i style="width:'
+        + Math.round(100 * pos / total) + '%"></i></span>'
+      : '';
+    el('#bar').innerHTML = '<span class="wordmark" id="wordmark"><b>Acorn</b></span>'
+      + '<span class="sp"></span>' + bar;
+  }
+
+  /* ---- words: a look-cover-write-check session ---- */
+  const SPK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+            + '<path d="M11 5 6.5 9H3.5v6h3L11 19V5Z"/><path d="M15.5 9.2a4 4 0 0 1 0 5.6"/><path d="M18.4 6.6a8 8 0 0 1 0 10.8"/></svg>';
+  let W = null;      // live session: {words, i, stage, attempt, tries, right}
+
+  // A brand-new word gets look-cover-write-check. Every word she has met before
+  // goes straight to writing it from memory — showing it first would make the
+  // whole thing a copying exercise, which is the one thing that undoes the
+  // benefit of practising at all.
+  const stageFor = word => acquiring(word) && !S.words.mastery[word] ? 'look'
+                         : acquiring(word) ? 'look' : 'write';
+
+  function startWords(){
+    const list = activeList();
+    const words = buildSession(list, todayISO());
+    if(!words.length) return false;
+    W = {words:words, i:0, stage:stageFor(words[0]), attempt:'', tries:0,
+         right:0, firstTime:0, requeue:[], failed:[], total:words.length};
+    screen = 'day';
+    render();
+    say(words[0]);
+    return true;
+  }
+  function wordNow(){ return W && W.words[W.i]; }
+
+  function renderSession(){
+    if(!W){ go('words'); return; }
+    const word = wordNow();
+    const parts = splitOf(word);
+    dayBar(W.i, W.words.length);
+
+    let dots = '<div class="dots" aria-label="Word ' + (W.i+1) + ' of ' + W.words.length + '">';
+    for(let k = 0; k < W.words.length; k++)
+      dots += '<i class="' + (k < W.i ? 'on' : k === W.i ? 'now' : '') + '"></i>';
+    dots += '</div>';
+
+    // A single-syllable word needs no syllable row — it would just repeat itself.
+    const sylRow = parts.length > 1
+      ? '<div class="syls">' + parts.map(x => '<span class="syl" data-syl="' + esc(x) + '">' + esc(x) + '</span>').join('') + '</div>'
+      : '';
+    let body = '';
+    if(W.stage === 'look'){
+      body = '<div class="bigword">' + esc(word) + '</div>'
+           + sylRow
+           // Saying it aloud and tracing it are free wins; neither is checked,
+           // so there is no way for them to go wrong.
+           + '<div class="wmeta" style="margin:1.1rem 0 0">Say it out loud. Trace it with your finger.</div>'
+           + '<button class="hearbtn" id="whear">' + SPK + 'Hear it</button>'
+           + '<button class="primary" id="wcover" style="margin-top:1.6rem">Cover it up</button>';
+    }
+    else if(W.stage === 'write'){
+      body = '<div class="wmeta">' + (stageFor(word) === 'write' ? 'Listen, then write it.' : 'Now write it from memory.') + '</div>'
+           + '<input class="spellin" id="wtype" type="text" inputmode="text" autocomplete="off" '
+           +   'autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" '
+           +   'value="' + esc(W.attempt) + '" aria-label="Type the word">'
+           + '<button class="hearbtn" id="whear">' + SPK + 'Hear it again</button>'
+           + '<button class="primary" id="wcheck" style="margin-top:1.4rem">Check</button>';
+    }
+    else {                                     // check
+      const ok = sameWord(W.attempt, word);
+      const hit = matchedTargetIndices(W.attempt, word);
+      const marked = word.split('').map((c,i) => hit.has(i) ? '<b>' + esc(c) + '</b>' : '<u>' + esc(c) + '</u>').join('');
+      const more = (W.i + 1 < W.words.length) || W.requeue.length;
+      // Marking every letter tells her nothing except "all of this is wrong".
+      // If she was nowhere near, show the word plainly instead — and don't say
+      // "nearly" when she wasn't.
+      const close = word.length ? hit.size / word.length >= .5 : false;
+      // Only ever the correct spelling on screen. Her own misspelling is not
+      // shown back to her — seeing wrong orthography is the one thing that
+      // measurably sets spelling back.
+      body = '<div class="verdict ' + (ok ? 'ok' : 'again') + '">'
+           +   (ok ? (W.tries > 1 || W.failed.indexOf(word) >= 0 ? 'You got there.' : 'Yes — that’s it.')
+                   : close ? 'So close. Look at these letters.' : 'Here it is. Have a good look.')
+           + '</div>'
+           + (ok || !close ? '<div class="bigword">' + esc(word) + '</div>'
+                           : '<div class="marked">' + marked + '</div>')
+           + sylRow
+           + '<button class="hearbtn" id="whear">' + SPK + 'Hear it</button>'
+           + (!ok ? '<div class="wmeta" style="margin:1.1rem 0 0">You’ll see this one again in a moment.</div>' : '')
+           + '<button class="primary" id="wnext" style="margin-top:1.6rem">'
+           +   (more ? 'Next word' : 'Finish') + '</button>';
+    }
+    el('#screen').innerHTML = dots + body;
+    if(W.stage === 'write'){
+      const inp = el('#wtype');
+      if(inp){ inp.focus({preventScroll:true}); inp.setSelectionRange(inp.value.length, inp.value.length); }
+    }
+  }
+
+  // A word she has already failed today is re-asked from memory, not shown again.
+  const stageNow = w => (W && W.failed.indexOf(w) >= 0) ? 'write' : stageFor(w);
+
+  function checkWord(){
+    const word = wordNow();
+    W.attempt = (el('#wtype') ? el('#wtype').value : W.attempt) || '';
+    W.tries++;
+    const ok = sameWord(W.attempt, word);
+    const alreadyMissed = W.failed.indexOf(word) >= 0;
+    if(ok){
+      recordWord(word, alreadyMissed ? 'retry' : 'first');
+      W.right++;
+      if(!alreadyMissed) W.firstTime++;
+      chime('done');
+    }else if(!alreadyMissed){
+      // Marked down once, then queued to come back later in this same session —
+      // a real retrieval a few words on, rather than a copy off the screen.
+      W.failed.push(word);
+      recordWord(word, 'wrong');
+      if(W.requeue.indexOf(word) < 0) W.requeue.push(word);
+    }
+    W.stage = 'check';
+    render();
+    if(!ok) sayInParts(splitOf(word));
+  }
+  function nextWord(){
+    if(W.i + 1 < W.words.length){ W.i++; }
+    else if(W.requeue.length){ W.words.push(W.requeue.shift()); W.i++; }
+    else { finishWords(); return; }
+    W.stage = stageNow(wordNow()); W.attempt = ''; W.tries = 0;
+    render();
+    say(wordNow());
+  }
+  function finishWords(){
+    const n = W.words.length, first = W.firstTime;
+    // "words" is the distinct count — a word re-asked after a miss is one word,
+    // two prompts. The pace is judged on words, so it isn't skewed by re-asks.
+    const distinct = W.words.filter((w, i, a) => a.indexOf(w) === i).length;
+    S.words.sessions.push({date:todayISO(), asked:n, words:distinct, right:W.right, firstTime:first});
+    if(S.words.sessions.length > 40) S.words.sessions = S.words.sessions.slice(-40);
+    save();
+    W = null;
+    saying = withName(first === n ? 'Every one, first go{n}.' : 'All done{n}.');
+    screen = 'day'; render();
+    chime('milestone');
+    speak(saying);
+  }
+
+  function renderParent(){
+    const info = streakInfo(S.reading.log, todayISO());
+    const longest = Math.max(S.reading.longest||0, longestRun(S.reading.log));
+    const scales = [['Smaller',.9],['Normal',1],['Large',1.15],['Larger',1.3],['Largest',1.5]];
+    const voiceList = offerVoices();
+    const chosen = pickVoice();
+    const chats = S.reading.log.filter(e => chatTurnsFor(e).length)
+      .sort((a,b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0).slice(0, 5);
+    const tints  = [['cream','#FBF6EC'],['peach','#FBF0E8'],['mint','#EDF6F0'],['blue','#EDF2F8'],['grey','#F2F1EE']];
+
+    el('#bar').innerHTML = '<button class="iconbtn back" data-go="day" aria-label="Back">← Back</button>'
+      + '<span class="sp"></span><span class="wordmark" style="color:var(--ink-soft)">Grown-ups</span>';
+
+    el('#screen').innerHTML =
+        '<div class="sect"><h2>Progress</h2><div class="stats">'
+      +   '<div class="stat"><b>' + info.current + '</b><span>day streak</span></div>'
+      +   '<div class="stat"><b>' + longest + '</b><span>longest</span></div>'
+      +   '<div class="stat"><b>' + readDays(S.reading.log).length + '</b><span>days read</span></div>'
+      + '</div>'
+      + '<div class="stats" style="margin-top:.55rem">'
+      +   '<div class="stat"><b>' + masteredCount(activeList()) + '</b><span>words known</span></div>'
+      +   '<div class="stat"><b>' + Object.keys(S.words.mastery).length + '</b><span>words tried</span></div>'
+      +   '<div class="stat"><b>' + S.words.sessions.length + '</b><span>spelling goes</span></div>'
+      + '</div>'
+      + '<div class="hint" style="margin-top:.7rem">' + esc(paceLabel())
+      + '. The pace follows her: two new words a session when she is above 85% right first time, '
+      + 'one in the middle, and none at all while she is under 70% — so a hard week slows the intake '
+      + 'instead of piling up.</div>'
+      + '</div>'
+
+      + '<div class="sect"><h2>Her details</h2>'
+      +   '<div class="field"><label for="pname">Name</label>'
+      +     '<input type="text" id="pname" value="' + esc(S.profile.name||'') + '" placeholder="First name" autocomplete="off" autocapitalize="words">'
+      +     '<div class="hint">Used for gentle encouragement. Stored only on this device — it never appears in the app’s code.</div>'
+      +   '</div></div>'
+
+      + '<div class="sect"><h2>Spelling list</h2>'
+      +   '<div class="field"><div class="seg" id="segList">'
+      +     allLists().map(l => '<button data-list="' + esc(l.id) + '" aria-pressed="' + (l.id === (activeList()||{}).id) + '">'
+      +       esc(l.name) + ' <span style="opacity:.6">' + wordsOf(l).length + '</span></button>').join('')
+      +   '</div></div>'
+      +   '<div class="field"><label for="pastebox">Paste this week’s list</label>'
+      +     '<textarea id="pastebox" placeholder="because, friend, thought…" '
+      +       'style="width:100%;min-height:5.5rem;padding:.8rem .9rem;border-radius:.9rem;background:var(--surface-2);border:1px solid var(--line-2);line-height:1.6" '
+      +       'autocapitalize="off" spellcheck="false"></textarea>'
+      +     '<div class="field" style="margin:.7rem 0 0"><label for="pastename">List name</label>'
+      +       '<input type="text" id="pastename" placeholder="Week 4 spelling" autocomplete="off"></div>'
+      +     '<button class="quiet" id="pasteSave" style="margin-top:.7rem">Save this list</button>'
+      +     '<div class="hint">Commas, spaces or one per line — numbering and bullets are ignored.</div>'
+      +   '</div>'
+      +   (S.words.lists.length
+        ? '<div class="field"><label>Her saved lists</label><div class="seg">'
+          + S.words.lists.map(l => '<button class="danger" data-dellist="' + esc(l.id) + '">Delete “' + esc(l.name) + '”</button>').join('')
+          + '</div></div>'
+        : '')
+      + '</div>'
+
+      + '<div class="sect"><h2>Reading &amp; sound</h2>'
+      +   '<div class="field"><label>Read aloud</label><div class="seg" id="segRead">'
+      +     '<button data-ra="1" aria-pressed="' + (S.settings.readAloud !== false) + '">On</button>'
+      +     '<button data-ra="0" aria-pressed="' + (S.settings.readAloud === false) + '">Off</button>'
+      +   '</div><div class="hint">Speaks encouragement out loud. Needed for Words later.</div></div>'
+      +   '<div class="field"><label>Sound</label><div class="seg" id="segSnd">'
+      +     '<button data-sn="1" aria-pressed="' + (S.settings.sound !== false) + '">On</button>'
+      +     '<button data-sn="0" aria-pressed="' + (S.settings.sound === false) + '">Off</button>'
+      +   '</div></div>'
+      +   '<div class="field"><label>Speaking speed</label><div class="seg" id="segRate">'
+      +     [['Slow',.7],['Steady',.85],['Normal',.95],['Quick',1.1]].map(r =>
+              '<button data-rate="' + r[1] + '" aria-pressed="' + (Number(S.settings.speechRate||.95) === r[1]) + '">' + r[0] + '</button>').join('')
+      +   '</div></div>'
+      +   '<div class="field"><label>Voice</label><div class="seg" id="segVoice">'
+      +     (voiceList.length
+              ? voiceList.map(v => '<button data-voice="' + esc(v.voiceURI) + '" aria-pressed="'
+                  // keep a "(Premium)" / "(Enhanced)" suffix — that is the part worth seeing
+                  + (chosen && chosen.voiceURI === v.voiceURI) + '">' + esc(v.name.replace(/\s*\((?!premium|enhanced)[^)]*\)\s*$/i, ''))
+                  + ' <span style="opacity:.6">' + esc((v.lang||'').replace('_','-')) + '</span></button>').join('')
+              : '<span class="hint">Tap anything that speaks once, then come back — the phone only lists its voices after the first bit of speech.</span>')
+      +   '</div><div class="hint">Australian voices first. Novelty voices (Bells, Bubbles, Zarvox and friends) are filtered out. '
+      +   'A downloaded “Premium” or “Enhanced” voice — Matilda is the good Australian one — is picked automatically.</div></div>'
+      + '</div>'
+
+      + '<div class="sect"><h2>Text size</h2><div class="seg" id="segScale">'
+      +   scales.map(s => '<button data-sc="' + s[1] + '" aria-pressed="' + (Number(S.settings.textScale||1) === s[1]) + '">' + s[0] + '</button>').join('')
+      + '</div></div>'
+
+      + '<div class="sect"><h2>Background</h2><div class="seg" id="segTint">'
+      +   tints.map(t => '<button class="swatch" data-tn="' + t[0] + '" style="background:' + t[1] + '" aria-pressed="' + ((S.settings.tint||'cream') === t[0]) + '" aria-label="' + t[0] + '"></button>').join('')
+      + '</div><div class="hint">A tint some readers find easier. Light mode only.</div></div>'
+
+      + '<div class="sect"><h2>Book chat</h2>'
+      +   '<div class="field"><label for="curl">Chat address</label>'
+      +     '<input type="text" id="curl" value="' + esc(S.settings.chatUrl||'') + '" placeholder="https://…workers.dev" '
+      +       'autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="url"></div>'
+      +   '<div class="field"><label for="ctok">Access token</label>'
+      +     '<input type="text" id="ctok" value="' + esc(S.settings.chatToken||'') + '" placeholder="paste the app token" '
+      +       'autocomplete="off" autocapitalize="off" spellcheck="false"></div>'
+      +   '<div class="hint">' + (chatReady()
+            ? 'Set up. After she marks a day read, she can talk about her book — 4 questions, then it finishes.'
+            : 'Until both are filled in, the chat is hidden from her entirely.')
+      +   ' This token is not the API key; it only unlocks the chat address, and it can be replaced at any time.</div>'
+      +   (chats.length
+        ? '<div class="field" style="margin-top:1.1rem"><label>What she has talked about</label>'
+          + chats.map(e => '<div class="entry"><div class="d">' + esc(prettyDate(e.date))
+              + (e.title ? ' · ' + esc(e.title) : '') + '</div>'
+              + chatTurnsFor(e).map(t => '<div class="n" style="margin-top:.35rem"><b>'
+                  + (t.role === 'assistant' ? 'Buddy' : esc((S.profile.name||'She').split(' ')[0]))
+                  + ':</b> ' + esc(t.text) + '</div>').join('')
+              + '</div>').join('')
+          + '<div class="hint">Every conversation, in full. Nothing is hidden from you.</div></div>'
+        : '')
+      + '</div>'
+
+      + '<div class="sect"><h2>Backup</h2>'
+      +   '<button class="quiet" id="copyBtn">Copy my progress</button>'
+      +   '<div class="hint">Copies everything as text you can paste somewhere safe. Automatic backup to a private repo comes later.</div>'
+      +   '<button class="quiet danger" id="resetBtn" style="margin-top:.9rem">Erase everything</button>'
+      + '</div>'
+      + '<footer><span class="stamp" id="stamp">Build ' + esc(VERSION) + '</span></footer>';
+  }
+
+  function renderMoment(){
+    const old = el('#moment'); if(old) old.remove();
+    if(!pendingMoment) return;
+    const m = MOMENTS[pendingMoment]; if(!m){ pendingMoment = null; return; }
+    const d = document.createElement('div');
+    d.className = 'scrim'; d.id = 'moment';
+    d.innerHTML = '<div class="moment" role="dialog" aria-modal="true" aria-label="' + esc(m.h) + '">'
+      + '<div class="em" aria-hidden="true">' + m.em + '</div>'
+      + '<h2>' + esc(m.h) + '</h2><p>' + esc(withName(m.p)) + '</p>'
+      + '<button id="momentOk">Lovely</button></div>';
+    document.body.appendChild(d);
+    const ok = d.querySelector('#momentOk');
+    if(ok) ok.focus({preventScroll:true});
+  }
+
+  let _toastT = null;
+  function toast(msg){
+    const t = el('#toast');
+    t.textContent = msg; t.classList.add('on');
+    clearTimeout(_toastT);
+    _toastT = setTimeout(() => t.classList.remove('on'), 2200);
+  }
+
+  function go(s){
+    if(s !== 'day') W = null;            // leaving a session abandons it; progress already saved per word
+    if(s !== 'chat'){ C = null; stopListening(); }
+    screen = s; saying = ''; noteOpen = false; window.scrollTo(0,0); render();
+  }
+
+  /* =========================================================
+     Events — one delegated handler; unlock() on every tap so
+     iOS lets sound and speech through later.
+     ========================================================= */
+  document.addEventListener('click', function(ev){
+    const t = ev.target;
+    unlock();
+
+    const goBtn = t.closest('[data-go]');
+    if(goBtn){ go(goBtn.dataset.go); return; }
+
+    const soon = t.closest('[data-soon]');
+    if(soon){ toast(soon.dataset.soon + ' practice is on its way.'); return; }
+
+    if(t.closest('#mark')){
+      if(markRead()){
+        justGrew = true;
+        const info = streakInfo(S.reading.log, todayISO());
+        const next = MILESTONES.find(m => info.current >= m && !S.reading.milestones.includes(m));
+        if(next){
+          S.reading.milestones.push(next); save();
+          pendingMoment = next;
+          chime('milestone');
+          speak(withName(MOMENTS[next].p));
+        }else{
+          saying = withName(AFFIRM[Math.floor(Math.random()*AFFIRM.length)]);
+          chime('done');
+          speak(saying);
+        }
+      }
+      render(); return;
+    }
+
+    // ---- book chat
+    if(t.closest('#cstart')){ if(!startChatSession()) toast('Not set up yet.'); return; }
+    if(t.closest('#csend')){ chatAnswer(el('#csay') ? el('#csay').value : ''); return; }
+    if(t.closest('#cmic')){
+      if(listening()){ stopListening(); render(); }
+      else if(!startListening(said => chatAnswer(said))) toast('Talking isn’t available on this phone.');
+      else render();
+      return;
+    }
+
+    // ---- words
+    if(t.closest('#wstart')){ if(!startWords()) toast('No words in this list yet.'); return; }
+    if(t.closest('#wcover')){ W.stage = 'write'; render(); return; }
+    if(t.closest('#wcheck')){ checkWord(); return; }
+    if(t.closest('#wretry')){ W.stage = 'look'; W.attempt = ''; render(); say(wordNow()); return; }
+    if(t.closest('#wnext')) { nextWord(); return; }
+    if(t.closest('#whear')) { const w = wordNow(); if(w) say(w, {force:true}); return; }
+    const syl = t.closest('[data-syl]');
+    if(syl){ say(syl.dataset.syl, {force:true, rate:.75}); return; }
+    const hear = t.closest('[data-hear]');
+    if(hear){ say(hear.dataset.hear, {force:true}); return; }
+
+    if(t.closest('#momentOk')){ pendingMoment = null; render(); return; }
+    if(t.closest('#nopen'))   { noteOpen = true;  render(); return; }
+    if(t.closest('#ncancel')) { noteOpen = false; render(); return; }
+    if(t.closest('#nsave')){
+      setNote(el('#bt').value, el('#bn').value);
+      noteOpen = false; render(); toast('Saved.'); return;
+    }
+
+    // ---- parent area controls
+    const ra = t.closest('[data-ra]'); if(ra){ S.settings.readAloud = ra.dataset.ra === '1'; save(); render(); return; }
+    const sn = t.closest('[data-sn]'); if(sn){ S.settings.sound     = sn.dataset.sn === '1'; save(); render(); if(S.settings.sound) chime('done'); return; }
+    const sc = t.closest('[data-sc]'); if(sc){ S.settings.textScale = Number(sc.dataset.sc); save(); render(); return; }
+    const tn = t.closest('[data-tn]'); if(tn){ S.settings.tint      = tn.dataset.tn; save(); render(); return; }
+    const rt = t.closest('[data-rate]'); if(rt){ S.settings.speechRate = Number(rt.dataset.rate); save(); render(); say('Every day counts.', {force:true}); return; }
+    const vc = t.closest('[data-voice]');
+    if(vc){
+      S.settings.voice = vc.dataset.voice; _voiceKey = null; save(); render();
+      say('Hello ' + (S.profile.name || '') + '. Time to read.', {force:true});
+      return;
+    }
+    const li = t.closest('[data-list]'); if(li){ S.words.activeId = li.dataset.list; save(); render(); return; }
+    const dl = t.closest('[data-dellist]');
+    if(dl){
+      const b = dl;
+      if(b.dataset.armed){
+        const id = b.dataset.dellist;
+        S.words.lists = S.words.lists.filter(l => l.id !== id);
+        if(S.words.activeId === id) S.words.activeId = (allLists()[0]||{}).id;
+        save(); render(); toast('List deleted.'); return;
+      }
+      b.dataset.armed = '1'; b.textContent = 'Tap again to delete';
+      setTimeout(() => { if(b.isConnected){ delete b.dataset.armed; render(); } }, 3000);
+      return;
+    }
+    if(t.closest('#pasteSave')){
+      const words = parseWordList(el('#pastebox').value);
+      if(!words.length){ toast('No words found in that.'); return; }
+      const name = (el('#pastename').value || '').trim() || 'Her list';
+      const id = 'w' + (S.words.lists.reduce((mx,l) => Math.max(mx, Number(String(l.id).slice(1)) || 0), 0) + 1);
+      S.words.lists.push({id:id, name:name, words:words});
+      S.words.activeId = id;
+      save(); render();
+      toast(words.length + (words.length === 1 ? ' word saved.' : ' words saved.'));
+      return;
+    }
+
+    if(t.closest('#copyBtn')){
+      const text = JSON.stringify(S, null, 2);
+      const done = () => toast('Progress copied.');
+      try{
+        if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => toast('Could not copy.'));
+        else { const a = document.createElement('textarea'); a.value = text; document.body.appendChild(a); a.select(); document.execCommand('copy'); a.remove(); done(); }
+      }catch(e){ toast('Could not copy.'); }
+      return;
+    }
+    if(t.closest('#resetBtn')){
+      const b = t.closest('#resetBtn');
+      if(b.dataset.armed){ localStorage.removeItem(KEY); load(); go('home'); toast('Everything erased.'); return; }
+      b.dataset.armed = '1'; b.textContent = 'Tap again to erase everything';
+      setTimeout(() => { if(b.isConnected){ delete b.dataset.armed; b.textContent = 'Erase everything'; } }, 3000);
+      return;
+    }
+  });
+
+  // Name field saves as she types (no Save button to forget).
+  document.addEventListener('input', function(ev){
+    if(ev.target.id === 'pname'){ S.profile.name = ev.target.value; save(); }
+    if(ev.target.id === 'wtype' && W) W.attempt = ev.target.value;
+    if(ev.target.id === 'curl'){ S.settings.chatUrl   = ev.target.value.trim(); save(); }
+    if(ev.target.id === 'ctok'){ S.settings.chatToken = ev.target.value.trim(); save(); }
+  });
+
+  // Enter on the keyboard checks the word — she shouldn't have to find a button.
+  document.addEventListener('keydown', function(ev){
+    if(ev.key !== 'Enter') return;
+    if(ev.target.id === 'wtype' && W && W.stage === 'write'){ ev.preventDefault(); unlock(); checkWord(); }
+    if(ev.target.id === 'csay' && !ev.shiftKey){ ev.preventDefault(); unlock(); chatAnswer(ev.target.value); }
+  });
+
+  // Parent area: press and hold the ACORN wordmark. No PIN to forget, and
+  // nothing on her screens that looks like a way in. Delegated, because the
+  // header is rebuilt on every render.
+  (function(){
+    let timer = null;
+    const stop = () => { clearTimeout(timer); timer = null; };
+    document.addEventListener('pointerdown', function(ev){
+      if(!ev.target.closest || !ev.target.closest('.wordmark')) return;
+      stop();
+      timer = setTimeout(() => { unlock(); go('parent'); }, 700);
+    });
+    ['pointerup','pointercancel','pointerleave','scroll'].forEach(e =>
+      document.addEventListener(e, stop, true));
+    document.addEventListener('contextmenu', function(ev){
+      if(ev.target.closest && ev.target.closest('.wordmark')) ev.preventDefault();
+    });
+  })();
+
+  // Midnight must roll the day over: on resume, and also while the app simply
+  // sits open on the bedside table. Marking a day always uses a fresh todayISO(),
+  // so this only keeps what's on screen honest.
+  let _renderedDay = null;
+  function checkDayRollover(){
+    if(_renderedDay && _renderedDay !== todayISO()){
+      _renderedDay = todayISO(); saying = ''; noteOpen = false; render();
+    }
+  }
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible') checkDayRollover();
+  });
+  setInterval(checkDayRollover, 60000);
+
+  /* =========================================================
+     Test hook — Playwright drives the pure logic and can travel
+     through time. No behaviour depends on this existing.
+     ========================================================= */
+  window.__acorn = {
+    VERSION: VERSION,
+    get state(){ return S; },
+    save: save, load: load,
+    setToday: function(iso){ _todayOverride = iso; _renderedDay = todayISO(); render(); },
+    todayISO: todayISO, dayDiff: dayDiff,
+    streakInfo: streakInfo, longestRun: longestRun,
+    markRead: markRead, setNote: setNote,
+    seed: function(dates){                       // dates: array of ISO strings
+      S.reading.log = (dates||[]).map(d => ({date:d}));
+      S.reading.milestones = []; S.reading.longest = 0;
+      save(); render();
+    },
+    go: go, screen: function(){ return screen; },
+
+    // words
+    syllables: syllables, parseWordList: parseWordList,
+    matchedTargetIndices: function(a,b){ return Array.from(matchedTargetIndices(a,b)).sort((x,y)=>x-y); },
+    buildSession: buildSession, isDue: isDue, recordWord: recordWord, mastery: mastery,
+    overdueRatio: overdueRatio, stageFor: stageFor, acquiring: acquiring,
+    recentAccuracy: recentAccuracy, newWordsToday: newWordsToday, poolCap: poolCap,
+    ACQUIRING_CAP: ACQUIRING_CAP, SEED_NEW: SEED_NEW, MAX_BOX: MAX_BOX, SHOW: SHOW,
+    allLists: allLists, activeList: activeList, wordsOf: wordsOf, masteredCount: masteredCount,
+    startWords: startWords, checkWord: checkWord, nextWord: nextWord,
+    session: function(){ return W && {words:W.words.slice(), i:W.i, stage:W.stage, tries:W.tries, right:W.right, firstTime:W.firstTime}; },
+    setAttempt: function(v){ if(W) W.attempt = v; },
+    // book chat
+    chatReady: chatReady, startChatSession: startChatSession, chatAnswer: chatAnswer,
+    chat: function(){ return C && {turns:C.turns.slice(), busy:C.busy, err:C.err, done:C.done, book:C.book}; },
+    MAX_ANSWERS: MAX_ANSWERS,
+
+    voiceScore: voiceScore, englishVoices: englishVoices, offerVoices: offerVoices,
+    BOX_DAYS: BOX_DAYS, MASTER_BOX: MASTER_BOX, SESSION_LEN: SESSION_LEN
+  };
+
+  load();
+  _renderedDay = todayISO();
+  // No landing screen: she opens the app and is on a word.
+  if(!startWords()){ screen = 'day'; render(); }
+})();
+</script>
+</body>
+</html>
