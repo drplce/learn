@@ -167,6 +167,48 @@
   .entry .t{font-weight:700; margin-top:.1rem;}
   .entry .n{margin-top:.15rem; max-width:40ch;}
 
+  /* ---------- words ---------- */
+  .bigword{
+    text-align:center; font-size:2.5rem; font-weight:700; line-height:1.35;
+    letter-spacing:.03em; word-spacing:.1em; margin:.4rem 0 .2rem; word-break:break-word;
+  }
+  .syls{display:flex; flex-wrap:wrap; justify-content:center; gap:.4rem; margin:.9rem 0 0;}
+  .syl{
+    padding:.5rem .85rem; border-radius:.8rem; background:var(--acc-soft); color:var(--acc);
+    font-size:1.3rem; font-weight:700; letter-spacing:.03em; border:1px solid transparent;
+  }
+  @media (prefers-color-scheme:dark){ .syl{color:var(--ink);} }
+  .syl:active{border-color:var(--acc);}
+  .hearbtn{
+    display:flex; align-items:center; justify-content:center; gap:.6rem; margin:1.2rem auto 0;
+    min-height:3.6rem; padding:0 1.4rem; border-radius:1.1rem;
+    background:var(--surface-2); border:1px solid var(--line-2); font-weight:700; font-size:1.05rem;
+  }
+  .hearbtn svg{width:1.4rem; height:1.4rem; flex:none;}
+  .hearbtn:active{background:var(--acc-soft);}
+  .dots{display:flex; justify-content:center; gap:.4rem; margin-bottom:1.6rem;}
+  .dots i{width:.55rem; height:.55rem; border-radius:50%; background:var(--line-2);}
+  .dots i.on{background:var(--acc);}
+  .dots i.now{background:var(--acc); transform:scale(1.5);}
+  .spellin{
+    width:100%; text-align:center; font-size:2rem; font-weight:700; letter-spacing:.12em;
+    padding:1rem .8rem; border-radius:1.1rem; background:var(--surface-2); border:2px solid var(--line-2);
+  }
+  .spellin:focus{outline:none; border-color:var(--acc);}
+  .verdict{text-align:center; font-size:1.15rem; font-weight:700; margin:.2rem 0 1rem;}
+  .verdict.ok{color:var(--good);}
+  .verdict.again{color:var(--retry);}
+  .marked{text-align:center; font-size:2.2rem; font-weight:700; letter-spacing:.06em; margin:.3rem 0;}
+  .marked b{color:var(--ink);}
+  .marked u{color:var(--retry); text-decoration:none; border-bottom:3px solid var(--retry); padding-bottom:.1em;}
+  .attempt{text-align:center; color:var(--ink-soft); font-size:1rem; margin-bottom:1rem;}
+  .attempt s{text-decoration:none; letter-spacing:.08em; font-weight:700;}
+  .wlistname{text-align:center; font-size:1.3rem; font-weight:700; margin:.2rem 0 .3rem;}
+  .wmeta{text-align:center; color:var(--ink-soft); margin-bottom:1.4rem;}
+  /* .pbar, not .bar — .bar is the header */
+  .pbar{height:.6rem; border-radius:.3rem; background:var(--line); overflow:hidden; margin:0 0 1.6rem;}
+  .pbar i{display:block; height:100%; background:var(--acc); border-radius:.3rem; transition:width .6s var(--ease);}
+
   /* ---------- parent area ---------- */
   .sect{margin-bottom:1.8rem;}
   .sect h2{font-size:.78rem; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:.8rem;}
@@ -256,7 +298,7 @@
 (function(){
   'use strict';
 
-  const VERSION = '1 · reading streak';
+  const VERSION = '2 · words';
   const KEY = 'acorn.v1';
 
   /* =========================================================
@@ -327,9 +369,9 @@
     return {
       profile:  { name:'', mathsLevel:null, createdAt:todayISO() },
       maths:    { facts:{}, sessions:[] },
-      words:    { lists:[], mastery:{} },
+      words:    { lists:[], mastery:{}, activeId:'tricky', sessions:[] },
       reading:  { streak:0, longest:0, freezes:0, milestones:[], log:[] },
-      settings: { textScale:1, tint:'cream', readAloud:true, sound:true, voice:null }
+      settings: { textScale:1, tint:'cream', readAloud:true, sound:true, voice:null, speechRate:.95 }
     };
   }
   function load(){
@@ -348,6 +390,9 @@
         }
         if(!Array.isArray(S.reading.log)) S.reading.log = [];
         if(!Array.isArray(S.reading.milestones)) S.reading.milestones = [];
+        if(!Array.isArray(S.words.lists)) S.words.lists = [];
+        if(!Array.isArray(S.words.sessions)) S.words.sessions = [];
+        if(!S.words.mastery || typeof S.words.mastery !== 'object') S.words.mastery = {};
         return;
       }
     }catch(e){}
@@ -414,25 +459,78 @@
     else if(name === 'milestone'){ tone(523.25,0,.3,.15); tone(659.25,.16,.3,.14); tone(783.99,.32,.6,.13); }
   }
 
-  let _voice = null, _voiceTried = false;
+  /* ---- voices --------------------------------------------------
+     Voice quality varies enormously between devices, and the default
+     pick is often the worst one installed. So: score every English
+     voice, default to the best, and let the parent override and
+     audition in the grown-ups area (settings.voice holds voiceURI).
+
+     Everything here is on-device: free, instant, and works offline —
+     which matters because tapping a word to hear it is the core of
+     the Words module. See README for the higher-quality options.
+     --------------------------------------------------------------- */
+  function englishVoices(){
+    try{ return (speechSynthesis.getVoices() || []).filter(v => /^en([-_]|$)/i.test(v.lang || '')); }
+    catch(e){ return []; }
+  }
+  // Higher is better. Names are the only reliable quality signal exposed to the web.
+  function voiceScore(v){
+    const n = (v.name || '') + ' ' + (v.voiceURI || '');
+    let s = 0;
+    if(/premium|enhanced|neural|natural|wavenet|studio/i.test(n)) s += 60;  // downloadable HQ voices
+    if(/siri/i.test(n)) s += 40;
+    if(/^en-AU/i.test(v.lang)) s += 30;                                     // her own accent first
+    else if(/^en-(GB|NZ)/i.test(v.lang)) s += 18;
+    else if(/^en-(IE|ZA)/i.test(v.lang)) s += 8;
+    if(/karen|matilda|catherine|lee|tina|serena|kate|google uk/i.test(n)) s += 10;
+    if(/compact|eloquence|espeak/i.test(n)) s -= 50;                        // the robotic fallbacks
+    if(v.default) s += 2;
+    return s;
+  }
+  let _voice = null, _voiceKey = null;
   function pickVoice(){
-    if(_voiceTried && _voice) return _voice;
-    try{
-      const vs = speechSynthesis.getVoices() || [];
-      _voice = vs.find(v => v.lang === 'en-AU') || vs.find(v => /^en-(GB|NZ)/.test(v.lang)) || vs.find(v => /^en/.test(v.lang)) || null;
-      if(vs.length) _voiceTried = true;
-    }catch(e){ _voice = null; }
+    const vs = englishVoices();
+    if(!vs.length) return null;
+    const want = S.settings.voice;
+    const key = want + '|' + vs.length;
+    if(_voiceKey === key && _voice) return _voice;
+    _voice = (want && vs.find(v => v.voiceURI === want))
+          || vs.slice().sort((a,b) => voiceScore(b) - voiceScore(a))[0]
+          || null;
+    _voiceKey = key;
     return _voice;
   }
-  function speak(text){
-    if(S.settings.readAloud === false || !text) return;
+
+  // One seam for all spoken output, so a different engine can be dropped in
+  // later without touching the modules that call it.
+  function say(text, opts){
+    opts = opts || {};
+    if(!text) return;
+    if(opts.force !== true && S.settings.readAloud === false) return;
     try{
       speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      const v = pickVoice(); if(v) u.voice = v;
-      u.lang = (v && v.lang) || 'en-AU';
-      u.rate = .95; u.pitch = 1;
+      const u = new SpeechSynthesisUtterance(String(text));
+      const v = opts.voice || pickVoice();
+      if(v){ u.voice = v; u.lang = v.lang; } else { u.lang = 'en-AU'; }
+      u.rate = opts.rate || Number(S.settings.speechRate) || .95;
+      u.pitch = 1;
       speechSynthesis.speak(u);
+    }catch(e){}
+  }
+  const speak = say;                                   // reading-streak affirmations
+  // A word, then its syllables in chunks — see it, hear it, hear the parts.
+  function sayInParts(parts){
+    if(S.settings.readAloud === false || !parts.length) return;
+    try{
+      speechSynthesis.cancel();
+      const v = pickVoice();
+      parts.forEach((p, i) => {
+        const u = new SpeechSynthesisUtterance(p);
+        if(v){ u.voice = v; u.lang = v.lang; }
+        u.rate = Math.max(.5, (Number(S.settings.speechRate) || .95) - .25);
+        if(i) u.text = ' ' + p;
+        speechSynthesis.speak(u);
+      });
     }catch(e){}
   }
   let _unlocked = false;
@@ -444,7 +542,7 @@
     try{ speechSynthesis.getVoices(); }catch(e){}
     pickVoice();
   }
-  try{ speechSynthesis.onvoiceschanged = function(){ _voiceTried = false; pickVoice(); }; }catch(e){}
+  try{ speechSynthesis.onvoiceschanged = function(){ _voiceKey = null; pickVoice(); }; }catch(e){}
 
   /* =========================================================
      The plant. Grows with the streak: a seed, then a sprout that
@@ -525,6 +623,197 @@
   }
 
   /* =========================================================
+     WORDS — look, cover, write, check.
+     Australian spellings throughout. Built-in lists carry
+     hand-checked syllable splits; pasted school words fall back
+     to the splitter below.
+     ========================================================= */
+  const WORD_LISTS = [
+    {id:'tricky', name:'Tricky words', words:{
+      because:'be·cause', friend:'friend', people:'peo·ple', beautiful:'beau·ti·ful',
+      different:'dif·fer·ent', thought:'thought', through:'through', enough:'e·nough',
+      together:'to·geth·er', favourite:'fa·vour·ite', straight:'straight', height:'height',
+      business:'busi·ness', february:'Feb·ru·ar·y', separate:'sep·a·rate', government:'gov·ern·ment'}},
+    {id:'tionsion', name:'-tion and -sion', words:{
+      station:'sta·tion', question:'ques·tion', action:'ac·tion', attention:'at·ten·tion',
+      direction:'di·rec·tion', invention:'in·ven·tion', division:'di·vi·sion', decision:'de·ci·sion',
+      television:'tel·e·vi·sion', explosion:'ex·plo·sion', discussion:'dis·cus·sion', permission:'per·mis·sion'}},
+    {id:'aussie', name:'Australian spellings', words:{
+      colour:'col·our', favour:'fa·vour', neighbour:'neigh·bour', harbour:'har·bour',
+      realise:'re·al·ise', organise:'or·gan·ise', recognise:'rec·og·nise', centre:'cen·tre',
+      metre:'me·tre', theatre:'the·a·tre', travelled:'trav·elled', licence:'li·cence',
+      practise:'prac·tise', jewellery:'jew·el·lery'}},
+    {id:'silent', name:'Silent letters', words:{
+      knee:'knee', knife:'knife', know:'know', wrist:'wrist', write:'write', wrong:'wrong',
+      lamb:'lamb', thumb:'thumb', climb:'climb', castle:'cas·tle', listen:'lis·ten',
+      whistle:'whis·tle', island:'is·land', honest:'hon·est'}},
+    {id:'longvowel', name:'Long vowel patterns', words:{
+      rain:'rain', afraid:'a·fraid', display:'dis·play', reason:'rea·son', between:'be·tween',
+      complete:'com·plete', light:'light', might:'might', delight:'de·light', boat:'boat',
+      window:'win·dow', tomorrow:'to·mor·row', tune:'tune', music:'mu·sic'}}
+  ];
+
+  // Onset digraphs lead the next syllable (mo·ther); coda digraphs close the
+  // previous one (neigh·bour, pock·et). Splitting them apart is never right.
+  const ONSET_DIGRAPHS = ['ch','sh','th','ph','wh'];
+  const CODA_DIGRAPHS  = ['ck','ng','gh'];
+  const DIGRAPHS = ONSET_DIGRAPHS.concat(CODA_DIGRAPHS);
+  // Consonant + liquid clusters start the next syllable (ta·ble, a·fraid, cen·tre).
+  // s-clusters deliberately excluded: medially the s closes the syllable before it
+  // (bas·ket, lis·ten, is·land, ques·tion), even though they open a word fine.
+  const ONSET_BLENDS = ['bl','br','cl','cr','dr','fl','fr','gl','gr','pl','pr','tr','tw','thr','shr'];
+
+  // A teaching-style splitter for words we don't have a hand-checked split for.
+  // English syllabification has no exact rule set, so this aims for readable
+  // chunks rather than dictionary correctness — see the tests for real accuracy.
+  function syllables(word){
+    const s = String(word || '').toLowerCase().replace(/[^a-z']/g, '');
+    if(s.length <= 3) return s ? [s] : [];
+    const isV = (c, i) => 'aeiou'.indexOf(c) >= 0 || (c === 'y' && i > 0);
+
+    // vowel groups are the syllable nuclei
+    let groups = [];
+    for(let i = 0; i < s.length; i++){
+      if(isV(s[i], i)){
+        let j = i;
+        while(j + 1 < s.length && isV(s[j+1], j+1)) j++;
+        // 'u' after 'q' is part of the consonant, not a nucleus
+        if(!(s[i] === 'u' && i > 0 && s[i-1] === 'q' && j > i)) groups.push([i, j]);
+        else groups.push([i+1, j]);
+        i = j;
+      }
+    }
+    if(groups.length < 2) return [s];
+
+    // a final consonant + "le"/"re" is its own syllable (ta·ble, cas·tle, cen·tre)
+    const leEnding = /[^aeiou](le|re)$/.test(s);
+    // otherwise a silent final 'e' is not a nucleus of its own (com·plete, not com·plet·e)
+    if(!leEnding && s.slice(-1) === 'e' && groups.length > 1){
+      const last = groups[groups.length-1];
+      if(last[0] === last[1] && last[0] === s.length-1) groups.pop();
+    }
+    if(groups.length < 2) return [s];
+
+    const cuts = [];
+    for(let k = 0; k < groups.length - 1; k++){
+      const a = groups[k][1], b = groups[k+1][0];
+      const L = b - a - 1;                                  // consonants between the nuclei
+      if(L <= 0){ cuts.push(a + 1); continue; }              // li·on
+      if(L === 1){ cuts.push(a + 1); continue; }             // wa·ter  (V|CV)
+      const pair = s.slice(a+1, a+3);
+      if(ONSET_DIGRAPHS.indexOf(pair) >= 0){ cuts.push(a + 1); continue; }  // mo·ther
+      if(CODA_DIGRAPHS.indexOf(pair) >= 0){ cuts.push(a + 3); continue; }   // neigh·bour, pock·et
+      const tail = s.slice(b - 2, b);
+      if(ONSET_BLENDS.indexOf(tail) >= 0){ cuts.push(b - 2); continue; }    // ta·ble, a·fraid, cen·tre
+      const nextPair = s.slice(a+2, a+4);
+      if(L >= 3 && DIGRAPHS.indexOf(nextPair) >= 0){ cuts.push(a + 2); continue; }
+      cuts.push(a + 2);                                     // hap·pen  (VC|CV)
+    }
+
+    const out = [];
+    let start = 0;
+    cuts.forEach(c => { if(c > start && c < s.length){ out.push(s.slice(start, c)); start = c; } });
+    out.push(s.slice(start));
+    return out.filter(Boolean);
+  }
+
+  function splitOf(word){
+    const list = activeList();
+    const hand = list && list.words && list.words[word];
+    if(hand) return String(hand).split('·');
+    return syllables(word);
+  }
+
+  /* ---- lists ---- */
+  function allLists(){
+    const built = WORD_LISTS.map(l => ({id:l.id, name:l.name, words:l.words, builtIn:true}));
+    return built.concat((S.words.lists || []).map(l => ({id:l.id, name:l.name, words:l.words, builtIn:false})));
+  }
+  function activeList(){
+    const all = allLists();
+    return all.find(l => l.id === S.words.activeId) || all[0];
+  }
+  function wordsOf(list){
+    if(!list) return [];
+    return Array.isArray(list.words) ? list.words.slice() : Object.keys(list.words);
+  }
+
+  // Parsing her weekly list: accept whatever the school sends — commas, new
+  // lines, numbered lists, stray bullets.
+  function parseWordList(text){
+    return String(text || '')
+      .split(/[\s,;]+/)
+      .map(w => w.replace(/^[\d]+[.)]?/, '').replace(/[^A-Za-z'\-]/g, '').toLowerCase())
+      .filter(w => w.length >= 2)
+      .filter((w, i, a) => a.indexOf(w) === i);
+  }
+
+  /* ---- spaced repetition (Leitner) ----
+     Box 1..5. Right first time moves up, wrong moves down one box (not all the
+     way back to 1 — a single slip shouldn't flood the next session). Box 5 is
+     mastered and still resurfaces occasionally. */
+  const BOX_DAYS = {1:0, 2:1, 3:2, 4:4, 5:8};
+  const MASTER_BOX = 5;
+  function mastery(word){
+    const m = S.words.mastery[word];
+    return m || {right:0, wrong:0, box:1, lastSeen:null};
+  }
+  function isDue(word, today){
+    const m = mastery(word);
+    if(!m.lastSeen) return true;                          // never seen
+    return dayDiff(today, m.lastSeen) >= BOX_DAYS[m.box || 1];
+  }
+  function recordWord(word, outcome){                     // 'first' | 'retry' | 'wrong'
+    const m = Object.assign({right:0, wrong:0, box:1, lastSeen:null}, S.words.mastery[word]);
+    if(outcome === 'first'){ m.right++; m.box = Math.min(MASTER_BOX, (m.box||1) + 1); }
+    else if(outcome === 'retry'){ m.right++; }            // got there — no penalty, no advance
+    else { m.wrong++; m.box = Math.max(1, (m.box||1) - 1); }
+    m.lastSeen = todayISO();
+    S.words.mastery[word] = m;
+    save();
+    return m;
+  }
+  const SESSION_LEN = 10;
+  function buildSession(list, today){
+    const all = wordsOf(list);
+    const unseen = all.filter(w => !S.words.mastery[w]);
+    const due = all.filter(w => S.words.mastery[w] && isDue(w, today))
+                   .sort((a,b) => (mastery(a).box - mastery(b).box)
+                                || String(mastery(a).lastSeen).localeCompare(String(mastery(b).lastSeen)));
+    const rest = all.filter(w => S.words.mastery[w] && !isDue(w, today))
+                    .sort((a,b) => mastery(a).box - mastery(b).box);
+    const out = [];
+    const push = w => { if(out.length < SESSION_LEN && out.indexOf(w) < 0) out.push(w); };
+    due.forEach(push); unseen.forEach(push); rest.forEach(push);
+    return out;
+  }
+  function masteredCount(list){
+    return wordsOf(list).filter(w => (mastery(w).box || 1) >= MASTER_BOX).length;
+  }
+
+  /* ---- comparing her attempt with the word ----
+     Longest common subsequence, so one extra or missing letter early doesn't
+     mark the whole word wrong. Returns which letters of the target she got. */
+  function matchedTargetIndices(attempt, target){
+    const a = String(attempt||'').toLowerCase(), b = String(target||'').toLowerCase();
+    const n = a.length, m = b.length;
+    const dp = [];
+    for(let i = 0; i <= n; i++) dp.push(new Array(m+1).fill(0));
+    for(let i = 1; i <= n; i++)
+      for(let j = 1; j <= m; j++)
+        dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1]);
+    const hit = new Set();
+    let i = n, j = m;
+    while(i > 0 && j > 0){
+      if(a[i-1] === b[j-1]){ hit.add(j-1); i--; j--; }
+      else if(dp[i-1][j] >= dp[i][j-1]) i--;
+      else j--;
+    }
+    return hit;
+  }
+  const sameWord = (a,b) => String(a||'').trim().toLowerCase() === String(b||'').trim().toLowerCase();
+
+  /* =========================================================
      Copy — warm, never scolding, never a score.
      ========================================================= */
   const AFFIRM = [
@@ -573,9 +862,11 @@
   function render(){
     applySettings();
     el('#stamp').textContent = 'Build ' + VERSION.split(' ')[0];
-    if(screen === 'home')   renderHome();
-    if(screen === 'read')   renderRead();
-    if(screen === 'parent') renderParent();
+    if(screen === 'home')     renderHome();
+    if(screen === 'read')     renderRead();
+    if(screen === 'words')    renderWords();
+    if(screen === 'wsession') renderSession();
+    if(screen === 'parent')   renderParent();
     renderMoment();
     justGrew = false;              // one-shot: the growth animation plays once
   }
@@ -585,6 +876,7 @@
     const n = (S.profile.name||'').trim();
     const h = new Date().getHours();
     const part = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+    const wl = activeList(), wall = wordsOf(wl).length, wdone = masteredCount(wl);
     el('#bar').innerHTML = '<span class="wordmark"><b>Acorn</b></span><span class="sp"></span>';
     el('#screen').innerHTML =
         '<div class="greet"><h1>' + part + (n ? ', ' + esc(n) : '') + '</h1>'
@@ -602,10 +894,10 @@
       +     '<span class="tx"><b>Maths</b><span>Times tables</span></span>'
       +     '<span class="chip">Soon</span>'
       +   '</button>'
-      +   '<button class="card soon" data-soon="Words">'
+      +   '<button class="card" data-go="words">'
       +     '<span class="ic">' + ICONS.words + '</span>'
-      +     '<span class="tx"><b>Words</b><span>Spelling, out loud</span></span>'
-      +     '<span class="chip">Soon</span>'
+      +     '<span class="tx"><b>Words</b><span>' + esc(wl ? wl.name : 'Spelling, out loud') + '</span></span>'
+      +     '<span class="chip">' + (wdone && wall ? wdone + '/' + wall : 'Spelling') + '</span>'
       +   '</button>'
       + '</div>';
   }
@@ -662,10 +954,146 @@
           : '');
   }
 
+  /* ---- words: home ---- */
+  function renderWords(){
+    const list = activeList();
+    const all = wordsOf(list);
+    const done = masteredCount(list);
+    const pct = all.length ? Math.round(100 * done / all.length) : 0;
+    const tricky = all.filter(w => mastery(w).wrong > 0 && (mastery(w).box || 1) < MASTER_BOX)
+                      .sort((a,b) => mastery(b).wrong - mastery(a).wrong).slice(0, 6);
+
+    el('#bar').innerHTML = '<button class="iconbtn back" data-go="home" aria-label="Back to home">← Home</button><span class="sp"></span>';
+    el('#screen').innerHTML =
+        '<div class="wlistname">' + esc(list ? list.name : 'No list') + '</div>'
+      + '<div class="wmeta">' + done + ' of ' + all.length + ' words known well</div>'
+      + '<div class="pbar"><i style="width:' + pct + '%"></i></div>'
+      + (saying ? '<div class="say" role="status" style="margin:0 0 1.2rem">' + esc(saying) + '</div>' : '')
+      + (all.length
+          ? '<button class="primary" id="wstart">Practise</button>'
+          : '<div class="wmeta">Add her list in the grown-ups area.</div>')
+      + (tricky.length
+          ? '<div class="logwrap"><h2>Worth another look</h2><div class="syls" style="justify-content:flex-start">'
+            + tricky.map(w => '<span class="syl" data-hear="' + esc(w) + '">' + esc(w) + '</span>').join('')
+            + '</div></div>'
+          : '')
+      + '<div class="logwrap"><h2>How it works</h2>'
+      + '<p style="color:var(--ink-soft); max-width:34ch; margin:0">Look at the word and hear it. '
+      + 'Cover it up, type it, then check. Words she finds tricky come back again in a few days.</p></div>';
+  }
+
+  /* ---- words: a look-cover-write-check session ---- */
+  const SPK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+            + '<path d="M11 5 6.5 9H3.5v6h3L11 19V5Z"/><path d="M15.5 9.2a4 4 0 0 1 0 5.6"/><path d="M18.4 6.6a8 8 0 0 1 0 10.8"/></svg>';
+  let W = null;      // live session: {words, i, stage, attempt, tries, right}
+
+  function startWords(){
+    const list = activeList();
+    const words = buildSession(list, todayISO());
+    if(!words.length) return false;
+    W = {words:words, i:0, stage:'look', attempt:'', tries:0, right:0, firstTime:0};
+    screen = 'wsession';
+    render();
+    const parts = splitOf(words[0]);
+    say(words[0]);
+    return true;
+  }
+  function wordNow(){ return W && W.words[W.i]; }
+
+  function renderSession(){
+    if(!W){ go('words'); return; }
+    const word = wordNow();
+    const parts = splitOf(word);
+    el('#bar').innerHTML = '<button class="iconbtn back" data-go="words" aria-label="Stop and go back">← Back</button><span class="sp"></span>';
+
+    let dots = '<div class="dots" aria-label="Word ' + (W.i+1) + ' of ' + W.words.length + '">';
+    for(let k = 0; k < W.words.length; k++)
+      dots += '<i class="' + (k < W.i ? 'on' : k === W.i ? 'now' : '') + '"></i>';
+    dots += '</div>';
+
+    let body = '';
+    if(W.stage === 'look'){
+      body = '<div class="bigword">' + esc(word) + '</div>'
+           + '<div class="syls">' + parts.map(p => '<span class="syl" data-syl="' + esc(p) + '">' + esc(p) + '</span>').join('') + '</div>'
+           + '<button class="hearbtn" id="whear">' + SPK + 'Hear it</button>'
+           + '<button class="primary" id="wcover" style="margin-top:1.6rem">Cover it up</button>';
+    }
+    else if(W.stage === 'write'){
+      body = '<div class="wmeta">Now write it from memory.</div>'
+           + '<input class="spellin" id="wtype" type="text" inputmode="text" autocomplete="off" '
+           +   'autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" '
+           +   'value="' + esc(W.attempt) + '" aria-label="Type the word">'
+           + '<button class="hearbtn" id="whear">' + SPK + 'Hear it again</button>'
+           + '<button class="primary" id="wcheck" style="margin-top:1.4rem">Check</button>';
+    }
+    else {                                     // check
+      const ok = sameWord(W.attempt, word);
+      const hit = matchedTargetIndices(W.attempt, word);
+      const marked = word.split('').map((c,i) => hit.has(i) ? '<b>' + esc(c) + '</b>' : '<u>' + esc(c) + '</u>').join('');
+      body = '<div class="verdict ' + (ok ? 'ok' : 'again') + '">'
+           +   (ok ? (W.tries > 1 ? 'You got there.' : 'Yes — that’s it.') : 'Nearly. Have a look at these letters.')
+           + '</div>'
+           + (ok ? '<div class="bigword">' + esc(word) + '</div>'
+                 : '<div class="marked">' + marked + '</div>'
+                   + (W.attempt ? '<div class="attempt">You wrote <s>' + esc(W.attempt) + '</s></div>' : ''))
+           + '<div class="syls">' + parts.map(p => '<span class="syl" data-syl="' + esc(p) + '">' + esc(p) + '</span>').join('') + '</div>'
+           + '<button class="hearbtn" id="whear">' + SPK + 'Hear it</button>'
+           + (!ok && W.tries < 2
+                ? '<button class="primary" id="wretry" style="margin-top:1.6rem">Have another go</button>'
+                : '<button class="primary" id="wnext" style="margin-top:1.6rem">'
+                  + (W.i + 1 < W.words.length ? 'Next word' : 'Finish') + '</button>');
+    }
+    el('#screen').innerHTML = dots + body;
+    if(W.stage === 'write'){
+      const inp = el('#wtype');
+      if(inp){ inp.focus({preventScroll:true}); inp.setSelectionRange(inp.value.length, inp.value.length); }
+    }
+  }
+
+  function checkWord(){
+    const word = wordNow();
+    W.attempt = (el('#wtype') ? el('#wtype').value : W.attempt) || '';
+    W.tries++;
+    const ok = sameWord(W.attempt, word);
+    if(ok){
+      recordWord(word, W.tries === 1 ? 'first' : 'retry');
+      W.right++;
+      if(W.tries === 1) W.firstTime++;
+      chime('done');
+    }else if(W.tries >= 2){
+      recordWord(word, 'wrong');
+    }
+    W.stage = 'check';
+    render();
+    if(!ok) sayInParts(splitOf(word));
+  }
+  function nextWord(){
+    if(W.i + 1 < W.words.length){
+      W.i++; W.stage = 'look'; W.attempt = ''; W.tries = 0;
+      render();
+      say(wordNow());
+    }else{
+      finishWords();
+    }
+  }
+  function finishWords(){
+    const n = W.words.length, first = W.firstTime;
+    S.words.sessions.push({date:todayISO(), asked:n, right:W.right, firstTime:first});
+    if(S.words.sessions.length > 40) S.words.sessions = S.words.sessions.slice(-40);
+    save();
+    W = null;
+    saying = withName(first === n ? 'Every one, first go{n}.' : 'All done{n}.');
+    screen = 'words'; render();
+    chime('milestone');
+    speak(saying);
+  }
+
   function renderParent(){
     const info = streakInfo(S.reading.log, todayISO());
     const longest = Math.max(S.reading.longest||0, longestRun(S.reading.log));
     const scales = [['Smaller',.9],['Normal',1],['Large',1.15],['Larger',1.3],['Largest',1.5]];
+    const voiceList = englishVoices().slice().sort((a,b) => voiceScore(b) - voiceScore(a)).slice(0, 8);
+    const chosen = pickVoice();
     const tints  = [['cream','#FBF6EC'],['peach','#FBF0E8'],['mint','#EDF6F0'],['blue','#EDF2F8'],['grey','#F2F1EE']];
 
     el('#bar').innerHTML = '<button class="iconbtn back" data-go="home" aria-label="Back to home">← Home</button>'
@@ -676,6 +1104,11 @@
       +   '<div class="stat"><b>' + info.current + '</b><span>day streak</span></div>'
       +   '<div class="stat"><b>' + longest + '</b><span>longest</span></div>'
       +   '<div class="stat"><b>' + readDays(S.reading.log).length + '</b><span>days read</span></div>'
+      + '</div>'
+      + '<div class="stats" style="margin-top:.55rem">'
+      +   '<div class="stat"><b>' + masteredCount(activeList()) + '</b><span>words known</span></div>'
+      +   '<div class="stat"><b>' + Object.keys(S.words.mastery).length + '</b><span>words tried</span></div>'
+      +   '<div class="stat"><b>' + S.words.sessions.length + '</b><span>spelling goes</span></div>'
       + '</div></div>'
 
       + '<div class="sect"><h2>Her details</h2>'
@@ -683,6 +1116,27 @@
       +     '<input type="text" id="pname" value="' + esc(S.profile.name||'') + '" placeholder="First name" autocomplete="off" autocapitalize="words">'
       +     '<div class="hint">Used for gentle encouragement. Stored only on this device — it never appears in the app’s code.</div>'
       +   '</div></div>'
+
+      + '<div class="sect"><h2>Spelling list</h2>'
+      +   '<div class="field"><div class="seg" id="segList">'
+      +     allLists().map(l => '<button data-list="' + esc(l.id) + '" aria-pressed="' + (l.id === (activeList()||{}).id) + '">'
+      +       esc(l.name) + ' <span style="opacity:.6">' + wordsOf(l).length + '</span></button>').join('')
+      +   '</div></div>'
+      +   '<div class="field"><label for="pastebox">Paste this week’s list</label>'
+      +     '<textarea id="pastebox" placeholder="because, friend, thought…" '
+      +       'style="width:100%;min-height:5.5rem;padding:.8rem .9rem;border-radius:.9rem;background:var(--surface-2);border:1px solid var(--line-2);line-height:1.6" '
+      +       'autocapitalize="off" spellcheck="false"></textarea>'
+      +     '<div class="field" style="margin:.7rem 0 0"><label for="pastename">List name</label>'
+      +       '<input type="text" id="pastename" placeholder="Week 4 spelling" autocomplete="off"></div>'
+      +     '<button class="quiet" id="pasteSave" style="margin-top:.7rem">Save this list</button>'
+      +     '<div class="hint">Commas, spaces or one per line — numbering and bullets are ignored.</div>'
+      +   '</div>'
+      +   (S.words.lists.length
+        ? '<div class="field"><label>Her saved lists</label><div class="seg">'
+          + S.words.lists.map(l => '<button class="danger" data-dellist="' + esc(l.id) + '">Delete “' + esc(l.name) + '”</button>').join('')
+          + '</div></div>'
+        : '')
+      + '</div>'
 
       + '<div class="sect"><h2>Reading &amp; sound</h2>'
       +   '<div class="field"><label>Read aloud</label><div class="seg" id="segRead">'
@@ -692,7 +1146,20 @@
       +   '<div class="field"><label>Sound</label><div class="seg" id="segSnd">'
       +     '<button data-sn="1" aria-pressed="' + (S.settings.sound !== false) + '">On</button>'
       +     '<button data-sn="0" aria-pressed="' + (S.settings.sound === false) + '">Off</button>'
-      +   '</div></div></div>'
+      +   '</div></div>'
+      +   '<div class="field"><label>Speaking speed</label><div class="seg" id="segRate">'
+      +     [['Slow',.7],['Steady',.85],['Normal',.95],['Quick',1.1]].map(r =>
+              '<button data-rate="' + r[1] + '" aria-pressed="' + (Number(S.settings.speechRate||.95) === r[1]) + '">' + r[0] + '</button>').join('')
+      +   '</div></div>'
+      +   '<div class="field"><label>Voice</label><div class="seg" id="segVoice">'
+      +     (voiceList.length
+              ? voiceList.map(v => '<button data-voice="' + esc(v.voiceURI) + '" aria-pressed="'
+                  + (chosen && chosen.voiceURI === v.voiceURI) + '">' + esc(v.name.replace(/\s*\(.*\)$/, ''))
+                  + ' <span style="opacity:.6">' + esc((v.lang||'').replace('_','-')) + '</span></button>').join('')
+              : '<span class="hint">Tap anything that speaks once, then come back — the phone only lists its voices after the first bit of speech.</span>')
+      +   '</div><div class="hint">Tap one to hear it. On an iPhone, Settings → Accessibility → Spoken Content → Voices '
+      +   'lets you download a much better “Enhanced” or “Premium” Australian voice, which then appears here.</div></div>'
+      + '</div>'
 
       + '<div class="sect"><h2>Text size</h2><div class="seg" id="segScale">'
       +   scales.map(s => '<button data-sc="' + s[1] + '" aria-pressed="' + (Number(S.settings.textScale||1) === s[1]) + '">' + s[0] + '</button>').join('')
@@ -732,7 +1199,10 @@
     _toastT = setTimeout(() => t.classList.remove('on'), 2200);
   }
 
-  function go(s){ screen = s; saying = ''; noteOpen = false; window.scrollTo(0,0); render(); }
+  function go(s){
+    if(s !== 'wsession') W = null;            // leaving a session abandons it; progress already saved per word
+    screen = s; saying = ''; noteOpen = false; window.scrollTo(0,0); render();
+  }
 
   /* =========================================================
      Events — one delegated handler; unlock() on every tap so
@@ -767,6 +1237,18 @@
       render(); return;
     }
 
+    // ---- words
+    if(t.closest('#wstart')){ if(!startWords()) toast('No words in this list yet.'); return; }
+    if(t.closest('#wcover')){ W.stage = 'write'; render(); return; }
+    if(t.closest('#wcheck')){ checkWord(); return; }
+    if(t.closest('#wretry')){ W.stage = 'look'; W.attempt = ''; render(); say(wordNow()); return; }
+    if(t.closest('#wnext')) { nextWord(); return; }
+    if(t.closest('#whear')) { const w = wordNow(); if(w) say(w, {force:true}); return; }
+    const syl = t.closest('[data-syl]');
+    if(syl){ say(syl.dataset.syl, {force:true, rate:.75}); return; }
+    const hear = t.closest('[data-hear]');
+    if(hear){ say(hear.dataset.hear, {force:true}); return; }
+
     if(t.closest('#momentOk')){ pendingMoment = null; render(); return; }
     if(t.closest('#nopen'))   { noteOpen = true;  render(); return; }
     if(t.closest('#ncancel')) { noteOpen = false; render(); return; }
@@ -780,6 +1262,38 @@
     const sn = t.closest('[data-sn]'); if(sn){ S.settings.sound     = sn.dataset.sn === '1'; save(); render(); if(S.settings.sound) chime('done'); return; }
     const sc = t.closest('[data-sc]'); if(sc){ S.settings.textScale = Number(sc.dataset.sc); save(); render(); return; }
     const tn = t.closest('[data-tn]'); if(tn){ S.settings.tint      = tn.dataset.tn; save(); render(); return; }
+    const rt = t.closest('[data-rate]'); if(rt){ S.settings.speechRate = Number(rt.dataset.rate); save(); render(); say('Every day counts.', {force:true}); return; }
+    const vc = t.closest('[data-voice]');
+    if(vc){
+      S.settings.voice = vc.dataset.voice; _voiceKey = null; save(); render();
+      say('Hello ' + (S.profile.name || '') + '. Time to read.', {force:true});
+      return;
+    }
+    const li = t.closest('[data-list]'); if(li){ S.words.activeId = li.dataset.list; save(); render(); return; }
+    const dl = t.closest('[data-dellist]');
+    if(dl){
+      const b = dl;
+      if(b.dataset.armed){
+        const id = b.dataset.dellist;
+        S.words.lists = S.words.lists.filter(l => l.id !== id);
+        if(S.words.activeId === id) S.words.activeId = (allLists()[0]||{}).id;
+        save(); render(); toast('List deleted.'); return;
+      }
+      b.dataset.armed = '1'; b.textContent = 'Tap again to delete';
+      setTimeout(() => { if(b.isConnected){ delete b.dataset.armed; render(); } }, 3000);
+      return;
+    }
+    if(t.closest('#pasteSave')){
+      const words = parseWordList(el('#pastebox').value);
+      if(!words.length){ toast('No words found in that.'); return; }
+      const name = (el('#pastename').value || '').trim() || 'Her list';
+      const id = 'w' + (S.words.lists.reduce((mx,l) => Math.max(mx, Number(String(l.id).slice(1)) || 0), 0) + 1);
+      S.words.lists.push({id:id, name:name, words:words});
+      S.words.activeId = id;
+      save(); render();
+      toast(words.length + (words.length === 1 ? ' word saved.' : ' words saved.'));
+      return;
+    }
 
     if(t.closest('#copyBtn')){
       const text = JSON.stringify(S, null, 2);
@@ -802,6 +1316,13 @@
   // Name field saves as she types (no Save button to forget).
   document.addEventListener('input', function(ev){
     if(ev.target.id === 'pname'){ S.profile.name = ev.target.value; save(); }
+    if(ev.target.id === 'wtype' && W) W.attempt = ev.target.value;
+  });
+
+  // Enter on the keyboard checks the word — she shouldn't have to find a button.
+  document.addEventListener('keydown', function(ev){
+    if(ev.key !== 'Enter') return;
+    if(ev.target.id === 'wtype' && W && W.stage === 'write'){ ev.preventDefault(); unlock(); checkWord(); }
   });
 
   // Parent area: press and hold the build stamp. No PIN to forget.
@@ -846,7 +1367,17 @@
       S.reading.milestones = []; S.reading.longest = 0;
       save(); render();
     },
-    go: go, screen: function(){ return screen; }
+    go: go, screen: function(){ return screen; },
+
+    // words
+    syllables: syllables, parseWordList: parseWordList,
+    matchedTargetIndices: function(a,b){ return Array.from(matchedTargetIndices(a,b)).sort((x,y)=>x-y); },
+    buildSession: buildSession, isDue: isDue, recordWord: recordWord, mastery: mastery,
+    allLists: allLists, activeList: activeList, wordsOf: wordsOf, masteredCount: masteredCount,
+    startWords: startWords, checkWord: checkWord, nextWord: nextWord,
+    session: function(){ return W && {words:W.words.slice(), i:W.i, stage:W.stage, tries:W.tries, right:W.right, firstTime:W.firstTime}; },
+    setAttempt: function(v){ if(W) W.attempt = v; },
+    voiceScore: voiceScore, BOX_DAYS: BOX_DAYS, MASTER_BOX: MASTER_BOX, SESSION_LEN: SESSION_LEN
   };
 
   load();

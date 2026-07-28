@@ -4,11 +4,11 @@ const {open, errorsOf} = require('./helpers');
 
 test.describe('shell', () => {
 
-  test('home shows the three cards, with maths and words marked as coming', async ({page}) => {
+  test('home shows the three cards, with only maths still to come', async ({page}) => {
     await open(page, '2026-07-28');
     await expect(page.locator('.card')).toHaveCount(3);
     await expect(page.locator('.card', {hasText:'Read'}).first()).toBeVisible();
-    await expect(page.locator('.card.soon')).toHaveCount(2);
+    await expect(page.locator('.card.soon')).toHaveCount(1);
     expect(errorsOf(page)).toEqual([]);
   });
 
