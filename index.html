@@ -781,7 +781,10 @@ function buildSession(list, today){
        .forEach(function(w){ if(rev.length < wantRev) rev.push(w); });
   }
   // A floor, so a bad run cannot freeze the app: one new word beats a
-  // thirty-second session she has no reason to come back to.
+  // thirty-second session she has no reason to come back to. It is best-effort
+  // and the cap on words being learned at once always wins — a list where she
+  // has one word in hand and a bad week behind her yields a three-word sitting
+  // rather than three new words at once, which is the right way round.
   if(acq.length + rev.length < MIN_SESSION){
     never.forEach(function(w){
       if(acq.length + rev.length < MIN_SESSION && acq.length < cap && acq.indexOf(w) < 0) acq.push(w);
