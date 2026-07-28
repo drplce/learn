@@ -165,7 +165,7 @@ Start here. `say` can reach the Premium voices you have downloaded, which Safari
 cannot, so this is a real upgrade on what her phone manages alone — and it is
 the same voice family she already knows.
 
-    ACORN_TTS=say node tools/voice.mjs --voices          # what say enumerates
+    ACORN_TTS=say node tools/voice.mjs --voices
     ACORN_TTS=say ACORN_VOICE=Matilda node tools/voice.mjs
 
 `--voices` is not the whole story: Apple's newer voices, Matilda among them,
@@ -178,7 +178,10 @@ adding words you re-run the same command and only the new phrases are made.
 `ACORN_FORCE=1` re-records everything.
 
 The clips are loaded one at a time as she meets each word, not up front, so the
-total size on disk does not affect how fast the app starts.
+total size on disk does not affect how fast the app starts. Newly recorded ones
+are passed through `afconvert`, which macOS ships: say writes AAC at about 35KB
+for a single word, and re-encoding took the first full set from 7.6MB to 1.8MB
+with no audible difference. `ACORN_NOSHRINK=1` skips it; `ACORN_BITRATE` sets it.
 
 ### The paid options
 

@@ -118,6 +118,30 @@ function need(name) {
 const escapeXml = s => s.replace(/[<>&'"]/g, c =>
   ({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]));
 
+/* say writes AAC at a needlessly high bitrate — about 35KB for a single word.
+   afconvert ships with macOS and takes the set from 7.6MB to 1.8MB with no
+   audible difference, so newly recorded clips go through it. Only ever replaces
+   a file when the result is smaller and plausibly intact. */
+async function shrink(path) {
+  if (process.env.ACORN_NOSHRINK) return null;
+  const {execFileSync} = await import('node:child_process');
+  const tmp = path + '.small';
+  try {
+    execFileSync('afconvert', ['-f', 'm4af', '-d', 'aac', '-b',
+                               String(process.env.ACORN_BITRATE || 32000), path, tmp],
+                 {stdio: ['ignore', 'ignore', 'pipe']});
+  } catch { return null; }                       // no afconvert, or it declined
+  try {
+    const before = statSync(path).size, after = statSync(tmp).size;
+    if (after > 512 && after < before) {
+      writeFileSync(path, readFileSync(tmp));
+      return {before, after};
+    }
+  } catch { /* leave the original alone */ }
+  finally { try { (await import('node:fs')).unlinkSync(tmp); } catch {} }
+  return null;
+}
+
 const speak = PROVIDERS[provider];
 if (typeof speak !== 'function') {
   console.error(`unknown ACORN_TTS "${provider}" — say, google, azure or elevenlabs`);
@@ -160,6 +184,7 @@ console.log(`${provider}${process.env.ACORN_VOICE ? ' / ' + process.env.ACORN_VO
             ` — ${wanted.length} phrase${wanted.length === 1 ? '' : 's'}\n`);
 
 const done = [], failed = [];
+let shrunk = 0;
 for (const text of wanted) {
   const file = slug(text) + EXT, path = resolve(AUDIO, file);
   if (!force && existsSync(path) && statSync(path).size > 512) { done.push(text); continue; }
@@ -167,8 +192,11 @@ for (const text of wanted) {
     const buf = await speak(text, process.env.ACORN_VOICE);
     if (buf.length < 512) throw new Error(`suspiciously small (${buf.length} bytes)`);
     writeFileSync(path, buf);
+    const small = await shrink(path);
+    if (small) shrunk += small.before - small.after;
     done.push(text);
-    process.stdout.write(`  ${text.padEnd(24)} ${String(buf.length).padStart(6)} bytes\n`);
+    process.stdout.write(`  ${text.padEnd(24)} ${String((small ? small.after : buf.length)).padStart(6)} bytes` +
+                         (small ? '  (was ' + small.before + ')' : '') + '\n');
     await new Promise(r => setTimeout(r, 60));          // be gentle with the API
   } catch (e) {
     failed.push(`${text}: ${e.message}`);
@@ -196,6 +224,7 @@ writeFileSync(INDEX, next);
 
 const bytes = present.reduce((n, t) => n + statSync(resolve(AUDIO, slug(t) + EXT)).size, 0);
 console.log(`\n${present.length} of ${all.length} phrases recorded, ${(bytes/1024).toFixed(0)}KB total`);
+if (shrunk) console.log(`${(shrunk/1024).toFixed(0)}KB saved by afconvert (ACORN_NOSHRINK=1 to skip)`);
 if (failed.length) {
   console.log(`\n${failed.length} failed:`);
   failed.slice(0, 10).forEach(f => console.log('  ' + f));
