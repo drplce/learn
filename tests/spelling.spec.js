@@ -1001,6 +1001,102 @@ test.describe('the header at every text size', () => {
   });
 });
 
+test.describe('she never has to scroll to answer', () => {
+
+  const STAGES = ['look','write','nearly','wild','right','done'];
+
+  async function put(page, scale, stage){
+    await page.evaluate(o => {
+      const a = window.__acorn;
+      a.state.settings.textScale = o.scale;
+      a.state.words.lists = [{id:'w1', name:'T', words:['because','friend','thought','beautiful']}];
+      a.state.words.activeId = 'w1'; a.state.words.mastery = {}; a.state.words.sessions = [];
+      a.save(); a.go('parent'); a.go('day');
+      if(o.stage === 'write') a.cover();
+      if(o.stage === 'nearly'){ a.cover(); a.type('becuase'); a.check(); }
+      if(o.stage === 'wild'){ a.cover(); a.type('zzz'); a.check(); }
+      if(o.stage === 'right'){ a.cover(); a.type('because'); a.check(); }
+      if(o.stage === 'done'){
+        a.state.words.lists = [{id:'w2', name:'E', words:['rain']}];
+        a.state.words.activeId = 'w2';
+        a.state.words.mastery = {rain:{right:4, wrong:0, box:4, lastSeen:'2026-08-01'}};
+        a.state.words.sessions = [{date:'2026-08-01', list:'w2', asked:1, words:1, right:1, firstTime:1}];
+        a.save(); a.go('parent'); a.go('day');
+      }
+    }, {scale, stage});
+  }
+
+  // 375x667 is the smallest phone this will run on; 1.5x is the size a child
+  // who needs large text will pick. That combination is the whole test.
+  for(const scale of [0.9, 1, 1.25, 1.5]){
+    test(`at ${scale}x the action and the word are both on screen`, async ({page}) => {
+      await open(page, '2026-08-01');
+      await page.setViewportSize({width:375, height:667});
+      const problems = [];
+      for(const stage of STAGES){
+        await put(page, scale, stage);
+        const m = await page.evaluate(() => {
+          const vh = window.innerHeight, vw = document.documentElement.clientWidth;
+          const main = document.querySelector('main');
+          const acts = [...document.querySelectorAll('#act button')];
+          const key = document.querySelector('.word,.marked,#type');
+          const mr = main.getBoundingClientRect();
+          const kr = key && key.getBoundingClientRect();
+          return {
+            actions: acts.length,
+            belowFold: acts.filter(b => b.getBoundingClientRect().bottom > vh + 1).length,
+            tooNarrow: acts.filter(b => { const r = b.getBoundingClientRect();
+                                          return r.width < 44 || r.height < 44; }).length,
+            offRight: acts.filter(b => b.getBoundingClientRect().right > vw + 1).length,
+            keyCut: kr ? !(kr.top >= mr.top - 1 && kr.bottom <= mr.bottom + 1) : false,
+            pageScrolls: document.documentElement.scrollHeight > vh + 2
+          };
+        });
+        if(!m.actions) problems.push(`${stage}: no action at all`);
+        if(m.belowFold) problems.push(`${stage}: ${m.belowFold} action(s) below the fold`);
+        if(m.tooNarrow) problems.push(`${stage}: an action is under 44px`);
+        if(m.offRight) problems.push(`${stage}: an action runs off the right`);
+        if(m.keyCut) problems.push(`${stage}: the word or the spelling box is cut off`);
+        if(m.pageScrolls) problems.push(`${stage}: the page itself scrolls`);
+      }
+      expect(problems).toEqual([]);
+    });
+  }
+
+  test('the speaker keeps its name when it gives up its label', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.setViewportSize({width:375, height:667});
+    await put(page, 1.5, 'look');
+    // At the largest size the label is hidden so the row does not split in two.
+    const hidden = await page.evaluate(() => {
+      const sp = document.querySelector('#hear span');
+      return sp ? sp.getBoundingClientRect().width <= 2 : null;
+    });
+    expect(hidden).toBe(true);
+    await expect(page.locator('#hear')).toHaveAttribute('aria-label', 'Hear it');
+    await put(page, 1, 'look');
+    expect(await page.evaluate(() => document.querySelector('#hear span').getBoundingClientRect().width))
+      .toBeGreaterThan(20);        // at normal size the words are there
+  });
+
+  test('the grown-ups screen scrolls to its end with Back still in reach', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.setViewportSize({width:375, height:667});
+    await page.evaluate(() => { window.__acorn.state.settings.textScale = 1.5;
+                                window.__acorn.save(); window.__acorn.go('parent'); });
+    const m = await page.evaluate(() => {
+      const main = document.querySelector('main');
+      main.scrollTop = main.scrollHeight;
+      const back = document.querySelector('.back').getBoundingClientRect();
+      const stamp = document.querySelector('.stamp').getBoundingClientRect();
+      return {reachedEnd: Math.abs(main.scrollTop + main.clientHeight - main.scrollHeight) < 3,
+              stampInView: stamp.bottom <= main.getBoundingClientRect().bottom + 2,
+              backInView: back.top >= 0 && back.bottom <= window.innerHeight};
+    });
+    expect(m).toEqual({reachedEnd:true, stampInView:true, backInView:true});
+  });
+});
+
 test.describe('a long word stays whole', () => {
 
   // Half a word on each line teaches the wrong shape, so it shrinks instead.

@@ -81,9 +81,38 @@ h1,h2{line-height:1.3; letter-spacing:0; margin:0; font-weight:700;}
 /* Keyboard focus stays visible; a tap never draws one. */
 :focus-visible{outline:3px solid var(--acc); outline-offset:2px;}
 
-#app{max-width:34rem; margin:0 auto; padding:var(--s4) var(--s4) var(--s7); min-height:100vh;
-     display:flex; flex-direction:column;}
-main{flex:1;}
+#app{max-width:34rem; margin:0 auto;
+     padding:calc(var(--s4) * var(--ornament)) var(--s4);
+     height:100vh; height:100dvh; display:flex; flex-direction:column;}
+/* The content scrolls inside itself so the action below it can never be
+   scrolled away from. At the larger text sizes — which is who this app is for —
+   the column is taller than the phone, and the one button she needs sat up to
+   288px below the fold. She should never have to discover scrolling to answer
+   a word. */
+main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
+/* Ornament stays the size it was drawn at whatever text size she has chosen.
+   --ornament undoes the root scaling, so these are on the same scale as
+   everything else but do not grow with her reading preference. */
+:root{--ornament:calc(1 / var(--scale));}
+/* One row: hearing the word and answering it are both always in reach, and the
+   scrolling content above keeps as much height as possible. It wraps to two
+   rows only when the labels genuinely cannot share a line. */
+#act{flex:none; padding-top:var(--s2); display:flex; flex-wrap:wrap;
+     gap:calc(var(--s2) * var(--ornament)); align-items:stretch;
+     container-type:inline-size;}
+#act .hear{flex:0 0 auto; margin:0;}
+#act .primary{flex:1 1 7rem; margin:0;}
+#act .quiet{margin:0;}
+/* The footer's width measured in rem shrinks as her text grows, so this fires
+   exactly when the two labels can no longer share a line — at which point the
+   speaker keeps its icon and gives up its label rather than the row splitting
+   in two and taking the height the word needs. It keeps its spoken name. */
+@container (max-width: 15rem){
+  #act .hear span{position:absolute; width:1px; height:1px; overflow:hidden;
+                  clip:rect(0 0 0 0); white-space:nowrap;}
+  #act .hear{padding:0 var(--s3);}
+}
+#act:empty{display:none;}
 
 /* ---------- header: wordmark + today's progress ---------- */
 .bar{display:flex; align-items:center; gap:var(--s3); min-height:var(--tap); margin-bottom:var(--s5);
@@ -103,8 +132,10 @@ main{flex:1;}
       font-weight:600; color:var(--ink-soft); white-space:nowrap;}
 
 /* ---------- the word ---------- */
-.dots{display:flex; justify-content:center; gap:var(--s2); margin-bottom:var(--s5);}
-.dots i{width:.5rem; height:.5rem; border-radius:50%; background:var(--line-2);
+.dots{display:flex; justify-content:center; gap:var(--s2);
+      margin-bottom:calc(var(--s4) * var(--ornament));}
+.dots i{width:calc(.5rem * var(--ornament)); height:calc(.5rem * var(--ornament));
+        border-radius:50%; background:var(--line-2);
         transition:transform .3s var(--ease);}
 .dots i.on{background:var(--acc);}
 .dots i.now{background:var(--acc); transform:scale(1.5);}
@@ -138,24 +169,24 @@ main{flex:1;}
 
 .note{text-align:center; color:var(--ink-soft); margin:var(--s4) 0 0; font-size:var(--t-md);
       max-width:32ch; margin-left:auto; margin-right:auto;}
-.verdict{text-align:center; font-size:var(--t-lg); font-weight:700; margin:0 0 var(--s2);}
+.verdict{text-align:center; font-size:var(--t-md); font-weight:700; margin:0 0 var(--s2);}
 .verdict.ok{color:var(--good);}
 .verdict.again{color:var(--retry);}
 
 .hear{display:flex; align-items:center; justify-content:center; gap:var(--s2);
-      margin:var(--s5) auto 0; min-height:var(--tap-lg); padding:0 var(--s5);
+      margin:0 auto; min-height:var(--tap-lg); padding:0 var(--s4);
       border-radius:var(--r-md); background:var(--surface-2); border:1px solid var(--line-2);
       font-weight:700; font-size:var(--t-md);}
-.hear svg{width:1.375rem; height:1.375rem; flex:none;}
+.hear svg{width:calc(1.375rem * var(--ornament)); height:calc(1.375rem * var(--ornament)); flex:none;}
 .hear:active{background:var(--acc-soft);}
 
 .spellin{width:100%; text-align:center; font-size:var(--t-2xl); font-weight:700;
-         letter-spacing:.12em; padding:var(--s4) var(--s3); border-radius:var(--r-md);
+         letter-spacing:.12em; padding:var(--s3); border-radius:var(--r-md);
          background:var(--surface-2); border:2px solid var(--line-2);}
 .spellin:focus{outline:none; border-color:var(--acc);}
 
 .primary{display:flex; align-items:center; justify-content:center; gap:var(--s2); width:100%;
-         min-height:var(--tap-xl); margin-top:var(--s5); padding:var(--s4);
+         min-height:var(--tap-xl); margin-top:0; padding:var(--s2) var(--s4);
          border-radius:var(--r-lg); background:var(--acc); color:var(--acc-ink);
          font-size:var(--t-lg); font-weight:700; box-shadow:var(--shadow);
          transition:transform .18s var(--ease);}
@@ -166,7 +197,7 @@ main{flex:1;}
 .quiet:active{border-color:var(--line-2);}
 
 /* ---------- finished ---------- */
-.tick{text-align:center; font-size:var(--t-4xl); color:var(--acc); line-height:1;
+.tick{text-align:center; font-size:calc(var(--t-4xl) * var(--ornament)); color:var(--acc); line-height:1;
       margin:var(--s2) 0 var(--s5);}
 .headline{text-align:center; font-size:var(--t-xl); font-weight:700; margin:var(--s4) 0 var(--s1);}
 .headline.cheer{color:var(--good);}
@@ -235,6 +266,7 @@ main{flex:1;}
 <div id="app">
   <div class="bar" id="bar"></div>
   <main id="screen"></main>
+  <div id="act"></div>
 </div>
 <p id="say" class="sr" role="status" aria-live="polite"></p>
 <div id="toast" role="status" aria-live="polite"></div>
@@ -937,7 +969,7 @@ function restoreFocus(){
     return;
   }
   if(!_kbd) return;
-  var go = el('#screen .primary') || el('#screen button');
+  var go = el('#act button') || el('#screen .primary') || el('#screen button');
   if(go) go.focus({preventScroll:true});
 }
 // Her header: the wordmark (press and hold for grown-ups) and today's progress.
@@ -964,8 +996,8 @@ function renderWord(){
         return '<button class="syl" data-syl="' + esc(p) + '" aria-label="Hear ' + esc(p)
              + '">' + esc(p) + '</button>'; }).join('') + '</div>'
     : '';
-  var hear = '<button class="hear" id="hear">' + SPK + 'Hear it</button>';
-  var body;
+  var hear = '<button class="hear" id="hear" aria-label="Hear it">' + SPK + '<span>Hear it</span></button>';
+  var body, act;
 
   var wl = ' style="--wl:' + w.length + '"';
 
@@ -974,9 +1006,8 @@ function renderWord(){
     body = wordBlock('word', esc(w), w, wl) + sylRow
          // Saying it aloud and tracing it are free wins, and neither is checked,
          // so there is no way for them to go wrong.
-         + '<div class="note">Say it out loud. Trace it with your finger.</div>'
-         + hear
-         + '<button class="primary" id="cover">Cover it up</button>';
+         + '<div class="note">Say it out loud. Trace it with your finger.</div>';
+    act = hear + '<button class="primary" id="cover">Cover it up</button>';
   }
   else if(W.stage === 'write'){
     var fresh = W.shown.indexOf(w) < 0 && W.failed.indexOf(w) < 0;
@@ -985,9 +1016,8 @@ function renderWord(){
     body = '<div class="note">' + (fresh ? 'Listen, then write it.' : 'Now write it from memory.') + '</div>'
          + '<input class="spellin" id="type" type="text" inputmode="text" autocomplete="off" '
          +   'autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" '
-         +   'value="' + esc(W.attempt) + '" aria-label="Type the word">'
-         + hear
-         + '<button class="primary" id="check">Check</button>';
+         +   'value="' + esc(W.attempt) + '" aria-label="Type the word">';
+    act = hear + '<button class="primary" id="check">Check</button>';
   }
   else {
     var ok = sameWord(W.attempt, w);
@@ -1019,12 +1049,12 @@ function renderWord(){
          + sylRow
          // Words first, then what happens next, then the buttons — so what she
          // reads runs top to bottom without a button interrupting it.
-         + (!ok ? '<div class="note">You’ll see this one again in a moment.</div>' : '')
-         + hear
-         + '<button class="primary" id="next">' + (more ? 'Next word' : 'Finish') + '</button>';
+         + (!ok ? '<div class="note">You’ll see this one again in a moment.</div>' : '');
+    act = hear + '<button class="primary" id="next">' + (more ? 'Next word' : 'Finish') + '</button>';
   }
 
   el('#screen').innerHTML = dots + body;
+  el('#act').innerHTML = act;
 }
 
 function renderDone(){
@@ -1043,11 +1073,13 @@ function renderDone(){
     + (all.length
         ? '<div class="pbar" role="img" aria-label="' + pct + ' per cent of this list known well">'
           + '<i style="width:' + pct + '%"></i></div>'
-          + '<button class="quiet" id="again">Practise a bit more</button>'
         : '');
+  el('#act').innerHTML = all.length
+    ? '<button class="quiet" id="again">Practise a bit more</button>' : '';
 }
 
 function renderParent(){
+  el('#act').innerHTML = '';
   var list = activeList(), all = wordsOf(list);
   var voices = offerVoices(), chosen = pickVoice();
   var tricky = Object.keys(S.words.mastery)
