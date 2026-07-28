@@ -125,7 +125,7 @@ main{flex:1;}
   text-align:center; font-weight:700; line-height:1.35;
   letter-spacing:.06em; word-spacing:.1em; margin:var(--s2) 0 var(--s1);
   padding-bottom:.08em; overflow-wrap:anywhere;
-  font-size:clamp(1rem, calc((min(100vw, 34rem) - 2 * var(--s4)) / (var(--wl,6) * .8)), var(--t-3xl));}
+  font-size:clamp(.75rem, calc((min(100vw, 34rem) - 2 * var(--s4)) / (var(--wl,6) * .8)), var(--t-3xl));}
 .marked b{color:var(--ink); font-weight:700;}
 .marked u{color:var(--retry); text-decoration:none; border-bottom:3px solid var(--retry);}
 
@@ -169,6 +169,7 @@ main{flex:1;}
 .tick{text-align:center; font-size:var(--t-4xl); color:var(--acc); line-height:1;
       margin:var(--s2) 0 var(--s5);}
 .headline{text-align:center; font-size:var(--t-xl); font-weight:700; margin:var(--s4) 0 var(--s1);}
+.headline.cheer{color:var(--good);}
 .pbar{height:var(--s2); border-radius:var(--r-pill); background:var(--line); overflow:hidden;
       margin:var(--s3) 0 var(--s5);}
 .pbar i{display:block; height:100%; background:var(--acc); border-radius:var(--r-pill);
@@ -879,6 +880,17 @@ var SPK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-wid
 
 // The one live region in the app. It exists in the document from the start,
 // because a region created inside fresh innerHTML is not reliably announced.
+// A screen reader reads "because" as a word. She needs the letters.
+function spellOut(w){ return String(w).split('').join(' '); }
+// The eye gets the word; a screen reader gets its spelling, because reading
+// "because" as a word conveys nothing about how it is spelt. role="img" is what
+// makes the label authoritative over the contents — on a role-less div the
+// label is not reliably exposed, and a second visually-hidden copy would put
+// the word into the element's own text twice.
+function wordBlock(cls, inner, word, style){
+  return '<div class="' + cls + '" role="img" aria-label="' + esc(spellOut(word)) + '"'
+       + style + '>' + inner + '</div>';
+}
 var _said = '';
 function announce(text){
   var n = el('#say');
@@ -906,7 +918,7 @@ function render(){
 // Her header: the wordmark (press and hold for grown-ups) and today's progress.
 function header(done, total){
   var bar = (done != null && total)
-    ? '<span class="daybar" role="status" aria-label="' + done + ' of ' + total + ' words done">'
+    ? '<span class="daybar" role="img" aria-label="' + done + ' of ' + total + ' words done">'
       + '<i style="width:' + Math.round(100 * Math.min(done, total) / total) + '%"></i></span>' : '';
   el('#bar').innerHTML = '<h1 class="wordmark" id="wordmark">Acorn</h1><span class="sp"></span>' + bar;
 }
@@ -933,8 +945,8 @@ function renderWord(){
   var wl = ' style="--wl:' + w.length + '"';
 
   if(W.stage === 'look'){
-    announce('Look at this word: ' + w + '. ' + w.split('').join(' ') + '.');
-    body = '<div class="word"' + wl + '>' + esc(w) + '</div>' + sylRow
+    announce('Look at this word: ' + w + '. ' + spellOut(w) + '.');
+    body = wordBlock('word', esc(w), w, wl) + sylRow
          // Saying it aloud and tracing it are free wins, and neither is checked,
          // so there is no way for them to go wrong.
          + '<div class="note">Say it out loud. Trace it with your finger.</div>'
@@ -973,12 +985,12 @@ function renderWord(){
                         : 'Here it is. Have a good look.';
     // Spelt out letter by letter: a screen reader would otherwise read the word
     // as a word and never convey the spelling, which is the whole point here.
-    announce(verdict + ' ' + w + '. ' + w.split('').join(' ') + '.');
+    announce(verdict + ' ' + w + '. ' + spellOut(w) + '.');
     body = '<div class="verdict ' + (ok ? 'ok' : 'again') + '">' + verdict + '</div>'
          // Only ever the correct spelling on screen. Seeing her own misspelling
          // is the one thing that measurably sets spelling back.
-         + (ok || !close ? '<div class="word"' + wl + '>' + esc(w) + '</div>'
-                         : '<div class="marked"' + wl + '>' + marks + '</div>')
+         + (ok || !close ? wordBlock('word', esc(w), w, wl)
+                         : wordBlock('marked', marks, w, wl))
          + sylRow
          // Words first, then what happens next, then the buttons — so what she
          // reads runs top to bottom without a button interrupting it.
@@ -997,12 +1009,13 @@ function renderDone(){
   var list = activeList(), all = wordsOf(list), known = knownCount(list);
   var pct = all.length ? Math.round(100 * known / all.length) : 0;
   var head = saying || 'All done for today';
-  var count = all.length ? known + ' of ' + all.length + ' words known well'
+  var count = all.length ? known + ' of ' + all.length + (all.length === 1 ? ' word' : ' words')
+                           + ' known well'
                          : 'No words yet. Ask a grown-up to add some.';
   header();
   announce(head + ' ' + count);
   el('#screen').innerHTML =
-      '<div class="headline"' + (saying ? ' style="color:var(--good)"' : '') + '>' + esc(head) + '</div>'
+      '<h2 class="headline' + (saying ? ' cheer' : '') + '">' + esc(head) + '</h2>'
     + '<div class="tick" aria-hidden="true">✓</div>'
     + '<div class="note">' + esc(count) + '</div>'
     + (all.length

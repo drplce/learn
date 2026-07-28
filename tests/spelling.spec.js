@@ -1001,6 +1001,43 @@ test.describe('the header at every text size', () => {
   });
 });
 
+test.describe('a long word stays whole', () => {
+
+  // Half a word on each line teaches the wrong shape, so it shrinks instead.
+  // The words below run past anything a Year 4/5 list holds.
+  const LONG = ['because','beautiful','disappear','grandmother','onomatopoeia',
+                'mother-in-law','responsibility','antidisestablishment'];
+
+  for(const scale of [0.9, 1, 1.25, 1.5]){
+    test(`no word breaks mid-word at ${scale}x on the narrowest phone`, async ({page}) => {
+      await open(page, '2026-08-01');
+      await page.setViewportSize({width:375, height:667});
+      const broken = [];
+      for(const w of LONG){
+        await page.evaluate(o => {
+          const a = window.__acorn;
+          a.state.settings.textScale = o.scale;
+          a.state.words.lists = [{id:'w1', name:'T', words:[o.w]}];
+          a.state.words.activeId = 'w1'; a.state.words.mastery = {};
+          a.save(); a.go('parent'); a.go('day'); a.start();
+        }, {scale, w});
+        const m = await page.evaluate(() => {
+          const el = document.querySelector('.word');
+          const rg = document.createRange();
+          rg.selectNodeContents(el);
+          return {lines: rg.getClientRects().length,
+                  px: Math.round(parseFloat(getComputedStyle(el).fontSize)),
+                  past: Math.round(el.getBoundingClientRect().right - document.documentElement.clientWidth)};
+        });
+        if(m.lines > 1) broken.push(`${w} (${w.length} letters) wrapped at ${m.px}px`);
+        if(m.past > 1) broken.push(`${w} overflows by ${m.past}px`);
+        expect(m.px, w).toBeGreaterThan(11);          // never shrunk to unreadable
+      }
+      expect(broken).toEqual([]);
+    });
+  }
+});
+
 test.describe('tap targets', () => {
 
   // Anything tappable must be at least 44px in both directions, at the smallest
@@ -1117,6 +1154,58 @@ test.describe('the words she reads', () => {
     const bare = await page.locator('.headline').textContent();
     expect(bare).not.toContain('{n}');
     expect(bare).toMatch(/^(Every one, first go|All done)\.$/);
+  });
+});
+
+test.describe('what a screen reader is told', () => {
+
+  test('the word is spelt out, not read as a word', async ({page}) => {
+    await open(page, '2026-08-01');
+    await startOn(page, ['because','rain','boat']);
+    // Reading "because" aloud conveys nothing about how it is spelt.
+    await expect(page.locator('.word')).toHaveAttribute('aria-label', 'b e c a u s e');
+    await expect(page.locator('.word')).toHaveAttribute('role', 'img');
+    // and the element's own text stays clean — the word appears once
+    expect(await page.locator('.word').textContent()).toBe('because');
+  });
+
+  test('the marked word is spelt out too', async ({page}) => {
+    await open(page, '2026-08-01');
+    await startOn(page, ['because','rain','boat']);
+    await page.locator('#cover').click();
+    await page.locator('#type').fill('becuase');
+    await page.locator('#check').click();
+    await expect(page.locator('.marked')).toHaveAttribute('aria-label', 'b e c a u s e');
+    expect(await page.locator('.marked').textContent()).toBe('because');
+  });
+
+  test('the progress bar does not announce over the top of the verdict', async ({page}) => {
+    await open(page, '2026-08-01');
+    await startOn(page, ['because','rain','boat']);
+    // A second live region competes with the one that matters. This is a
+    // progress indicator, not a status message.
+    await expect(page.locator('.daybar')).toHaveAttribute('role', 'img');
+    const live = await page.evaluate(() =>
+      [...document.querySelectorAll('#app [aria-live], #app [role=status], #app [role=alert]')]
+        .map(n => n.id || n.className));
+    expect(live).toEqual([]);                       // the only one lives outside #app
+    await expect(page.locator('#say')).toHaveAttribute('role', 'status');
+  });
+
+  test('the finished screen is a real heading', async ({page}) => {
+    await open(page, '2026-08-01');
+    await startOn(page, ['rain','boat']);
+    await finishSession(page);
+    await expect(page.locator('h2.headline')).toBeVisible();
+  });
+
+  test('a one-word list reads as one word, not one words', async ({page}) => {
+    await open(page, '2026-08-01');
+    await startOn(page, ['rain']);
+    await finishSession(page);
+    const note = await page.locator('.note').textContent();
+    expect(note).toMatch(/of 1 word known well/);
+    expect(note).not.toContain('1 words');
   });
 });
 
