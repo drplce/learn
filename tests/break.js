@@ -273,6 +273,124 @@ async function main(){
     await ctx.close();
   }
 
+  // ---- 11. the clock moves — travel, or she changes it herself
+  {
+    console.log('\n11. the clock moves under her');
+    const {page, ctx, errs} = await fresh(browser, '2026-08-20');
+    const out = await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'x', name:'X', words:['rain','boat','light','said','went']}];
+      a.state.words.activeId = 'x';
+      // every word seen "today", then the clock jumps back three weeks
+      const m = {};
+      ['rain','boat','light','said','went'].forEach(w => {
+        m[w] = {right:4, wrong:0, box:6, lastSeen:'2026-08-20'}; });
+      a.state.words.mastery = m; a.save();
+      const back = [], fwd = [];
+      a.setToday('2026-08-01');
+      back.push(a.buildSession(a.activeList(), '2026-08-01').length, !!a.start());
+      a.setToday('2027-08-01');                       // and a year forward
+      fwd.push(a.buildSession(a.activeList(), '2027-08-01').length, !!a.start());
+      return {back, fwd, screen: document.querySelector('#screen').children.length};
+    });
+    console.log('    ' + JSON.stringify(out));
+    if(!out.back[1]) bad('clock moved back', 'no session could start at all');
+    else ok('a clock moved back still gives her a session (' + out.back[0] + ' words)');
+    if(!out.fwd[1]) bad('clock moved forward a year', 'no session');
+    else if(out.fwd[0] > 12) bad('clock moved forward a year', out.fwd[0] + ' words in one sitting');
+    else ok('a year forward is still a normal sitting (' + out.fwd[0] + ' words)');
+    if(errs.length) bad('clock moved', errs.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 12. the device refuses to store anything
+  {
+    console.log('\n12. storage refuses every write');
+    const {page, ctx, errs} = await fresh(browser, '2026-08-01');
+    await page.evaluate(() => { Storage.prototype.setItem = function(){ throw new Error('quota'); }; });
+    for(let i = 0; i < 6; i++){
+      if(await page.locator('#cover').count()) await page.locator('#cover').click();
+      else if(await page.locator('#type').count()){
+        const w = await page.evaluate(() => { const s = window.__acorn.session(); return s && s.words[s.i]; });
+        await page.locator('#type').fill(w || 'x');
+        await page.locator('#check').click();
+      }
+      else if(await page.locator('#next').count()) await page.locator('#next').click();
+      else break;
+    }
+    if(!await alive(page)) bad('storage refuses writes', 'blank screen');
+    else ok('she can still practise with no storage at all');
+    await page.evaluate(() => window.__acorn.go('parent'));
+    if(!await page.locator('#nosave').count()) bad('storage refuses writes', 'a grown-up is never told');
+    else ok('the grown-ups screen says progress is not being saved');
+    if(errs.length) bad('storage refuses writes', errs.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 13. a list pasted from a real school newsletter
+  {
+    console.log('\n13. a messy pasted list');
+    const {page, ctx, errs} = await fresh(browser, '2026-08-01');
+    await page.evaluate(() => window.__acorn.go('parent'));
+    await page.locator('#paste').fill(
+      'Week 5 spelling:\n1. because\n2) friend\n- thought\n\u2022 well-known\n' +
+      "  o'clock  \n-lead\ntrail-\n'quoted'\nBECAUSE\nbecause\n\u00a0\ttogether\n" +
+      '3. self-esteem\nmother-in-law\n');
+    await page.locator('#pasteSave').click();
+    const list = await page.evaluate(() => window.__acorn.wordsOf(window.__acorn.activeList()));
+    console.log('    ' + JSON.stringify(list));
+    const broken = await page.evaluate(ws => ws.filter(w => window.__acorn.syllables(w).join('') !== w), list);
+    if(broken.length) bad('messy pasted list', 'these do not survive splitting: ' + broken.join(', '));
+    else ok('every word from a messy paste splits back to itself');
+    // and it is practisable end to end
+    await page.evaluate(() => { window.__acorn.go('day'); window.__acorn.start(); });
+    for(let i = 0; i < 30; i++){
+      if(await page.locator('#cover').count()) await page.locator('#cover').click();
+      else if(await page.locator('#type').count()){
+        const w = await page.evaluate(() => { const s = window.__acorn.session(); return s && s.words[s.i]; });
+        await page.locator('#type').fill(w || 'x');
+        await page.locator('#check').click();
+      }
+      else if(await page.locator('#next').count()) await page.locator('#next').click();
+      else break;
+    }
+    if(!await alive(page)) bad('messy pasted list walked', 'blank screen');
+    else ok('and the whole sitting walks through cleanly');
+    if(errs.length) bad('messy pasted list', errs.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 14. a second tab open on the same phone
+  {
+    console.log('\n14. a second tab');
+    const ctx = await browser.newContext({...devices['iPhone 13'], isMobile:false,
+                                          defaultBrowserType:'chromium'});
+    const [p1, p2] = [await ctx.newPage(), await ctx.newPage()];
+    for(const p of [p1, p2]){
+      await p.goto('file://' + require('path').resolve(__dirname, '..', 'index.html'));
+      await p.waitForFunction(() => !!window.__acorn);
+      await p.evaluate(() => window.__acorn.setToday('2026-08-01'));
+    }
+    await p1.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'x', name:'X', words:['rain','boat','light']}];
+      a.state.words.activeId = 'x'; a.state.words.mastery = {}; a.save();
+      a.start(); const s = a.session(); a.cover(); a.type(s.words[s.i]); a.check();
+    });
+    // The second tab reloads, so it sees the first tab's work rather than
+    // overwriting it from a stale copy.
+    await p2.reload();
+    await p2.waitForFunction(() => !!window.__acorn);
+    const sees = await p2.evaluate(() => Object.keys(window.__acorn.state.words.mastery));
+    await p2.evaluate(() => window.__acorn.save());
+    const after = await p1.evaluate(() =>
+      Object.keys(JSON.parse(localStorage.getItem('acorn.v1')).words.mastery));
+    console.log('    tab 2 sees ' + JSON.stringify(sees) + ', stored after its save ' + JSON.stringify(after));
+    if(!after.length) bad('a second tab', 'wiped the first tab’s progress');
+    else ok('a second tab that reloads does not wipe the first');
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));

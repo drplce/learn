@@ -276,7 +276,11 @@ function load(){
   }catch(e){}
   S = fresh();
 }
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+var _saveFailed = false;
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(S)); _saveFailed = false; }
+  catch(e){ _saveFailed = true; }
+}
 
 /* =========================================================
    3. Sound and speech. Both need a real gesture before iOS will
@@ -435,7 +439,13 @@ function wordsOf(list){
 function parseWordList(text){
   return String(text || '')
     .split(/[\s,;]+/)
-    .map(function(w){ return w.replace(/^[\d]+[.)]?/, '').replace(/[^A-Za-z'\-]/g, '').toLowerCase(); })
+    .map(function(w){
+      return w.replace(/^[\d]+[.)]?/, '')
+              .replace(/[^A-Za-z'\-]/g, '')
+              // Bullets and stray quotes cling to the ends of pasted words.
+              .replace(/^[-']+|[-']+$/g, '')
+              .toLowerCase();
+    })
     // Two letters up to the longest word a child would be set — anything
     // longer came from pasting something that wasn't a word list.
     .filter(function(w){ return w.length >= 2 && w.length <= 24; })
@@ -482,7 +492,20 @@ function suffixSplit(s){
   return null;
 }
 function syllables(word){
-  var s = String(word || '').toLowerCase().replace(/[^a-z']/g, '');
+  var s = String(word || '').toLowerCase().replace(/[^a-z'-]/g, '');
+  // Hyphens are word boundaries: syllabify each side and keep the hyphen with
+  // the part before it, so the pieces still spell the word she is looking at.
+  if(s.indexOf('-') > 0 && s.slice(-1) !== '-'){
+    var bits = s.split('-'), out = [];
+    bits.forEach(function(bit, n){
+      var parts = bit ? syllables(bit) : [];
+      if(n < bits.length - 1) parts = parts.length ? parts.slice(0, -1).concat([parts[parts.length-1] + '-'])
+                                                  : ['-'];
+      out = out.concat(parts);
+    });
+    return out.filter(Boolean);
+  }
+  s = s.replace(/-/g, '');
   if(s.length <= 3) return s ? [s] : [];
 
   if(COMPOUNDS[s]) return COMPOUNDS[s].slice();
@@ -571,14 +594,20 @@ function acquiring(w){ return (mastery(w).box || 1) <= 1; }
 function isDue(word, today){
   var m = mastery(word);
   if(!m.lastSeen) return true;
-  return dayDiff(today, m.lastSeen) >= BOX_DAYS[m.box || 1];
+  var gap = dayDiff(today, m.lastSeen);
+  // A last-seen date in the future means the clock moved, not that she is ahead
+  // of schedule. Left alone the word would never come due again.
+  if(gap < 0) return true;
+  return gap >= BOX_DAYS[m.box || 1];
 }
 // How far past its interval a word is — the one closest to being forgotten
 // comes back first.
 function overdueRatio(word, today){
   var m = mastery(word);
   if(!m.lastSeen) return Infinity;
-  return dayDiff(today, m.lastSeen) / Math.max(1, BOX_DAYS[m.box || 1] || 1);
+  var gap = dayDiff(today, m.lastSeen);
+  if(gap < 0) return 1;                     // clock moved; treat it as due now
+  return gap / Math.max(1, BOX_DAYS[m.box || 1] || 1);
 }
 function recordWord(word, outcome){          // 'first' | 'later' | 'wrong'
   var m = Object.assign({right:0, wrong:0, box:1, lastSeen:null}, S.words.mastery[word]);
@@ -986,7 +1015,15 @@ function renderParent(){
     + '<span class="sp"></span><span class="wordmark" style="color:var(--ink-soft)">Grown-ups</span>';
 
   el('#screen').innerHTML =
-      '<div class="sect"><h2>Progress</h2><div class="stats">'
+      // A device that will not store anything loses every session silently. Her
+      // screens stay quiet about it — it is nothing she can act on — but a
+      // grown-up looking for why progress vanished should find it here.
+      (_saveFailed
+        ? '<div class="sect"><h2>Something to know</h2><div class="hint danger" id="nosave">'
+          + 'This device isn’t saving her progress — it may be out of space, or in a private '
+          + 'browsing window. Practice still works, but today won’t be remembered.</div></div>'
+        : '')
+    + '<div class="sect"><h2>Progress</h2><div class="stats">'
     +   '<div class="stat"><b>' + knownCount(list) + '</b><span>known well</span></div>'
     +   '<div class="stat"><b>' + Object.keys(S.words.mastery).length + '</b><span>words tried</span></div>'
     +   '<div class="stat"><b>' + S.words.sessions.length + '</b><span>sessions</span></div>'

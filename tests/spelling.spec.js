@@ -432,6 +432,23 @@ test.describe('spaced repetition', () => {
     expect(out.box).toBe(out.max);
   });
 
+  test('a last-seen date in the future does not park a word out of reach', async ({page}) => {
+    await open(page, '2026-07-28');
+    // She changes the phone clock, or the family travels — the stored date is
+    // now ahead of today. Left alone the word would never come due again.
+    const out = await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.mastery = {rain:{right:3, wrong:0, box:6, lastSeen:'2026-09-10'}};
+      a.save();
+      return {gap: a.dayDiff('2026-07-28','2026-09-10'),
+              due: a.isDue('rain','2026-07-28'),
+              ratio: a.overdueRatio('rain','2026-07-28')};
+    });
+    expect(out.gap).toBeLessThan(0);
+    expect(out.due).toBe(true);
+    expect(out.ratio).toBe(1);
+  });
+
   test('a word is due again only after its interval', async ({page}) => {
     await open(page, '2026-07-28');
     const out = await page.evaluate(() => {
@@ -699,6 +716,22 @@ test.describe('syllables', () => {
     expect(bad).toEqual([]);
   });
 
+  test('a hyphen is a boundary, and the pieces still spell the word', async ({page}) => {
+    await open(page, '2026-07-28');
+    const got = await page.evaluate(() => {
+      const o = {};
+      ['well-known','self-esteem','up-to-date',"o'clock","don't"].forEach(w => {
+        const p = window.__acorn.syllables(w);
+        o[w] = {parts: p.join('·'), rejoins: p.join('') === w};
+      });
+      return o;
+    });
+    // Stripping the hyphen used to leave "wel·lknown" under the word "well-known".
+    expect(got['well-known']).toEqual({parts:'well-·known', rejoins:true});
+    expect(got['up-to-date']).toEqual({parts:'up-·to-·date', rejoins:true});
+    for(const w in got) expect(got[w].rejoins, w).toBe(true);
+  });
+
   test('the pieces always rejoin to the word', async ({page}) => {
     await open(page, '2026-07-28');
     const bad = await page.evaluate(() => {
@@ -768,6 +801,24 @@ test.describe('her own list', () => {
     const out = await page.evaluate(() =>
       window.__acorn.parseWordList('because, ' + 'z'.repeat(300) + ', rain'));
     expect(out).toEqual(['because','rain']);
+  });
+
+  test('strips bullets and stray quotes clinging to a word', async ({page}) => {
+    await open(page, '2026-07-28');
+    const out = await page.evaluate(() =>
+      window.__acorn.parseWordList("-lead, trail-, 'quoted', well-known, --, ''"));
+    expect(out).toEqual(['lead','trail','quoted','well-known']);
+  });
+
+  test('every parsed word survives being split', async ({page}) => {
+    await open(page, '2026-07-28');
+    const bad = await page.evaluate(() => {
+      const a = window.__acorn;
+      const words = a.parseWordList(`-lead trail- 'quoted' well-known up-to-date o'clock don't
+        1. because 2) friend - thought because's mother-in-law`);
+      return words.filter(w => a.syllables(w).join('') !== w);
+    });
+    expect(bad).toEqual([]);
   });
 
   test('drops duplicates and single letters', async ({page}) => {
@@ -1067,6 +1118,34 @@ test.describe('reachable without a touchscreen', () => {
 });
 
 test.describe('robustness', () => {
+
+  test('a device that cannot save keeps working, and says so to a grown-up', async ({page}) => {
+    await open(page, '2026-07-28');
+    await page.evaluate(() => {
+      Storage.prototype.setItem = function(){ throw new Error('QuotaExceededError'); };
+    });
+    await startOn(page, ['rain','boat']).catch(() => {});
+    // She can still practise; nothing crashes.
+    await page.locator('#cover').click();
+    await page.locator('#type').fill('rain');
+    await page.locator('#check').click();
+    await expect(page.locator('.verdict')).toBeVisible();
+    // And a grown-up is told, on the grown-ups screen only.
+    await page.evaluate(() => window.__acorn.go('parent'));
+    await expect(page.locator('#nosave')).toContainText(/isn’t saving/);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
+  test('the save warning is never shown to her', async ({page}) => {
+    await open(page, '2026-07-28');
+    await page.evaluate(() => {
+      Storage.prototype.setItem = function(){ throw new Error('QuotaExceededError'); };
+      window.__acorn.save();
+    });
+    await page.evaluate(() => { window.__acorn.go('day'); window.__acorn.start(); });
+    await expect(page.locator('#nosave')).toHaveCount(0);
+    expect(await page.locator('#app').innerText()).not.toMatch(/saving|space|private brows/i);
+  });
 
   test('corrupt stored data does not stop the app loading', async ({page}) => {
     await open(page, '2026-07-28');
