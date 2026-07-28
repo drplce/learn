@@ -67,6 +67,28 @@ test.describe('opening the app', () => {
     expect(s.stage).toBe('look');                              // all new, so all get shown first
   });
 
+  test('the new pattern list is there, hand-split, and every piece rejoins', async ({page}) => {
+    await open(page, '2026-08-01');
+    const out = await page.evaluate(() => {
+      const a = window.__acorn;
+      const l = a.allLists().find(x => x.id === 'orsound');
+      if(!l) return null;
+      a.state.words.activeId = 'orsound'; a.save();
+      const words = a.wordsOf(l);
+      return {n: words.length, name: l.name,
+              handSplit: words.filter(w => l.words[w]).length,
+              broken: words.filter(w => a.splitOf(w).join('') !== w),
+              lowerCase: words.every(w => a.splitOf(w).join('·') === a.splitOf(w).join('·').toLowerCase()),
+              sample: a.splitOf('thoughtful').join('·')};
+    });
+    expect(out).not.toBeNull();
+    expect(out.n).toBe(14);
+    expect(out.handSplit).toBe(14);          // every one looked up, none left to the rules
+    expect(out.broken).toEqual([]);
+    expect(out.lowerCase).toBe(true);
+    expect(out.sample).toBe('thought·ful');
+  });
+
   test('lists are offered easiest first', async ({page}) => {
     await open(page, '2026-07-28');
     const ids = await page.evaluate(() => window.__acorn.allLists().map(l => l.id));
@@ -754,7 +776,9 @@ test.describe('syllables', () => {
       return {feb: a.splitOf('february').join('·'), sep: a.splitOf('separate').join('·')};
     });
     // No dictionary splits off a lone final y; "sep·a·rate" keeps the forgotten a.
-    expect(out.feb).toBe('Feb·ru·ary');
+    // Lower case: the word above the chips comes from the key, which is lower
+    // case, and a capital in the split made the first chip disagree with it.
+    expect(out.feb).toBe('feb·ru·ary');
     expect(out.sep).toBe('sep·a·rate');
   });
 

@@ -2,7 +2,7 @@
   "name": "acorn",
   "private": true,
   "version": "1.0.0",
-  "description": "Acorn \u2014 a calm, dyslexia-friendly practice app. The app itself is a single index.html with no build step; this package exists only for the Playwright test harness.",
+  "description": "Acorn — a calm, dyslexia-friendly practice app. The app itself is a single index.html with no build step; this package exists only for the Playwright test harness.",
   "scripts": {
     "test": "playwright test",
     "test:headed": "playwright test --headed",
@@ -10,6 +10,8 @@
     "voice:record": "node tools/voice.mjs"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.0"
+    "@playwright/test": "^1.49.0",
+    "hyphenation.en-gb": "^0.2.1",
+    "hypher": "^0.2.5"
   }
 }

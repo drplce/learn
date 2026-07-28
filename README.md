@@ -118,6 +118,35 @@ being switched on: **Settings → Pages → Source: Deploy from a branch**, pick
 Pages on a **private** repo needs a paid plan. There are no secrets in this app,
 so public is safe — and her name is not in the code.
 
+## Adding words
+
+Splits are looked up, not guessed. `tools/words.mjs` reads a hyphenation
+dictionary (TeX en-GB patterns, the data typesetters use) and falls back to the
+app's own rules only where the dictionary declines a word. Where the two
+disagree it says so, because that is where mistakes live.
+
+    node tools/words.mjs check                        # audit every built-in split
+    node tools/words.mjs add before morning almost    # propose splits, change nothing
+    node tools/words.mjs add --file week6.txt --name "Week 6" --write
+
+A hyphenation point is not a syllable boundary, and the difference runs one way:
+the dictionary is coarser. Audited against the hundred hand-checked splits
+already in the app it disagreed on eight, and in every one the hand split was
+the correct syllabification and the dictionary had simply declined a break. So
+treat it as the better starting proposal and run `check` afterwards.
+
+After `--write`, regenerate the recordings:
+
+    node tools/phrases.mjs
+    ACORN_TTS=say ACORN_VOICE=Matilda node tools/voice.mjs
+
+## The home-screen icon
+
+    node tools/icon.mjs
+
+Run it on a Mac and you get Apple's own acorn, the artwork she already knows.
+Anywhere else you get the local emoji font, which will not match.
+
 ## Recorded audio
 
 Safari only exposes the handful of voices built into iOS. Voices downloaded under

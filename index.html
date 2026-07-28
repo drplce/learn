@@ -11,6 +11,11 @@
 <meta name="theme-color" content="#FBF6EC" media="(prefers-color-scheme:light)">
 <meta name="theme-color" content="#22242A" media="(prefers-color-scheme:dark)">
 <meta name="description" content="A calm spelling practice app.">
+<!-- Without an apple-touch-icon iOS puts a letter in a box on her home screen.
+     tools/icon.mjs regenerates these; run it on a Mac for Apple's own acorn. -->
+<link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
 <style>
 /* ===========================================================
    Acorn — spelling practice, dyslexia-friendly by default.
@@ -589,7 +594,7 @@ var LISTS = [
     because:'be·cause', friend:'friend', people:'peo·ple', beautiful:'beau·ti·ful',
     different:'dif·fer·ent', thought:'thought', through:'through', enough:'e·nough',
     together:'to·geth·er', favourite:'fa·vour·ite', straight:'straight', height:'height',
-    business:'busi·ness', february:'Feb·ru·ary', separate:'sep·a·rate', government:'gov·ern·ment'}},
+    business:'busi·ness', february:'feb·ru·ary', separate:'sep·a·rate', government:'gov·ern·ment'}},
   {id:'longvowel', name:'Long vowel patterns', words:{
     rain:'rain', afraid:'a·fraid', display:'dis·play', reason:'rea·son', between:'be·tween',
     complete:'com·plete', light:'light', might:'might', delight:'de·light', boat:'boat',
@@ -602,6 +607,13 @@ var LISTS = [
     station:'sta·tion', question:'ques·tion', action:'ac·tion', attention:'at·ten·tion',
     direction:'di·rec·tion', invention:'in·ven·tion', division:'di·vi·sion', decision:'de·ci·sion',
     television:'tel·e·vi·sion', explosion:'ex·plo·sion', discussion:'dis·cus·sion', permission:'per·mis·sion'}},
+  // The /or/ sound, spelled every way it comes: or, aw, au, al, ough. Splits
+  // checked against Longman LDOCE and Oxford Learner's, as with the others.
+  {id:'orsound', name:'The “or” sound', words:{
+    before:'be·fore', morning:'morn·ing', almost:'al·most', awful:'aw·ful',
+    haunted:'haunt·ed', warming:'warm·ing', thoughtful:'thought·ful', talking:'talk·ing',
+    sorted:'sort·ed', boredom:'bore·dom', calling:'call·ing', august:'au·gust',
+    lawless:'law·less', report:'re·port'}},
   {id:'aussie', name:'Australian spellings', words:{
     colour:'col·our', favour:'fa·vour', neighbour:'neigh·bour', harbour:'har·bour',
     realise:'real·ise', organise:'or·gan·ise', recognise:'rec·og·nise', centre:'cen·tre',
@@ -651,7 +663,11 @@ var DIGRAPHS = ONSET_DIGRAPHS.concat(CODA_DIGRAPHS);
 var ONSET_BLENDS = ['bl','br','cl','cr','dr','fl','fr','gl','gr','pl','pr','tr','tw','thr','shr'];
 var VOWEL_DIGRAPHS = ['ai','ay','ea','ee','ei','ey','ie','oa','oe','oi','oo','ou','ow','oy',
                       'ue','ui','au','aw','eu','ew','ya','ye','yo'];
-var SUFFIXES = ['er','est','ing','ly','ful','ness','less','ment','able','ible'];
+// Suffixes that are never part of a root, so the stem can always be kept whole:
+// morn·ing, talk·ing, thought·ful. The rest need the digraph guard below, because
+// spelling alone cannot tell wa·ter from wat·er, or sa·cred from sacr·ed.
+var SUFFIXES_FREE = ['ing','ful','ness','less','ment','able','ible'];
+var SUFFIXES = SUFFIXES_FREE.concat(['er','est','ly','ed']);
 // Compounds. No rule reads a word boundary out of spelling — "therefore" comes
 // out "the·re·fore" and "anything" comes out "a·nyth·ing" — so the common ones
 // a Year 4/5 list actually contains are hand-split here.
@@ -670,9 +686,7 @@ function suffixSplit(s){
     var suf = SUFFIXES[i];
     if(s.length <= suf.length + 3 || s.slice(-suf.length) !== suf) continue;
     var stem = s.slice(0, -suf.length);
-    // Digraph stems only. A general "-er is a suffix" rule turns wa·ter into
-    // wat·er, and spelling alone can't tell those two apart.
-    if(DIGRAPHS.indexOf(stem.slice(-2)) < 0) continue;
+    if(SUFFIXES_FREE.indexOf(suf) < 0 && DIGRAPHS.indexOf(stem.slice(-2)) < 0) continue;
     return [stem, suf];
   }
   return null;
@@ -758,7 +772,7 @@ function syllables(word){
 function splitOf(word){
   var list = activeList();
   var hand = list && list.words && !Array.isArray(list.words) ? list.words[word] : null;
-  return hand ? String(hand).split('·') : syllables(word);
+  return hand ? String(hand).toLowerCase().split('·') : syllables(word);
 }
 
 /* =========================================================
