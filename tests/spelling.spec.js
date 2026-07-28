@@ -1001,6 +1001,59 @@ test.describe('the header at every text size', () => {
   });
 });
 
+test.describe('tap targets', () => {
+
+  // Anything tappable must be at least 44px in both directions, at the smallest
+  // text size on the narrowest phone — the worst case, not the comfortable one.
+  for(const scale of [0.9, 1]){
+    test(`nothing tappable is under 44px at ${scale}x`, async ({page}) => {
+      await open(page, '2026-08-01');
+      await page.setViewportSize({width:375, height:667});
+      const small = [];
+      for(const where of ['day', 'parent']){
+        await page.evaluate(o => {
+          const a = window.__acorn;
+          a.state.settings.textScale = o.scale;
+          a.state.words.lists = [{id:'w1', name:'Week 5', words:['because','friend','thought']}];
+          a.state.words.activeId = 'w1';
+          a.state.words.mastery = {said:{right:1, wrong:4, box:1, lastSeen:'2026-07-31'}};
+          a.save();
+          if(o.where === 'parent') a.go('parent');
+          else { a.go('day'); a.start(); }
+        }, {scale, where});
+        small.push(...await page.evaluate(() =>
+          [...document.querySelectorAll('#app button, #app input, #app textarea, #app [data-syl], #app [data-hear]')]
+            .map(el => ({what: (el.id || el.className) + ' "' + (el.textContent||'').trim().slice(0,12) + '"',
+                         r: el.getBoundingClientRect()}))
+            .filter(x => x.r.width && x.r.height && (x.r.width < 44 || x.r.height < 44))
+            .map(x => `${x.what} is ${Math.round(x.r.width)}x${Math.round(x.r.height)}`)));
+      }
+      expect(small).toEqual([]);
+    });
+  }
+
+  test('the tab order runs down the screen, never back up', async ({page}) => {
+    await open(page, '2026-08-01');
+    for(const where of ['day', 'parent']){
+      await page.evaluate(w => {
+        const a = window.__acorn;
+        a.state.words.mastery = {said:{right:1, wrong:4, box:1, lastSeen:'2026-07-31'}};
+        a.save();
+        if(w === 'parent') a.go('parent'); else { a.go('day'); a.start(); }
+      }, where);
+      const jumps = await page.evaluate(() => {
+        const tops = [...document.querySelectorAll('#app button, #app input, #app textarea')]
+          .map(el => el.getBoundingClientRect())
+          .filter(r => r.width && r.height).map(r => Math.round(r.top));
+        let n = 0;
+        for(let i = 1; i < tops.length; i++) if(tops[i] < tops[i-1] - 4) n++;
+        return n;
+      });
+      expect(jumps, where).toBe(0);
+    }
+  });
+});
+
 test.describe('the words she reads', () => {
 
   // Every string on her screens, gathered by walking the app rather than by
