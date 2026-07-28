@@ -23,8 +23,10 @@ test.describe('shell', () => {
     await expect(page.locator('#toast')).toHaveText(/on its way/);
   });
 
-  test('the build stamp is visible', async ({page}) => {
+  test('no build stamp on her screens — it lives in the grown-ups area', async ({page}) => {
     await open(page, '2026-07-28');
+    await expect(page.locator('#stamp')).toHaveCount(0);
+    await page.evaluate(() => window.__acorn.go('parent'));
     await expect(page.locator('#stamp')).toHaveText(/Build/);
   });
 });
@@ -209,12 +211,12 @@ test.describe('milestones', () => {
 
 test.describe('grown-ups area', () => {
 
-  test('press and hold the stamp to open it; a short tap does not', async ({page}) => {
+  test('press and hold the wordmark to open it; a short tap does not', async ({page}) => {
     await open(page, '2026-07-28');
-    await page.locator('#stamp').click();
+    await page.locator('#wordmark').click();
     expect(await page.evaluate(() => window.__acorn.screen())).toBe('home');
 
-    const box = await page.locator('#stamp').boundingBox();
+    const box = await page.locator('#wordmark').boundingBox();
     await page.mouse.move(box.x + box.width/2, box.y + box.height/2);
     await page.mouse.down();
     await page.waitForTimeout(900);

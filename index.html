@@ -328,9 +328,8 @@
        on every render would bury the one line that actually changed. The pieces
        that matter carry role="status" themselves. -->
   <main id="screen"></main>
-  <footer>
-    <button class="stamp" id="stamp" aria-label="Build version. Press and hold to open the grown-ups area."></button>
-  </footer>
+  <!-- No build stamp on her screens. Press and hold the ACORN wordmark to reach
+       the grown-ups area; the build number is shown in there. -->
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
 
@@ -1108,7 +1107,6 @@
 
   function render(){
     applySettings();
-    el('#stamp').textContent = 'Build ' + VERSION.split(' ')[0];
     if(screen === 'home')     renderHome();
     if(screen === 'read')     renderRead();
     if(screen === 'words')    renderWords();
@@ -1125,7 +1123,8 @@
     const h = new Date().getHours();
     const part = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
     const wl = activeList(), wall = wordsOf(wl).length, wdone = masteredCount(wl);
-    el('#bar').innerHTML = '<span class="wordmark"><b>Acorn</b></span><span class="sp"></span>';
+    // The wordmark is the way in to the grown-ups area: press and hold it.
+    el('#bar').innerHTML = '<span class="wordmark" id="wordmark"><b>Acorn</b></span><span class="sp"></span>';
     el('#screen').innerHTML =
         '<div class="greet"><h1>' + part + (n ? ', ' + esc(n) : '') + '</h1>'
       +   '<p>' + (info.readToday
@@ -1513,7 +1512,8 @@
       +   '<button class="quiet" id="copyBtn">Copy my progress</button>'
       +   '<div class="hint">Copies everything as text you can paste somewhere safe. Automatic backup to a private repo comes later.</div>'
       +   '<button class="quiet danger" id="resetBtn" style="margin-top:.9rem">Erase everything</button>'
-      + '</div>';
+      + '</div>'
+      + '<footer><span class="stamp" id="stamp">Build ' + esc(VERSION) + '</span></footer>';
   }
 
   function renderMoment(){
@@ -1679,15 +1679,22 @@
     if(ev.target.id === 'csay' && !ev.shiftKey){ ev.preventDefault(); unlock(); chatAnswer(ev.target.value); }
   });
 
-  // Parent area: press and hold the build stamp. No PIN to forget.
+  // Parent area: press and hold the ACORN wordmark. No PIN to forget, and
+  // nothing on her screens that looks like a way in. Delegated, because the
+  // header is rebuilt on every render.
   (function(){
-    const stamp = el('#stamp');
     let timer = null;
-    const start = () => { clearTimeout(timer); timer = setTimeout(() => { unlock(); go('parent'); }, 700); };
-    const stop  = () => clearTimeout(timer);
-    stamp.addEventListener('pointerdown', start);
-    ['pointerup','pointercancel','pointerleave'].forEach(e => stamp.addEventListener(e, stop));
-    stamp.addEventListener('contextmenu', e => e.preventDefault());
+    const stop = () => { clearTimeout(timer); timer = null; };
+    document.addEventListener('pointerdown', function(ev){
+      if(!ev.target.closest || !ev.target.closest('.wordmark')) return;
+      stop();
+      timer = setTimeout(() => { unlock(); go('parent'); }, 700);
+    });
+    ['pointerup','pointercancel','pointerleave','scroll'].forEach(e =>
+      document.addEventListener(e, stop, true));
+    document.addEventListener('contextmenu', function(ev){
+      if(ev.target.closest && ev.target.closest('.wordmark')) ev.preventDefault();
+    });
   })();
 
   // Midnight must roll the day over: on resume, and also while the app simply
