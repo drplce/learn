@@ -167,6 +167,51 @@ test.describe('getting it wrong', () => {
     expect(await page.locator('.marked u').count()).toBeGreaterThan(1);
   });
 
+  test('adding letters is named, not marked with nothing marked', async ({page}) => {
+    await open(page, '2026-07-28');
+    await startOn(page, ['together','rain','boat']);
+    await page.locator('#cover').click();
+    await page.locator('#type').fill('togeather');       // every letter present, plus an a
+    await page.locator('#check').click();
+    // Every target letter matched, so there is nothing to underline — saying
+    // "look at these letters" over an unmarked word would be nonsense.
+    await expect(page.locator('.verdict.again')).toHaveText('So close — there’s an extra bit in there.');
+    await expect(page.locator('.marked')).toHaveCount(0);
+    await expect(page.locator('.word')).toHaveText('together');
+    const body = await page.locator('#screen').innerText();
+    expect(body).not.toContain('togeather');
+  });
+
+  test('whenever it says look at the letters, some are marked', async ({page}) => {
+    await open(page, '2026-07-28');
+    // Real misspellings a child makes, plus supersets and near-misses.
+    const attempts = [['because','becuase'],['because','bcause'],['friend','freind'],
+                      ['friend','frend'],['beautiful','beutiful'],['beautiful','butiful'],
+                      ['thought','thougt'],['thought','thort'],['said','sed'],['said','siad'],
+                      ['they','thay'],['they','dey'],['together','togeather'],
+                      ['question','queston'],['island','iland'],['knee','nee'],
+                      ['February','Febuary'],['enough','enuf'],['because','becoz']];
+    for(const [word, attempt] of attempts){
+      await startOn(page, [word, 'rain', 'boat']);
+      await page.locator('#cover').click();
+      await page.locator('#type').fill(attempt);
+      await page.locator('#check').click();
+      const verdict = await page.locator('.verdict').innerText();
+      const marked = await page.locator('.marked u').count();
+      if(/Look at (this letter|these letters)/.test(verdict))
+        expect(marked, `${attempt} -> ${word}`).toBeGreaterThan(0);
+      if(/this letter\.$/.test(verdict)) expect(marked, `${attempt} -> ${word}`).toBe(1);
+      if(/these letters/.test(verdict)) expect(marked, `${attempt} -> ${word}`).toBeGreaterThan(1);
+      // Her own spelling is never on the screen, whatever the verdict — except
+      // where dropping letters leaves a substring of the real word ("nee" in
+      // "knee"), which is the correct word being shown, not her attempt.
+      const body = await page.locator('#screen').innerText();
+      if(attempt.toLowerCase() !== word.toLowerCase() && !word.toLowerCase().includes(attempt.toLowerCase()))
+        expect(body.toLowerCase(), `${attempt} -> ${word}`).not.toContain(attempt.toLowerCase());
+    }
+    expect(errorsOf(page)).toEqual([]);
+  });
+
   test('an empty box is not an attempt and costs her nothing', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['because','rain','boat']);
@@ -597,6 +642,61 @@ test.describe('syllables', () => {
       return o;
     }, Object.keys(MUST));
     expect(got).toEqual(MUST);
+  });
+
+  test('gu and qu are one sound, not a syllable break', async ({page}) => {
+    await open(page, '2026-07-28');
+    const got = await page.evaluate(() => {
+      const o = {};
+      ['guard','guess','guide','language','penguin','tongue','league','plague','banquet',
+       'anguish','question','quarter','regular','guitar'].forEach(w => o[w] = window.__acorn.syllables(w).join('·'));
+      return o;
+    });
+    expect(got).toEqual({guard:'guard', guess:'guess', guide:'guide', language:'lan·guage',
+      penguin:'pen·guin', tongue:'tongue', league:'league', plague:'plague', banquet:'ban·quet',
+      anguish:'an·guish', question:'ques·tion', quarter:'quar·ter', regular:'re·gu·lar',
+      guitar:'gui·tar'});
+  });
+
+  test('x closes the syllable before it', async ({page}) => {
+    await open(page, '2026-07-28');
+    const got = await page.evaluate(() => {
+      const o = {};
+      ['exam','taxi','sixty','oxygen','exercise','next'].forEach(w => o[w] = window.__acorn.syllables(w).join('·'));
+      return o;
+    });
+    expect(got).toEqual({exam:'ex·am', taxi:'tax·i', sixty:'six·ty', oxygen:'ox·y·gen',
+                         exercise:'ex·er·cise', next:'next'});
+  });
+
+  test('compounds break on the word boundary, not by rule', async ({page}) => {
+    await open(page, '2026-07-28');
+    const got = await page.evaluate(() => {
+      const o = {};
+      ['anything','everything','something','somewhere','therefore','without','myself',
+       'birthday','playground','football','outside','upstairs','tomorrow','today',
+       'grandmother','cannot'].forEach(w => o[w] = window.__acorn.syllables(w).join('·'));
+      return o;
+    });
+    expect(got).toEqual({anything:'any·thing', everything:'every·thing', something:'some·thing',
+      somewhere:'some·where', therefore:'there·fore', without:'with·out', myself:'my·self',
+      birthday:'birth·day', playground:'play·ground', football:'foot·ball', outside:'out·side',
+      upstairs:'up·stairs', tomorrow:'to·mor·row', today:'to·day', grandmother:'grand·mother',
+      cannot:'can·not'});
+  });
+
+  test('every compound entry rejoins to its word', async ({page}) => {
+    await open(page, '2026-07-28');
+    const bad = await page.evaluate(() => {
+      const out = [];
+      for(const w in window.__acorn.COMPOUNDS){
+        const parts = window.__acorn.syllables(w);
+        if(parts.join('') !== w) out.push(w + ' -> ' + parts.join('·'));
+        if(parts.some(p => !/[aeiouy]/.test(p))) out.push(w + ' has a piece with no vowel');
+      }
+      return out;
+    });
+    expect(bad).toEqual([]);
   });
 
   test('the pieces always rejoin to the word', async ({page}) => {

@@ -456,6 +456,18 @@ var ONSET_BLENDS = ['bl','br','cl','cr','dr','fl','fr','gl','gr','pl','pr','tr',
 var VOWEL_DIGRAPHS = ['ai','ay','ea','ee','ei','ey','ie','oa','oe','oi','oo','ou','ow','oy',
                       'ue','ui','au','aw','eu','ew','ya','ye','yo'];
 var SUFFIXES = ['er','est','ing','ly','ful','ness','less','ment','able','ible'];
+// Compounds. No rule reads a word boundary out of spelling — "therefore" comes
+// out "the·re·fore" and "anything" comes out "a·nyth·ing" — so the common ones
+// a Year 4/5 list actually contains are hand-split here.
+var COMPOUNDS = ('any·thing any·one any·where any·body every·thing every·one every·where '
+  + 'some·thing some·one some·where some·times no·thing no·body no·where there·fore '
+  + 'with·out with·in him·self her·self my·self your·self it·self them·selves our·selves '
+  + 'can·not in·to up·on up·stairs down·stairs out·side in·side be·side along·side '
+  + 'birth·day play·ground foot·ball net·ball week·end break·fast after·noon '
+  + 'grand·mother grand·father grand·parents news·paper hand·writing some·body '
+  + 'class·room bed·room bath·room black·board white·board day·light sun·light '
+  + 'to·day to·night to·mor·row').split(' ')
+  .reduce(function(m, x){ m[x.replace(/·/g, '')] = x.split('·'); return m; }, {});
 
 function suffixSplit(s){
   for(var i = 0; i < SUFFIXES.length; i++){
@@ -473,6 +485,8 @@ function syllables(word){
   var s = String(word || '').toLowerCase().replace(/[^a-z']/g, '');
   if(s.length <= 3) return s ? [s] : [];
 
+  if(COMPOUNDS[s]) return COMPOUNDS[s].slice();
+
   var suf = suffixSplit(s);
   if(suf) return syllables(suf[0]).concat([suf[1]]);
 
@@ -484,7 +498,9 @@ function syllables(word){
     j = i;
     while(j + 1 < s.length && isV(s[j+1], j+1)) j++;
     var a = i;
-    if(s[i] === 'u' && i > 0 && s[i-1] === 'q' && j > i) a = i + 1;   // 'qu' is a consonant
+    // 'qu' and 'gu' before another vowel are consonants: quiet, guard, language,
+    // tongue. When the u is the nucleus ('re·gu·lar') j === i and this is skipped.
+    if(s[i] === 'u' && i > 0 && 'qg'.indexOf(s[i-1]) >= 0 && j > i) a = i + 1;
     // A vowel run is usually one sound (rain) but sometimes two (li·on). Split
     // the pairs that aren't digraphs, keeping -tion/-sion/-cial intact.
     var start = a;
@@ -511,9 +527,12 @@ function syllables(word){
   var cuts = [];
   for(k = 0; k < groups.length - 1; k++){
     var av = groups[k][1], bv = groups[k+1][0], L = bv - av - 1;
+    if(L === 1 && s[av+1] === 'x'){ cuts.push(av + 2); continue; }    // ex·am, tax·i
     if(L <= 1){ cuts.push(av + 1); continue; }                        // li·on / wa·ter
     var pr = s.slice(av+1, av+3);
     if(ONSET_DIGRAPHS.indexOf(pr) >= 0){ cuts.push(av + 1); continue; }   // mo·ther
+    var onset2 = s.slice(bv - 2, bv);
+    if(onset2 === 'gu' || onset2 === 'qu'){ cuts.push(bv - 2); continue; }  // lan·guage, ban·quet
     if(CODA_DIGRAPHS.indexOf(pr) >= 0){ cuts.push(av + 3); continue; }    // neigh·bour
     var tail = s.slice(bv - 2, bv);
     if(ONSET_BLENDS.indexOf(tail) >= 0){ cuts.push(bv - 2); continue; }   // ta·ble
@@ -897,15 +916,21 @@ function renderWord(){
   else {
     var ok = sameWord(W.attempt, w);
     var m = matched(W.attempt, w);
+    var missing = w.length - m.count;
     // Marking every letter says only "all of this is wrong", which helps nobody
-    // — so below half matched, show the word plainly instead.
-    var close = w.length ? m.count / w.length >= .5 : false;
+    // — so below half matched, show the word plainly instead. And with nothing
+    // missing there is nothing to mark: every letter of the word was there, so
+    // she has added something ("togeather"). Naming that is more use than a row
+    // of unmarked letters under "look at these letters".
+    var close = w.length ? m.count / w.length >= .5 && missing > 0 : false;
+    var extra = !ok && missing === 0;
     var marks = w.split('').map(function(c, i){
       return m.hit[i] ? '<b>' + esc(c) + '</b>' : '<u>' + esc(c) + '</u>'; }).join('');
     var more = (W.i + 1 < W.words.length) || W.requeue.length;
     var verdict = ok ? (W.failed.indexOf(w) >= 0 ? 'You got there.' : 'Yes — that’s it.')
-                : close ? (w.length - m.count === 1 ? 'So close. Look at this letter.'
-                                                    : 'So close. Look at these letters.')
+                : extra ? 'So close — there’s an extra bit in there.'
+                : close ? (missing === 1 ? 'So close. Look at this letter.'
+                                         : 'So close. Look at these letters.')
                         : 'Here it is. Have a good look.';
     // Spelt out letter by letter: a screen reader would otherwise read the word
     // as a word and never convey the spelling, which is the whole point here.
@@ -1195,7 +1220,7 @@ window.__acorn = {
   save: save, load: load,
   setToday: function(d){ _today = d; _renderedDay = todayISO(); render(); },
   todayISO: todayISO, dayDiff: dayDiff,
-  syllables: syllables, splitOf: splitOf, parseWordList: parseWordList,
+  syllables: syllables, splitOf: splitOf, parseWordList: parseWordList, COMPOUNDS: COMPOUNDS,
   matched: function(a, b){ var m = matched(a, b); return {count:m.count, hit:Object.keys(m.hit).map(Number).sort(function(x,y){return x-y;})}; },
   mastery: mastery, recordWord: recordWord, isDue: isDue, overdueRatio: overdueRatio,
   acquiring: acquiring, knownCount: knownCount,
