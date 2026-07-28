@@ -180,7 +180,7 @@ test.describe('when it goes wrong', () => {
     await ready(page);
     await page.locator('#cstart').click();
     await expect(page.locator('.bub.them').first()).toBeVisible();
-    await page.locator('[data-go="read"]').click();
+    await page.locator('.iconbtn.back').click();
     expect(await page.evaluate(() => window.__acorn.chat())).toBeNull();
     expect(await page.evaluate(() => window.__acorn.screen())).toBe('read');
   });

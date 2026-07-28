@@ -144,27 +144,56 @@ test.describe('comparing her attempt', () => {
 
 test.describe('spaced repetition', () => {
 
-  test('right first time moves up a box, wrong moves down one', async ({page}) => {
+  // Raise a word up the boxes on consecutive days, since only one box per day
+  // is allowed — that cap is itself part of the design.
+  async function raise(page, word, times){
+    await page.evaluate(o => {
+      const a = window.__acorn;
+      for(let i = 0; i < o.times; i++){
+        a.setToday('2026-07-' + String(10 + i).padStart(2, '0'));
+        a.recordWord(o.word, 'first');
+      }
+    }, {word: word, times: times});
+  }
+
+  test('one box per day — a second session cannot fast-track a word', async ({page}) => {
     await open(page, '2026-07-28');
     const out = await page.evaluate(() => {
       const a = window.__acorn;
-      a.recordWord('friend', 'first');  const b1 = a.mastery('friend').box;
-      a.recordWord('friend', 'first');  const b2 = a.mastery('friend').box;
-      a.recordWord('friend', 'wrong');  const b3 = a.mastery('friend').box;
-      return {b1, b2, b3};
+      a.recordWord('friend', 'first');  const first = a.mastery('friend').box;
+      a.recordWord('friend', 'first');  const sameDay = a.mastery('friend').box;
+      a.setToday('2026-07-29');
+      a.recordWord('friend', 'first');  const nextDay = a.mastery('friend').box;
+      return {first, sameDay, nextDay};
     });
-    expect(out).toEqual({b1:2, b2:3, b3:2});
+    // Intervals are measured in days, so two goes in one evening is still one step.
+    expect(out).toEqual({first:2, sameDay:2, nextDay:3});
   });
 
-  test('a slip never drops her all the way back to the start', async ({page}) => {
+  test('a wrong answer drops two boxes, never below two', async ({page}) => {
+    await open(page, '2026-07-28');
+    await raise(page, 'castle', 6);                      // box 7
+    const out = await page.evaluate(() => {
+      const a = window.__acorn;
+      const before = a.mastery('castle').box;
+      a.recordWord('castle', 'wrong');
+      const after = a.mastery('castle').box;
+      a.recordWord('lamb', 'first');                     // box 2
+      a.recordWord('lamb', 'wrong');
+      return {before, after, low: a.mastery('lamb').box};
+    });
+    expect(out.before).toBe(7);
+    expect(out.after).toBe(5);                           // large but partial, not a reset
+    expect(out.low).toBe(1);                             // a barely-known word does go back to 1
+  });
+
+  test('a word she has just met stays in box 1 when she gets it wrong', async ({page}) => {
     await open(page, '2026-07-28');
     const box = await page.evaluate(() => {
-      const a = window.__acorn;
-      ['first','first','first','first'].forEach(o => a.recordWord('castle', o));   // box 5
-      a.recordWord('castle', 'wrong');
-      return a.mastery('castle').box;
+      window.__acorn.recordWord('brandnew', 'wrong');
+      return window.__acorn.mastery('brandnew').box;
     });
-    expect(box).toBe(4);
+    expect(box).toBe(1);
   });
 
   test('getting there on the retry costs nothing and gains nothing', async ({page}) => {
@@ -180,14 +209,18 @@ test.describe('spaced repetition', () => {
     expect(out.right).toBe(2);
   });
 
-  test('box 5 is capped — mastery does not run away', async ({page}) => {
+  test('the ramp reaches long intervals so known words stop coming back weekly', async ({page}) => {
     await open(page, '2026-07-28');
-    const box = await page.evaluate(() => {
-      const a = window.__acorn;
-      for(let i=0;i<10;i++) a.recordWord('rain','first');
-      return a.mastery('rain').box;
-    });
-    expect(box).toBe(5);
+    const out = await page.evaluate(() => window.__acorn.BOX_DAYS);
+    expect(out).toEqual({1:0, 2:1, 3:2, 4:4, 5:8, 6:21, 7:60});
+  });
+
+  test('the top box is capped — mastery does not run away', async ({page}) => {
+    await open(page, '2026-07-28');
+    await raise(page, 'rain', 12);
+    const out = await page.evaluate(() => ({box: window.__acorn.mastery('rain').box, max: window.__acorn.MAX_BOX}));
+    expect(out.box).toBe(out.max);
+    expect(out.max).toBe(7);
   });
 
   test('a word is due again only after its box interval', async ({page}) => {
@@ -206,32 +239,73 @@ test.describe('spaced repetition', () => {
     expect(out.unseen).toBe(true);
   });
 
-  test('a session puts due words first and caps its length', async ({page}) => {
+  test('no more than three words she is still learning appear in a session', async ({page}) => {
     await open(page, '2026-07-28');
     const out = await page.evaluate(() => {
       const a = window.__acorn;
-      const list = a.allLists().find(l => l.id === 'tricky');
-      // master most of the list so it is not due, leaving two words needing work
-      a.wordsOf(list).forEach(w => { for(let i=0;i<4;i++) a.recordWord(w,'first'); });
-      a.recordWord('friend','wrong'); a.recordWord('friend','wrong');
-      a.recordWord('thought','wrong'); a.recordWord('thought','wrong');
-      const s = a.buildSession(list, '2026-07-29');
-      return {first: s.slice(0,2).sort(), len: s.length, cap: a.SESSION_LEN};
+      // a full weekly list, none of it seen before
+      a.state.words.lists = [{id:'w1', name:'Week 1',
+        words:['aa','bb','cc','dd','ee','ff','gg','hh','ii','jj','kk','ll','mm','nn','oo','pp','qq','rr','ss','tt']}];
+      a.state.words.activeId = 'w1';
+      a.state.words.mastery = {};
+      const s = a.buildSession(a.activeList(), '2026-07-28');
+      return {len: s.length, cap: a.ACQUIRING_CAP};
     });
-    expect(out.first).toEqual(['friend','thought']);
-    expect(out.len).toBeLessThanOrEqual(out.cap);
+    // A 20-word list is dripped, not dumped: three at a time.
+    expect(out.len).toBe(3);
+    expect(out.cap).toBe(3);
   });
 
-  test('unseen words get used before words already known', async ({page}) => {
+  test('words already started come back before any new one is introduced', async ({page}) => {
     await open(page, '2026-07-28');
     const session = await page.evaluate(() => {
       const a = window.__acorn;
-      a.state.words.lists = [{id:'w1', name:'Mix', words:['alpha','bravo','charlie']}];
+      a.state.words.lists = [{id:'w1', name:'Mix', words:['alpha','bravo','charlie','delta','echo']}];
       a.state.words.activeId = 'w1';
-      for(let i=0;i<4;i++) a.recordWord('alpha','first');       // known, not due
+      a.state.words.mastery = {};
+      a.recordWord('alpha','wrong');       // met, still box 1
+      a.recordWord('bravo','wrong');
+      a.recordWord('charlie','wrong');
+      return a.buildSession(a.activeList(), '2026-07-29');
+    });
+    expect(session.slice().sort()).toEqual(['alpha','bravo','charlie']);
+    expect(session).not.toContain('delta');      // nothing new until one graduates
+  });
+
+  test('a session opens with a word she is likely to get right', async ({page}) => {
+    await open(page, '2026-07-28');
+    const out = await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'w1', name:'Mix', words:['safe','shaky','fresh']}];
+      a.state.words.activeId = 'w1';
+      a.state.words.mastery = {};
+      // "safe" is well known and due; "shaky" is barely known
+      a.state.words.mastery['safe']  = {right:5, wrong:0, box:5, lastSeen:'2026-07-10'};
+      a.state.words.mastery['shaky'] = {right:1, wrong:3, box:1, lastSeen:'2026-07-27'};
       return a.buildSession(a.activeList(), '2026-07-28');
     });
-    expect(session.slice(0,2).sort()).toEqual(['bravo','charlie']);
+    expect(out[0]).toBe('safe');                 // not the hardest word first
+  });
+
+  test('the most overdue word comes back before a merely due one', async ({page}) => {
+    await open(page, '2026-07-28');
+    const out = await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'w1', name:'Mix', words:['ages','recent','filler']}];
+      a.state.words.activeId = 'w1';
+      a.state.words.mastery = {
+        ages:   {right:3, wrong:0, box:3, lastSeen:'2026-07-01'},   // 27 days, wanted 2
+        recent: {right:3, wrong:0, box:3, lastSeen:'2026-07-25'},   // 3 days, wanted 2
+        filler: {right:5, wrong:0, box:5, lastSeen:'2026-07-27'}
+      };
+      return {
+        ages: a.overdueRatio('ages', '2026-07-28'),
+        recent: a.overdueRatio('recent', '2026-07-28'),
+        session: a.buildSession(a.activeList(), '2026-07-28')
+      };
+    });
+    expect(out.ages).toBeGreaterThan(out.recent);
+    expect(out.session[0]).toBe('ages');
   });
 });
 
@@ -275,42 +349,63 @@ test.describe('a practice session', () => {
     expect(attrs).toEqual({correct:'off', cap:'off', spell:'false', complete:'off'});
   });
 
-  test('a wrong go offers another, and only marks her down after the second', async ({page}) => {
+  test('a miss shows only the correct spelling — never her own', async ({page}) => {
     await open(page, '2026-07-28');
-    await startOn(page, ['because']);
+    await startOn(page, ['because','rain','boat']);
     await page.locator('#wcover').click();
     await page.locator('#wtype').fill('becuase');
     await page.locator('#wcheck').click();
     await expect(page.locator('.verdict.again')).toBeVisible();
-    await expect(page.locator('#wretry')).toBeVisible();
-    // nothing recorded yet — she still has a go left
-    expect(await page.evaluate(() => window.__acorn.state.words.mastery.because)).toBeUndefined();
-    await page.locator('#wretry').click();
-    await expect(page.locator('.bigword')).toHaveText('because');   // shown again to look at
+    await expect(page.locator('.marked u')).not.toHaveCount(0);     // letters to look at
+    // Seeing wrong orthography is what sets spelling back, so it is never shown.
+    const body = await page.locator('#screen').innerText();
+    expect(body).not.toContain('becuase');
+    expect(body).not.toMatch(/wrong|incorrect|failed|bad/i);
+    await expect(page.locator('#wretry')).toHaveCount(0);           // no immediate re-copy
+    await expect(page.locator('#wnext')).toBeVisible();
+    expect(await page.evaluate(() => window.__acorn.mastery('because').box)).toBe(1);
+  });
+
+  test('a missed word comes back later in the same session, from memory', async ({page}) => {
+    await open(page, '2026-07-28');
+    await startOn(page, ['because','rain','boat']);
+    // miss the first word
     await page.locator('#wcover').click();
+    await page.locator('#wtype').fill('becuase');
+    await page.locator('#wcheck').click();
+    await page.locator('#wnext').click();
+    // work through the rest correctly
+    for(let i = 0; i < 2; i++){
+      const word = await page.evaluate(() => window.__acorn.session().words[window.__acorn.session().i]);
+      if(await page.locator('#wcover').count()) await page.locator('#wcover').click();
+      await page.locator('#wtype').fill(word);
+      await page.locator('#wcheck').click();
+      await page.locator('#wnext').click();
+    }
+    // the missed word is re-asked — and this time with no look step
+    expect(await page.evaluate(() => window.__acorn.session().words[window.__acorn.session().i])).toBe('because');
+    await expect(page.locator('#wcover')).toHaveCount(0);
+    await expect(page.locator('#wtype')).toBeVisible();
     await page.locator('#wtype').fill('because');
     await page.locator('#wcheck').click();
     await expect(page.locator('.verdict.ok')).toHaveText(/got there/);
     const m = await page.evaluate(() => window.__acorn.mastery('because'));
     expect(m.box).toBe(1);                                          // no penalty, no advance
-    expect(m.right).toBe(1);
   });
 
-  test('wrong twice shows the word kindly and marks the letters to look at', async ({page}) => {
+  test('a word she already knows is never shown before she spells it', async ({page}) => {
     await open(page, '2026-07-28');
-    await startOn(page, ['because']);
-    for(const attempt of ['becuase','becuase']){
-      await page.locator('#wcover').click();
-      await page.locator('#wtype').fill(attempt);
-      await page.locator('#wcheck').click();
-      if(await page.locator('#wretry').count()) await page.locator('#wretry').click();
-    }
-    await expect(page.locator('.marked u')).not.toHaveCount(0);     // the letters to look at
-    await expect(page.locator('.attempt')).toContainText('becuase');
-    await expect(page.locator('#wnext')).toBeVisible();
-    expect(await page.evaluate(() => window.__acorn.mastery('because').box)).toBe(1);
-    const body = await page.locator('#screen').innerText();
-    expect(body).not.toMatch(/wrong|incorrect|failed|bad/i);
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'w1', name:'Test', words:['friend']}];
+      a.state.words.activeId = 'w1';
+      a.state.words.mastery = {friend:{right:3, wrong:0, box:3, lastSeen:'2026-07-20'}};
+      a.save(); a.go('words');
+    });
+    await page.locator('#wstart').click();
+    await expect(page.locator('#wtype')).toBeVisible();              // straight to writing
+    await expect(page.locator('.bigword')).toHaveCount(0);           // the word is not on screen
+    await expect(page.locator('#wcover')).toHaveCount(0);
   });
 
   test('pressing Enter checks the word', async ({page}) => {
@@ -354,16 +449,17 @@ test.describe('a practice session', () => {
   test('progress dots track the position', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['rain','boat','light']);
-    await expect(page.locator('.dots i')).toHaveCount(3);
+    await expect(page.locator('.dots i')).toHaveCount(3);   // 3 acquiring words is the cap
     await expect(page.locator('.dots i.now')).toHaveCount(1);
   });
 });
 
 test.describe('words screen and home', () => {
 
-  test('home offers Words as a live card, not "soon"', async ({page}) => {
+  test('home is words and nothing else for now', async ({page}) => {
     await open(page, '2026-07-28');
-    await expect(page.locator('.card.soon')).toHaveCount(1);          // only Maths left
+    await expect(page.locator('.card')).toHaveCount(1);
+    await expect(page.locator('.card.soon')).toHaveCount(0);
     await page.locator('[data-go="words"]').click();
     expect(await page.evaluate(() => window.__acorn.screen())).toBe('words');
   });

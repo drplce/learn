@@ -843,11 +843,19 @@
   }
 
   /* ---- spaced repetition (Leitner) ----
-     Box 1..5. Right first time moves up, wrong moves down one box (not all the
-     way back to 1 — a single slip shouldn't flood the next session). Box 5 is
-     mastered and still resurfaces occasionally. */
-  const BOX_DAYS = {1:0, 2:1, 3:2, 4:4, 5:8};
+     Boxes 1..7 in elapsed days. The ramp roughly doubles, which is where both
+     Cepeda's spacing data and FSRS's fitted intervals land; boxes 6 and 7 exist
+     so a word she knows well stops coming back every week forever. Box 5 is
+     "known well" — four correct retrievals on four different days, which is
+     where the benefit asymptotes. */
+  const BOX_DAYS = {1:0, 2:1, 3:2, 4:4, 5:8, 6:21, 7:60};
+  const MAX_BOX = 7;
   const MASTER_BOX = 5;
+  // At most this many words she is still acquiring, per session. Overloading
+  // past three is where accuracy fell away for children with learning
+  // difficulties in the studies this is drawn from.
+  const ACQUIRING_CAP = 3;
+  const acquiring = w => (mastery(w).box || 1) <= 1;
   function mastery(word){
     const m = S.words.mastery[word];
     return m || {right:0, wrong:0, box:1, lastSeen:null};
@@ -859,27 +867,71 @@
   }
   function recordWord(word, outcome){                     // 'first' | 'retry' | 'wrong'
     const m = Object.assign({right:0, wrong:0, box:1, lastSeen:null}, S.words.mastery[word]);
-    if(outcome === 'first'){ m.right++; m.box = Math.min(MASTER_BOX, (m.box||1) + 1); }
+    const box = m.box || 1;
+    const alreadyAdvancedToday = m.lastSeen === todayISO();
+    if(outcome === 'first'){
+      m.right++;
+      // One box per calendar day. Two sessions in an evening shouldn't fast-track
+      // a word past intervals that are measured in days.
+      if(!alreadyAdvancedToday) m.box = Math.min(MAX_BOX, box + 1);
+    }
     else if(outcome === 'retry'){ m.right++; }            // got there — no penalty, no advance
-    else { m.wrong++; m.box = Math.max(1, (m.box||1) - 1); }
+    else {
+      m.wrong++;
+      // A large but partial reduction, not a reset: a long-known word that slips
+      // gets a one-day retry rather than starting again from nothing.
+      m.box = box <= 2 ? 1 : Math.max(2, box - 2);
+    }
     m.lastSeen = todayISO();
     S.words.mastery[word] = m;
     save();
     return m;
   }
-  const SESSION_LEN = 10;
+  const SESSION_LEN = 8;
+  // How far past its interval a word is. Sorting by this rather than by box
+  // means the word closest to being forgotten comes back first.
+  function overdueRatio(word, today){
+    const m = mastery(word);
+    if(!m.lastSeen) return Infinity;
+    const days = dayDiff(today, m.lastSeen), want = BOX_DAYS[m.box || 1] || 1;
+    return days / Math.max(1, want);
+  }
+
+  /* Yesterday's words come back before anything new is introduced, and no more
+     than three words she is still acquiring appear in one session. The rest of a
+     pasted list waits its turn — a 20-word list is dripped, never dumped. */
   function buildSession(list, today){
     const all = wordsOf(list);
-    const unseen = all.filter(w => !S.words.mastery[w]);
-    const due = all.filter(w => S.words.mastery[w] && isDue(w, today))
-                   .sort((a,b) => (mastery(a).box - mastery(b).box)
-                                || String(mastery(a).lastSeen).localeCompare(String(mastery(b).lastSeen)));
-    const rest = all.filter(w => S.words.mastery[w] && !isDue(w, today))
-                    .sort((a,b) => mastery(a).box - mastery(b).box);
+    const seen = w => !!S.words.mastery[w];
+
+    const review = all.filter(w => seen(w) && !acquiring(w) && isDue(w, today))
+                      .sort((a,b) => overdueRatio(b, today) - overdueRatio(a, today));
+    const started = all.filter(w => seen(w) && acquiring(w))          // already begun, not yet known
+                       .sort((a,b) => String(mastery(a).lastSeen).localeCompare(String(mastery(b).lastSeen)));
+    const fresh = all.filter(w => !seen(w));                          // never met
+
+    // The acquiring slots go to words already started, before any new ones.
+    const acq = started.slice(0, ACQUIRING_CAP);
+    for(const w of fresh){ if(acq.length >= ACQUIRING_CAP) break; acq.push(w); }
+
+    const revSlots = Math.max(0, SESSION_LEN - acq.length);
+    const rev = review.slice(0, revSlots);
+    // If nothing is due, top up with the nearest-to-due so a session is never empty.
+    if(!rev.length && !acq.length){
+      return all.slice().sort((a,b) => overdueRatio(b, today) - overdueRatio(a, today)).slice(0, SESSION_LEN);
+    }
+
+    // Open with the safest word she has, then thread the acquiring words through
+    // the review rather than blocking them together at the front.
     const out = [];
-    const push = w => { if(out.length < SESSION_LEN && out.indexOf(w) < 0) out.push(w); };
-    due.forEach(push); unseen.forEach(push); rest.forEach(push);
-    return out;
+    if(rev.length) out.push(rev.shift());
+    const gap = Math.max(1, Math.ceil((rev.length + 1) / (acq.length + 1)));
+    let ri = 0, ai = 0;
+    while(ri < rev.length || ai < acq.length){
+      for(let k = 0; k < gap && ri < rev.length; k++) out.push(rev[ri++]);
+      if(ai < acq.length) out.push(acq[ai++]);
+    }
+    return out.filter((w, i, a) => a.indexOf(w) === i).slice(0, SESSION_LEN);
   }
   function masteredCount(list){
     return wordsOf(list).filter(w => (mastery(w).box || 1) >= MASTER_BOX).length;
@@ -1028,6 +1080,12 @@
   let pendingMoment = null;
   let justGrew = false;        // set on the tap that marks the day; consumed by the next render
 
+  /* Which cards she sees. Reading and maths are built and tested but hidden
+     while we concentrate on words — flip either to true to bring it back.
+     Note: the book chat lives on the reading screen, so it is dormant while
+     read is false. */
+  const SHOW = {read:false, maths:false};
+
   const ICONS = {
     read: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         + '<path d="M12 6.6C10.5 5.2 8.6 4.6 6 4.6H3.6v13.8H6c2.6 0 4.5.6 6 2 1.5-1.4 3.4-2 6-2h2.4V4.6H18c-2.6 0-4.5.6-6 2Z"/><path d="M12 6.6v13.8"/></svg>',
@@ -1074,16 +1132,20 @@
             ? 'You’ve read today. Nothing else is needed.'
             : 'One small thing today: read for a little while.') + '</p></div>'
       + '<div class="cards">'
-      +   '<button class="card" data-go="read">'
-      +     '<span class="ic">' + ICONS.read + '</span>'
-      +     '<span class="tx"><b>Read</b><span>' + (info.current > 0 ? info.current + (info.current === 1 ? ' day' : ' days') + ' so far' : 'Start your streak') + '</span></span>'
-      +     '<span class="chip">' + (info.readToday ? 'Done' : 'Today') + '</span>'
-      +   '</button>'
-      +   '<button class="card soon" data-soon="Maths">'
-      +     '<span class="ic">' + ICONS.maths + '</span>'
-      +     '<span class="tx"><b>Maths</b><span>Times tables</span></span>'
-      +     '<span class="chip">Soon</span>'
-      +   '</button>'
+      +   (SHOW.read
+        ? '<button class="card" data-go="read">'
+          + '<span class="ic">' + ICONS.read + '</span>'
+          + '<span class="tx"><b>Read</b><span>' + (info.current > 0 ? info.current + (info.current === 1 ? ' day' : ' days') + ' so far' : 'Start your streak') + '</span></span>'
+          + '<span class="chip">' + (info.readToday ? 'Done' : 'Today') + '</span>'
+          + '</button>'
+        : '')
+      +   (SHOW.maths
+        ? '<button class="card soon" data-soon="Maths">'
+          + '<span class="ic">' + ICONS.maths + '</span>'
+          + '<span class="tx"><b>Maths</b><span>Times tables</span></span>'
+          + '<span class="chip">Soon</span>'
+          + '</button>'
+        : '')
       +   '<button class="card" data-go="words">'
       +     '<span class="ic">' + ICONS.words + '</span>'
       +     '<span class="tx"><b>Words</b><span>' + esc(wl ? wl.name : 'Spelling, out loud') + '</span></span>'
@@ -1219,14 +1281,21 @@
             + '<path d="M11 5 6.5 9H3.5v6h3L11 19V5Z"/><path d="M15.5 9.2a4 4 0 0 1 0 5.6"/><path d="M18.4 6.6a8 8 0 0 1 0 10.8"/></svg>';
   let W = null;      // live session: {words, i, stage, attempt, tries, right}
 
+  // A brand-new word gets look-cover-write-check. Every word she has met before
+  // goes straight to writing it from memory — showing it first would make the
+  // whole thing a copying exercise, which is the one thing that undoes the
+  // benefit of practising at all.
+  const stageFor = word => acquiring(word) && !S.words.mastery[word] ? 'look'
+                         : acquiring(word) ? 'look' : 'write';
+
   function startWords(){
     const list = activeList();
     const words = buildSession(list, todayISO());
     if(!words.length) return false;
-    W = {words:words, i:0, stage:'look', attempt:'', tries:0, right:0, firstTime:0};
+    W = {words:words, i:0, stage:stageFor(words[0]), attempt:'', tries:0,
+         right:0, firstTime:0, requeue:[], failed:[]};
     screen = 'wsession';
     render();
-    const parts = splitOf(words[0]);
     say(words[0]);
     return true;
   }
@@ -1247,11 +1316,14 @@
     if(W.stage === 'look'){
       body = '<div class="bigword">' + esc(word) + '</div>'
            + '<div class="syls">' + parts.map(p => '<span class="syl" data-syl="' + esc(p) + '">' + esc(p) + '</span>').join('') + '</div>'
+           // Saying it aloud and tracing it are free wins; neither is checked,
+           // so there is no way for them to go wrong.
+           + '<div class="wmeta" style="margin:1.1rem 0 0">Say it out loud. Trace it with your finger.</div>'
            + '<button class="hearbtn" id="whear">' + SPK + 'Hear it</button>'
            + '<button class="primary" id="wcover" style="margin-top:1.6rem">Cover it up</button>';
     }
     else if(W.stage === 'write'){
-      body = '<div class="wmeta">Now write it from memory.</div>'
+      body = '<div class="wmeta">' + (stageFor(word) === 'write' ? 'Listen, then write it.' : 'Now write it from memory.') + '</div>'
            + '<input class="spellin" id="wtype" type="text" inputmode="text" autocomplete="off" '
            +   'autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" '
            +   'value="' + esc(W.attempt) + '" aria-label="Type the word">'
@@ -1262,18 +1334,21 @@
       const ok = sameWord(W.attempt, word);
       const hit = matchedTargetIndices(W.attempt, word);
       const marked = word.split('').map((c,i) => hit.has(i) ? '<b>' + esc(c) + '</b>' : '<u>' + esc(c) + '</u>').join('');
+      const more = (W.i + 1 < W.words.length) || W.requeue.length;
+      // Only ever the correct spelling on screen. Her own misspelling is not
+      // shown back to her — seeing wrong orthography is the one thing that
+      // measurably sets spelling back.
       body = '<div class="verdict ' + (ok ? 'ok' : 'again') + '">'
-           +   (ok ? (W.tries > 1 ? 'You got there.' : 'Yes — that’s it.') : 'Nearly. Have a look at these letters.')
+           +   (ok ? (W.tries > 1 || W.failed.indexOf(word) >= 0 ? 'You got there.' : 'Yes — that’s it.')
+                   : 'Nearly. Look at these letters.')
            + '</div>'
            + (ok ? '<div class="bigword">' + esc(word) + '</div>'
-                 : '<div class="marked">' + marked + '</div>'
-                   + (W.attempt ? '<div class="attempt">You wrote <s>' + esc(W.attempt) + '</s></div>' : ''))
+                 : '<div class="marked">' + marked + '</div>')
            + '<div class="syls">' + parts.map(p => '<span class="syl" data-syl="' + esc(p) + '">' + esc(p) + '</span>').join('') + '</div>'
            + '<button class="hearbtn" id="whear">' + SPK + 'Hear it</button>'
-           + (!ok && W.tries < 2
-                ? '<button class="primary" id="wretry" style="margin-top:1.6rem">Have another go</button>'
-                : '<button class="primary" id="wnext" style="margin-top:1.6rem">'
-                  + (W.i + 1 < W.words.length ? 'Next word' : 'Finish') + '</button>');
+           + (!ok ? '<div class="wmeta" style="margin:1.1rem 0 0">You’ll see this one again in a moment.</div>' : '')
+           + '<button class="primary" id="wnext" style="margin-top:1.6rem">'
+           +   (more ? 'Next word' : 'Finish') + '</button>';
     }
     el('#screen').innerHTML = dots + body;
     if(W.stage === 'write'){
@@ -1282,31 +1357,38 @@
     }
   }
 
+  // A word she has already failed today is re-asked from memory, not shown again.
+  const stageNow = w => (W && W.failed.indexOf(w) >= 0) ? 'write' : stageFor(w);
+
   function checkWord(){
     const word = wordNow();
     W.attempt = (el('#wtype') ? el('#wtype').value : W.attempt) || '';
     W.tries++;
     const ok = sameWord(W.attempt, word);
+    const alreadyMissed = W.failed.indexOf(word) >= 0;
     if(ok){
-      recordWord(word, W.tries === 1 ? 'first' : 'retry');
+      recordWord(word, alreadyMissed ? 'retry' : 'first');
       W.right++;
-      if(W.tries === 1) W.firstTime++;
+      if(!alreadyMissed) W.firstTime++;
       chime('done');
-    }else if(W.tries >= 2){
+    }else if(!alreadyMissed){
+      // Marked down once, then queued to come back later in this same session —
+      // a real retrieval a few words on, rather than a copy off the screen.
+      W.failed.push(word);
       recordWord(word, 'wrong');
+      if(W.requeue.indexOf(word) < 0) W.requeue.push(word);
     }
     W.stage = 'check';
     render();
     if(!ok) sayInParts(splitOf(word));
   }
   function nextWord(){
-    if(W.i + 1 < W.words.length){
-      W.i++; W.stage = 'look'; W.attempt = ''; W.tries = 0;
-      render();
-      say(wordNow());
-    }else{
-      finishWords();
-    }
+    if(W.i + 1 < W.words.length){ W.i++; }
+    else if(W.requeue.length){ W.words.push(W.requeue.shift()); W.i++; }
+    else { finishWords(); return; }
+    W.stage = stageNow(wordNow()); W.attempt = ''; W.tries = 0;
+    render();
+    say(wordNow());
   }
   function finishWords(){
     const n = W.words.length, first = W.firstTime;
@@ -1645,6 +1727,8 @@
     syllables: syllables, parseWordList: parseWordList,
     matchedTargetIndices: function(a,b){ return Array.from(matchedTargetIndices(a,b)).sort((x,y)=>x-y); },
     buildSession: buildSession, isDue: isDue, recordWord: recordWord, mastery: mastery,
+    overdueRatio: overdueRatio, stageFor: stageFor, acquiring: acquiring,
+    ACQUIRING_CAP: ACQUIRING_CAP, MAX_BOX: MAX_BOX, SHOW: SHOW,
     allLists: allLists, activeList: activeList, wordsOf: wordsOf, masteredCount: masteredCount,
     startWords: startWords, checkWord: checkWord, nextWord: nextWord,
     session: function(){ return W && {words:W.words.slice(), i:W.i, stage:W.stage, tries:W.tries, right:W.right, firstTime:W.firstTime}; },

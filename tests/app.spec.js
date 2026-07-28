@@ -4,16 +4,21 @@ const {open, errorsOf} = require('./helpers');
 
 test.describe('shell', () => {
 
-  test('home shows the three cards, with only maths still to come', async ({page}) => {
+  test('home shows words only — reading and maths are hidden for now', async ({page}) => {
     await open(page, '2026-07-28');
-    await expect(page.locator('.card')).toHaveCount(3);
-    await expect(page.locator('.card', {hasText:'Read'}).first()).toBeVisible();
-    await expect(page.locator('.card.soon')).toHaveCount(1);
+    await expect(page.locator('.card')).toHaveCount(1);
+    await expect(page.locator('.card', {hasText:'Words'}).first()).toBeVisible();
+    await expect(page.locator('.card.soon')).toHaveCount(0);
+    expect(await page.evaluate(() => window.__acorn.SHOW)).toEqual({read:false, maths:false});
     expect(errorsOf(page)).toEqual([]);
   });
 
-  test('tapping a coming-soon card explains gently, it does not look broken', async ({page}) => {
+  // Reading and the book chat are built and tested; they are only hidden.
+  test('the hidden modules come straight back when switched on', async ({page}) => {
     await open(page, '2026-07-28');
+    await page.evaluate(() => { window.__acorn.SHOW.read = true; window.__acorn.SHOW.maths = true; });
+    await page.evaluate(() => window.__acorn.go('home'));
+    await expect(page.locator('.card')).toHaveCount(3);
     await page.locator('[data-soon="Maths"]').click();
     await expect(page.locator('#toast')).toHaveText(/on its way/);
   });
@@ -28,7 +33,7 @@ test.describe('reading streak', () => {
 
   test('marking today starts the streak and says something kind', async ({page}) => {
     await open(page, '2026-07-28');
-    await page.locator('[data-go="read"]').click();
+    await page.evaluate(() => window.__acorn.go('read'));
     await expect(page.locator('.count .lbl')).toHaveText(/Ready when you are/);
     await page.locator('#mark').click();
     await expect(page.locator('.count .n')).toHaveText('1');
@@ -46,7 +51,7 @@ test.describe('reading streak', () => {
 
   test('progress survives a reload', async ({page}) => {
     await open(page, '2026-07-28');
-    await page.locator('[data-go="read"]').click();
+    await page.evaluate(() => window.__acorn.go('read'));
     await page.locator('#mark').click();
     await expect(page.locator('.count .n')).toHaveText('1');
     await page.reload();
@@ -270,7 +275,7 @@ test.describe('robustness', () => {
     await page.evaluate(() => localStorage.setItem('acorn.v1', '{not json at all'));
     await page.reload();
     await page.waitForFunction(() => !!window.__acorn);
-    await expect(page.locator('.card')).toHaveCount(3);
+    await expect(page.locator('.card')).toHaveCount(1);
   });
 
   test('state from an older shape is merged, not fatal', async ({page}) => {
@@ -294,7 +299,7 @@ test.describe('robustness', () => {
 
   test('no page errors across the whole flow', async ({page}) => {
     await open(page, '2026-07-28');
-    await page.locator('[data-go="read"]').click();
+    await page.evaluate(() => window.__acorn.go('read'));
     await page.locator('#mark').click();
     await page.locator('#nopen').click();
     await page.locator('#nsave').click();
