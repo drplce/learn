@@ -377,16 +377,23 @@ function say(text, opts){
     speechSynthesis.speak(u);
   }catch(e){}
 }
-// The word, then its parts, slower — hear the whole and the pieces.
-function sayParts(parts){
-  if(S.settings.readAloud === false || !parts.length) return;
+// A piece of a word is always spoken slower than the whole, whatever speed she
+// has chosen — a fixed rate meant "Slow" gave her syllables faster than words.
+function sylRate(){ return Math.max(.5, (Number(S.settings.speechRate) || .95) - .25); }
+// The whole word, then its pieces: hearing "be" and "cause" without "because"
+// first leaves nothing to attach them to.
+function sayParts(word, parts){
+  if(S.settings.readAloud === false) return;
+  var queue = (parts && parts.length > 1) ? [word].concat(parts) : [word];
   try{
     speechSynthesis.cancel();
     var v = pickVoice();
-    parts.forEach(function(p, i){
+    queue.forEach(function(p, i){
+      if(!p) return;
       var u = new SpeechSynthesisUtterance(i ? ' ' + p : p);
       if(v){ u.voice = v; u.lang = v.lang; }
-      u.rate = Math.max(.5, (Number(S.settings.speechRate) || .95) - .25);
+      // The whole word at her speed, the pieces slower.
+      u.rate = i === 0 ? (Number(S.settings.speechRate) || .95) : sylRate();
       speechSynthesis.speak(u);
     });
   }catch(e){}
@@ -837,7 +844,7 @@ function check(){
   }
   W.stage = 'check';
   render();
-  if(!ok) sayParts(splitOf(w));
+  if(!ok) sayParts(w, splitOf(w));
 }
 function next(){
   if(W.i + 1 < W.words.length) W.i++;
@@ -1175,7 +1182,7 @@ document.addEventListener('click', function(ev){
   if(t.closest('#check')){ check(); return; }
   if(t.closest('#next')) { next(); return; }
   if(t.closest('#hear')) { var w = word(); if(w) say(w, {force:true}); return; }
-  if((hit = t.closest('[data-syl]'))){ say(hit.dataset.syl, {force:true, rate:.75}); return; }
+  if((hit = t.closest('[data-syl]'))){ say(hit.dataset.syl, {force:true, rate:sylRate()}); return; }
   if((hit = t.closest('[data-hear]'))){ say(hit.dataset.hear, {force:true}); return; }
 
   // ---- grown-ups
@@ -1294,7 +1301,8 @@ window.__acorn = {
   save: save, load: load,
   setToday: function(d){ _today = d; _renderedDay = todayISO(); render(); },
   todayISO: todayISO, dayDiff: dayDiff,
-  syllables: syllables, splitOf: splitOf, parseWordList: parseWordList, COMPOUNDS: COMPOUNDS,
+  syllables: syllables, splitOf: splitOf, offerVoices: offerVoices,
+  clearVoiceCache: function(){ _voice = null; _voiceKey = null; }, parseWordList: parseWordList, COMPOUNDS: COMPOUNDS,
   matched: function(a, b){ var m = matched(a, b); return {count:m.count, hit:Object.keys(m.hit).map(Number).sort(function(x,y){return x-y;})}; },
   mastery: mastery, recordWord: recordWord, isDue: isDue, overdueRatio: overdueRatio,
   acquiring: acquiring, knownCount: knownCount,
