@@ -805,6 +805,72 @@ test.describe('voices', () => {
   });
 });
 
+test.describe('the words she reads', () => {
+
+  // Every string on her screens, gathered by walking the app rather than by
+  // reading the source, so a new one cannot slip past this.
+  async function copyOnHerScreens(page){
+    const seen = [];
+    const grab = async () => { seen.push(await page.locator('#app').innerText()); };
+    // A new word opens on the look stage, a known one on the write stage, so
+    // uncover only when there is something to uncover.
+    const uncover = async () => {
+      if(await page.locator('#cover').count()){ await grab(); await page.locator('#cover').click(); }
+    };
+    await startOn(page, ['because','rain','boat']);
+    await uncover();  await grab();                        // look, then write
+    await page.locator('#type').fill('becuase');
+    await page.locator('#check').click();  await grab();   // nearly
+    await page.locator('#next').click();    await uncover();
+    await page.locator('#type').fill('zzz');
+    await page.locator('#check').click();  await grab();   // nowhere near
+    await page.locator('#next').click();
+    await finishSession(page);             await grab();   // done
+    return seen.join('\n');
+  }
+
+  test('never blames her', async ({page}) => {
+    await open(page, '2026-07-28');
+    const copy = await copyOnHerScreens(page);
+    expect(copy).not.toMatch(/wrong|incorrect|failed|fail|error|mistake|bad|oops|sorry|try harder/i);
+  });
+
+  test('never talks about her in the third person', async ({page}) => {
+    await open(page, '2026-07-28');
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'w1', name:'Empty', words:[]}];
+      a.state.words.activeId = 'w1'; a.save();
+      a.go('parent'); a.go('day');       // clears the session the app booted with
+    });
+    const copy = await page.locator('#app').innerText();
+    expect(copy).not.toMatch(/\bher\b|\bshe\b/i);
+    expect(copy).toMatch(/Ask a grown-up/);
+  });
+
+  test('does not promise sound when read-aloud is off', async ({page}) => {
+    await open(page, '2026-07-28');
+    await page.evaluate(() => {
+      window.__acorn.state.settings.readAloud = false; window.__acorn.save();
+    });
+    await startOn(page, ['because','rain']);
+    await page.locator('#cover').click();
+    await page.locator('#check').click();                 // empty box
+    await expect(page.locator('#toast')).toHaveText('Have a go — type the word.');
+    expect(await page.locator('#toast').textContent()).not.toMatch(/hear|listen/i);
+  });
+
+  test('her name is used, and nothing breaks without one', async ({page}) => {
+    await open(page, '2026-07-28');
+    await startOn(page, ['rain']);
+    await finishSession(page);
+    // No name set: the greeting must still read as a sentence.
+    const bare = await page.locator('.headline').textContent();
+    expect(bare).not.toContain('{n}');
+    expect(bare).toMatch(/^(Every one, first go|All done)\.$/);
+  });
+});
+
 test.describe('reachable without a touchscreen', () => {
 
   test('the app has a heading', async ({page}) => {

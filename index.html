@@ -232,7 +232,7 @@ main{flex:1;}
 (function(){
 'use strict';
 
-var VERSION = '4 · spelling';
+var VERSION = '5 · spelling';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -750,7 +750,7 @@ function check(){
   var w = word();
   W.attempt = (el('#type') ? el('#type').value : W.attempt) || '';
   // An empty box isn't an attempt — a fumbled tap must not cost her a word.
-  if(!W.attempt.trim()){ toast('Have a go — type what you hear.'); return; }
+  if(!W.attempt.trim()){ toast('Have a go — type the word.'); return; }
   W.tries++;
   var ok = sameWord(W.attempt, w);
   var firstAsk = W.asked.indexOf(w) < 0;
@@ -934,7 +934,7 @@ function renderDone(){
   var pct = all.length ? Math.round(100 * known / all.length) : 0;
   var head = saying || 'All done for today';
   var count = all.length ? known + ' of ' + all.length + ' words known well'
-                         : 'No words yet. A grown-up can add her list.';
+                         : 'No words yet. Ask a grown-up to add some.';
   header();
   announce(head + ' ' + count);
   el('#screen').innerHTML =
