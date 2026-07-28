@@ -135,11 +135,15 @@ if (process.argv.includes('--voices')) {
   const rows = out.split('\n').map(l => l.match(/^(.+?)\s{2,}([a-z]{2}[_-][A-Z]{2})/)).filter(Boolean)
                   .map(m => ({name: m[1].trim(), lang: m[2]}));
   const au = rows.filter(r => /en[_-]AU/.test(r.lang));
-  console.log(`${rows.length} voices installed, ${au.length} Australian:\n`);
+  console.log(`${rows.length} voices enumerated, ${au.length} Australian:\n`);
   au.forEach(r => console.log('  ' + r.name));
-  console.log('\nPick one with ACORN_VOICE, e.g. ACORN_TTS=say ACORN_VOICE=Matilda node tools/voice.mjs');
-  console.log('If a Premium voice you downloaded is missing here, add it under');
-  console.log('System Settings > Accessibility > Spoken Content > System Voice > Manage Voices.');
+  console.log('\nThis list is not the whole story. Apple\'s newer voices — Matilda among');
+  console.log('them — work with say but are not enumerated by it, so try the name even if');
+  console.log('it is absent here: say fails loudly on a voice it cannot find, so a run that');
+  console.log('records without complaint used the voice you asked for.');
+  console.log('\n  ACORN_TTS=say ACORN_VOICE=Matilda node tools/voice.mjs');
+  console.log('\nTo add a downloaded voice: System Settings > Accessibility >');
+  console.log('Spoken Content > System Voice > Manage Voices.');
   process.exit(0);
 }
 

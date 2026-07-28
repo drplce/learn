@@ -24,14 +24,47 @@ import {readFileSync, writeFileSync} from 'node:fs';
 import {resolve, dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
-import {chromium} from '@playwright/test';
 
 const require$ = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url));
 const INDEX = resolve(here, '..', 'index.html');
-const {findChromium} = require$('../playwright.config.js');
-const Hypher = require$('hypher');
-const hyphen = new Hypher(require$('hyphenation.en-gb'));
+
+// The dictionary is the point of this tool, so its absence is fatal — but it is
+// two small packages and neither downloads a browser.
+let hyphen;
+try {
+  const Hypher = require$('hypher');
+  hyphen = new Hypher(require$('hyphenation.en-gb'));
+} catch {
+  console.error('This needs the hyphenation dictionary:\n');
+  console.error('  npm install hypher hyphenation.en-gb\n');
+  console.error('Two small packages, no browser download.');
+  process.exit(2);
+}
+
+// The app's own rules, for comparison only. Reading them means running the app,
+// which means a browser; without one the comparison is simply skipped.
+let chromium = null, findChromium = null;
+try {
+  ({chromium} = await import('@playwright/test'));
+  ({findChromium} = require$('../playwright.config.js'));
+} catch { /* the dictionary alone is enough to be useful */ }
+
+// The list block in index.html is a plain data literal, so it can be read
+// without running the app.
+function readLists() {
+  const html = readFileSync(INDEX, 'utf8');
+  const start = html.indexOf('var LISTS = [');
+  const end = html.indexOf('\n];', start);
+  if (start < 0 || end < 0) { console.error('could not find the word lists'); process.exit(1); }
+  const lists = new Function('return ' + html.slice(start + 'var LISTS = '.length, end + 2))();
+  return lists.map(l => {
+    const hand = l.words && !Array.isArray(l.words) ? l.words : {};
+    const lower = {};
+    for (const w in hand) lower[w] = String(hand[w]).toLowerCase();
+    return {id: l.id, name: l.name, hand: lower};
+  });
+}
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -45,6 +78,7 @@ function lookup(word, algorithmic) {
 }
 
 async function withApp(fn) {
+  if (!chromium) return null;
   const browser = await chromium.launch({executablePath: findChromium()});
   const page = await browser.newPage();
   await page.goto('file://' + INDEX);
@@ -54,18 +88,14 @@ async function withApp(fn) {
 
 if (cmd === 'check') {
   // Every hand split in the app, against the dictionary and against the rules.
-  const rows = await withApp(page => page.evaluate(() => {
-    const a = window.__acorn, out = [];
-    a.allLists().forEach(l => {
-      const hand = l.words && !Array.isArray(l.words) ? l.words : null;
-      a.wordsOf(l).forEach(w => out.push({
-        list: l.id, word: w,
-        hand: hand && hand[w] ? String(hand[w]).toLowerCase() : null,
-        rules: a.syllables(w).join('·'),
-      }));
-    });
-    return out;
-  }));
+  // Read the hand splits from the source; ask the app for its rules only if a
+  // browser happens to be installed.
+  const rows = readLists().flatMap(l => Object.keys(l.hand).map(w =>
+    ({list: l.id, word: w, hand: l.hand[w], rules: null})));
+  const rules = await withApp(page => page.evaluate(ws =>
+    ws.map(w => window.__acorn.syllables(w).join('·')), rows.map(r => r.word)));
+  if (rules) rows.forEach((r, i) => { r.rules = rules[i]; });
+  else console.log('(no browser installed, so the app\'s own rules are not compared)\n');
 
   const disagree = [], missing = [];
   for (const r of rows) {
@@ -99,12 +129,22 @@ if (cmd === 'add') {
 
   const rules = await withApp(page =>
     page.evaluate(ws => ws.map(w => window.__acorn.syllables(w).join('·')), unique));
+  if (!rules) console.log('(no browser installed, so the app\'s own rules are not compared)\n');
 
   const rows = unique.map((w, i) => {
-    const r = lookup(w, rules[i].split('·'));
-    return {word: w, parts: r.parts.join('·'), from: r.from, rules: rules[i],
-            agree: r.from === 'dictionary' ? r.parts.join('·') === rules[i] : null};
+    const fallback = rules ? rules[i].split('·') : [w];
+    const r = lookup(w, fallback);
+    return {word: w, parts: r.parts.join('·'), from: r.from,
+            rules: rules ? rules[i] : null,
+            agree: (rules && r.from === 'dictionary') ? r.parts.join('·') === rules[i] : null};
   });
+  const undecided = rows.filter(r => r.from === 'rules' && !rules);
+  if (undecided.length) {
+    console.log(`${undecided.length} word(s) the dictionary declined. With no browser there is`);
+    console.log('nothing to fall back to, so split these by hand before --write:');
+    undecided.forEach(r => console.log('  ' + r.word));
+    console.log('');
+  }
 
   const check = rows.filter(r => r.agree === false);
   console.log(`${rows.length} words\n`);

@@ -165,12 +165,20 @@ Start here. `say` can reach the Premium voices you have downloaded, which Safari
 cannot, so this is a real upgrade on what her phone manages alone — and it is
 the same voice family she already knows.
 
-    ACORN_TTS=say node tools/voice.mjs --voices          # what is installed
+    ACORN_TTS=say node tools/voice.mjs --voices          # what say enumerates
     ACORN_TTS=say ACORN_VOICE=Matilda node tools/voice.mjs
 
-If a Premium voice you downloaded is missing from `--voices`, add it under
-System Settings → Accessibility → Spoken Content → System Voice → Manage
-Voices. `ACORN_WPM=165` sets the pace; lower is slower.
+`--voices` is not the whole story: Apple's newer voices, Matilda among them,
+work with `say` but are not enumerated by it. Try the name anyway — `say` fails
+loudly on a voice it cannot find, so a run that records without complaint used
+the voice you asked for. `ACORN_WPM=165` sets the pace; lower is slower.
+
+Recording is incremental: anything already in `audio/` is left alone, so after
+adding words you re-run the same command and only the new phrases are made.
+`ACORN_FORCE=1` re-records everything.
+
+The clips are loaded one at a time as she meets each word, not up front, so the
+total size on disk does not affect how fast the app starts.
 
 ### The paid options
 
