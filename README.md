@@ -122,31 +122,57 @@ so public is safe — and her name is not in the code.
 
 Safari only exposes the handful of voices built into iOS. Voices downloaded under
 Accessibility → Spoken Content are not available to a web page, so the phone
-voice cannot be improved from inside the app. Studio clips are recorded once,
-committed, and used in preference; anything without a clip — a list a grown-up
-pastes in — falls back to the phone voice, so she never meets silence.
+voice cannot be improved from inside the app — that is why Matilda Premium can
+be on the device and still not appear in the app's list. Studio clips are
+recorded once, committed, and used in preference; anything without a clip — a
+list a grown-up pastes in — falls back to the phone voice, so she never meets
+silence.
 
-    node tools/phrases.mjs                       # what needs recording, from the app itself
-    GOOGLE_TTS_KEY=... node tools/voice.mjs      # record it, write audio/, update index.html
+    node tools/phrases.mjs      # what needs recording, asked of the app itself
 
-Google Cloud is the recommendation: it has real en-AU Neural2 voices, and the
-whole job is about 1,500 characters against a free allowance of a million a
-month. To get a key: console.cloud.google.com → create or pick a project →
-enable "Cloud Text-to-Speech API" → APIs & Services → Credentials → Create
-credentials → API key. Restrict it to that one API.
+### macOS, free, no account
 
-Azure works too and is also free at this size. ElevenLabs needs a paid plan —
-its free tier has no API access.
+Start here. `say` can reach the Premium voices you have downloaded, which Safari
+cannot, so this is a real upgrade on what her phone manages alone — and it is
+the same voice family she already knows.
 
-Audition before committing to 181 clips:
+    ACORN_TTS=say node tools/voice.mjs --voices          # what is installed
+    ACORN_TTS=say ACORN_VOICE=Matilda node tools/voice.mjs
 
-    GOOGLE_TTS_KEY=... ACORN_ONLY=because,friend,said node tools/voice.mjs
-    ACORN_VOICE=en-AU-Neural2-A GOOGLE_TTS_KEY=... ACORN_ONLY=because ACORN_FORCE=1 node tools/voice.mjs
+If a Premium voice you downloaded is missing from `--voices`, add it under
+System Settings → Accessibility → Spoken Content → System Voice → Manage
+Voices. `ACORN_WPM=165` sets the pace; lower is slower.
 
-en-AU-Neural2-A and -C are female, -B and -D male. The key is only ever read
-from the environment on the machine doing the recording — this repo is public
-and must never contain one. Only the mp3 files and the inline index are
-committed.
+### The paid options
 
-The index of what is recorded lives inline in `index.html`, so playback costs no
-request, cannot 404 on a half-finished deploy, and works with no network.
+None of these are free in practice, whatever their pricing pages imply:
+
+- **Google Cloud** has a monthly free allowance on Neural2 voices, but the API
+  cannot be enabled without a billing account attached, and its newer
+  Gemini-based voices are priced per token from the first call.
+- **Azure** is the same shape: an F0 tier exists, the account needs a card.
+- **ElevenLabs** has no API access on its free tier at all.
+
+The whole job is about 1,500 characters, so if you are willing to attach a card
+the cost is pennies:
+
+    GOOGLE_TTS_KEY=... node tools/voice.mjs
+    ACORN_TTS=azure AZURE_TTS_KEY=... AZURE_TTS_REGION=australiaeast node tools/voice.mjs
+
+### Auditioning
+
+Three words is enough to judge a voice. `ACORN_FORCE=1` re-records so you can
+compare.
+
+    ACORN_TTS=say ACORN_VOICE=Karen ACORN_ONLY=because,said,thought ACORN_FORCE=1 node tools/voice.mjs
+    ACORN_TTS=say ACORN_ONLY=be,cause ACORN_FORCE=1 node tools/voice.mjs
+
+That second one matters: syllable pieces spoken in isolation tend to come out as
+letter-names — "be" as /biː/ rather than /bɪ/ — which is the one place a
+recording may not beat what she has now.
+
+A key is only ever read from the environment on the machine doing the recording;
+this repo is public and must never contain one. Only the audio files and the
+generated line in `index.html` are committed. That line carries both the file
+extension and the list of what is recorded, so playback costs no request, cannot
+404 on a half-finished deploy, and works with no network.

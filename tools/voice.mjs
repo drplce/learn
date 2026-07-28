@@ -5,6 +5,12 @@
  *
  *   node tools/phrases.mjs                 # what needs recording (run first)
  *
+ *   # macOS, no account and no card. This is the one to try first: it can use
+ *   # the Premium voices you have downloaded, which Safari cannot touch, so it
+ *   # is a real upgrade on what her phone can manage by itself.
+ *   ACORN_TTS=say ACORN_VOICE=Matilda node tools/voice.mjs
+ *   ACORN_TTS=say node tools/voice.mjs --voices     # what is installed
+ *
  *   # Google Cloud — the recommendation. en-AU Neural2 voices, and the whole job
  *   # is about 1,500 characters against a free 1,000,000 a month.
  *   GOOGLE_TTS_KEY=...  node tools/voice.mjs
@@ -36,6 +42,28 @@ const only = (process.env.ACORN_ONLY || '').split(',').map(s => s.trim().toLower
 const force = !!process.env.ACORN_FORCE;
 
 const PROVIDERS = {
+  // macOS built-in speech. Free, offline, no account, and — the point — it can
+  // reach voices downloaded under Accessibility, which Safari's speechSynthesis
+  // cannot. Writes AAC in an m4a, which every iPhone plays natively.
+  ext: {say: '.m4a'},
+  async say(text, voice) {
+    const {execFileSync} = await import('node:child_process');
+    const name = voice || 'Karen';
+    const tmp = resolve(AUDIO, '.say.m4a');
+    try {
+      execFileSync('say', ['-v', name, '-r', String(process.env.ACORN_WPM || 165),
+                           '--file-format=mp4f', '--data-format=aac', '-o', tmp, '--', text],
+                   {stdio: ['ignore', 'ignore', 'pipe']});
+    } catch (e) {
+      if (e.code === 'ENOENT') { console.error('\nno "say" on this machine — ACORN_TTS=say is macOS only'); process.exit(2); }
+      throw new Error((e.stderr ? String(e.stderr).trim().slice(0, 200) : e.message) +
+                      ` — is "${name}" installed? try: ACORN_TTS=say node tools/voice.mjs --voices`);
+    }
+    const buf = readFileSync(tmp);
+    try { (await import('node:fs')).unlinkSync(tmp); } catch {}
+    return buf;
+  },
+
   async google(text, voice) {
     const key = need('GOOGLE_TTS_KEY');
     const name = voice || 'en-AU-Neural2-C';
@@ -91,7 +119,29 @@ const escapeXml = s => s.replace(/[<>&'"]/g, c =>
   ({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]));
 
 const speak = PROVIDERS[provider];
-if (!speak) { console.error(`unknown ACORN_TTS "${provider}" — google, azure or elevenlabs`); process.exit(2); }
+if (typeof speak !== 'function') {
+  console.error(`unknown ACORN_TTS "${provider}" — say, google, azure or elevenlabs`);
+  process.exit(2);
+}
+const EXT = (PROVIDERS.ext && PROVIDERS.ext[provider]) || '.mp3';
+
+// What voices this machine actually has, so a name can be picked rather than guessed.
+if (process.argv.includes('--voices')) {
+  if (provider !== 'say') { console.error('--voices only applies to ACORN_TTS=say'); process.exit(2); }
+  const {execFileSync} = await import('node:child_process');
+  let out;
+  try { out = execFileSync('say', ['-v', '?'], {encoding: 'utf8'}); }
+  catch { console.error('no "say" on this machine — ACORN_TTS=say is macOS only'); process.exit(2); }
+  const rows = out.split('\n').map(l => l.match(/^(.+?)\s{2,}([a-z]{2}[_-][A-Z]{2})/)).filter(Boolean)
+                  .map(m => ({name: m[1].trim(), lang: m[2]}));
+  const au = rows.filter(r => /en[_-]AU/.test(r.lang));
+  console.log(`${rows.length} voices installed, ${au.length} Australian:\n`);
+  au.forEach(r => console.log('  ' + r.name));
+  console.log('\nPick one with ACORN_VOICE, e.g. ACORN_TTS=say ACORN_VOICE=Matilda node tools/voice.mjs');
+  console.log('If a Premium voice you downloaded is missing here, add it under');
+  console.log('System Settings > Accessibility > Spoken Content > System Voice > Manage Voices.');
+  process.exit(0);
+}
 
 const phrasesPath = resolve(here, 'phrases.json');
 if (!existsSync(phrasesPath)) {
@@ -107,7 +157,7 @@ console.log(`${provider}${process.env.ACORN_VOICE ? ' / ' + process.env.ACORN_VO
 
 const done = [], failed = [];
 for (const text of wanted) {
-  const file = slug(text) + '.mp3', path = resolve(AUDIO, file);
+  const file = slug(text) + EXT, path = resolve(AUDIO, file);
   if (!force && existsSync(path) && statSync(path).size > 512) { done.push(text); continue; }
   try {
     const buf = await speak(text, process.env.ACORN_VOICE);
@@ -124,22 +174,23 @@ for (const text of wanted) {
 
 // Every phrase with a file on disk, whether or not this run made it.
 const present = all.filter(t => {
-  const p = resolve(AUDIO, slug(t) + '.mp3');
+  const p = resolve(AUDIO, slug(t) + EXT);
   return existsSync(p) && statSync(p).size > 512;
 });
 
 // Rewrite the one generated line in index.html. The index is inline so the app
 // costs no request, cannot 404 on a half-finished deploy, and works offline.
 const html = readFileSync(INDEX, 'utf8');
-const line = 'var CLIPS = ' + JSON.stringify(present) + ';                                        /* GENERATED */';
-const next = html.replace(/^var CLIPS = .*\/\* GENERATED \*\/$/m, line);
+const line = 'var CLIP_EXT = ' + JSON.stringify(EXT) + ', CLIPS = ' + JSON.stringify(present) +
+             ';   /* GENERATED */';
+const next = html.replace(/^var CLIP_EXT = .*\/\* GENERATED \*\/$/m, line);
 if (next === html && !html.includes(line)) {
   console.error('\ncould not find the generated CLIPS line in index.html');
   process.exit(1);
 }
 writeFileSync(INDEX, next);
 
-const bytes = present.reduce((n, t) => n + statSync(resolve(AUDIO, slug(t) + '.mp3')).size, 0);
+const bytes = present.reduce((n, t) => n + statSync(resolve(AUDIO, slug(t) + EXT)).size, 0);
 console.log(`\n${present.length} of ${all.length} phrases recorded, ${(bytes/1024).toFixed(0)}KB total`);
 if (failed.length) {
   console.log(`\n${failed.length} failed:`);

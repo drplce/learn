@@ -439,8 +439,8 @@ function pickVoice(){
 /* The index is inline rather than fetched: it is a couple of kilobytes, it costs
    no request, it cannot 404 on a half-finished deploy, and it keeps working with
    no network at all. tools/voice.mjs rewrites the two lines below. */
-var CLIP_DIR = 'audio/', CLIP_EXT = '.mp3';
-var CLIPS = [];                                        /* GENERATED */
+var CLIP_DIR = 'audio/';
+var CLIP_EXT = ".mp3", CLIPS = [];   /* GENERATED */
 var _clips = null;
 var _clipEl = null, _clipSeq = 0;
 

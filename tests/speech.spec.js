@@ -183,7 +183,21 @@ test.describe('the pre-recorded voice', () => {
     await page.evaluate(() => window.__acorn.setClips(["o'clock", 'well-known', 'every word counts.']));
     const paths = await page.evaluate(() =>
       ["o'clock", 'well-known', 'every word counts.'].map(t => window.__acorn.clipFor(t)));
-    expect(paths).toEqual(['audio/o-clock.mp3', 'audio/well-known.mp3', 'audio/every-word-counts-.mp3']);
+    // The extension is whatever the recording provider produced — mp3 from the
+    // cloud voices, m4a from macOS say — so only the stem is asserted here.
+    expect(paths.map(p => p.replace(/\.[a-z0-9]+$/, '')))
+      .toEqual(['audio/o-clock', 'audio/well-known', 'audio/every-word-counts-']);
+    expect(paths.every(p => /\.(mp3|m4a)$/.test(p))).toBe(true);
+  });
+
+  test('the recorded extension is whatever the generator wrote', async ({page}) => {
+    await open(page, '2026-08-01');
+    const ext = await page.evaluate(() => {
+      window.__acorn.setClips(['said']);
+      return window.__acorn.clipFor('said').replace(/^.*\./, '.');
+    });
+    // Both are played natively by Safari; the generated line in index.html says which.
+    expect(['.mp3', '.m4a']).toContain(ext);
   });
 });
 
