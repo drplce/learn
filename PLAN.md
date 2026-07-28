@@ -13,6 +13,10 @@ name it.
 
 ## 1. Who it's for & the guiding intent
 - One child, one iPhone (single profile — no multi-user complexity).
+- **Local-first, privately synced.** localStorage is the fast source of truth and
+  the app works fully offline; progress also syncs to a **private** GitHub repo so it
+  survives a wiped phone and the parent can see it off-device. No secret ships in the
+  app code — see §3a.
 - Dyslexia support: the app is a **confidence-and-fluency supplement** to the
   structured phonics she does at school, not a replacement.
 - **Calm over gamey.** Progress-based rewards (a growing plant, a filling ring, a
@@ -51,7 +55,33 @@ words:    { lists: [ {name, words:[...] } ],                              // bui
 reading:  { streak, longest, freezes, log: [ {date, title?, note?} ] }
 settings: { textScale, tint, readAloud, sound, voice }
 ```
-Everything survives offline; nothing leaves the phone.
+Everything survives offline. localStorage is authoritative; a small `progress.json`
+mirrors this state to a private GitHub repo (see §3a) so nothing is lost with the phone.
+
+---
+
+## 3a. Off-device progress sync (Option A — chosen)
+The goal: her progress is durable **off her device** and the parent can see it,
+without standing up a backend and without any secret in the public app code.
+
+- **Store:** a small `progress.json` (a few KB) in a **separate private repo** (e.g.
+  `learn-data`). This file is the "small db" — JSON, not SQLite, because the data is
+  tiny and a queryable engine buys nothing at this scale. The app (public repo `learn`,
+  GitHub Pages) carries **no credential**.
+- **Write path:** GitHub Contents API. GitHub Pages is static and cannot run a database,
+  so the only way to persist off-device is an authenticated API call from the browser.
+- **Credential:** a **fine-grained personal access token**, scoped to *only* the private
+  data-repo with `contents: read/write`. The parent pastes it into the parent area
+  **once**; it is stored only in that phone's localStorage — never in the repo/code.
+- **Sync model:** local-first. All reads/writes hit localStorage instantly; a debounced
+  background push mirrors state to `progress.json`, and a pull-on-open reconciles
+  (last-write-wins on a per-record `lastSeen`/timestamp — single user, so conflicts are
+  rare). Offline or token-less → app still works fully; sync silently resumes later.
+- **Parent visibility:** read the same file in the app's parent view from any device, or
+  just open `progress.json` on GitHub.
+- **Upgrade path (not now):** if real multi-device or richer reporting is ever wanted,
+  swap the JSON-to-repo store for Cloudflare Workers + **D1** (true SQLite, credential
+  held server-side). Clean migration; deliberately deferred.
 
 ---
 
@@ -113,7 +143,10 @@ Everything survives offline; nothing leaves the phone.
    forgiveness. Shippable on day one as a daily habit.
 2. **Maths** — fact generator + adaptivity + spaced repetition + visuals + read-aloud.
 3. **Words** — look-cover-write-check, syllables, built-in lists + paste-in school list.
-4. **Polish** — parent dashboard, tints/text-size, milestone moments.
+4. **Sync** — private-repo backup (§3a): token entry in parent area, debounced push,
+   pull-on-open reconcile, offline-safe. Slots in once the data model is stable (can
+   land alongside phase 1 as soon as there's state worth backing up).
+5. **Polish** — parent dashboard, tints/text-size, milestone moments.
 
 Each phase shipped and Playwright-tested on its own, same as Goal Girls.
 
@@ -123,6 +156,9 @@ Each phase shipped and Playwright-tested on its own, same as Goal Girls.
   spaced-repetition resurfaces missed facts.
 - Words: syllable splitting + spaced repetition behave; paste-in import parses.
 - Reading: streak counts, forgiveness works, milestones fire once.
+- Sync (§3a): push serialises correct JSON; pull-on-open reconciles without clobbering
+  newer local records; app stays fully functional with no token / while offline; no
+  secret is ever written into the app repo.
 - No page errors; installs and runs offline.
 
 ## 11. Open decisions (need your steer — sensible defaults noted)
@@ -135,6 +171,7 @@ Each phase shipped and Playwright-tested on its own, same as Goal Girls.
 ## 12. Notes & minor risks
 - iOS `speechSynthesis` needs a first user tap to activate; en-AU voice quality varies
   a little by device — acceptable, just flagging.
-- Single-file + localStorage means backups are manual (a "copy my progress" export,
-  like Goal Girls, is easy to add if you want peace of mind).
+- Backups are now automatic via §3a (private-repo sync); a manual "copy my progress"
+  export (like Goal Girls) is still worth keeping as a belt-and-braces fallback for when
+  no token is set.
 - Keep it a supplement to school's structured literacy; aim = confidence + daily practice.
