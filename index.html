@@ -91,6 +91,14 @@ h1,h2{line-height:1.3; letter-spacing:0; margin:0; font-weight:700;}
    288px below the fold. She should never have to discover scrolling to answer
    a word. */
 main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
+/* Her screens sit in the middle of the room they have rather than clinging to
+   the top of it — at normal text size three quarters of the panel was empty
+   below the word. Auto margins rather than justify-content:center because when
+   the content is taller than the panel they collapse to nothing, so it
+   top-aligns and scrolls properly instead of hiding its first line. */
+:root:not([data-stage=parent]) main{display:flex; flex-direction:column;}
+:root:not([data-stage=parent]) main > :first-child{margin-top:auto;}
+:root:not([data-stage=parent]) main > :last-child{margin-bottom:auto;}
 /* Ornament stays the size it was drawn at whatever text size she has chosen.
    --ornament undoes the root scaling, so these are on the same scale as
    everything else but do not grow with her reading preference. */
@@ -1086,9 +1094,12 @@ function fitViewport(){
   if(!h) return;
   r.style.setProperty('--vh', h + 'px');
   var em = parseFloat(getComputedStyle(r).fontSize) || 16;
-  // 20em is what the writing screen needs with everything on it; 13em is what it
-  // needs with the box and the action alone. Both measured, not guessed.
-  if(h < 20 * em) r.setAttribute('data-tight', ''); else r.removeAttribute('data-tight');
+  // 21em is what the writing screen needs with everything on it; 13em is what it
+  // needs with the box and the action alone. Both measured, not guessed. The
+  // panel is a flex column, which does not collapse adjacent margins the way
+  // block layout did, so the column runs a little taller than the arithmetic
+  // of the elements alone suggests.
+  if(h < 21 * em) r.setAttribute('data-tight', ''); else r.removeAttribute('data-tight');
   if(h < 13 * em) r.setAttribute('data-cramped', ''); else r.removeAttribute('data-cramped');
 }
 if(window.visualViewport){
@@ -1161,9 +1172,11 @@ function renderWord(){
   if(W.stage === 'look'){
     announce('Look at this word: ' + w + '. ' + spellOut(w) + '.');
     body = wordBlock('word', esc(w), w, wl) + sylRow
-         // Saying it aloud and tracing it are free wins, and neither is checked,
-         // so there is no way for them to go wrong.
-         + '<div class="note">Say it out loud. Trace it with your finger.</div>';
+         // Saying it aloud is a free win and nothing checks it, so there is no
+         // way for it to go wrong. Tracing used to be suggested here too, but a
+         // finger dragged across the word scrolls the panel instead, so the app
+         // was asking her to do something it then fought.
+         + '<div class="note">Say it out loud.</div>';
     act = hear + '<button class="primary" id="cover">Cover it up</button>';
   }
   else if(W.stage === 'write'){

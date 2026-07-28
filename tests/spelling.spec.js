@@ -83,6 +83,9 @@ test.describe('a word she has never met', () => {
     await startOn(page, ['friend']);
     await expect(page.locator('.word')).toHaveText('friend');
     await expect(page.locator('.note')).toContainText('Say it out loud');
+    // Tracing was suggested here once; a finger dragged over the word scrolls
+    // the panel, so the app was asking for something it then fought.
+    await expect(page.locator('.note')).not.toContainText(/trace|finger/i);
     await page.locator('#cover').click();
     await expect(page.locator('#type')).toBeVisible();
     await expect(page.locator('.word')).toHaveCount(0);        // genuinely hidden
@@ -953,6 +956,82 @@ test.describe('voices', () => {
     await page.evaluate(() => window.__acorn.go('parent'));
     await page.locator('[data-rate="0.7"]').click();
     expect(await page.evaluate(() => window.__acorn.state.settings.speechRate)).toBe(0.7);
+  });
+});
+
+test.describe('how her screens use the room they have', () => {
+
+  const STAGES = ['look','write','nearly','done'];
+
+  async function put(page, scale, stage){
+    await page.evaluate(o => {
+      const a = window.__acorn;
+      a.state.settings.textScale = o.scale;
+      a.state.words.lists = [{id:'w1', name:'T', words:['said','because','rain']}];
+      a.state.words.activeId = 'w1'; a.state.words.mastery = {}; a.state.words.sessions = [];
+      a.save(); a.go('parent'); a.go('day');
+      if(o.stage === 'write') a.cover();
+      if(o.stage === 'nearly'){ a.cover(); a.type('sed'); a.check(); }
+      if(o.stage === 'done'){
+        a.state.words.lists = [{id:'w2', name:'E', words:['rain']}];
+        a.state.words.activeId = 'w2';
+        a.state.words.mastery = {rain:{right:4, wrong:0, box:4, lastSeen:'2026-08-01'}};
+        a.state.words.sessions = [{date:'2026-08-01', list:'w2', asked:1, words:1, right:1, firstTime:1}];
+        a.save(); a.go('parent'); a.go('day');
+      }
+    }, {scale, stage});
+  }
+
+  const room = page => page.evaluate(() => {
+    const main = document.querySelector('main'), mr = main.getBoundingClientRect();
+    const kids = [...main.children].filter(n => n.getBoundingClientRect().height);
+    const first = kids[0].getBoundingClientRect(), last = kids[kids.length-1].getBoundingClientRect();
+    return {overflows: main.scrollHeight > main.clientHeight + 2,
+            above: Math.round(first.top - mr.top),
+            below: Math.round(mr.bottom - last.bottom),
+            firstCut: first.top < mr.top - 1};
+  });
+
+  test('the word sits in the middle of the room, not clinging to the top', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.setViewportSize({width:393, height:750});     // a tall phone
+    for(const stage of STAGES){
+      await put(page, 1, stage);
+      const m = await room(page);
+      expect(m.overflows, stage).toBe(false);
+      // Three quarters of the panel used to be empty below the word.
+      expect(Math.abs(m.above - m.below), `${stage}: ${m.above} above, ${m.below} below`)
+        .toBeLessThanOrEqual(12);
+    }
+  });
+
+  test('centring never hides the first line when there is too much', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.setViewportSize({width:375, height:667});
+    // justify-content:center would push the top of an overflowing column out of
+    // reach; auto margins collapse to nothing instead.
+    for(const scale of [1.25, 1.5]){
+      for(const stage of ['look','nearly']){
+        await put(page, scale, stage);
+        const m = await room(page);
+        expect(m.firstCut, `${stage} at ${scale}x`).toBe(false);
+        if(m.overflows) expect(m.above, `${stage} at ${scale}x`).toBeLessThanOrEqual(2);
+      }
+    }
+  });
+
+  test('the grown-ups screen is left as a normal page', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.setViewportSize({width:393, height:750});
+    await page.evaluate(() => window.__acorn.go('parent'));
+    const m = await page.evaluate(() => {
+      const main = document.querySelector('main');
+      const first = main.children[0].getBoundingClientRect();
+      return {above: Math.round(first.top - main.getBoundingClientRect().top),
+              scrolls: main.scrollHeight > main.clientHeight + 2};
+    });
+    expect(m.scrolls).toBe(true);
+    expect(m.above).toBeLessThanOrEqual(2);      // starts at the top, like a page
   });
 });
 

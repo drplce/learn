@@ -5,13 +5,14 @@
  *
  *   node tools/phrases.mjs                 # what needs recording (run first)
  *
- *   # Google Cloud (default; en-AU Neural2 voices, well inside the free tier)
+ *   # Google Cloud — the recommendation. en-AU Neural2 voices, and the whole job
+ *   # is about 1,500 characters against a free 1,000,000 a month.
  *   GOOGLE_TTS_KEY=...  node tools/voice.mjs
  *
- *   # Azure
+ *   # Azure — also free at this size (500,000 characters a month).
  *   ACORN_TTS=azure AZURE_TTS_KEY=... AZURE_TTS_REGION=australiaeast node tools/voice.mjs
  *
- *   # ElevenLabs
+ *   # ElevenLabs — needs a paid plan; the free tier has no API access at all.
  *   ACORN_TTS=elevenlabs ELEVENLABS_KEY=... ELEVENLABS_VOICE=<id> node tools/voice.mjs
  *
  * Options:

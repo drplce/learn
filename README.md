@@ -129,10 +129,24 @@ pastes in — falls back to the phone voice, so she never meets silence.
     node tools/phrases.mjs                       # what needs recording, from the app itself
     GOOGLE_TTS_KEY=... node tools/voice.mjs      # record it, write audio/, update index.html
 
-Azure and ElevenLabs are supported too; see the header of `tools/voice.mjs`.
-The key is only ever read from the environment on the machine doing the
-recording — this repo is public and must never contain one. Only the mp3 files
-and the inline index are committed.
+Google Cloud is the recommendation: it has real en-AU Neural2 voices, and the
+whole job is about 1,500 characters against a free allowance of a million a
+month. To get a key: console.cloud.google.com → create or pick a project →
+enable "Cloud Text-to-Speech API" → APIs & Services → Credentials → Create
+credentials → API key. Restrict it to that one API.
+
+Azure works too and is also free at this size. ElevenLabs needs a paid plan —
+its free tier has no API access.
+
+Audition before committing to 181 clips:
+
+    GOOGLE_TTS_KEY=... ACORN_ONLY=because,friend,said node tools/voice.mjs
+    ACORN_VOICE=en-AU-Neural2-A GOOGLE_TTS_KEY=... ACORN_ONLY=because ACORN_FORCE=1 node tools/voice.mjs
+
+en-AU-Neural2-A and -C are female, -B and -D male. The key is only ever read
+from the environment on the machine doing the recording — this repo is public
+and must never contain one. Only the mp3 files and the inline index are
+committed.
 
 The index of what is recorded lives inline in `index.html`, so playback costs no
 request, cannot 404 on a half-finished deploy, and works with no network.
