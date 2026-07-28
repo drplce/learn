@@ -265,6 +265,10 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Visible to a screen reader, not to the eye. */
 .sr{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
     clip:rect(0 0 0 0); white-space:nowrap; border:0;}
+/* Out of sight but still focusable — display:none or visibility:hidden would
+   drop the focus and let the keyboard go. */
+#kbhold{position:fixed; bottom:0; left:0; width:1px; height:1px; opacity:0;
+        border:0; padding:0; font-size:16px; pointer-events:none; z-index:-1;}
 
 /* ---------- toast ---------- */
 #toast{position:fixed; left:50%; bottom:calc(var(--s5) + env(safe-area-inset-bottom));
@@ -307,6 +311,13 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
   <div id="act"></div>
 </div>
 <p id="say" class="sr" role="status" aria-live="polite"></p>
+<!-- Holds the software keyboard open between stages. Without it the keyboard
+     closes the moment the spelling box goes away, and the two buttons drop to the
+     bottom of the screen and jump back up again on the next word — twice per
+     word. Outside #app because it is not content: never in the tab order, never
+     announced, and never seen by anything that walks her screens. -->
+<input id="kbhold" type="text" tabindex="-1" aria-hidden="true" autocomplete="off"
+       autocorrect="off" autocapitalize="off" spellcheck="false">
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -1091,6 +1102,29 @@ function announce(text){
   n.textContent = (text === _said ? text + ' ' : text);   // nudge a repeat so it is re-read
   _said = n.textContent;
 }
+/* The keyboard closing between stages made the two buttons jump down the screen
+   and back up again, twice for every word. Keeping a focused input on the page
+   at all times keeps it open, so they stay put. Touchscreens only: for anyone
+   driving by keyboard or screen reader this would be a focus thief. */
+function touchOnly(){
+  try{ return matchMedia('(hover: none) and (pointer: coarse)').matches; }catch(e){ return false; }
+}
+function holdKeyboard(){
+  var h = el('#kbhold');
+  if(!h) return;
+  // Held only while she is working through words on a touchscreen. Anywhere else
+  // it has to let go, or the keyboard would sit over the grown-ups screen and
+  // over the screen that tells her she is finished.
+  var hold = !_kbd && touchOnly() && screen !== 'parent' && !!W && !el('#type');
+  if(!hold){
+    if(document.activeElement === h){ h.value = ''; try{ h.blur(); }catch(e){} }
+    return;
+  }
+  if(document.activeElement === h) return;
+  h.value = '';                                      // stray taps must not carry over
+  try{ h.focus({preventScroll:true}); }catch(e){}
+}
+
 // Only move focus for someone driving by keyboard; on a touchscreen a focus
 // ring appearing out of nowhere is just noise.
 var _kbd = false;
@@ -1150,7 +1184,7 @@ function restoreFocus(){
     inp.setSelectionRange(inp.value.length, inp.value.length);
     return;
   }
-  if(!_kbd) return;
+  if(!_kbd){ holdKeyboard(); return; }
   var go = el('#act button') || el('#screen .primary') || el('#screen button');
   if(go) go.focus({preventScroll:true});
 }
@@ -1493,6 +1527,11 @@ document.addEventListener('keydown', function(ev){
   }
 });
 
+// A tap on any button moves focus to it, which closes the keyboard. This runs
+// after the handler above — listeners on one target fire in the order they were
+// added — so whatever it did, the keyboard is held open afterwards.
+document.addEventListener('click', function(){ holdKeyboard(); });
+
 // Grown-ups: press and hold ACORN. No PIN to forget, and nothing on her screens
 // that looks like a way in. Delegated, because the header is rebuilt every render.
 (function(){
@@ -1545,7 +1584,7 @@ loadClips(); render(); },
   newWordsToday: newWordsToday, poolCap: poolCap, stageFor: stageFor,
   allLists: allLists, activeList: activeList, wordsOf: wordsOf,
   englishVoices: englishVoices, offerVoices: offerVoices, voiceScore: voiceScore,
-  voicesChanged: voicesChanged,
+  voicesChanged: voicesChanged, holdKeyboard: holdKeyboard,
   // Tests drive the clip index directly rather than depending on what happens to
   // be recorded in the repo at the time.
   setClips: function(list){ CLIPS = list || []; loadClips(); },
