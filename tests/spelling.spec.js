@@ -226,6 +226,64 @@ test.describe('getting it wrong', () => {
 
 });
 
+test.describe('progress on screen', () => {
+
+  test('one dot per word the sitting set out to cover', async ({page}) => {
+    await open(page, '2026-07-28');
+    await startOn(page, ['rain','boat','light'],
+      {rain:{right:3,wrong:0,box:3,lastSeen:'2026-07-20'},
+       boat:{right:3,wrong:0,box:3,lastSeen:'2026-07-20'},
+       light:{right:3,wrong:0,box:3,lastSeen:'2026-07-20'}});
+    const plan = await page.evaluate(() => window.__acorn.session().words.length);
+    expect(await page.locator('.dots i').count()).toBe(plan);
+  });
+
+  test('a requeued word does not add a dot or move progress backwards', async ({page}) => {
+    await open(page, '2026-07-28');
+    await startOn(page, ['because','rain','boat','light']);
+    const dots = await page.locator('.dots i').count();
+    const width = () => page.locator('.daybar i').evaluate(n => parseFloat(n.style.width));
+    const before = await width();
+    // miss the first word: it comes back later, so W.words grows
+    await page.locator('#cover').click();
+    await page.locator('#type').fill('zzzz');
+    await page.locator('#check').click();
+    await page.locator('#next').click();
+    expect(await page.locator('.dots i').count()).toBe(dots);   // row did not grow
+    expect(await width()).toBeGreaterThanOrEqual(before);       // bar did not retreat
+  });
+
+  test('progress counts words finished, not attempts made', async ({page}) => {
+    await open(page, '2026-07-28');
+    await startOn(page, ['rain','boat','light'],
+      {rain:{right:3,wrong:0,box:3,lastSeen:'2026-07-20'},
+       boat:{right:3,wrong:0,box:3,lastSeen:'2026-07-20'},
+       light:{right:3,wrong:0,box:3,lastSeen:'2026-07-20'}});
+    expect(await page.locator('.dots i.on').count()).toBe(0);
+    await correct(page);
+    expect(await page.locator('.dots i.on').count()).toBe(1);
+    await correct(page);
+    expect(await page.locator('.dots i.on').count()).toBe(2);
+  });
+
+  test('the bar never exceeds full, even with requeues', async ({page}) => {
+    await open(page, '2026-07-28');
+    await startOn(page, ['because','rain','boat']);
+    for(let i = 0; i < 30; i++){
+      if(!await page.evaluate(() => !!window.__acorn.session())) break;
+      const w = await page.evaluate(() => { const s = window.__acorn.session(); return s.words[s.i]; });
+      if(await page.locator('#cover').count()) await page.locator('#cover').click();
+      await page.locator('#type').fill(w);
+      await page.locator('#check').click();
+      const bar = await page.locator('.daybar i').count()
+        ? await page.locator('.daybar i').evaluate(n => parseFloat(n.style.width)) : 0;
+      expect(bar).toBeLessThanOrEqual(100);
+      await page.locator('#next').click();
+    }
+    expect(errorsOf(page)).toEqual([]);
+  });
+});
+
 test.describe('finishing', () => {
 
   test('walks every word then lands on the done screen', async ({page}) => {

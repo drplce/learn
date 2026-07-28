@@ -14,15 +14,32 @@
 <style>
 /* ===========================================================
    Acorn — spelling practice, dyslexia-friendly by default.
-   Cream surface, dark-slate ink (never black), large well-spaced
-   type, short lines, left-aligned. One word on screen at a time.
+
+   Cream surface, dark-slate ink (never black), one calm accent.
+   Large well-spaced type, short lines, one task per screen.
+
+   Three scales and nothing off them: type, spacing, radius. The
+   evidence on "dyslexia fonts" is that they don't help; size,
+   letter spacing, line spacing and line length do. So that is
+   where the effort goes.
    =========================================================== */
 :root{
-  --surface:#FBF6EC; --surface-2:#FFFDF7; --ink:#3B4149; --ink-soft:#6E747C;
+  --surface:#FBF6EC; --surface-2:#FFFDF7; --ink:#3B4149; --ink-soft:#686E76;
   --line:rgba(59,65,73,.14); --line-2:rgba(59,65,73,.26);
   --acc:#35705A; --acc-ink:#FFFFFF; --acc-soft:#E4EFE8;
-  --good:#3F7D63; --retry:#B4703A;
+  --good:#3B795F; --retry:#A15D27;
   --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"Helvetica Neue",sans-serif;
+
+  /* type — every size in the app is one of these */
+  --t-xs:.75rem; --t-sm:.875rem; --t-md:1rem; --t-lg:1.125rem;
+  --t-xl:1.375rem; --t-2xl:2rem; --t-3xl:2.5rem; --t-4xl:3.5rem;
+  /* spacing — quarter-rem steps, so the vertical rhythm is even */
+  --s1:.25rem; --s2:.5rem; --s3:.75rem; --s4:1rem; --s5:1.5rem; --s6:2rem; --s7:2.5rem;
+  /* radius — three, plus a pill for the thin bars */
+  --r-sm:.75rem; --r-md:1rem; --r-lg:1.25rem; --r-pill:999px;
+  /* tap targets — 3rem is 51px at the default root, comfortably over the 44px floor */
+  --tap:3rem; --tap-lg:3.5rem; --tap-xl:4rem;
+
   --scale:1;
   --shadow:0 1px 2px rgba(59,65,73,.05), 0 6px 18px rgba(59,65,73,.06);
   --ease:cubic-bezier(.22,.61,.36,1);
@@ -53,6 +70,7 @@ html{
 html,body{margin:0; min-height:100%; background:var(--surface);}
 body{
   color:var(--ink); font-family:var(--sans);
+  /* generous line and word spacing: the part of typography that does help */
   line-height:1.7; letter-spacing:.01em; word-spacing:.06em; text-align:left;
   -webkit-font-smoothing:antialiased;
   padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -60,103 +78,137 @@ body{
 button,input,textarea{font:inherit; color:inherit; letter-spacing:inherit;}
 button{border:0; background:none; cursor:pointer; touch-action:manipulation;}
 h1,h2{line-height:1.3; letter-spacing:0; margin:0; font-weight:700;}
+/* Keyboard focus stays visible; a tap never draws one. */
+:focus-visible{outline:3px solid var(--acc); outline-offset:2px;}
 
-#app{max-width:34rem; margin:0 auto; padding:1.1rem 1.1rem 2.5rem; min-height:100vh; display:flex; flex-direction:column;}
+#app{max-width:34rem; margin:0 auto; padding:var(--s4) var(--s4) var(--s7); min-height:100vh;
+     display:flex; flex-direction:column;}
 main{flex:1;}
 
 /* ---------- header: wordmark + today's progress ---------- */
-.bar{display:flex; align-items:center; gap:.7rem; min-height:2.8rem; margin-bottom:1.2rem;}
-.wordmark{font-size:.82rem; font-weight:800; letter-spacing:.18em; text-transform:uppercase; color:var(--acc); user-select:none;}
+.bar{display:flex; align-items:center; gap:var(--s3); min-height:var(--tap); margin-bottom:var(--s5);}
+.wordmark{font-size:var(--t-xs); font-weight:800; letter-spacing:.18em; text-transform:uppercase;
+          color:var(--acc); user-select:none;}
 .bar .sp{flex:1;}
-.daybar{flex:none; width:5.5rem; height:.45rem; border-radius:.25rem; background:var(--line); overflow:hidden;}
-.daybar i{display:block; height:100%; background:var(--acc); border-radius:.25rem; transition:width .4s var(--ease);}
-.back{display:inline-flex; align-items:center; gap:.4rem; min-height:2.9rem; padding:0 .8rem 0 0;
-      border-radius:1rem; font-size:.95rem; font-weight:600; color:var(--ink-soft);}
+.daybar{flex:none; width:5.5rem; height:var(--s1); border-radius:var(--r-pill);
+        background:var(--line); overflow:hidden;}
+.daybar i{display:block; height:100%; background:var(--acc); border-radius:var(--r-pill);
+          transition:width .4s var(--ease);}
+.back{display:inline-flex; align-items:center; gap:var(--s2); min-height:var(--tap);
+      padding-right:var(--s3); border-radius:var(--r-md); font-size:var(--t-md);
+      font-weight:600; color:var(--ink-soft);}
 
 /* ---------- the word ---------- */
-.dots{display:flex; justify-content:center; gap:.4rem; margin-bottom:1.6rem;}
-.dots i{width:.55rem; height:.55rem; border-radius:50%; background:var(--line-2);}
+.dots{display:flex; justify-content:center; gap:var(--s2); margin-bottom:var(--s5);}
+.dots i{width:.5rem; height:.5rem; border-radius:50%; background:var(--line-2);
+        transition:transform .3s var(--ease);}
 .dots i.on{background:var(--acc);}
 .dots i.now{background:var(--acc); transform:scale(1.5);}
 
-.word{text-align:center; font-size:2.6rem; font-weight:700; line-height:1.35;
-      letter-spacing:.04em; word-spacing:.1em; margin:.4rem 0 .2rem; word-break:break-word;}
-.marked{text-align:center; font-size:2.4rem; font-weight:700; letter-spacing:.06em; margin:.4rem 0 .2rem; word-break:break-word;}
-.marked b{color:var(--ink); font-weight:700;}
-.marked u{color:var(--retry); text-decoration:none; border-bottom:3px solid var(--retry); padding-bottom:.08em;}
+/* The word she reads and the word she is shown afterwards must be the
+   same size, weight and spacing — otherwise the shape she memorised
+   moves on her between one screen and the next.
 
-.syls{display:flex; flex-wrap:wrap; justify-content:center; gap:.4rem; margin:.9rem 0 0;}
-.syl{padding:.5rem .85rem; border-radius:.8rem; background:var(--acc-soft); color:var(--acc);
-     font-size:1.3rem; font-weight:700; letter-spacing:.03em; border:1px solid transparent;}
+   A word never breaks across lines: half a word on each line teaches the
+   wrong shape. Instead it shrinks to fit the line, driven by its own length
+   (--wl, set when it renders), so "February" at the largest text size still
+   arrives whole. .8 is the measured average glyph advance of this bold face
+   at this letter-spacing, plus headroom: the widest real word tested came to
+   .763 ("enough"). Past about fourteen letters the floor takes over and it
+   wraps, which is still better than clipping letters off a word she is
+   about to copy. */
+.word,.marked{
+  text-align:center; font-weight:700; line-height:1.35;
+  letter-spacing:.06em; word-spacing:.1em; margin:var(--s2) 0 var(--s1);
+  padding-bottom:.08em; overflow-wrap:anywhere;
+  font-size:clamp(1rem, calc((min(100vw, 34rem) - 2 * var(--s4)) / (var(--wl,6) * .8)), var(--t-3xl));}
+.marked b{color:var(--ink); font-weight:700;}
+.marked u{color:var(--retry); text-decoration:none; border-bottom:3px solid var(--retry);}
+
+.syls{display:flex; flex-wrap:wrap; justify-content:center; gap:var(--s2); margin-top:var(--s3);}
+.syl{padding:var(--s2) var(--s3); border-radius:var(--r-sm); background:var(--acc-soft);
+     color:var(--acc); font-size:var(--t-xl); font-weight:700; letter-spacing:.03em;
+     border:1px solid transparent;}
 @media (prefers-color-scheme:dark){ .syl{color:var(--ink);} }
 .syl:active{border-color:var(--acc);}
 
-.note{text-align:center; color:var(--ink-soft); margin:1.1rem 0 0; font-size:1rem;}
-.verdict{text-align:center; font-size:1.15rem; font-weight:700; margin:.2rem 0 .4rem;}
+.note{text-align:center; color:var(--ink-soft); margin:var(--s4) 0 0; font-size:var(--t-md);
+      max-width:32ch; margin-left:auto; margin-right:auto;}
+.verdict{text-align:center; font-size:var(--t-lg); font-weight:700; margin:0 0 var(--s2);}
 .verdict.ok{color:var(--good);}
 .verdict.again{color:var(--retry);}
 
-.hear{display:flex; align-items:center; justify-content:center; gap:.6rem; margin:1.2rem auto 0;
-      min-height:3.6rem; padding:0 1.4rem; border-radius:1.1rem; background:var(--surface-2);
-      border:1px solid var(--line-2); font-weight:700; font-size:1.05rem;}
-.hear svg{width:1.4rem; height:1.4rem; flex:none;}
+.hear{display:flex; align-items:center; justify-content:center; gap:var(--s2);
+      margin:var(--s5) auto 0; min-height:var(--tap-lg); padding:0 var(--s5);
+      border-radius:var(--r-md); background:var(--surface-2); border:1px solid var(--line-2);
+      font-weight:700; font-size:var(--t-md);}
+.hear svg{width:1.375rem; height:1.375rem; flex:none;}
 .hear:active{background:var(--acc-soft);}
 
-.spellin{width:100%; text-align:center; font-size:2rem; font-weight:700; letter-spacing:.12em;
-         padding:1rem .8rem; border-radius:1.1rem; background:var(--surface-2); border:2px solid var(--line-2);}
+.spellin{width:100%; text-align:center; font-size:var(--t-2xl); font-weight:700;
+         letter-spacing:.12em; padding:var(--s4) var(--s3); border-radius:var(--r-md);
+         background:var(--surface-2); border:2px solid var(--line-2);}
 .spellin:focus{outline:none; border-color:var(--acc);}
 
-.primary{display:flex; align-items:center; justify-content:center; gap:.6rem; width:100%;
-         min-height:4rem; margin-top:1.5rem; padding:1rem 1.2rem; border-radius:1.25rem;
-         background:var(--acc); color:var(--acc-ink); font-size:1.15rem; font-weight:700;
-         box-shadow:var(--shadow); transition:transform .18s var(--ease);}
+.primary{display:flex; align-items:center; justify-content:center; gap:var(--s2); width:100%;
+         min-height:var(--tap-xl); margin-top:var(--s5); padding:var(--s4);
+         border-radius:var(--r-lg); background:var(--acc); color:var(--acc-ink);
+         font-size:var(--t-lg); font-weight:700; box-shadow:var(--shadow);
+         transition:transform .18s var(--ease);}
 .primary:active{transform:scale(.985);}
-.quiet{display:block; width:100%; margin-top:.9rem; min-height:3.2rem; border-radius:1rem;
-       color:var(--ink-soft); font-size:.98rem; font-weight:600;
-       border:1px solid var(--line); background:var(--surface-2);}
+.quiet{display:block; width:100%; margin-top:var(--s3); min-height:var(--tap);
+       border-radius:var(--r-md); color:var(--ink-soft); font-size:var(--t-md);
+       font-weight:600; border:1px solid var(--line); background:var(--surface-2);}
 .quiet:active{border-color:var(--line-2);}
 
 /* ---------- finished ---------- */
-.tick{text-align:center; font-size:3.4rem; color:var(--acc); line-height:1; margin:.4rem 0 1.2rem;}
-.headline{text-align:center; font-size:1.4rem; font-weight:700; margin:1rem 0 .3rem;}
-.pbar{height:.6rem; border-radius:.3rem; background:var(--line); overflow:hidden; margin:.9rem 0 1.4rem;}
-.pbar i{display:block; height:100%; background:var(--acc); border-radius:.3rem; transition:width .6s var(--ease);}
+.tick{text-align:center; font-size:var(--t-4xl); color:var(--acc); line-height:1;
+      margin:var(--s2) 0 var(--s5);}
+.headline{text-align:center; font-size:var(--t-xl); font-weight:700; margin:var(--s4) 0 var(--s1);}
+.pbar{height:var(--s2); border-radius:var(--r-pill); background:var(--line); overflow:hidden;
+      margin:var(--s3) 0 var(--s5);}
+.pbar i{display:block; height:100%; background:var(--acc); border-radius:var(--r-pill);
+        transition:width .6s var(--ease);}
 
 /* ---------- grown-ups ---------- */
-.sect{margin-bottom:1.8rem;}
-.sect h2{font-size:.78rem; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:.8rem;}
-.field{margin-bottom:1.1rem;}
-.field label{display:block; font-size:.92rem; font-weight:700; margin-bottom:.4rem;}
-.hint{font-size:.85rem; color:var(--ink-soft); margin-top:.35rem; max-width:42ch;}
+.sect{margin-bottom:var(--s6);}
+.sect h2{font-size:var(--t-xs); font-weight:800; letter-spacing:.14em; text-transform:uppercase;
+         color:var(--ink-soft); margin-bottom:var(--s3);}
+.field{margin-bottom:var(--s4);}
+.field label{display:block; font-size:var(--t-sm); font-weight:700; margin-bottom:var(--s1);}
+.hint{font-size:var(--t-sm); color:var(--ink-soft); margin-top:var(--s1); max-width:42ch;}
 .field input[type=text], .field textarea{
-  width:100%; padding:.8rem .9rem; border-radius:.9rem; background:var(--surface-2);
+  width:100%; padding:var(--s3); border-radius:var(--r-md); background:var(--surface-2);
   border:1px solid var(--line-2); line-height:1.6;}
 .field textarea{min-height:5.5rem; resize:vertical;}
-.seg{display:flex; flex-wrap:wrap; gap:.5rem;}
-.seg button{min-height:3rem; padding:0 1rem; border-radius:.85rem; border:1px solid var(--line-2);
-            background:var(--surface-2); font-weight:600; color:var(--ink-soft); text-align:left;}
+.seg{display:flex; flex-wrap:wrap; gap:var(--s2);}
+.seg button{min-height:var(--tap); padding:0 var(--s4); border-radius:var(--r-sm);
+            border:1px solid var(--line-2); background:var(--surface-2); font-weight:600;
+            color:var(--ink-soft); text-align:left;}
 .seg button[aria-pressed=true]{background:var(--acc); color:var(--acc-ink); border-color:transparent;}
-.swatch{position:relative; width:3rem; min-height:3rem; border-radius:.85rem; border:2px solid var(--line-2);
-        transition:transform .18s var(--ease);}
+.swatch{position:relative; width:var(--tap); min-height:var(--tap); border-radius:var(--r-sm);
+        border:2px solid var(--line-2); transition:transform .18s var(--ease);}
 .swatch[aria-pressed=true]{border-color:var(--acc); box-shadow:0 0 0 3px var(--acc-soft); transform:scale(1.07);}
 .swatch[aria-pressed=true]::after{content:"✓"; position:absolute; inset:0; display:flex;
-        align-items:center; justify-content:center; color:#35705A; font-size:1.15rem; font-weight:800;}
-.stats{display:flex; gap:.55rem;}
-.stat{flex:1 1 0; min-width:0; padding:.8rem .75rem; border-radius:1rem; background:var(--surface-2); border:1px solid var(--line);}
-.stat b{display:block; font-size:1.45rem; font-weight:800; line-height:1.2;}
-.stat span{display:block; font-size:.78rem; line-height:1.4; color:var(--ink-soft);}
+        align-items:center; justify-content:center; color:#35705A; font-size:var(--t-lg); font-weight:800;}
+.stats{display:flex; gap:var(--s2);}
+.stat{flex:1 1 0; min-width:0; padding:var(--s3); border-radius:var(--r-md);
+      background:var(--surface-2); border:1px solid var(--line);}
+.stat b{display:block; font-size:var(--t-xl); font-weight:800; line-height:1.2;}
+.stat span{display:block; font-size:var(--t-xs); line-height:1.4; color:var(--ink-soft);}
 .danger{color:var(--retry); border-color:var(--retry)!important;}
-.chips{display:flex; flex-wrap:wrap; gap:.4rem;}
-.chip{padding:.35rem .7rem; border-radius:.7rem; background:var(--surface-2); border:1px solid var(--line);
-      font-size:.92rem; font-weight:600;}
-.stamp{display:block; text-align:center; font-size:.72rem; letter-spacing:.1em; color:var(--ink-soft);
-       opacity:.6; margin-top:2rem;}
+.chips{display:flex; flex-wrap:wrap; gap:var(--s2);}
+.chip{padding:var(--s1) var(--s3); border-radius:var(--r-sm); background:var(--surface-2);
+      border:1px solid var(--line); font-size:var(--t-sm); font-weight:600;}
+.stamp{display:block; text-align:center; font-size:var(--t-xs); letter-spacing:.1em;
+       color:var(--ink-soft); opacity:.6; margin-top:var(--s6);}
 
 /* ---------- toast ---------- */
-#toast{position:fixed; left:50%; bottom:calc(1.6rem + env(safe-area-inset-bottom)); transform:translateX(-50%);
-       padding:.75rem 1.15rem; border-radius:.9rem; background:var(--ink); color:var(--surface);
-       font-size:.92rem; font-weight:600; z-index:30; opacity:0; pointer-events:none;
-       transition:opacity .3s var(--ease); max-width:88vw; text-align:center;}
+#toast{position:fixed; left:50%; bottom:calc(var(--s5) + env(safe-area-inset-bottom));
+       transform:translateX(-50%); padding:var(--s3) var(--s4); border-radius:var(--r-md);
+       background:var(--ink); color:var(--surface); font-size:var(--t-sm); font-weight:600;
+       z-index:30; opacity:0; pointer-events:none; transition:opacity .3s var(--ease);
+       max-width:88vw; text-align:center;}
 #toast.on{opacity:.96;}
 
 @media (prefers-reduced-motion:reduce){
@@ -676,7 +728,11 @@ function start(){
   var words = buildSession(activeList(), todayISO());
   if(!words.length) return false;
   W = {words:words, i:0, stage:'write', attempt:'', tries:0,
-       right:0, firstTime:0, requeue:[], failed:[], shown:[], asked:[]};
+       // plan is the number of words the sitting set out to cover. Requeued
+       // words lengthen W.words but not the plan, so progress only ever moves
+       // forward — a row of dots that grew would read as losing ground.
+       plan:words.length, right:0, firstTime:0,
+       requeue:[], failed:[], shown:[], asked:[], done:[]};
   W.stage = beginStage(words[0]);
   screen = 'day';
   render();
@@ -699,6 +755,7 @@ function check(){
     // in the same sitting is a good sign, not a day's worth of progress.
     recordWord(w, firstAsk ? 'first' : 'later');
     W.right++;
+    if(W.done.indexOf(w) < 0) W.done.push(w);      // finished, however many goes it took
     if(firstAsk){
       W.firstTime++;
       // A word she has just been shown gets one more go later in this same
@@ -769,20 +826,21 @@ function render(){
   else renderDone();
 }
 // Her header: the wordmark (press and hold for grown-ups) and today's progress.
-function header(pos, total){
-  var bar = (pos != null && total)
-    ? '<span class="daybar" aria-label="Word ' + (pos+1) + ' of ' + total + '"><i style="width:'
-      + Math.round(100 * pos / total) + '%"></i></span>' : '';
+function header(done, total){
+  var bar = (done != null && total)
+    ? '<span class="daybar" role="status" aria-label="' + done + ' of ' + total + ' words done">'
+      + '<i style="width:' + Math.round(100 * Math.min(done, total) / total) + '%"></i></span>' : '';
   el('#bar').innerHTML = '<span class="wordmark" id="wordmark"><b>Acorn</b></span><span class="sp"></span>' + bar;
 }
 
 function renderWord(){
-  var w = word(), parts = splitOf(w);
-  header(W.i, W.words.length);
+  var w = word(), parts = splitOf(w), done = W.done.length;
+  header(done, W.plan);
 
+  // One dot per word the sitting set out to cover, filled as each is finished.
   var dots = '<div class="dots" aria-hidden="true">';
-  for(var k = 0; k < W.words.length; k++)
-    dots += '<i class="' + (k < W.i ? 'on' : k === W.i ? 'now' : '') + '"></i>';
+  for(var k = 0; k < W.plan; k++)
+    dots += '<i class="' + (k < done ? 'on' : k === done ? 'now' : '') + '"></i>';
   dots += '</div>';
 
   // A one-syllable word needs no syllable row — it would just repeat itself.
@@ -793,8 +851,10 @@ function renderWord(){
   var hear = '<button class="hear" id="hear">' + SPK + 'Hear it</button>';
   var body;
 
+  var wl = ' style="--wl:' + w.length + '"';
+
   if(W.stage === 'look'){
-    body = '<div class="word">' + esc(w) + '</div>' + sylRow
+    body = '<div class="word"' + wl + '>' + esc(w) + '</div>' + sylRow
          // Saying it aloud and tracing it are free wins, and neither is checked,
          // so there is no way for them to go wrong.
          + '<div class="note">Say it out loud. Trace it with your finger.</div>'
@@ -827,10 +887,13 @@ function renderWord(){
          + '</div>'
          // Only ever the correct spelling on screen. Seeing her own misspelling
          // is the one thing that measurably sets spelling back.
-         + (ok || !close ? '<div class="word">' + esc(w) + '</div>'
-                         : '<div class="marked">' + marks + '</div>')
-         + sylRow + hear
+         + (ok || !close ? '<div class="word"' + wl + '>' + esc(w) + '</div>'
+                         : '<div class="marked"' + wl + '>' + marks + '</div>')
+         + sylRow
+         // Words first, then what happens next, then the buttons — so what she
+         // reads runs top to bottom without a button interrupting it.
          + (!ok ? '<div class="note">You’ll see this one again in a moment.</div>' : '')
+         + hear
          + '<button class="primary" id="next">' + (more ? 'Next word' : 'Finish') + '</button>';
   }
 
