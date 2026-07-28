@@ -35,3 +35,6 @@ module.exports = defineConfig({
     },
   }],
 });
+
+// tests/sim.js reuses the same detection to launch its own browser.
+module.exports.findChromium = findChromium;

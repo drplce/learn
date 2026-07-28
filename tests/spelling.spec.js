@@ -23,6 +23,17 @@ async function correct(page){
   await page.locator('#next').click();
   return w;
 }
+// Answer correctly until the session ends. A session is not a fixed number of
+// taps — a new word comes back for a second go, and so does a miss — so tests
+// that want the end of a session ask for it rather than counting.
+async function finishSession(page, limit = 40){
+  const seen = [];
+  for(let i = 0; i < limit; i++){
+    if(!await page.evaluate(() => !!window.__acorn.session())) return seen;
+    seen.push(await correct(page));
+  }
+  throw new Error('session did not finish in ' + limit + ' answers');
+}
 
 test.describe('opening the app', () => {
 
@@ -191,8 +202,11 @@ test.describe('finishing', () => {
   test('walks every word then lands on the done screen', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['rain','boat','light']);
-    for(let i = 0; i < 3; i++) await correct(page);
+    const asked = await finishSession(page);
     expect(await page.evaluate(() => window.__acorn.session())).toBeNull();
+    // Three words, each shown once and then asked again from memory.
+    expect(asked.length).toBe(6);
+    expect([...new Set(asked)].sort()).toEqual(['boat','light','rain']);
     await expect(page.locator('.tick')).toBeVisible();
     await expect(page.locator('.headline')).toHaveText(/first go|All done/);
     const s = await page.evaluate(() => window.__acorn.state.words.sessions);
@@ -204,7 +218,7 @@ test.describe('finishing', () => {
   test('the done screen shows how much of the list she knows', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['rain','boat']);
-    await correct(page); await correct(page);
+    await finishSession(page);
     await expect(page.locator('.note')).toContainText(/of \d+ words known well/);
     await expect(page.locator('.pbar')).toBeVisible();
   });
@@ -212,7 +226,7 @@ test.describe('finishing', () => {
   test('she can choose to practise more', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['rain','boat']);
-    await correct(page); await correct(page);
+    await finishSession(page);
     await page.locator('#again').click();
     expect(await page.evaluate(() => !!window.__acorn.session())).toBe(true);
   });
@@ -327,30 +341,42 @@ test.describe('the self-adapting pace', () => {
       // five sessions of four words at the given first-time accuracy
       a.state.words.sessions = [1,2,3,4,5].map(() => ({date:'2026-07-20', asked:4, words:4,
                                                         right:0, firstTime:Math.round(4 * o.acc)}));
-      return {acc: a.recentAccuracy(), newToday: a.newWordsToday(), pool: a.poolCap()};
+      return {acc: a.recentAccuracy(), newToday: a.newWordsToday(),
+              pool: a.poolCap(), size: a.sessionWords()};
     }, {list, acc:accuracy});
   }
 
-  test('flying — two new words a session', async ({page}) => {
+  test('flying — a longer sitting, up to three new words', async ({page}) => {
     await open(page, '2026-07-28');
     const out = await withSessions(page, ['a1','a2','a3','a4','a5','a6'], 1);
     expect(out.acc).toBe(1);
-    expect(out.newToday).toBe(2);
-    expect(out.pool).toBe(4);
+    expect(out.newToday).toBe(3);
+    expect(out.size).toBe(9);
+    expect(out.pool).toBe(3);
   });
 
   test('in the sweet spot — one new word', async ({page}) => {
     await open(page, '2026-07-28');
     const out = await withSessions(page, ['a1','a2','a3','a4','a5','a6'], .75);
     expect(out.newToday).toBe(1);
-    expect(out.pool).toBe(3);
+    expect(out.size).toBe(8);
+    expect(out.pool).toBe(2);
   });
 
-  test('struggling — nothing new at all', async ({page}) => {
+  test('struggling — a shorter sitting and nothing new', async ({page}) => {
     await open(page, '2026-07-28');
     const out = await withSessions(page, ['a1','a2','a3','a4','a5','a6'], .5);
     expect(out.newToday).toBe(0);
+    expect(out.size).toBe(6);
     expect(out.pool).toBe(2);
+  });
+
+  test('new material never takes more than a third of a sitting', async ({page}) => {
+    await open(page, '2026-07-28');
+    for(const acc of [1, .8, .75, .5, .2]){
+      const out = await withSessions(page, ['a1','a2','a3','a4','a5','a6'], acc);
+      expect(out.pool / out.size).toBeLessThanOrEqual(1/3);
+    }
   });
 
   test('too early to judge — one at a time', async ({page}) => {
@@ -420,7 +446,10 @@ test.describe('building a session', () => {
       const a = window.__acorn;
       const words = 'w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11 w12'.split(' ');
       a.state.words.lists = [{id:'L', name:'Mix', words}];
-      a.state.words.activeId = 'L'; a.state.words.sessions = [];
+      a.state.words.activeId = 'L';
+      // a fortnight in and holding steady, so the pace is past its first night
+      a.state.words.sessions = [1,2,3,4,5].map(() => ({date:'2026-07-27', asked:8, words:8,
+                                                       right:6, firstTime:6}));
       // nine words solidly known and due, three not yet met
       const m = {};
       words.slice(0, 9).forEach(w => { m[w] = {right:4, wrong:0, box:4, lastSeen:'2026-07-01'}; });
@@ -430,6 +459,17 @@ test.describe('building a session', () => {
       return {len: s.length, acq, known: Math.round(100 * (s.length - acq) / s.length)};
     });
     expect(out.known).toBeGreaterThanOrEqual(70);
+  });
+
+  test('her very first night is short and all new — the one exception', async ({page}) => {
+    await open(page, '2026-07-28');
+    const s = await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'L', name:'New', words:['w1','w2','w3','w4','w5','w6']}];
+      a.state.words.activeId = 'L'; a.state.words.sessions = []; a.state.words.mastery = {};
+      return a.buildSession(a.activeList(), '2026-07-28');
+    });
+    expect(s.length).toBe(3);
   });
 
   test('a session is never a single word when there is more to do', async ({page}) => {
@@ -600,7 +640,7 @@ test.describe('the grown-ups area', () => {
     await page.evaluate(() => window.__acorn.setToday('2026-07-28'));
     expect(await page.evaluate(() => window.__acorn.state.profile.name)).toBe('Harriet');
     await startOn(page, ['rain']);
-    await correct(page);
+    await finishSession(page);
     await expect(page.locator('.headline')).toHaveText(/Harriet/);
   });
 
@@ -720,7 +760,7 @@ test.describe('robustness', () => {
   test('the day rolling over starts a fresh session', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['rain','boat']);
-    await correct(page); await correct(page);
+    await finishSession(page);
     expect(await page.evaluate(() => window.__acorn.session())).toBeNull();
     await page.evaluate(() => window.__acorn.setToday('2026-07-29'));
     await page.evaluate(() => { window.__acorn.start(); });

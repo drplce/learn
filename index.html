@@ -530,12 +530,13 @@ function knownCount(list){
 /* Pace. Practice works best around 80-85% success: below that she is being
    overloaded, above it she is coasting. So the number of new words follows her
    accuracy rather than a fixed setting. */
-var ACQUIRING_CAP = 3;      // words still being learned, at once
+var ACQUIRING_CAP = 3;      // words still being learned, at once — never more
 var SEED_NEW = 3;           // her very first session
 var PACE_WINDOW = 5;        // sessions to judge on
 var PACE_MIN_WORDS = 12;    // ...over at least this many words
 var PACE_HIGH = .85, PACE_LOW = .70;
-var SESSION_LEN = 8, MIN_SESSION = 4;
+var NEW_SHARE = 1/3;        // at most a third of a sitting is new material
+var MIN_SESSION = 4;
 
 function recentAccuracy(){
   var ss = (S.words.sessions || []).slice(-PACE_WINDOW);
@@ -543,20 +544,29 @@ function recentAccuracy(){
   var first = ss.reduce(function(n, s){ return n + (s.firstTime || 0); }, 0);
   return words >= PACE_MIN_WORDS ? first / words : null;    // null = too early to judge
 }
+// How many words a sitting is. Doing well earns a slightly longer one; a bad
+// run shortens it. Eight is the everyday case — a few minutes, not homework.
+function sessionWords(){
+  var acc = recentAccuracy();
+  if(acc === null) return 7;
+  if(acc >= PACE_HIGH) return 9;
+  if(acc <  PACE_LOW)  return 6;
+  return 8;
+}
 function newWordsToday(){
   if(!(S.words.sessions || []).length) return SEED_NEW;
   var acc = recentAccuracy();
   if(acc === null) return 1;
-  if(acc >= PACE_HIGH) return 2;      // flying — she can take more
+  if(acc >= PACE_HIGH) return 3;      // flying — up to the three-a-day ceiling
   if(acc >= PACE_LOW)  return 1;      // in the sweet spot
   return 0;                           // struggling — consolidate, add nothing
 }
+// The rest of the sitting is words she can already spell. Keeping new material
+// to a third is what holds the success rate where practice actually sticks.
 function poolCap(){
-  var acc = recentAccuracy();
-  if(acc === null) return ACQUIRING_CAP;
-  if(acc >= PACE_HIGH) return ACQUIRING_CAP + 1;
-  if(acc <  PACE_LOW)  return Math.max(1, ACQUIRING_CAP - 1);
-  return ACQUIRING_CAP;
+  // Her first night is all new by definition, so the share doesn't apply.
+  if(!(S.words.sessions || []).length) return SEED_NEW;
+  return Math.max(1, Math.min(ACQUIRING_CAP, Math.floor(sessionWords() * NEW_SHARE)));
 }
 function paceLabel(){
   var acc = recentAccuracy(), n = newWordsToday();
@@ -577,14 +587,14 @@ function buildSession(list, today){
                    .sort(function(a,b){ return String(mastery(a).lastSeen).localeCompare(String(mastery(b).lastSeen)); });
   var never = all.filter(function(w){ return !seen(w); });
 
-  var cap = poolCap();
+  var size = sessionWords(), cap = poolCap();
   var acq = started.slice(0, cap);
   var room = Math.min(newWordsToday(), cap - acq.length);
   never.forEach(function(w){ if(room-- > 0) acq.push(w); });
 
-  // Review is sized against the acquiring words. If not enough is strictly due,
-  // pull forward the nearest — better than a screen of nothing but misses.
-  var wantRev = Math.max(3, Math.ceil(acq.length * 2.5));
+  // The rest of the sitting is review. If not enough is strictly due, pull
+  // forward the nearest — better than a screen of nothing but misses.
+  var wantRev = Math.max(2, size - acq.length);
   var rev = review.slice(0, wantRev);
   if(rev.length < wantRev){
     all.filter(function(w){ return seen(w) && !acquiring(w) && rev.indexOf(w) < 0; })
@@ -600,7 +610,7 @@ function buildSession(list, today){
   }
   if(!rev.length && !acq.length){
     return all.slice().sort(function(a,b){ return overdueRatio(b, today) - overdueRatio(a, today); })
-              .slice(0, SESSION_LEN);
+              .slice(0, size);
   }
 
   // Thread the acquiring words through the review rather than blocking them at
@@ -615,7 +625,7 @@ function buildSession(list, today){
     if(ai < acq.length) out.push(acq[ai++]);
   }
   return out.filter(function(w, i, a){ return a.indexOf(w) === i; })
-            .slice(0, Math.min(SESSION_LEN + ACQUIRING_CAP, total));
+            .slice(0, Math.min(size, total));
 }
 
 /* =========================================================
@@ -650,14 +660,22 @@ function sameWord(a, b){ return String(a||'').trim().toLowerCase() === String(b|
    ========================================================= */
 var W = null;
 function stageFor(word){ return acquiring(word) ? 'look' : 'write'; }
-// A word already missed today is re-asked from memory, not shown again.
-function stageNow(word){ return (W && W.failed.indexOf(word) >= 0) ? 'write' : stageFor(word); }
+// Starting a word: within a session it is only ever shown once. After that —
+// whether she missed it or copied it correctly — it is asked from memory.
+// Records the showing, so call it once per word as it comes up.
+function beginStage(word){
+  if(W && (W.failed.indexOf(word) >= 0 || W.shown.indexOf(word) >= 0)) return 'write';
+  var st = stageFor(word);
+  if(st === 'look' && W) W.shown.push(word);
+  return st;
+}
 
 function start(){
   var words = buildSession(activeList(), todayISO());
   if(!words.length) return false;
-  W = {words:words, i:0, stage:stageFor(words[0]), attempt:'', tries:0,
-       right:0, firstTime:0, requeue:[], failed:[]};
+  W = {words:words, i:0, stage:'write', attempt:'', tries:0,
+       right:0, firstTime:0, requeue:[], failed:[], shown:[], asked:[]};
+  W.stage = beginStage(words[0]);
   screen = 'day';
   render();
   say(words[0]);
@@ -670,13 +688,22 @@ function check(){
   W.attempt = (el('#type') ? el('#type').value : W.attempt) || '';
   W.tries++;
   var ok = sameWord(W.attempt, w);
-  var missedBefore = W.failed.indexOf(w) >= 0;
+  var firstAsk = W.asked.indexOf(w) < 0;
+  if(firstAsk) W.asked.push(w);
   if(ok){
-    recordWord(w, missedBefore ? 'later' : 'first');
+    // Only the first ask of the day can advance the word — a second correct go
+    // in the same sitting is a good sign, not a day's worth of progress.
+    recordWord(w, firstAsk ? 'first' : 'later');
     W.right++;
-    if(!missedBefore) W.firstTime++;
+    if(firstAsk){
+      W.firstTime++;
+      // A word she has just been shown gets one more go later in this same
+      // session, from memory. That way its first cold retrieval happens today
+      // while it is still fresh, rather than as a hard surprise tomorrow.
+      if(W.shown.indexOf(w) >= 0 && W.requeue.indexOf(w) < 0) W.requeue.push(w);
+    }
     chime('right');
-  }else if(!missedBefore){
+  }else if(W.failed.indexOf(w) < 0){
     // Marked down once, then queued to come back later in this same session —
     // a real retrieval a few words on, rather than a copy off the screen.
     W.failed.push(w);
@@ -691,7 +718,7 @@ function next(){
   if(W.i + 1 < W.words.length) W.i++;
   else if(W.requeue.length){ W.words.push(W.requeue.shift()); W.i++; }
   else { finish(); return; }
-  W.stage = stageNow(word()); W.attempt = ''; W.tries = 0;
+  W.stage = beginStage(word()); W.attempt = ''; W.tries = 0;
   render();
   say(word());
 }
@@ -771,7 +798,8 @@ function renderWord(){
          + '<button class="primary" id="cover">Cover it up</button>';
   }
   else if(W.stage === 'write'){
-    body = '<div class="note">' + (stageFor(w) === 'write' ? 'Listen, then write it.' : 'Now write it from memory.') + '</div>'
+    var fresh = W.shown.indexOf(w) < 0 && W.failed.indexOf(w) < 0;
+    body = '<div class="note">' + (fresh ? 'Listen, then write it.' : 'Now write it from memory.') + '</div>'
          + '<input class="spellin" id="type" type="text" inputmode="text" autocomplete="off" '
          +   'autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" '
          +   'value="' + esc(W.attempt) + '" aria-label="Type the word">'
@@ -1072,13 +1100,18 @@ window.__acorn = {
   newWordsToday: newWordsToday, poolCap: poolCap, stageFor: stageFor,
   allLists: allLists, activeList: activeList, wordsOf: wordsOf,
   englishVoices: englishVoices, offerVoices: offerVoices, voiceScore: voiceScore,
-  start: start, check: check, next: next,
+  start: start, check: check, next: next, paceLabel: paceLabel,
+  // Enough of a handle to drive a whole session from a script — the
+  // simulations in tests/sim.js run the real flow, not a copy of it.
+  reset: function(){ localStorage.removeItem(KEY); load(); },
+  cover: function(){ if(W){ W.stage = 'write'; render(); } },
+  type: function(v){ if(W){ W.attempt = v; if(el('#type')) el('#type').value = v; } },
   session: function(){ return W && {words:W.words.slice(), i:W.i, stage:W.stage, tries:W.tries,
                                      right:W.right, firstTime:W.firstTime, failed:W.failed.slice(),
                                      requeue:W.requeue.slice()}; },
   go: go, screen: function(){ return screen; },
   BOX_DAYS: BOX_DAYS, MAX_BOX: MAX_BOX, KNOWN_BOX: KNOWN_BOX,
-  ACQUIRING_CAP: ACQUIRING_CAP, SEED_NEW: SEED_NEW, SESSION_LEN: SESSION_LEN
+  ACQUIRING_CAP: ACQUIRING_CAP, SEED_NEW: SEED_NEW, sessionWords: sessionWords
 };
 
 /* ---- boot: she opens the app and is on a word ---- */
