@@ -300,7 +300,10 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
    It stays as a guarantee that the picture can never spill over her words.
    The width comes from the drawing itself: it is small on her first evening and
    full width once she is a long way in, so it is centred rather than sitting off
-   to one side of the space it has. */
+   to one side of the space it has. The height comes from the drawing too, by way
+   of the frame's own proportions — the frame is cropped to the shape of what is
+   drawn rather than squared up, and height:auto is what carries that onto the
+   page. NET_TALL is the limit on how tall that can get. */
 .net{display:block; width:100%; height:auto; margin:var(--s2) auto var(--s3);
      overflow:hidden;}
 /* The frame is a camera and it zooms in when there is little to show, so the
@@ -389,7 +392,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '8.6';
+var VERSION = '8.7';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1974,6 +1977,13 @@ function restore(btn){
    decoration rather than her map.
    ========================================================= */
 var NET_W = 320, GOLDEN = 2.39996323;
+/* The frame is fitted to the drawing rather than squared up, and this is the one
+   thing it is not allowed to do: be taller than this much of its own width. The
+   picture takes its width from her column and its height from this ratio, so a
+   frame twice as tall as it is wide would push the words under it off the screen.
+   Only that way round — a drawing that comes out wide and low costs her nothing.
+   See the fit in networkData(). */
+var NET_TALL = 1.25;
 
 /* How far ahead the outlines reach. Every word she has met stays on the map for
    good, but an unmet one is only worth drawing while it is nearly here: a hundred
@@ -2100,25 +2110,62 @@ function blobPath(pts){
    steps with a small sideways drift at every one, then smoothed, so no line in
    here is straight. A ruled line is the thing that gives a drawing like this away
    as a diagram.
-   They are worked out here rather than while drawing because the frame has to
-   know where they reach — see the fit below. A hair's shape comes from its frond
-   and nothing else, so it is in the same place on the day she starts a list as it
-   is a year later. */
-function hairPaths(fronds, cx, cy){
+   They are worked out before the drawing because the frame has to know where they
+   reach — see the fit below. A hair's path comes from its frond and the core, both
+   of which are fixed by the lists she has going, so it is in the same place on the
+   day she starts a list as it is a year later.
+
+   The core is the middle of the picture, and it used to be the middle of the
+   layout square instead: (160, 160), the point every frond was laid out around.
+   With all her lists going those are the same place, and it looked right. With one
+   or two lists going they are nowhere near each other, and the square's middle is
+   an artefact of the coordinate space rather than anything in her map — so ten
+   threads left two clusters of words, ran a long way down past the last of them
+   and met at a knot in the empty part of the picture. That is what the owner was
+   looking at when they said it was a bunch of balloons on strings, and they were
+   right: strings to a point where there is nothing are what balloons have.
+   A hair now runs from the middle of the picture to its frond's own head, however
+   many fronds there are. With every list going that is the drawing it always was.
+   With two, the core sits between the two families and the threads pass between
+   them, which is one body with two lobes and not two bunches on a knot.
+
+   And with one family the head holds the core, so there is no tip to reach for at
+   all. Then the hairs run out of the middle to the words themselves: one per
+   direction, each ending on the word that is farthest out that way, so a hair
+   always finishes under a shape rather than in the open. Fine threads through a
+   cluster read as the veins of one body; the same threads carried out past the
+   last word read as legs, which is what the first attempt at this looked like. */
+function hairPaths(fronds, core, solo){
   var out = [];
   fronds.forEach(function(f){
     var rnd = seeded('hair' + f.id);
-    for(var h = 0; h < 5; h++){
-      var fan = (h - 2) * 0.055 + (rnd() - .5) * 0.05;
-      var len = f.reach * (0.84 + rnd() * 0.2);
-      var steps = 7, pts = [[cx, cy]], drift = 0;
+    var n = solo ? solo.tips.length : 5;
+    var ox = core.x, oy = core.y;
+    for(var h = 0; h < n; h++){
+      var dir, len;
+      if(solo){
+        // Out to the far side of the word, so the thread is hidden by the shape it
+        // ends on rather than stopping short of it in plain view.
+        var tip = solo.tips[h];
+        dir = Math.atan2(tip[1] - oy, tip[0] - ox);
+        len = Math.hypot(tip[0] - ox, tip[1] - oy) + tip[2] * 0.9;
+        rnd();                    // keep the two draws a hair takes, so the wander
+        rnd();                    // below is the same walk in both kinds of frond
+      }else{
+        dir = Math.atan2(f.hy - oy, f.hx - ox) + (h - 2) * 0.055 + (rnd() - .5) * 0.05;
+        len = Math.hypot(f.hx - ox, f.hy - oy) * (0.84 + rnd() * 0.2);
+      }
+      var steps = 7, pts = [[ox, oy]], drift = 0;
       for(var i = 1; i <= steps; i++){
         var t = i / steps;
-        // The wander grows with distance from the core, like something reaching.
+        // The wander grows with distance from the core, like something reaching —
+        // except where the hair has a word to land on, and then it bows out and
+        // comes back, so the far end finishes under the shape and not beside it.
         drift += (rnd() - .5) * len * 0.075;
-        var ang = f.a + fan + f.bend * 0.55 * t * t;
-        pts.push([cx + Math.cos(ang) * len * t + Math.cos(ang + Math.PI / 2) * drift * t,
-                  cy + Math.sin(ang) * len * t + Math.sin(ang + Math.PI / 2) * drift * t]);
+        var bow = solo ? t * (1 - t) * 2.2 : t;
+        var ang = dir + f.bend * 0.55 * (solo ? bow : t * t);
+        pts.push([ox + Math.cos(ang) * len * t + Math.cos(ang + Math.PI / 2) * drift * bow,
+                  oy + Math.sin(ang) * len * t + Math.sin(ang + Math.PI / 2) * drift * bow]);
       }
       var d = 'M' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1);
       for(var j = 1; j < pts.length - 1; j++)
@@ -2172,7 +2219,8 @@ function networkData(){
     var reach = NET_W * (0.27 + 0.09 * Math.sqrt(words.length / Math.max(4, total / lists.length))
                          + (rnd() - .5) * 0.06);
     var bend = (rnd() - .5) * 0.9;                 // the frond curves as it goes
-    fronds.push({a:a, reach:reach, bend:bend, id:l.id, name:l.name, i:li});
+    var frond = {a:a, reach:reach, bend:bend, id:l.id, name:l.name, i:li};
+    fronds.push(frond);
 
     /* Most of a family gathers into a head at the tip; the last few of the list
        trail back down the stem, which is what keeps it from looking like a
@@ -2188,6 +2236,9 @@ function networkData(){
     var tipA = a + bend * 0.55;
     var hx = Math.cos(tipA) * reach, hy = Math.sin(tipA) * reach;
     var headR = NET_W * (0.05 + 0.05 * Math.sqrt(headN / 12));
+    // Where the hairs are aiming: the head itself, in the same coordinates as the
+    // cells, rather than an angle and a length off a core that has since moved.
+    frond.hx = cx + hx; frond.hy = cy + hy; frond.headR = headR;
 
     words.forEach(function(k_w, k){
       var px, py;
@@ -2216,12 +2267,11 @@ function networkData(){
   var ghost = ghostWords();
   var cells = laid.filter(function(c){ return c.met || ghost[c.w]; });
   cells.forEach(function(c){ byWord[c.w] = c; });
-  // A frond with nothing drawn on it gets no hairs either: five threads reaching
-  // out to an empty tip is a promise about a list she has not started.
+  // A frond with nothing drawn on it gets no hairs either: a handful of threads
+  // reaching out to an empty tip is a promise about a list she has not started.
   var live = {};
   cells.forEach(function(c){ live[c.frond] = true; });
   fronds = fronds.filter(function(f){ return live[f.i]; });
-  var hairs = hairPaths(fronds, cx, cy);
 
   /* The frame is a camera, not the layout: it crops in, so a dozen outlines fill
      the picture as well as a hundred do rather than sitting in a corner of an
@@ -2237,28 +2287,58 @@ function networkData(){
      one time her map really has got bigger.
 
      The hairs are fitted too, and that is the whole reason they are worked out
-     before this point. They start at the core, and until she has words on more
-     than one side of it the core sits well outside a frame drawn round her cells:
-     on her phone that came out as five hairlines running off the bottom edge
-     towards something she cannot see, which reads as a drawing that was never
-     finished. Of the ways to stop that — leave the hairs out on the days their
-     origin is off-frame, or re-root them onto something visible — taking them
-     into the frame is the only one that keeps the picture honest, because the
-     colony really does come out of one core and that is the shape it has when she
-     has all her lists going. It costs nothing in stability: a hair's path comes
-     from its frond alone, so the same set of lists gives the same frame however
-     much she has learned. */
+     around here rather than while drawing: they can reach past the outermost cell,
+     and .net{overflow:hidden} would crop them where they left. It costs nothing in
+     stability, because a hair's path comes from its frond and the frame's own
+     middle, both of which are fixed by which lists she has going.
+
+     It crops to the drawing and not to a square. Squaring up was the last of the
+     dead margin the owner could see: at eight words met the drawing was 98 units
+     across in a frame 150 wide, so more than half the picture was cream. A frame
+     that is the shape of the drawing has none of that; the only shape it refuses
+     is a tall one — see NET_TALL — and it refuses it by widening rather than by
+     cropping anything out. The breathing room is a share of the drawing rather
+     than a fixed number of units, so the margin looks the same on the evening
+     there are six outlines as it does with a hundred cells on. */
   var framed = {};
   laid.forEach(function(c){ if(c.met) framed[c.frond] = true; });
   lists.forEach(function(g, li){ if(g.list.id === (activeList() || {}).id) framed[li] = true; });
   var inFrame = laid.filter(function(c){ return framed[c.frond]; });
   if(!inFrame.length) inFrame = cells;
-  var pad = NET_W * 0.005, x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   inFrame.forEach(function(c){
     var b = cellBounds(c.w, c.x, c.y, c.r);
     x0 = Math.min(x0, b.x0); x1 = Math.max(x1, b.x1);
     y0 = Math.min(y0, b.y0); y1 = Math.max(y1, b.y1);
   });
+  /* The core the hairs come out of: the middle of the picture, which is the middle
+     of the words the frame is fitted to. See hairPaths for why it is not the middle
+     of the layout square any more — this is the balloons-on-strings fix, and it is
+     why the hairs are worked out here rather than above the cells they need.
+     Fitted to the same stable set as the frame, so it moves when she starts a list
+     and at no other time. */
+  var core = {x:(x0 + x1) / 2, y:(y0 + y1) / 2};
+  /* One family, and then there is no head to reach for: the core is inside it. The
+     hairs go out to the word farthest from the middle in each of seven directions
+     round it instead.
+     Her words, not the drawn ones. A hair's path has to be the same on the day she
+     starts the list as it is a year later, or the threads reshuffle every time she
+     learns something; and aiming at laid cells keeps every hair within a whisker of
+     the box those cells already set, so the frame barely moves for them. */
+  var solo = null;
+  if(fronds.length === 1 && inFrame.length){
+    var sect = [];
+    inFrame.forEach(function(c){
+      var dd = Math.hypot(c.x - core.x, c.y - core.y);
+      if(dd < NET_W * 0.02) return;               // a word sitting on the middle
+      var s = Math.floor((Math.atan2(c.y - core.y, c.x - core.x) + Math.PI)
+                         / (Math.PI * 2) * 7) % 7;
+      if(!sect[s] || dd > sect[s][3]) sect[s] = [c.x, c.y, c.r, dd];
+    });
+    var tips = sect.filter(Boolean);
+    if(tips.length) solo = {tips:tips};
+  }
+  var hairs = hairPaths(fronds, core, solo);
   // Each stretch of a hair is a curve between two of these points, and a curve
   // never leaves the box its points sit in, so the points are the whole reach.
   hairs.forEach(function(h){
@@ -2268,11 +2348,20 @@ function networkData(){
     });
   });
   if(!inFrame.length && !hairs.length){ x0 = y0 = 0; x1 = y1 = NET_W; }
-  var side = Math.max(x1 - x0, y1 - y0, NET_W * 0.18) + pad * 2;
-  var view = {x:(x0 + x1) / 2 - side / 2, y:(y0 + y1) / 2 - side / 2, s:side};
+  var floor = NET_W * 0.18, w = Math.max(x1 - x0, floor), h = Math.max(y1 - y0, floor);
+  w = Math.max(w, h / NET_TALL);              // widened, never cropped
+  var pad = Math.max(w, h) * 0.012;
+  var view = {x:(x0 + x1) / 2 - w / 2 - pad, y:(y0 + y1) / 2 - h / 2 - pad,
+              w:w + pad * 2, h:h + pad * 2};
 
-  // A hairline where two words share a chunk, and only where the chunk is
-  // telling: one that turns up in a dozen words says nothing.
+  /* A hairline where two words share a chunk, and only where the chunk is
+     telling: one that turns up in a dozen words says nothing.
+     There are fewer of these than the picture wants, and it is worth knowing why:
+     both ends have to be drawn, and two words that share a chunk usually sit a
+     long way apart in the list, so the near horizon rarely covers both. Counted
+     on her real lists, none at all at six words met and one at thirty. That is
+     why the caption below only mentions them when there are some — a caption
+     describing something that is not on the screen is worse than none. */
   var byPiece = {};
   cells.forEach(function(c){
     splitOf(c.w).forEach(function(p){
@@ -2289,8 +2378,8 @@ function networkData(){
      bulging out anyway. It has to happen after the frame, which is why the
      filaments are worked out here rather than above the fit. */
   function held(p){
-    return [Math.min(view.x + view.s - 1, Math.max(view.x + 1, p[0])),
-            Math.min(view.y + view.s - 1, Math.max(view.y + 1, p[1]))];
+    return [Math.min(view.x + view.w - 1, Math.max(view.x + 1, p[0])),
+            Math.min(view.y + view.h - 1, Math.max(view.y + 1, p[1]))];
   }
   var links = [], far = NET_W * 0.34;
   Object.keys(byPiece).forEach(function(p){
@@ -2325,7 +2414,7 @@ function renderNetwork(d){
      thing says its numbers once. The <title>s stay — they are the hover
      tooltip, which is the only thing they are good for. */
   var svg = '<svg class="net" viewBox="' + d.view.x.toFixed(1) + ' ' + d.view.y.toFixed(1)
-    + ' ' + d.view.s.toFixed(1) + ' ' + d.view.s.toFixed(1) + '"'
+    + ' ' + d.view.w.toFixed(1) + ' ' + d.view.h.toFixed(1) + '"'
     // Small at the start and bigger as she gets on; see netGrow(). The frame is
     // untouched, so this scales the whole drawing and moves nothing within it.
     + ' style="width:' + (d.grow * 100).toFixed(1) + '%" role="img" aria-label="'
@@ -2361,9 +2450,17 @@ function renderNetwork(d){
     + 'are not drawn until she is close to them, because a hundred empty outlines says '
     + 'more about how far there is to go than about her. '
     + 'They fill in and darken as she learns them, and a word she is losing dims '
-    + 'rather than disappearing. Each frond is one spelling pattern; the hairlines '
-    + 'join words that share a chunk — <b>or</b> is what morning, sorted and report '
-    + 'have in common. ' + d.met + ' met, <b>' + d.known + ' known well</b>, '
+    + 'rather than disappearing. Each frond is one spelling pattern'
+    /* Only when there are some. Two words sharing a chunk are usually a good way
+       apart in the list, so both ends of a filament are rarely inside the near
+       horizon: there are none at all until she is thirty or so words in. The copy
+       promised a grown-up something that was not on the screen, and a caption that
+       describes a picture you are not looking at is worse than no caption. */
+    + (d.links.length
+        ? '; the hairlines join words that share a chunk — <b>or</b> is what '
+          + 'morning, sorted and report have in common. '
+        : '. ')
+    + d.met + ' met, <b>' + d.known + ' known well</b>, '
     + d.total + ' in all on her lists.</div></div>';
 }
 

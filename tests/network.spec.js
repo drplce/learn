@@ -15,6 +15,28 @@ const cells = page => page.evaluate(() =>
     r: Number(c.getAttribute('data-r')),
   })));
 
+/* The five states a grown-up actually sees, in order: the evening before she has
+   started, five and then eight words in on her first list — which is the state the
+   owner was looking at when they asked for a tighter crop — a month or so in with a
+   second list open, and the whole thing known. Several checks below have to hold at
+   all of them, and it matters that they are the real states and not convenient
+   ones, so they are written once here. */
+async function stageOf(page, stage){
+  await page.evaluate(s => {
+    const a = window.__acorn, m = {}, seen = [];
+    a.allLists().forEach(l => a.wordsOf(l).forEach(w => { if(seen.indexOf(w) < 0) seen.push(w); }));
+    if(s === 'all') seen.forEach(w => m[w] = {right:5, wrong:0, box:6, lastSeen:'2026-07-20'});
+    else if(s === 'met30'){
+      seen.slice(0, 30).forEach((w, i) => m[w] = {right:3, wrong:0, box:1 + (i % 6), lastSeen:'2026-07-20'});
+      a.state.words.activeId = a.allLists()[1].id;
+    }else if(s !== 'none'){
+      a.wordsOf(a.allLists()[0]).slice(0, s === 'met5' ? 5 : 8).forEach((w, i) =>
+        m[w] = {right:3, wrong:0, box:1 + (i % 5), lastSeen:'2026-07-20'});
+    }
+    a.state.words.mastery = m; a.save(); a.go('parent');
+  }, stage);
+}
+
 async function master(page, pairs){
   await page.evaluate(p => {
     const a = window.__acorn, m = {};
@@ -185,10 +207,12 @@ test.describe('the shape of what she knows', () => {
     });
     const wide = await frame();
     expect(wide.cells).toBeGreaterThan(tight.cells * 5);
-    // Half again as wide, rather than twice: the frame now holds the core and the
-    // hairs from the first evening, so it does not start as tightly as it did.
+    // Four times over. It was half again as wide before the hairs were brought in
+    // out of the middle of the layout square: they used to drag the first evening's
+    // frame down to the core, and the frame started nearly half as wide as the
+    // whole colony ends up.
     expect(wide.side, 'the frame pulled back as the colony grew')
-      .toBeGreaterThan(tight.side * 1.8);
+      .toBeGreaterThan(tight.side * 3);
     const after = (await cells(page)).map(c => `${c.word}:${c.x},${c.y},${c.r}`);
     before.forEach(b => expect(after).toContain(b));
   });
@@ -197,11 +221,10 @@ test.describe('the shape of what she knows', () => {
      than a full-width square — but small is not the same as a speck, and on her
      first evening this is all a grown-up has to look at.
      The share it fills is measured against the picture itself and taken over
-     everything drawn, not over the cells alone: the frame is fitted to the hairs
-     and the core as well now, so on the day she has one list going the cells sit
-     in the head of a sprout and cannot fill the frame by themselves. What the
-     check is for is that the camera is cropped to the drawing rather than leaving
-     it in the corner of an empty square, and that is what this says. */
+     everything drawn, not over the cells alone: on the day she has one list going
+     the cells she has reached sit in the middle of the family and the hairs are
+     what reach the rim. What the check is for is that the camera is cropped to the
+     drawing rather than leaving it in the corner of an empty square. */
   test('the waiting shape is a reasonable size, not a speck', async ({page}) => {
     await open(page, '2026-08-01');
     await page.evaluate(() => window.__acorn.go('parent'));
@@ -254,7 +277,8 @@ test.describe('the shape of what she knows', () => {
     expect(full.px, 'the picture did not grow').toBeGreaterThan(first.px * 1.4);
     expect(full.cells).toBe(100);
     // The frame it grew into is her own list of lists, not the page: at every
-    // stage the picture is square and inside the column.
+    // stage the picture sits inside the column. It is no longer square — the frame
+    // is the shape of the drawing — so this is about its width.
     expect(first.px).toBeLessThan(await page.evaluate(() =>
       document.querySelector('#app').clientWidth));
   });
@@ -295,16 +319,31 @@ test.describe('the shape of what she knows', () => {
     expect(c.find(x => x.word === 'went').well).toBe(true);
   });
 
+  /* Every line of it, not the cells alone: the hairs are a walk with a random-ish
+     wander at every step and the filaments have random-ish control points, and if
+     either came out differently on a second look the picture would be decoration
+     rather than her map. Taken at the state where all three kinds are on screen. */
   test('it is the same shape every time, or it is decoration', async ({page}) => {
     await open(page, '2026-08-01');
-    await page.evaluate(() => window.__acorn.go('parent'));
-    const first = (await cells(page)).map(c => `${c.word}:${c.x},${c.y},${c.r}`);
+    const drawn = () => page.evaluate(() =>
+      [...document.querySelectorAll('.net path')]
+        .map(p => p.getAttribute('class') + ' ' + p.getAttribute('d')));
+    await stageOf(page, 'all');
+    const first = await drawn();
+    expect(first.length).toBeGreaterThan(100);
     await page.evaluate(() => { window.__acorn.go('day'); window.__acorn.go('parent'); });
-    expect((await cells(page)).map(c => `${c.word}:${c.x},${c.y},${c.r}`)).toEqual(first);
+    expect(await drawn()).toEqual(first);
     await page.reload();
     await page.waitForFunction(() => !!window.__acorn);
     await page.evaluate(() => { window.__acorn.setToday('2026-08-01'); window.__acorn.go('parent'); });
-    expect((await cells(page)).map(c => `${c.word}:${c.x},${c.y},${c.r}`)).toEqual(first);
+    expect(await drawn()).toEqual(first);
+    // And on her first evening, where the hairs are the solo family's own.
+    await stageOf(page, 'met8');
+    const early = await drawn();
+    await page.reload();
+    await page.waitForFunction(() => !!window.__acorn);
+    await page.evaluate(() => { window.__acorn.setToday('2026-08-01'); window.__acorn.go('parent'); });
+    expect(await drawn()).toEqual(early);
   });
 
   test('learning a word moves nothing else', async ({page}) => {
@@ -378,15 +417,18 @@ test.describe('the shape of what she knows', () => {
   });
 
   /* All of the drawing has to be inside the picture — not just the cells. The
-     hairs start at the core, and on the days when her words are all on one side of
-     it the core sat outside a frame drawn round the cells: on a phone that came
-     out as five hairlines running off the bottom edge towards something you cannot
-     see, and .net{overflow:hidden} cropped them where they left. The filaments
-     bulge sideways between two cells and could leave the frame the same way.
-     Read off getBoundingClientRect, so this is where the lines are on her screen
-     and not where the code meant to put them. */
-  test('nothing is clipped by the edge of the frame', async ({page}) => {
+     hairs start at the core and end past the outermost word, and the filaments
+     bulge sideways between two cells; either can leave a frame drawn round the
+     cells alone, and .net{overflow:hidden} would crop them where they left. On a
+     phone that came out as five hairlines running off the bottom edge towards
+     something you cannot see.
+     "Show the entire network" was asked for twice, so this walks every stage she
+     will actually see rather than a couple of them. Read off getBoundingClientRect,
+     so this is where the lines are on her screen and not where the code meant to
+     put them. */
+  test('nothing is clipped by the edge of the frame, at any stage', async ({page}) => {
     await open(page, '2026-08-01');
+    await page.setViewportSize({width:375, height:667});
     const spilling = () => page.evaluate(() => {
       const box = document.querySelector('.net').getBoundingClientRect();
       return [...document.querySelectorAll('.net path')].map(p => {
@@ -399,29 +441,142 @@ test.describe('the shape of what she knows', () => {
           : null;
       }).filter(Boolean);
     });
-    // Her first evening: one list, and the core off to one side of its cells.
-    await page.evaluate(() => window.__acorn.go('parent'));
-    expect(await spilling(), 'the waiting shape spills').toEqual([]);
-    // Two lists going, some of the second met — the state the screenshot came from.
-    await page.evaluate(() => {
-      const a = window.__acorn, m = {}, seen = [];
-      a.allLists().forEach(l => a.wordsOf(l).forEach(w => { if(seen.indexOf(w) < 0) seen.push(w); }));
-      seen.slice(0, 30).forEach((w, i) => m[w] = {right:3, wrong:0, box:1 + (i % 6), lastSeen:'2026-07-20'});
-      a.state.words.mastery = m;
-      a.state.words.activeId = a.allLists()[1].id;
-      a.save(); a.go('parent');
-    });
-    expect(await spilling(), 'a half-learned map spills').toEqual([]);
-    // And the whole colony, where the filaments are.
-    await page.evaluate(() => {
-      const a = window.__acorn, m = {};
-      a.allLists().forEach(l => a.wordsOf(l).forEach(w =>
-        m[w] = {right:5, wrong:0, box:5, lastSeen:'2026-07-20'}));
-      a.state.words.mastery = m; a.save(); a.go('parent');
-    });
+    for(const stage of ['none', 'met5', 'met8', 'met30', 'all']){
+      await stageOf(page, stage);
+      expect(await spilling(), `${stage} spills`).toEqual([]);
+    }
+    // And the last of those is where the filaments are, so they were covered too.
     expect(await page.evaluate(() => document.querySelectorAll('.net-link').length))
       .toBeGreaterThan(0);
-    expect(await spilling(), 'the grown colony spills').toEqual([]);
+  });
+
+  /* "Much better — it does look more like a bunch of balloons... but thinking that
+     we crop it more tightly." The frame padded and squared up around a set that
+     covers more than is drawn, and on top of that the hairs ran from every head
+     down to the middle of the layout square — so the drawing came out long and thin
+     inside a square frame and better than half of the picture was empty. Measured
+     at the state the owner was looking at: the drawing was 44% of the frame's width.
+     It is now fitted to the shape of the drawing rather than to a square, and this
+     is the whole complaint in one number, taken over every path on the screen at
+     every stage she will see. */
+  test('the drawing fills its frame at every stage', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.setViewportSize({width:375, height:667});
+    for(const stage of ['none', 'met5', 'met8', 'met30', 'all']){
+      await stageOf(page, stage);
+      const m = await page.evaluate(() => {
+        const box = document.querySelector('.net').getBoundingClientRect();
+        const b = [...document.querySelectorAll('.net path')].map(p => p.getBoundingClientRect());
+        return {w: (Math.max(...b.map(r => r.right)) - Math.min(...b.map(r => r.left))) / box.width,
+                h: (Math.max(...b.map(r => r.bottom)) - Math.min(...b.map(r => r.top))) / box.height};
+      });
+      expect(m.w, `${stage} leaves dead margin across`).toBeGreaterThan(0.9);
+      expect(m.h, `${stage} leaves dead margin down`).toBeGreaterThan(0.9);
+    }
+  });
+
+  /* "If there is no other wordlist or group then maybe links are self contained?"
+     They were not. Every hair ran from its family's head back to the middle of the
+     layout square, which is a point the cells are laid out around and not anywhere
+     in her map — so with one list going, five long threads left the cluster of
+     words and met at a spot well below the last of them. Balloons on strings.
+     The core is now the middle of the picture, so with one family it is inside the
+     family, and the hairs run out of it to her words rather than away from them. */
+  test('one list on its own is a shape, not balloons on strings', async ({page}) => {
+    await open(page, '2026-08-01');
+    await stageOf(page, 'met8');
+    const m = await page.evaluate(() => {
+      const svg = document.querySelector('.net');
+      // Where the threads all start, on screen: the first coordinate of each path.
+      const root = [...document.querySelectorAll('.net-hair')].map(p => {
+        const s = p.getPointAtLength(0), pt = svg.createSVGPoint();
+        pt.x = s.x; pt.y = s.y;
+        const q = pt.matrixTransform(p.getScreenCTM());
+        return [q.x, q.y];
+      });
+      const cs = [...document.querySelectorAll('.net-cell')].map(c => c.getBoundingClientRect());
+      const cell = {l: Math.min(...cs.map(r => r.left)), t: Math.min(...cs.map(r => r.top)),
+                    r: Math.max(...cs.map(r => r.right)), b: Math.max(...cs.map(r => r.bottom))};
+      const longest = Math.max(...[...document.querySelectorAll('.net-hair')]
+        .map(p => p.getTotalLength()));
+      return {root: root, cell: cell, longest: longest,
+              span: Math.max(cell.r - cell.l, cell.b - cell.t)};
+    });
+    expect(m.root.length).toBeGreaterThan(3);
+    // Every thread starts among her words, not off in the empty part of the
+    // picture. Before this, the one shared start was 100px below the cluster.
+    m.root.forEach(([x, y], i) => {
+      expect(x, `hair ${i} starts left of her words`).toBeGreaterThan(m.cell.l);
+      expect(x, `hair ${i} starts right of her words`).toBeLessThan(m.cell.r);
+      expect(y, `hair ${i} starts above her words`).toBeGreaterThan(m.cell.t);
+      expect(y, `hair ${i} starts below her words`).toBeLessThan(m.cell.b);
+    });
+    // And they all share it: it is one core, not a thread each.
+    m.root.forEach(([x, y]) => {
+      expect(Math.hypot(x - m.root[0][0], y - m.root[0][1])).toBeLessThan(1);
+    });
+    // No thread is longer than the cluster is wide — a hair reaching half again as
+    // far as the drawing is what reads as a string.
+    expect(m.longest).toBeLessThan(m.span);
+  });
+
+  /* And every one of them lands on a word. A thread that stops in the open is the
+     same complaint one step smaller, so a solo family's hairs go out to the word
+     that is farthest from the middle in each direction round it and finish inside
+     its shape. Her whole first list met, so every word of it is on the screen and
+     there is nowhere for a thread to hide. */
+  test('a solo family’s hairs end on her words', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => {
+      const a = window.__acorn, m = {};
+      a.wordsOf(a.allLists()[0]).forEach(w =>
+        m[w] = {right:4, wrong:0, box:4, lastSeen:'2026-07-25'});
+      a.state.words.mastery = m; a.save(); a.go('parent');
+    });
+    const off = await page.evaluate(() => {
+      const svg = document.querySelector('.net');
+      const cs = [...document.querySelectorAll('.net-cell')].map(c => c.getBoundingClientRect());
+      return [...document.querySelectorAll('.net-hair')].map((p, i) => {
+        const e = p.getPointAtLength(p.getTotalLength()), pt = svg.createSVGPoint();
+        pt.x = e.x; pt.y = e.y;
+        const q = pt.matrixTransform(p.getScreenCTM());
+        // Inside the box of some cell, which is the shape that hides the end.
+        return cs.some(r => q.x >= r.left - 1 && q.x <= r.right + 1 &&
+                            q.y >= r.top - 1 && q.y <= r.bottom + 1)
+          ? null : i + ' ends in the open';
+      }).filter(Boolean);
+    });
+    expect(off).toEqual([]);
+  });
+
+  /* The caption promised "a hairline joins words that share a spelling chunk — or
+     is what morning, sorted and report have in common" from her first evening, and
+     there are none on the screen until she is thirty or so words in: two words that
+     share a chunk are usually far apart in the list, so both ends are rarely inside
+     the near horizon. A caption describing a picture you are not looking at is
+     worse than no caption. */
+  test('the caption never promises a hairline that is not drawn', async ({page}) => {
+    await open(page, '2026-08-01');
+    const said = async () => {
+      const sect = page.locator('.sect:has(h2:text-is("What she knows"))');
+      return {copy: await sect.innerText(),
+              links: await page.locator('.net-link').count()};
+    };
+    for(const stage of ['none', 'met5', 'met8', 'met30']){
+      await stageOf(page, stage);
+      const s = await said();
+      expect(s.links, `${stage} has filaments after all`).toBe(0);
+      expect(s.copy, `${stage} promises a hairline`).not.toMatch(/hairline/i);
+      expect(s.copy).not.toMatch(/morning/);
+      // The rest of the caption is still there.
+      expect(s.copy).toMatch(/Each frond is one spelling pattern\./);
+      expect(s.copy).toMatch(/in all on her lists/);
+    }
+    await stageOf(page, 'all');
+    const s = await said();
+    expect(s.links).toBeGreaterThan(0);
+    expect(s.copy, 'the filaments are on screen and unexplained').toMatch(/hairlines join words/);
+    expect(s.copy).toMatch(/morning, sorted and report/);
   });
 
   test('the filaments join words that share a chunk', async ({page}) => {
