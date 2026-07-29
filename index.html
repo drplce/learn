@@ -389,7 +389,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '8.3';
+var VERSION = '8.4';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1537,26 +1537,24 @@ function restoreFocus(){
    midpoints as a progress dot or a cell on her map, with three points in the ring
    instead of seven, so it is three lobes rather than three sides.
 
-   It is a sibling of cellPoints rather than a call to it, for two reasons. Laid
-   out from angle zero, three points put a lobe straight out to the right and the
-   thing reads as a pebble on its side; a seed wants the lobe pointing down.
-   And a ring of three at one radius is a rounded triangle, not a seed — the tip
-   has to reach further than the two shoulders. Neither belongs in the function
-   that draws her words, where every shape is one of a hundred in a colony and
-   none of them has an up.
+   It is a sibling of cellPoints rather than a call to it. Laid out from angle zero,
+   three points put a lobe straight out to the right and the thing lies on its
+   side; this one is turned so a lobe sits at the bottom and two carry the top.
+   That does not belong in the function that draws her words, where every shape is
+   one of a hundred in a colony and none of them has an up.
 
-   One fixed seed, so it is the same seed on every render and every reload: this
-   is her app's mark, not a shape per word. */
-var MARK_SEED = 'acorn';
+   Three near-equal lobes, chosen over a tapered seed after looking at sixteen
+   variants at the size it is actually used — 15 to 20 pixels, where anything with
+   a fine point loses it. The angles carry their own asymmetry (95, 212, 330 rather
+   than 90, 210, 330), which is why this needs no random number generator at all:
+   the jitter is in the numbers, so it is the same shape on every render and every
+   reload without having to be seeded. */
+var MARK_LOBES = [[95, 10.4], [212, 9.5], [330, 10.2]];    // degrees, then radius
 function markPoints(){
-  var rnd = seeded(MARK_SEED), n = 3, pts = [], reach = [1.24, .94, .94], i;
-  for(i = 0; i < n; i++){
-    // Math.PI/2 is straight down in SVG's coordinates: one lobe below, two above.
-    var a = Math.PI / 2 + (i / n) * Math.PI * 2 + (rnd() - .5) * 0.30;
-    var rr = 10 * reach[i] * (0.92 + rnd() * 0.16);
-    pts.push([Math.cos(a) * rr, Math.sin(a) * rr]);
-  }
-  return pts;
+  return MARK_LOBES.map(function(s){
+    var a = s[0] * Math.PI / 180;
+    return [Math.cos(a) * s[1], Math.sin(a) * s[1]];
+  });
 }
 /* Fitted to the square the outline actually fills, so the drawing meets the edges
    of the box the letters had rather than sitting inside a margin of nothing — and
