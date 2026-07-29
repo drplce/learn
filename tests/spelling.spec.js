@@ -782,6 +782,91 @@ test.describe('syllables', () => {
     expect(out.sep).toBe('sep·a·rate');
   });
 
+  // A chunk she cannot say is worse than no chunk at all. Cutting a
+  // three-consonant cluster after the first of them was leaving onsets English
+  // does not have: for·tnight, par·tner, frien·dly.
+  test('no chunk opens with a cluster nobody can say', async ({page}) => {
+    await open(page, '2026-07-28');
+    const bad = await page.evaluate(() => {
+      // Everything English will actually start a syllable with.
+      const OK = ['bl','br','cl','cr','dr','fl','fr','gl','gr','pl','pr','tr','tw','thr','shr',
+                  'ch','sh','th','ph','wh','gu','qu','sc','sk','sl','sm','sn','sp','st','sw',
+                  'dw','kn','wr','gn','str','spr','scr','spl','squ','chr','phr','rh'];
+      // A realistic school corpus: the pattern families, plus the words whose
+      // clusters are the awkward ones.
+      const ws = `fortnight partner friendly understand instead thirsty sandwich handstand
+        children monster hungry answer whistle castle bottle little middle gentle simple
+        purple angry England complete surprise strange strength scratch splendid squirrel
+        subject absent chimney orphan athlete anthem hardly kindly softly weekly monthly
+        firstly costly ghostly wildly boldly friendship partnership craftsman postman
+        witness fitness sadness darkness kindness lastly mostly justly exactly`
+        .split(/\s+/).filter(Boolean);
+      const out = [];
+      ws.forEach(w => {
+        const parts = window.__acorn.syllables(w);
+        parts.forEach((piece, n) => {
+          if(n === 0) return;
+          const onset = (piece.match(/^[^aeiouy]+/) || [''])[0];
+          if(onset.length < 2 || OK.indexOf(onset) >= 0) return;
+          // The consonant-le syllable is real and is how it is taught.
+          if(/^[^aeiouy]+le$/.test(piece)) return;
+          out.push(w + ' → ' + parts.join('·') + ' ("' + onset + '" opens a chunk)');
+        });
+      });
+      return out;
+    });
+    expect(bad).toEqual([]);
+  });
+
+  // The real corpus above only covers the clusters English happens to use. A
+  // pasted list can contain anything, so put every consonant triple through it.
+  test('no consonant cluster anywhere leaves an unsayable chunk', async ({page}) => {
+    await open(page, '2026-07-28');
+    const out = await page.evaluate(() => {
+      const OK = ['bl','br','cl','cr','dr','fl','fr','gl','gr','pl','pr','tr','tw','thr','shr',
+                  'ch','sh','th','ph','wh','gu','qu','sc','sk','sl','sm','sn','sp','st','sw',
+                  'dw','kn','wr','gn','str','spr','scr','spl','squ','chr','phr','rh'];
+      const C = 'bcdfghjklmnpqrstvwxyz'.split(''), words = [];
+      C.forEach(a => C.forEach(b => C.forEach(c => words.push('ba' + a + b + c + 'en'))));
+      const bad = {rejoin: [], vowelless: [], unsayable: []};
+      words.forEach(w => {
+        const parts = window.__acorn.syllables(w);
+        if(parts.join('') !== w) bad.rejoin.push(w);
+        if(parts.some(x => !/[aeiouy]/.test(x))) bad.vowelless.push(w + ' → ' + parts.join('·'));
+        parts.forEach((piece, n) => {
+          if(!n) return;
+          const on = (piece.match(/^[^aeiouy]+/) || [''])[0];
+          if(on.length < 2 || OK.indexOf(on) >= 0 || /^[^aeiouy]+le$/.test(piece)) return;
+          bad.unsayable.push(w + ' → ' + parts.join('·') + ' ("' + on + '")');
+        });
+      });
+      return {n: words.length, rejoin: bad.rejoin.slice(0, 5), vowelless: bad.vowelless.slice(0, 5),
+              unsayable: bad.unsayable.slice(0, 5), counts:
+                [bad.rejoin.length, bad.vowelless.length, bad.unsayable.length]};
+    });
+    expect(out.n).toBeGreaterThan(9000);
+    expect(out.unsayable).toEqual([]);        // was 7320 of these before the fix
+    expect(out.rejoin).toEqual([]);
+    expect(out.vowelless).toEqual([]);
+    expect(out.counts).toEqual([0, 0, 0]);
+  });
+
+  test('the awkward clusters land where a person would say them', async ({page}) => {
+    await open(page, '2026-07-28');
+    const got = await page.evaluate(() => {
+      const o = {};
+      ['fortnight','partner','friendly','children','monster','bottle','castle','whistle',
+       'neighbour','language','table','athlete','mother'].forEach(w => o[w] = window.__acorn.syllables(w).join('·'));
+      return o;
+    });
+    expect(got).toEqual({
+      fortnight:'fort·night', partner:'part·ner', friendly:'friend·ly',
+      // Moving those cuts must not disturb the ones that were already right.
+      children:'chil·dren', monster:'mon·ster', bottle:'bot·tle', castle:'cas·tle',
+      whistle:'whis·tle', neighbour:'neigh·bour', language:'lan·guage',
+      table:'ta·ble', athlete:'ath·lete', mother:'moth·er'});
+  });
+
   // Known limitation, kept visible: after a SHORT vowel dictionaries break after
   // the consonant (hon·est, cit·y), after a long one before it (o·pen, wa·ter).
   // Spelling alone cannot tell them apart, so the splitter picks the long form.

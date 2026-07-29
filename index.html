@@ -349,7 +349,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '7.5';
+var VERSION = '7.6';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -813,6 +813,14 @@ var DIGRAPHS = ONSET_DIGRAPHS.concat(CODA_DIGRAPHS);
 // Consonant + liquid starts a syllable (ta·ble). s-clusters do not: medially the
 // s closes the syllable before it (bas·ket, lis·ten, ques·tion).
 var ONSET_BLENDS = ['bl','br','cl','cr','dr','fl','fr','gl','gr','pl','pr','tr','tw','thr','shr'];
+// Everything English will actually start a syllable with. Not the same list:
+// ONSET_BLENDS is about where to prefer a cut, this is about whether a chunk can
+// be said at all. "tn" and "dl" are on neither, which is the whole point —
+// for·tnight and frien·dly are chunks nobody can read aloud.
+var ONSET_CLUSTERS = ONSET_BLENDS.concat(ONSET_DIGRAPHS,
+  ['gu','qu','sc','sk','sl','sm','sn','sp','st','sw','dw','kn','wr','gn',
+   'str','spr','scr','spl','squ','chr','phr']);
+function sayableOnset(c){ return c.length < 2 || ONSET_CLUSTERS.indexOf(c) >= 0; }
 var VOWEL_DIGRAPHS = ['ai','ay','ea','ee','ei','ey','ie','oa','oe','oi','oo','ou','ow','oy',
                       'ue','ui','au','aw','eu','ew','ya','ye','yo'];
 // Suffixes that are never part of a root, so the stem can always be kept whole:
@@ -904,16 +912,23 @@ function syllables(word){
     var av = groups[k][1], bv = groups[k+1][0], L = bv - av - 1;
     if(L === 1 && s[av+1] === 'x'){ cuts.push(av + 2); continue; }    // ex·am, tax·i
     if(L <= 1){ cuts.push(av + 1); continue; }                        // li·on / wa·ter
-    var pr = s.slice(av+1, av+3);
-    if(ONSET_DIGRAPHS.indexOf(pr) >= 0){ cuts.push(av + 1); continue; }   // mo·ther
-    var onset2 = s.slice(bv - 2, bv);
-    if(onset2 === 'gu' || onset2 === 'qu'){ cuts.push(bv - 2); continue; }  // lan·guage, ban·quet
-    if(CODA_DIGRAPHS.indexOf(pr) >= 0){ cuts.push(av + 3); continue; }    // neigh·bour
-    var tail = s.slice(bv - 2, bv);
-    if(ONSET_BLENDS.indexOf(tail) >= 0){ cuts.push(bv - 2); continue; }   // ta·ble
+    var pr = s.slice(av+1, av+3);        // the two after the vowel
+    var onset2 = s.slice(bv - 2, bv);    // the two before the next one
     var nx = s.slice(av+2, av+4);
-    if(L >= 3 && DIGRAPHS.indexOf(nx) >= 0){ cuts.push(av + 2); continue; }
-    cuts.push(av + 2);                                                    // hap·pen
+    var cut;
+    if(ONSET_DIGRAPHS.indexOf(pr) >= 0)          cut = av + 1;   // mo·ther
+    else if(onset2 === 'gu' || onset2 === 'qu')   cut = bv - 2;   // lan·guage, ban·quet
+    else if(CODA_DIGRAPHS.indexOf(pr) >= 0)      cut = av + 3;   // neigh·bour
+    else if(ONSET_BLENDS.indexOf(onset2) >= 0)   cut = bv - 2;   // ta·ble
+    else if(L >= 3 && DIGRAPHS.indexOf(nx) >= 0) cut = av + 2;   // an·them
+    else                                         cut = av + 2;   // hap·pen
+    // Whichever of those chose it, a cut in a three-consonant cluster can leave a
+    // chunk nobody can say: for·tnight, par·tner, frien·dly, a·thlete. Move it
+    // along until what opens the next chunk is a real onset. The consonant-le
+    // syllable is the exception — bot·tle and cas·tle are how it is taught, and
+    // "tle" is only ever the end of a word.
+    while(cut < bv - 1 && !sayableOnset(s.slice(cut, bv)) && !/^[^aeiouy]+le$/.test(s.slice(cut))) cut++;
+    cuts.push(cut);
   }
 
   var out = [], from = 0;
