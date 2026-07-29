@@ -315,6 +315,9 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 .net-link.lit{stroke:var(--acc); opacity:.4; stroke-width:.9;}
 /* Ghosted: what she has met, and a few days of what is coming, waiting to be
    filled. */
+/* The paper, painted in behind each cell so a thread passing under an empty
+   outline does not read as a line struck through it. */
+.net-plate{fill:var(--surface); stroke:none;}
 .net-cell{fill:var(--acc); fill-opacity:var(--f, 0); stroke:var(--line-2); stroke-width:.8;}
 .net-cell.met{stroke:var(--acc); stroke-opacity:.5;}
 .net-cell.well{stroke:var(--acc); stroke-opacity:1; stroke-width:1;}
@@ -392,7 +395,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '8.7';
+var VERSION = '8.8';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2431,6 +2434,18 @@ function renderNetwork(d){
         + 'C' + k.p1[0].toFixed(1) + ' ' + k.p1[1].toFixed(1) + ' '
         + k.p2[0].toFixed(1) + ' ' + k.p2[1].toFixed(1) + ' '
         + k.b.x.toFixed(1) + ' ' + k.b.y.toFixed(1) + '"/>';
+  });
+
+  /* Every cell gets the paper painted in behind it first. A word she has not met
+     yet is a hollow outline, and the hairs run under the cells to reach the words
+     they land on — so the thread showed straight through the empty ones and a faint
+     outline with a line through it reads as crossed out. Which is the opposite of
+     what an outline means here: it is a word she is coming to, not one she has
+     lost. Two paths for the same shape is cheap; the alternative is stopping the
+     threads short of the words they belong to. */
+  d.cells.forEach(function(c){
+    svg += '<path class="net-plate" aria-hidden="true" d="'
+        + cellPath(c.w, c.x, c.y, c.r) + '"/>';
   });
 
   d.cells.forEach(function(c){

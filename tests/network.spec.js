@@ -678,6 +678,55 @@ test.describe('the shape of what she knows', () => {
       .toContain(met + ' met, ' + known + ' known well');
   });
 
+  // A word she has not met is a hollow outline, and the threads run under the cells
+  // to reach the words they land on — so a thread showed straight through the empty
+  // ones, and a faint outline with a line through it reads as crossed out. Which is
+  // the opposite of what an outline means here: a word she is coming to, not one she
+  // has lost. The paper is painted in behind every cell.
+  test('a thread never reads as a line struck through a word', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.wordsOf(a.activeList()).slice(0, 8).forEach((w, i) => {
+        a.state.words.mastery[w] = {right:4, wrong:0, box: i < 3 ? 6 : 3, lastSeen:'2026-08-01'}; });
+      a.save(); a.go('parent');
+    });
+    const r = await page.evaluate(() => {
+      const svg = document.querySelector('.net');
+      const kids = [...svg.children].map(n => n.getAttribute('class') || '');
+      const plates = [...svg.querySelectorAll('.net-plate')];
+      const cells = [...svg.querySelectorAll('.net-cell')];
+      // What is actually on top in the middle of each hollow outline.
+      const over = [];
+      cells.forEach(c => {
+        if(c.classList.contains('met')) return;
+        const b = c.getBoundingClientRect();
+        const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+        over.push(hit ? (hit.getAttribute('class') || hit.tagName) : 'nothing');
+      });
+      return {
+        plates: plates.length, cells: cells.length,
+        sameShape: plates.every((p, i) => p.getAttribute('d') === cells[i].getAttribute('d')),
+        // Order: threads, then the paper, then the words.
+        lastThread: kids.reduce((n, c, i) => /net-(hair|link)/.test(c) ? i : n, -1),
+        firstPlate: kids.findIndex(c => /net-plate/.test(c)),
+        firstCell: kids.findIndex(c => /net-cell/.test(c)),
+        plateFill: getComputedStyle(plates[0]).fill,
+        surface: getComputedStyle(document.documentElement).getPropertyValue('--surface').trim(),
+        over: [...new Set(over)],
+        hollow: over.length,
+      };
+    });
+    expect(r.hollow, 'this state should have hollow outlines to test').toBeGreaterThan(2);
+    expect(r.plates).toBe(r.cells);
+    expect(r.sameShape, 'the paper is the same shape as the word').toBe(true);
+    expect(r.lastThread).toBeLessThan(r.firstPlate);
+    expect(r.firstPlate).toBeLessThan(r.firstCell);
+    // Nothing but the word or its paper is on top in the middle of a hollow outline.
+    expect(r.over.filter(c => /net-(hair|link)/.test(c)), 'a thread shows through').toEqual([]);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
   // role="img" is meant to make an image's children presentational, but no
   // browser prunes SVG shapes that carry a <title> — so a hundred cells became a
   // hundred nodes, and a screen reader read the whole word list out in layout
