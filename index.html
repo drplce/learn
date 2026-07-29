@@ -10,6 +10,16 @@
 <meta name="apple-mobile-web-app-title" content="Acorn">
 <meta name="theme-color" content="#FBF6EC" media="(prefers-color-scheme:light)">
 <meta name="theme-color" content="#22242A" media="(prefers-color-scheme:dark)">
+<!-- The one file this app cannot inline. iOS does not reliably honour a data: URI
+     for apple-touch-icon, so the tile has to be a real PNG next to this page — and
+     it has to be fully opaque, because iOS composites transparency to black and
+     applies its own rounded mask, so square corners and no alpha channel.
+     It is her word map: five word-shapes from her own lists, one of them left as an
+     outline, which is what the map looks like part-way through.
+     iOS snapshots this when the shortcut is created and never re-fetches it, so
+     changing it here does nothing to a phone that already has the app on its Home
+     Screen — that needs the shortcut deleted and added again. -->
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="description" content="A calm spelling practice app.">
 <style>
 /* ===========================================================
@@ -399,7 +409,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '8.9';
+var VERSION = '9.0';
 var KEY = 'acorn.v1';
 
 /* =========================================================
