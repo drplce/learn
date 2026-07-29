@@ -1603,7 +1603,13 @@ loadClips(); render(); },
   voicesChanged: voicesChanged, holdKeyboard: holdKeyboard,
   // Tests drive the clip index directly rather than depending on what happens to
   // be recorded in the repo at the time.
-  setClips: function(list, ext){ CLIPS = list || []; if(ext) CLIP_EXT = ext; loadClips(); },
+  // Changing the clip set invalidates the element holding the old one, in flight
+  // or not. Without this a test's stub is never reached: the app plays a word as
+  // soon as it opens, so a real element already exists by then.
+  setClips: function(list, ext){
+    stopClips(); _clipEl = null;
+    CLIPS = list || []; if(ext) CLIP_EXT = ext; loadClips();
+  },
   clipFor: clipFor,
   start: start, check: check, next: next, paceLabel: paceLabel, announce: announce,
   // Enough of a handle to drive a whole session from a script — the

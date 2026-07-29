@@ -82,12 +82,17 @@ const played = page => page.evaluate(() =>
 test.describe('the pre-recorded voice', () => {
 
   const CLIPS = ['because', 'be', 'cause', 'said'];
+  // The extension is pinned so these tests do not change meaning when real
+  // recordings land in the repo with a different one.
+  const EXT = '.mp3';
+  const setClips = (page, list = CLIPS) =>
+    page.evaluate(o => window.__acorn.setClips(o.list, o.ext), {list, ext: EXT});
 
   test('a recorded word is played instead of the phone voice', async ({page}) => {
     await open(page, '2026-08-01');
     await listen(page, AU);
     await watchAudio(page);
-    await page.evaluate(c => window.__acorn.setClips(c), CLIPS);
+    await setClips(page);
     await startOn(page, ['because','rain','boat']);
     expect(await played(page)).toEqual([{src:'because.mp3', rate:1}]);
     expect(await spoken(page)).toEqual([]);            // the synthesiser stayed quiet
@@ -97,7 +102,7 @@ test.describe('the pre-recorded voice', () => {
     await open(page, '2026-08-01');
     await listen(page, AU);
     await watchAudio(page);
-    await page.evaluate(c => window.__acorn.setClips(c), CLIPS);
+    await setClips(page);
     await startOn(page, ['rain','boat','light']);       // none of these are recorded
     expect(await played(page)).toEqual([]);
     expect((await spoken(page)).map(u => u.text)).toEqual(['rain']);
@@ -107,7 +112,7 @@ test.describe('the pre-recorded voice', () => {
     await open(page, '2026-08-01');
     await listen(page, AU);
     await watchAudio(page);
-    await page.evaluate(c => window.__acorn.setClips(c), CLIPS);
+    await setClips(page);
     await startOn(page, ['because','rain','boat']);
     await page.locator('#cover').click();
     await page.locator('#type').fill('becuase');
@@ -128,7 +133,7 @@ test.describe('the pre-recorded voice', () => {
     await watchAudio(page);
     // The word is recorded but "cause" is not: mixing a studio voice and a
     // synthetic one in a single breath sounds worse than either.
-    await page.evaluate(() => window.__acorn.setClips(['because','be']));
+    await setClips(page, ['because','be']);
     await startOn(page, ['because','rain','boat']);
     await page.locator('#cover').click();
     await page.locator('#type').fill('becuase');
@@ -142,7 +147,7 @@ test.describe('the pre-recorded voice', () => {
     await open(page, '2026-08-01');
     await listen(page, AU);
     await watchAudio(page, {failing: true});           // offline, or a bad deploy
-    await page.evaluate(c => window.__acorn.setClips(c), CLIPS);
+    await setClips(page);
     await startOn(page, ['because','rain','boat']);
     await page.waitForFunction(() => window.__spoken.length > 0, null, {timeout:3000});
     expect((await spoken(page)).map(u => u.text)).toEqual(['because']);
@@ -152,7 +157,7 @@ test.describe('the pre-recorded voice', () => {
     await open(page, '2026-08-01');
     await listen(page, AU);
     await watchAudio(page);
-    await page.evaluate(c => window.__acorn.setClips(c), CLIPS);
+    await setClips(page);
     for(const [rate, faster] of [[0.7, false], [1.1, true]]){
       await page.evaluate(r => { window.__acorn.state.settings.speechRate = r;
                                  window.__acorn.save(); window.__played = []; }, rate);
@@ -167,10 +172,10 @@ test.describe('the pre-recorded voice', () => {
     await open(page, '2026-08-01');
     await listen(page, AU);
     await watchAudio(page);
-    await page.evaluate(c => {
-      window.__acorn.setClips(c);
+    await setClips(page);
+    await page.evaluate(() => {
       window.__acorn.state.settings.readAloud = false; window.__acorn.save();
-    }, CLIPS);
+    });
     await startOn(page, ['because','rain','boat']);
     expect(await played(page)).toEqual([]);
     // but an explicit tap still plays the recording
@@ -180,7 +185,7 @@ test.describe('the pre-recorded voice', () => {
 
   test('the filename rule matches the one the generator uses', async ({page}) => {
     await open(page, '2026-08-01');
-    await page.evaluate(() => window.__acorn.setClips(["o'clock", 'well-known', 'every word counts.']));
+    await setClips(page, ["o'clock", 'well-known', 'every word counts.']);
     const paths = await page.evaluate(() =>
       ["o'clock", 'well-known', 'every word counts.'].map(t => window.__acorn.clipFor(t)));
     // The extension is whatever the recording provider produced — mp3 from the
@@ -190,14 +195,31 @@ test.describe('the pre-recorded voice', () => {
     expect(paths.every(p => /\.(mp3|m4a)$/.test(p))).toBe(true);
   });
 
+  test('the app plays a clip as soon as it opens, with the real recordings',
+    async ({page}) => {
+      // Not a stub: whatever is actually committed. She should hear her first
+      // word without touching anything, and this is also why a stub installed
+      // after boot never sees the element unless the clip set is reset.
+      const asked = [];
+      page.on('request', r => { if(/\/audio\//.test(r.url())) asked.push(r.url().replace(/^.*\//, '')); });
+      await open(page, '2026-08-01');
+      const recorded = await page.evaluate(() => window.__acorn.clipFor('said'));
+      if(!recorded) return;                     // nothing recorded in the repo yet
+      await page.waitForTimeout(200);
+      expect(asked.length, 'no clip was requested on opening').toBeGreaterThan(0);
+    });
+
   test('the recorded extension is whatever the generator wrote', async ({page}) => {
     await open(page, '2026-08-01');
-    const ext = await page.evaluate(() => {
+    // Whatever the generated line in index.html currently says.
+    const ext = await page.evaluate(() =>
+      window.__acorn.clipFor(window.__acorn.state.words ? 'said' : 'said'));
+    const real = await page.evaluate(() => {
       window.__acorn.setClips(['said']);
       return window.__acorn.clipFor('said').replace(/^.*\./, '.');
     });
     // Both are played natively by Safari; the generated line in index.html says which.
-    expect(['.mp3', '.m4a']).toContain(ext);
+    expect(['.mp3', '.m4a']).toContain(real);
   });
 });
 
