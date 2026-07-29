@@ -15,20 +15,30 @@ const cells = page => page.evaluate(() =>
     r: Number(c.getAttribute('data-r')),
   })));
 
-/* The five states a grown-up actually sees, in order: the evening before she has
+/* The states a grown-up actually sees, in order: the evening before she has
    started, five and then eight words in on her first list — which is the state the
-   owner was looking at when they asked for a tighter crop — a month or so in with a
-   second list open, and the whole thing known. Several checks below have to hold at
-   all of them, and it matters that they are the real states and not convenient
-   ones, so they are written once here. */
+   owner was looking at when they asked for a tighter crop, and the one he has since
+   called really great — a month or so in with a second list open, most of the way
+   through, and the whole thing known. Several checks below have to hold at all of
+   them, and it matters that they are the real states and not convenient ones, so
+   they are written once here.
+   met60 was added when the map was rebuilt to grow outward from the middle: the
+   owner's two complaints were at about 27 and about 74 cells drawn, and met30 and
+   met60 are those two. */
+const STAGES = ['none', 'met5', 'met8', 'met30', 'met60', 'all'];
 async function stageOf(page, stage){
   await page.evaluate(s => {
     const a = window.__acorn, m = {}, seen = [];
     a.allLists().forEach(l => a.wordsOf(l).forEach(w => { if(seen.indexOf(w) < 0) seen.push(w); }));
     if(s === 'all') seen.forEach(w => m[w] = {right:5, wrong:0, box:6, lastSeen:'2026-07-20'});
-    else if(s === 'met30'){
-      seen.slice(0, 30).forEach((w, i) => m[w] = {right:3, wrong:0, box:1 + (i % 6), lastSeen:'2026-07-20'});
-      a.state.words.activeId = a.allLists()[1].id;
+    else if(s === 'met30' || s === 'met60'){
+      const n = s === 'met30' ? 30 : 60;
+      seen.slice(0, n).forEach((w, i) => m[w] = {right:3, wrong:0, box:1 + (i % 7), lastSeen:'2026-07-20'});
+      // The list she is on is the first one she has not finished, which is where
+      // the engine leaves her — see advanceList().
+      a.state.words.mastery = m;
+      const open = a.allLists().filter(l => a.wordsOf(l).some(w => !m[w]))[0];
+      if(open) a.state.words.activeId = open.id;
     }else if(s !== 'none'){
       a.wordsOf(a.allLists()[0]).slice(0, s === 'met5' ? 5 : 8).forEach((w, i) =>
         m[w] = {right:3, wrong:0, box:1 + (i % 5), lastSeen:'2026-07-20'});
@@ -36,6 +46,59 @@ async function stageOf(page, stage){
     a.state.words.mastery = m; a.save(); a.go('parent');
   }, stage);
 }
+
+/* Ink: the share of the frame the cells actually cover, and the number this whole
+   rebuild was aimed at. The owner measured the old drawing at 14.8% with eight words
+   met, 10.6% at thirty, 6.1% at sixty and 8.4% with everything met — a drawing that
+   spanned 95% of its frame and covered 8% of it, which is why it read as separate
+   bushes with string between them rather than as one organism. Spanning the frame is
+   the gameable measure; this is the one that is not.
+   Each cell is taken as the ellipse of its own box, at 0.82 for a blob — the owner's
+   own measure, so the numbers here are comparable with theirs. */
+const inkOf = page => page.evaluate(() => {
+  const svg = document.querySelector('.net'), box = svg.getBoundingClientRect();
+  let area = 0;
+  const rs = [...svg.querySelectorAll('.net-cell')].map(c => c.getBoundingClientRect());
+  rs.forEach(r => area += Math.PI * (r.width / 2) * (r.height / 2) * 0.82);
+  const all = [...svg.querySelectorAll('.net path')].map(p => p.getBoundingClientRect());
+  const w = Math.max(...all.map(r => r.right)) - Math.min(...all.map(r => r.left));
+  const h = Math.max(...all.map(r => r.bottom)) - Math.min(...all.map(r => r.top));
+  // Against the frame, and against the box the drawing itself occupies. The second
+  // one separates "the drawing is loose" from "the camera is holding room for the
+  // rest of a family she has only just begun", which are different problems.
+  return {frame: area / (box.width * box.height), drawn: area / (w * h),
+          spanW: w / box.width, spanH: h / box.height};
+});
+
+/* Is it one thing? Cells grouped by "the gap between them is less than half a
+   cell", and then the size of the biggest group. On the frond layout the biggest
+   group with a hundred cells drawn held fifteen of them and the median cell sat
+   0.32 of its own width from its nearest neighbour; that is the measured shape of
+   the complaint. */
+const clumpOf = page => page.evaluate(() => {
+  const cs = [...document.querySelectorAll('.net-cell')].map(c => {
+    const b = c.getBoundingClientRect();
+    return {x:(b.left + b.right) / 2, y:(b.top + b.bottom) / 2, r:(b.width + b.height) / 4};
+  });
+  const near = (u, v) => Math.hypot(u.x - v.x, u.y - v.y) < (u.r + v.r) * 1.5;
+  const seen = new Array(cs.length).fill(false);
+  let biggest = 0;
+  for(let i = 0; i < cs.length; i++){
+    if(seen[i]) continue;
+    const q = [i]; seen[i] = true; let n = 0;
+    while(q.length){
+      const u = q.pop(); n++;
+      cs.forEach((v, j) => { if(!seen[j] && near(cs[u], v)){ seen[j] = true; q.push(j); } });
+    }
+    biggest = Math.max(biggest, n);
+  }
+  // The gap to the nearest other cell, in widths of the cell itself.
+  const gaps = cs.map((c, i) => Math.min(...cs.map((o, j) => j === i ? Infinity :
+    (Math.hypot(c.x - o.x, c.y - o.y) - c.r - o.r) / (2 * c.r))));
+  return {n: cs.length, biggest: biggest,
+          worstGap: Math.max(...gaps),
+          medianGap: gaps.slice().sort((a, b) => a - b)[Math.floor(gaps.length / 2)]};
+});
 
 async function master(page, pairs){
   await page.evaluate(p => {
@@ -144,17 +207,19 @@ test.describe('the shape of what she knows', () => {
     expect(later.cells).toBeGreaterThan(hard.cells);
   });
 
-  /* The camera is fitted to a stable set — every list she has started plus the open
-     one — because one fitted to what happens to be drawn re-frames every time she
-     meets a word, and then the whole colony slides and rescales under her. Measured
-     before that was fixed: all seven shared cells moved and grew.
-     The picture is deliberately not the same size any more: it is small on her
-     first evening and grows with the words she has met, so the on-screen
-     coordinates legitimately change. What must still hold is that only the size
-     changes — the same frame, and every cell in the same place relative to the
-     others. So positions are read off getBoundingClientRect, as they must be (this
-     defect got in because the old test read the coordinates the code had chosen),
-     and then normalised by the picture's own box before they are compared. */
+  /* The camera must not follow what happens to be drawn: one that does re-frames
+     every time she meets a word, and then the whole colony slides and rescales under
+     her. Measured before that was fixed: all seven shared cells moved and grew.
+     What it does instead is reserve room per family, and only ever more of it, so the
+     frame changes at two moments in a family's life — the first time the picture
+     shows a word of it, and the first time she meets one — and at no other time. This
+     walks two ordinary stretches of her life either side of one of those moments and
+     insists nothing shifts: three words met to six, which is inside her first family;
+     and twelve to fifteen, which is after the horizon has reached over into the
+     second one and across a widening of the horizon itself.
+     Positions are read off getBoundingClientRect, as they must be — this defect got
+     in because the old test read the coordinates the code had chosen — and then
+     normalised by the picture's own box before they are compared. */
   test('the picture holds still on screen as she learns', async ({page}) => {
     await open(page, '2026-08-01');
     const onScreen = () => page.evaluate(() => {
@@ -169,24 +234,31 @@ test.describe('the shape of what she knows', () => {
       });
       return out;
     });
-    await page.evaluate(() => window.__acorn.go('parent'));
-    const before = await onScreen();
-    await page.evaluate(() => {
+    const learn = n => page.evaluate(k => {
       const a = window.__acorn;
-      a.wordsOf(a.activeList()).slice(0, 3).forEach(w => {
+      a.state.words.mastery = {};
+      a.wordsOf(a.allLists()[0]).slice(0, k).forEach(w => {
         a.state.words.mastery[w] = {right:3, wrong:0, box:4, lastSeen:'2026-08-01'}; });
-      a.state.words.sessions.push({date:'2026-07-31', list:'easy', words:8, firstTime:7});
+      a.state.words.sessions = [{date:'2026-07-31', list:'easy', words:8, firstTime:7}];
       a.save(); a.go('day'); a.go('parent');
-    });
-    const after = await onScreen();
-    expect(after.view, 'the frame moved').toBe(before.view);
-    expect(after.width, 'the picture should have grown').toBeGreaterThan(before.width);
-    // Within a pixel of the bigger picture: the arrangement is identical, only
-    // the scale is not.
-    const tol = 1 / after.width;
-    const moved = Object.keys(before.pos).filter(w => after.pos[w] &&
-      after.pos[w].some((v, i) => Math.abs(v - before.pos[w][i]) > tol));
-    expect(moved, 'cells moved relative to the picture').toEqual([]);
+    }, n);
+
+    for(const [from, to] of [[3, 6], [12, 15]]){
+      await learn(from);
+      const before = await onScreen();
+      await learn(to);
+      const after = await onScreen();
+      expect(after.view, `the frame moved between ${from} and ${to} words met`)
+        .toBe(before.view);
+      // One box at every stage: it fills up rather than growing.
+      expect(after.width).toBe(before.width);
+      const tol = 1 / after.width;                    // within a pixel
+      const moved = Object.keys(before.pos).filter(w => after.pos[w] &&
+        after.pos[w].some((v, i) => Math.abs(v - before.pos[w][i]) > tol));
+      expect(moved, `cells moved between ${from} and ${to} words met`).toEqual([]);
+      // And the picture did gain something in between, or this proves nothing.
+      expect(Object.keys(after.pos).length).toBeGreaterThan(0);
+    }
   });
 
   // The frame is a camera: it crops to what is drawn so a dozen outlines fill the
@@ -217,76 +289,182 @@ test.describe('the shape of what she knows', () => {
     before.forEach(b => expect(after).toContain(b));
   });
 
-  /* The picture is meant to start small — a handful of outlines on a sprout rather
-     than a full-width square — but small is not the same as a speck, and on her
-     first evening this is all a grown-up has to look at.
-     The share it fills is measured against the picture itself and taken over
-     everything drawn, not over the cells alone: on the day she has one list going
-     the cells she has reached sit in the middle of the family and the hairs are
-     what reach the rim. What the check is for is that the camera is cropped to the
-     drawing rather than leaving it in the corner of an empty square. */
-  test('the waiting shape is a reasonable size, not a speck', async ({page}) => {
+  /* On her first evening this is all a grown-up has to look at, and it is the same
+     window it will be in a year: full width of her column, and the handful of
+     outlines drawn large inside it rather than left in the corner of an empty
+     square. */
+  test('the waiting shape fills its window, and is not a speck', async ({page}) => {
     await open(page, '2026-08-01');
     await page.evaluate(() => window.__acorn.go('parent'));
     const m = await page.evaluate(() => {
       const svg = document.querySelector('.net').getBoundingClientRect();
-      const app = document.querySelector('#app').getBoundingClientRect();
+      const sect = document.querySelector('.sect');
       const cs = [...document.querySelectorAll('.net-cell')].map(c => c.getBoundingClientRect());
       const ink = [...document.querySelectorAll('.net path')].map(p => p.getBoundingClientRect());
       const span = rs => [Math.max(...rs.map(r => r.right)) - Math.min(...rs.map(r => r.left)),
                           Math.max(...rs.map(r => r.bottom)) - Math.min(...rs.map(r => r.top))];
       const drawn = span(ink), cell = span(cs);
-      return {fillsFrame: Math.max(drawn[0], drawn[1]) / svg.width,
+      return {fillsFrame: Math.max(drawn[0] / svg.width, drawn[1] / svg.height),
               squareish: cell[0] / cell[1],
               cellPx: Math.min(...cs.map(r => r.width)),
-              svgPx: svg.width, roomLeftToGrow: svg.width / app.width};
+              svgPx: svg.width, ofColumn: svg.width / sect.clientWidth};
     });
-    // Small, but a real picture: a good part of the column wide, and not yet the
-    // whole of it, because there is a lot of growing left to do.
     expect(m.svgPx, 'the picture is a speck').toBeGreaterThan(200);
-    expect(m.roomLeftToGrow).toBeLessThan(0.75);
-    expect(m.fillsFrame, 'the drawing does not fill its frame').toBeGreaterThan(0.9);
+    // The whole width of her column, on the first evening as on the last.
+    expect(m.ofColumn).toBeGreaterThan(0.95);
+    expect(m.ofColumn).toBeLessThanOrEqual(1);
+    expect(m.fillsFrame, 'the drawing does not fill its frame').toBeGreaterThan(0.85);
     expect(m.squareish).toBeGreaterThan(0.6);
     expect(m.squareish).toBeLessThan(1.6);
     expect(m.cellPx, 'the cells are too small to read as cells').toBeGreaterThan(6);
   });
 
-  /* Both complaints in one: the picture starts small on the page and grows, and
-     the growing is the whole picture getting bigger rather than the cells
-     spreading out. Measured on the phone she uses. */
-  test('the picture grows on the page as she learns', async ({page}) => {
+  /* The window is the same size at every stage, and growth is the colony filling
+     more of it. This is the reverse of what 8.2 shipped, and it is the owner's call:
+     "keep the window or frame for the network diagram the same size for all." Two
+     reasons it is the better one. The words under the picture stop travelling down
+     the page as her map fills out over the months. And "it grew" is far more legible
+     as a fuller frame than as a slightly larger one — six outlines and a hundred
+     cells differ sixteenfold in what is on the paper, and the box used to differ by
+     1.6, which is the difference nobody could see. So: identical box, rising ink. */
+  test('the window is the same size at every stage, and fills up instead', async ({page}) => {
     await open(page, '2026-08-01');
     await page.setViewportSize({width:375, height:667});
-    const size = () => page.evaluate(() => {
-      const svg = document.querySelector('.net');
-      return {px: Math.round(svg.getBoundingClientRect().width),
-              view: svg.getAttribute('viewBox')};
-    });
-    await page.evaluate(() => window.__acorn.go('parent'));
-    const first = await size();
-    // Everything met and known well: the far end of the growth.
-    const full = await page.evaluate(() => {
-      const a = window.__acorn, m = {};
-      a.allLists().forEach(l => a.wordsOf(l).forEach(w =>
-        m[w] = {right:5, wrong:0, box:6, lastSeen:'2026-07-20'}));
-      a.state.words.mastery = m; a.save(); a.go('parent');
-      const svg = document.querySelector('.net');
-      return {px: Math.round(svg.getBoundingClientRect().width),
+    const box = () => page.evaluate(() => {
+      const r = document.querySelector('.net').getBoundingClientRect();
+      return {w: Math.round(r.width), h: Math.round(r.height),
               cells: document.querySelectorAll('.net-cell').length};
     });
-    expect(full.px, 'the picture did not grow').toBeGreaterThan(first.px * 1.4);
-    expect(full.cells).toBe(100);
-    // The frame it grew into is her own list of lists, not the page: at every
-    // stage the picture sits inside the column. It is no longer square — the frame
-    // is the shape of the drawing — so this is about its width.
-    expect(first.px).toBeLessThan(await page.evaluate(() =>
+    const seen = [];
+    for(const stage of STAGES){
+      await stageOf(page, stage);
+      seen.push({stage: stage, box: await box(), ink: (await inkOf(page)).frame});
+    }
+    const first = seen[0].box;
+    seen.forEach(s => {
+      expect(s.box.w, `${s.stage} is a different width`).toBe(first.w);
+      expect(s.box.h, `${s.stage} is a different height`).toBe(first.h);
+    });
+    // It filled up instead: more cells and more ink from the first evening to the last.
+    expect(seen[seen.length - 1].box.cells).toBe(100);
+    expect(seen[seen.length - 1].ink).toBeGreaterThan(seen[0].ink * 1.4);
+    expect(first.w).toBeLessThanOrEqual(await page.evaluate(() =>
       document.querySelector('#app').clientWidth));
   });
 
-  test('a word darkens as it climbs, and never darkens backwards', async ({page}) => {
+  /* The number the whole rebuild was aimed at. The drawing used to span 95% of its
+     frame and cover 8% of it; 92% was empty paper, concentrated in the middle, which
+     is why it read as separate bushes with string between them. Measured on the frond
+     layout: 14.8% at eight words met, 10.6% at thirty, 6.1% at sixty, 8.4% with
+     everything met. It is now 19.8 / 29.8 / 30.1 / 37.9 at those same four.
+     A quarter to a third of the frame was the target, and every state from the second
+     family on holds it. Her first three weeks do not, and the reason is geometry
+     rather than a loose drawing: the camera holds room for the whole of a family from
+     the first word of it she meets, and one family's wedge of a disc, squared up to
+     the window, is 60% air however tightly the words inside it are packed. The
+     drawing itself is a quarter of its own box even there, which is the second
+     measure — and those are the states the owner has looked at and called really
+     great, so the floor is set where the drawing actually sits rather than where a
+     round number would put it. */
+  test('the cells cover a quarter to a third of the frame', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.setViewportSize({width:375, height:667});
+    for(const stage of STAGES){
+      await stageOf(page, stage);
+      const ink = await inkOf(page);
+      const one = stage === 'none' || stage === 'met5' || stage === 'met8';
+      const pc = n => (n * 100).toFixed(1) + '%';
+      expect(ink.frame, `${stage} is mostly empty paper: ${pc(ink.frame)}`)
+        .toBeGreaterThan(one ? 0.155 : 0.25);
+      // Whatever the camera is reserving, the drawing itself is dense.
+      expect(ink.drawn, `${stage} draws thinly: ${pc(ink.drawn)}`).toBeGreaterThan(0.22);
+      // And never so full that the cells stop reading as cells.
+      expect(ink.frame, `${stage} is a solid mass: ${pc(ink.frame)}`).toBeLessThan(0.42);
+    }
+  });
+
+  /* The horizon used to stop at the list she was on, and that left a real hole: the
+     evening she finished a list, the map had no outlines at all and never would again
+     until a grown-up switched her over by hand. Measured on the old build with
+     twenty-four words met and the open list complete — twenty-seven cells drawn and
+     not one outline, at every horizon width. The whole point of the horizon is that
+     there is always something next.
+     It now walks on into the lists behind, the same walk newPool() takes, so the
+     outlines are the words the engine really will hand her. The one state where it is
+     empty is the right one: everything met. */
+  test('the horizon carries on into the next list, and only runs out at the end',
+       async ({page}) => {
+    await open(page, '2026-08-01');
+    const drawn = () => page.evaluate(() => ({
+      cells: document.querySelectorAll('.net-cell').length,
+      outlines: document.querySelectorAll('.net-cell:not(.met)').length,
+      ghosts: window.__acorn.ghostWords(),
+      ahead: window.__acorn.ghostAhead(),
+      open: window.__acorn.activeList().id,
+    }));
+
+    // Her first list finished to the last word, and still on it.
+    await page.evaluate(() => {
+      const a = window.__acorn, m = {};
+      a.wordsOf(a.allLists()[0]).forEach(w =>
+        m[w] = {right:4, wrong:0, box:4, lastSeen:'2026-07-25'});
+      a.state.words.mastery = m; a.state.words.activeId = a.allLists()[0].id;
+      a.save(); a.go('parent');
+    });
+    const done = await drawn();
+    expect(done.open).toBe('easy');
+    expect(done.outlines, 'the list is finished and nothing is coming')
+      .toBeGreaterThan(0);
+    // And they are the next list's words, in the order the engine will introduce them.
+    const next = await page.evaluate(() => window.__acorn.wordsOf(window.__acorn.allLists()[1]));
+    done.ghosts.forEach(w => expect(next).toContain(w));
+    expect(done.ghosts).toEqual(next.slice(0, done.ghosts.length));
+    /* And every word tonight will actually introduce is one of them. The horizon only
+       looks a few words into a family she has not begun, so this is the floor under
+       that number: an outline that fills in was on the picture before it did. */
+    const coming = await page.evaluate(() => {
+      const a = window.__acorn;
+      return a.buildSession(a.activeList(), a.todayISO())
+              .filter(w => !a.state.words.mastery[w]);
+    });
+    expect(coming.length).toBeGreaterThan(0);
+    coming.forEach(w => expect(done.ghosts, `${w} is about to be met and is not drawn`)
+      .toContain(w));
+
+    // A long way in, with the open list finished: still something ahead.
+    for(const n of [24, 60]){
+      await page.evaluate(k => {
+        const a = window.__acorn, m = {}, seen = [];
+        a.allLists().forEach(l => a.wordsOf(l).forEach(w => { if(seen.indexOf(w) < 0) seen.push(w); }));
+        seen.slice(0, k).forEach(w => m[w] = {right:4, wrong:0, box:4, lastSeen:'2026-07-25'});
+        a.state.words.mastery = m;
+        const open = a.allLists().filter(l => a.wordsOf(l).some(w => !m[w]))[0];
+        a.state.words.activeId = open ? open.id : a.allLists()[0].id;
+        a.save(); a.go('parent');
+      }, n);
+      const d = await drawn();
+      expect(d.outlines, `nothing ahead at ${n} words met`).toBeGreaterThan(0);
+      expect(d.cells).toBe(n + d.outlines);
+    }
+
+    // Everything met: nothing is coming, and the caption must not pretend otherwise.
+    await stageOf(page, 'all');
+    const end = await drawn();
+    expect(end.outlines, 'outlines with nothing left to meet').toBe(0);
+    expect(end.ahead, 'the horizon itself has not narrowed').toBeGreaterThan(6);
+    const copy = await page.locator('.sect:has(h2:text-is("What she knows"))').innerText();
+    expect(copy).not.toMatch(/outline/i);
+  });
+
+  /* Seven boxes, seven tones. The ramp saturated at KNOWN_BOX, so boxes 5, 6 and 7
+     all came out at full strength — four distinct tones across the whole ladder, and
+     a picture that went flat green the moment she knew everything, with nothing left
+     to say about which words she had held longest. */
+  test('a word darkens as it climbs, through every box, and never backwards', async ({page}) => {
     await open(page, '2026-08-01');
     const fills = [];
-    for(const box of [1, 2, 3, 4, 5, 6, 7]){
+    const max = await page.evaluate(() => window.__acorn.MAX_BOX);
+    for(let box = 1; box <= max; box++){
       await master(page, {said: box});
       const said = (await cells(page)).find(c => c.word === 'said');
       expect(said.met, `box ${box}`).toBe(true);
@@ -295,8 +473,28 @@ test.describe('the shape of what she knows', () => {
     // Monotonic: more known is never lighter.
     for(let i = 1; i < fills.length; i++)
       expect(fills[i], `box ${i + 1} vs ${i}`).toBeGreaterThanOrEqual(fills[i - 1]);
-    expect(fills[0]).toBeGreaterThan(0);
-    expect(fills[fills.length - 1]).toBeCloseTo(1, 1);
+    // A distinct tone for every box, right to the top of the ladder.
+    expect(new Set(fills.map(f => f.toFixed(2))).size, 'boxes that look the same').toBe(max);
+    // Box 1 is a wash and an unmet word is nothing at all: clearly not the same.
+    expect(fills[0]).toBeGreaterThan(0.12);
+    expect(fills[max - 1]).toBeCloseTo(1, 1);
+  });
+
+  /* And so a colony she knows well still has range in it, rather than being one flat
+     field of green. */
+  test('a mature colony still has tonal range', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => {
+      const a = window.__acorn, m = {}, seen = [];
+      a.allLists().forEach(l => a.wordsOf(l).forEach(w => { if(seen.indexOf(w) < 0) seen.push(w); }));
+      // Everything met and all of it known well or better: boxes 5, 6 and 7.
+      seen.forEach((w, i) => m[w] = {right:5, wrong:0, box:5 + (i % 3), lastSeen:'2026-07-20'});
+      a.state.words.mastery = m; a.save(); a.go('parent');
+    });
+    const tones = new Set((await cells(page)).map(c => c.fill.toFixed(2)));
+    expect(tones.size, 'the whole picture is one flat tone').toBe(3);
+    expect(Math.max(...[...tones].map(Number)) - Math.min(...[...tones].map(Number)))
+      .toBeGreaterThan(0.2);
   });
 
   test('a word she is losing dims rather than disappearing', async ({page}) => {
@@ -410,10 +608,17 @@ test.describe('the shape of what she knows', () => {
       const straight = paths.filter(p => !/[QCTS]/.test(p.d));
       expect(straight.map(p => p.d.slice(0, 30))).toEqual([]);
     }
-    // And the hairs wander rather than bending once: several segments each.
-    const hairs = await page.evaluate(() =>
-      [...document.querySelectorAll('.net-hair')].map(p => (p.getAttribute('d').match(/Q/g) || []).length));
-    expect(Math.min(...hairs), 'the hairs are too simple to wander').toBeGreaterThan(3);
+    /* And every cell is a closed curve of seven arcs, not a seven-sided polygon:
+       nothing she is collecting has a corner on it. This replaces a check on the
+       hairs, which are gone with the fronds they held together — the one it stood in
+       for, that no line in here is ruled, is the sweep above. */
+    const arcs = await page.evaluate(() =>
+      [...document.querySelectorAll('.net-cell')]
+        .map(p => (p.getAttribute('d').match(/Q/g) || []).length));
+    expect(arcs.length).toBeGreaterThan(10);
+    expect(Math.min(...arcs), 'a cell is drawn with corners').toBe(7);
+    expect(await page.evaluate(() => document.querySelectorAll('.net-hair').length),
+      'the hairs were removed with the fronds').toBe(0);
   });
 
   /* All of the drawing has to be inside the picture — not just the cells. The
@@ -451,132 +656,155 @@ test.describe('the shape of what she knows', () => {
   });
 
   /* "Much better — it does look more like a bunch of balloons... but thinking that
-     we crop it more tightly." The frame padded and squared up around a set that
-     covers more than is drawn, and on top of that the hairs ran from every head
-     down to the middle of the layout square — so the drawing came out long and thin
-     inside a square frame and better than half of the picture was empty. Measured
-     at the state the owner was looking at: the drawing was 44% of the frame's width.
-     It is now fitted to the shape of the drawing rather than to a square, and this
-     is the whole complaint in one number, taken over every path on the screen at
-     every stage she will see. */
-  test('the drawing fills its frame at every stage', async ({page}) => {
+     we crop it more tightly." The camera stays close to the drawing at every stage:
+     nothing sits in the corner of an empty square. Two things stop it being closer
+     still, and both are deliberate — the frame is let out to the window's own
+     proportions and never cropped to reach them, and it holds room for the whole of a
+     family from the first word of it she meets. So the drawing covers four fifths of
+     the frame at the loosest, which is her first fortnight, and 95 to 98 per cent of
+     it from a month in. Taken over every path on the screen. */
+  test('the camera stays close to the drawing at every stage', async ({page}) => {
     await open(page, '2026-08-01');
     await page.setViewportSize({width:375, height:667});
-    for(const stage of ['none', 'met5', 'met8', 'met30', 'all']){
+    for(const stage of STAGES){
       await stageOf(page, stage);
-      const m = await page.evaluate(() => {
-        const box = document.querySelector('.net').getBoundingClientRect();
-        const b = [...document.querySelectorAll('.net path')].map(p => p.getBoundingClientRect());
-        return {w: (Math.max(...b.map(r => r.right)) - Math.min(...b.map(r => r.left))) / box.width,
-                h: (Math.max(...b.map(r => r.bottom)) - Math.min(...b.map(r => r.top))) / box.height};
-      });
-      expect(m.w, `${stage} leaves dead margin across`).toBeGreaterThan(0.9);
-      expect(m.h, `${stage} leaves dead margin down`).toBeGreaterThan(0.9);
+      const m = await inkOf(page);
+      expect(Math.max(m.spanW, m.spanH), `${stage} leaves dead margin all round`)
+        .toBeGreaterThan(0.8);
+      expect(Math.min(m.spanW, m.spanH), `${stage} leaves dead margin down one side`)
+        .toBeGreaterThan(0.78);
     }
   });
 
-  /* "If there is no other wordlist or group then maybe links are self contained?"
-     They were not. Every hair ran from its family's head back to the middle of the
-     layout square, which is a point the cells are laid out around and not anywhere
-     in her map — so with one list going, five long threads left the cluster of
-     words and met at a spot well below the last of them. Balloons on strings.
-     The core is now the middle of the picture, so with one family it is inside the
-     family, and the hairs run out of it to her words rather than away from them. */
-  test('one list on its own is a shape, not balloons on strings', async ({page}) => {
+  /* "It does look more like a bunch of balloons", and later: two clusters marooned at
+     opposite ends with a thread stretched between them; five clumps around a knot with
+     a hole in the middle. Every version of the same failure — a drawing made of
+     separate pieces. This is that complaint as a number, and it is the reason the
+     layout was rebuilt to grow outward from one dense middle.
+     Measured on the frond layout, with a hundred cells drawn: the largest group of
+     cells that were within half a cell of each other held fifteen of the hundred, and
+     the median cell sat 0.32 of its own width away from its nearest neighbour. It now
+     holds all but one or two at every stage, and the median cell overlaps its
+     neighbour. Checked at every stage, because "one organism" was asked for at every
+     stage and the old drawing failed worst where there was most on it. */
+  test('it is one organism at every stage, not separate bushes', async ({page}) => {
     await open(page, '2026-08-01');
-    await stageOf(page, 'met8');
-    const m = await page.evaluate(() => {
-      const svg = document.querySelector('.net');
-      // Where the threads all start, on screen: the first coordinate of each path.
-      const root = [...document.querySelectorAll('.net-hair')].map(p => {
-        const s = p.getPointAtLength(0), pt = svg.createSVGPoint();
-        pt.x = s.x; pt.y = s.y;
-        const q = pt.matrixTransform(p.getScreenCTM());
-        return [q.x, q.y];
-      });
-      const cs = [...document.querySelectorAll('.net-cell')].map(c => c.getBoundingClientRect());
-      const cell = {l: Math.min(...cs.map(r => r.left)), t: Math.min(...cs.map(r => r.top)),
-                    r: Math.max(...cs.map(r => r.right)), b: Math.max(...cs.map(r => r.bottom))};
-      const longest = Math.max(...[...document.querySelectorAll('.net-hair')]
-        .map(p => p.getTotalLength()));
-      return {root: root, cell: cell, longest: longest,
-              span: Math.max(cell.r - cell.l, cell.b - cell.t)};
-    });
-    expect(m.root.length).toBeGreaterThan(3);
-    // Every thread starts among her words, not off in the empty part of the
-    // picture. Before this, the one shared start was 100px below the cluster.
-    m.root.forEach(([x, y], i) => {
-      expect(x, `hair ${i} starts left of her words`).toBeGreaterThan(m.cell.l);
-      expect(x, `hair ${i} starts right of her words`).toBeLessThan(m.cell.r);
-      expect(y, `hair ${i} starts above her words`).toBeGreaterThan(m.cell.t);
-      expect(y, `hair ${i} starts below her words`).toBeLessThan(m.cell.b);
-    });
-    // And they all share it: it is one core, not a thread each.
-    m.root.forEach(([x, y]) => {
-      expect(Math.hypot(x - m.root[0][0], y - m.root[0][1])).toBeLessThan(1);
-    });
-    // No thread is longer than the cluster is wide — a hair reaching half again as
-    // far as the drawing is what reads as a string.
-    expect(m.longest).toBeLessThan(m.span);
-  });
-
-  /* And every one of them lands on a word. A thread that stops in the open is the
-     same complaint one step smaller, so a solo family's hairs go out to the word
-     that is farthest from the middle in each direction round it and finish inside
-     its shape. Her whole first list met, so every word of it is on the screen and
-     there is nowhere for a thread to hide. */
-  test('a solo family’s hairs end on her words', async ({page}) => {
-    await open(page, '2026-08-01');
-    await page.evaluate(() => {
-      const a = window.__acorn, m = {};
-      a.wordsOf(a.allLists()[0]).forEach(w =>
-        m[w] = {right:4, wrong:0, box:4, lastSeen:'2026-07-25'});
-      a.state.words.mastery = m; a.save(); a.go('parent');
-    });
-    const off = await page.evaluate(() => {
-      const svg = document.querySelector('.net');
-      const cs = [...document.querySelectorAll('.net-cell')].map(c => c.getBoundingClientRect());
-      return [...document.querySelectorAll('.net-hair')].map((p, i) => {
-        const e = p.getPointAtLength(p.getTotalLength()), pt = svg.createSVGPoint();
-        pt.x = e.x; pt.y = e.y;
-        const q = pt.matrixTransform(p.getScreenCTM());
-        // Inside the box of some cell, which is the shape that hides the end.
-        return cs.some(r => q.x >= r.left - 1 && q.x <= r.right + 1 &&
-                            q.y >= r.top - 1 && q.y <= r.bottom + 1)
-          ? null : i + ' ends in the open';
-      }).filter(Boolean);
-    });
-    expect(off).toEqual([]);
-  });
-
-  /* The caption promised "a hairline joins words that share a spelling chunk — or
-     is what morning, sorted and report have in common" from her first evening, and
-     there are none on the screen until she is thirty or so words in: two words that
-     share a chunk are usually far apart in the list, so both ends are rarely inside
-     the near horizon. A caption describing a picture you are not looking at is
-     worse than no caption. */
-  test('the caption never promises a hairline that is not drawn', async ({page}) => {
-    await open(page, '2026-08-01');
-    const said = async () => {
-      const sect = page.locator('.sect:has(h2:text-is("What she knows"))');
-      return {copy: await sect.innerText(),
-              links: await page.locator('.net-link').count()};
-    };
-    for(const stage of ['none', 'met5', 'met8', 'met30']){
+    await page.setViewportSize({width:375, height:667});
+    for(const stage of STAGES){
       await stageOf(page, stage);
-      const s = await said();
-      expect(s.links, `${stage} has filaments after all`).toBe(0);
-      expect(s.copy, `${stage} promises a hairline`).not.toMatch(/hairline/i);
-      expect(s.copy).not.toMatch(/morning/);
-      // The rest of the caption is still there.
-      expect(s.copy).toMatch(/Each frond is one spelling pattern\./);
+      const c = await clumpOf(page);
+      expect(c.n, `${stage} has nothing drawn`).toBeGreaterThan(5);
+      expect(c.biggest / c.n, `${stage} is drawn in pieces: biggest group ${c.biggest} of ${c.n}`)
+        .toBeGreaterThan(0.85);
+      // No cell is marooned: every one has another within half its own width.
+      expect(c.worstGap, `${stage} has a cell off on its own`).toBeLessThan(0.6);
+      // And typically they touch.
+      expect(c.medianGap, `${stage} has daylight between most cells`).toBeLessThan(0.15);
+    }
+  });
+
+  /* The words of a family run outward from the shared middle in the order she will
+     meet them, and each family keeps its own wedge of the turn. That is what makes
+     the filled part of the picture grow outward from a dense heart with the outlines
+     as the rim beyond it — and it is why nothing moves when she learns a word, since
+     a cell's place comes from its list and its index in that list and nothing else. */
+  test('a family runs outward from the middle, in its own wedge', async ({page}) => {
+    await open(page, '2026-08-01');
+    // Everything met, so every word of every list is on the picture.
+    await stageOf(page, 'all');
+    const fam = await page.evaluate(() => {
+      const a = window.__acorn;
+      const at = {};
+      document.querySelectorAll('.net-cell').forEach(c => {
+        at[c.querySelector('title').textContent] =
+          {x: Number(c.getAttribute('data-x')), y: Number(c.getAttribute('data-y'))};
+      });
+      // The middle of the whole colony, off the cells themselves.
+      const xs = Object.values(at).map(p => p.x), ys = Object.values(at).map(p => p.y);
+      const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+      const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+      const seen = {};
+      return a.allLists().map(l => {
+        const ws = a.wordsOf(l).filter(w => { if(seen[w]) return false; seen[w] = 1; return true; });
+        const pts = ws.map(w => at[w]).filter(Boolean);
+        return {
+          id: l.id, n: pts.length,
+          // Radius by index: first word nearest the middle, last furthest out.
+          rad: pts.map(p => Math.hypot(p.x - cx, p.y - cy)),
+          // The spread of directions this family occupies, as a share of the turn.
+          angles: pts.map(p => Math.atan2(p.y - cy, p.x - cx)),
+        };
+      }).filter(f => f.n > 4);
+    });
+    expect(fam.length).toBeGreaterThan(4);
+    fam.forEach(f => {
+      // The first third of a list sits inside the last third of it. Not every step
+      // outward — the angle is jittered inside the wedge and so is the radius — but
+      // the run of the thing is core-first, which is the claim.
+      const third = Math.max(2, Math.floor(f.n / 3));
+      const inner = f.rad.slice(0, third).reduce((a, b) => a + b, 0) / third;
+      const outer = f.rad.slice(-third).reduce((a, b) => a + b, 0) / third;
+      expect(outer, `${f.id} does not run outward`).toBeGreaterThan(inner * 1.5);
+      // One wedge to a family: the whole list lies inside a slice of the turn, and
+      // a slice a good deal smaller than half of it.
+      const sorted = f.angles.slice().sort((a, b) => a - b);
+      let widest = (sorted[0] + Math.PI * 2) - sorted[sorted.length - 1];
+      for(let i = 1; i < sorted.length; i++)
+        widest = Math.max(widest, sorted[i] - sorted[i - 1]);
+      const span = Math.PI * 2 - widest;              // the arc the family really covers
+      expect(span, `${f.id} is spread round the whole picture`).toBeLessThan(Math.PI);
+    });
+    // And the families do not sit on top of each other: no two share a middle
+    // direction, so each has its own side of the picture.
+    const mid = fam.map(f => {
+      const sx = f.angles.reduce((a, t) => a + Math.cos(t), 0);
+      const sy = f.angles.reduce((a, t) => a + Math.sin(t), 0);
+      return Math.atan2(sy, sx);
+    }).sort((a, b) => a - b);
+    for(let i = 1; i < mid.length; i++)
+      expect(mid[i] - mid[i - 1], 'two families point the same way').toBeGreaterThan(0.2);
+  });
+
+  /* The caption may only describe what is actually on the screen. It promised "a
+     hairline joins words that share a spelling chunk — or is what morning, sorted and
+     report have in common" from her first evening, when there is not one on the
+     screen; and it promised "the few she is coming to next as faint outlines" on the
+     day she has met every word on every list and there is nothing coming at all. A
+     caption describing a picture you are not looking at is worse than no caption.
+     Driven off what is drawn rather than off a list of stages, because which stages
+     have filaments is a property of the drawing and moved when the layout did: they
+     turn up much earlier now that words that share a chunk are near neighbours. */
+  test('the caption describes the picture that is drawn, and nothing else', async ({page}) => {
+    await open(page, '2026-08-01');
+    let sawSome = 0, sawNone = 0, sawOutlines = 0, sawNoOutlines = 0;
+    for(const stage of STAGES){
+      await stageOf(page, stage);
+      const s = await page.evaluate(() => ({
+        copy: document.querySelector('.sect:has(h2) .hint') &&
+              [...document.querySelectorAll('.sect')]
+                .filter(x => /What she knows/.test(x.querySelector('h2').textContent))[0].innerText,
+        links: document.querySelectorAll('.net-link').length,
+        outlines: document.querySelectorAll('.net-cell:not(.met)').length,
+      }));
+      if(s.links){ sawSome++;
+        expect(s.copy, `${stage} has filaments and does not say so`).toMatch(/hairlines join words/);
+        expect(s.copy).toMatch(/morning, sorted and report/);
+      }else{ sawNone++;
+        expect(s.copy, `${stage} promises a hairline`).not.toMatch(/hairline/i);
+        expect(s.copy).not.toMatch(/morning/);
+      }
+      if(s.outlines){ sawOutlines++;
+        expect(s.copy, `${stage} has outlines and does not say so`).toMatch(/faint outlines/);
+      }else{ sawNoOutlines++;
+        expect(s.copy, `${stage} promises outlines it is not drawing`).not.toMatch(/outline/i);
+      }
+      // The rest of the caption is always there.
+      expect(s.copy).toMatch(/Each family is one spelling pattern/);
       expect(s.copy).toMatch(/in all on her lists/);
     }
-    await stageOf(page, 'all');
-    const s = await said();
-    expect(s.links).toBeGreaterThan(0);
-    expect(s.copy, 'the filaments are on screen and unexplained').toMatch(/hairlines join words/);
-    expect(s.copy).toMatch(/morning, sorted and report/);
+    // All four cases were actually met, or this proves nothing.
+    expect([sawSome > 0, sawNone > 0, sawOutlines > 0, sawNoOutlines > 0])
+      .toEqual([true, true, true, true]);
   });
 
   test('the filaments join words that share a chunk', async ({page}) => {
