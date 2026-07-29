@@ -1412,8 +1412,9 @@ test.describe('the mark on her screens', () => {
         return {first: document.querySelector('#bar').firstElementChild.id,
                 heading: h.tagName, paths: h.querySelectorAll('path').length,
                 text: h.textContent.trim(),
-                label: svg && svg.getAttribute('aria-label'),
-                role: svg && svg.getAttribute('role'),
+                label: h.getAttribute('aria-label'),
+                svgLabel: svg && svg.getAttribute('aria-label'),
+                svgHidden: svg && svg.getAttribute('aria-hidden'),
                 fill: getComputedStyle(h.querySelector('path')).fill};
       });
       // It still announces as "Acorn", and it is still the first thing on her
@@ -1423,7 +1424,11 @@ test.describe('the mark on her screens', () => {
       expect(hers.paths).toBe(1);
       expect(hers.text).toBe('');
       expect(hers.label).toBe('Acorn');
-      expect(hers.role).toBe('img');
+      // Named once: the label used to be on the <svg role="img">, which the
+      // heading then borrowed as its own name, so a screen reader read "Acorn,
+      // heading" and then "Acorn, image" on every screen she saw.
+      expect(hers.svgLabel).toBeNull();
+      expect(hers.svgHidden).toBe('true');
       expect(hers.fill).toBe('rgb(53, 112, 90)');           // --acc, unchanged
       // The grown-ups screen keeps its crumb as words: it is a place, not a badge.
       await page.evaluate(() => window.__acorn.go('parent'));

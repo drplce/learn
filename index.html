@@ -410,8 +410,15 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
   font-size:clamp(.75rem, calc((min(100vw, 34rem) - 2 * var(--s4)) / (var(--wl,6) * .8)),
                   var(--t-lg));}
 
+/* Delays as well as durations. Killing only the duration left the finished
+   screen's flourish fully choreographed: measured under reduce, the cells still
+   arrived one at a time on their 0.18s, 0.38s, 0.58s… delays, so fourteen words
+   was 2.8 seconds of things popping into view for someone who asked for no
+   motion. Reduced motion means show me the end state, not run the same
+   choreography with zero-length tweens. */
 @media (prefers-reduced-motion:reduce){
-  *,*::before,*::after{animation-duration:.001ms!important; transition-duration:.001ms!important;}
+  *,*::before,*::after{animation-duration:.001ms!important; animation-delay:0s!important;
+                       transition-duration:.001ms!important; transition-delay:0s!important;}
 }
 </style>
 </head>
@@ -438,7 +445,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '10.0';
+var VERSION = '10.1';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -969,6 +976,11 @@ var MEANING = bare({
   mourning: 'sad, missing someone'
 });
 function meaningOf(w){ return MEANING[String(w || '').toLowerCase()] || ''; }
+// "a", "a and i", "a, i and d" — read aloud, a bare comma list runs together.
+function listOf(xs){
+  if(xs.length < 2) return xs.join('');
+  return xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1];
+}
 // The pairs the cues exist for. Nothing in the app reads this — it is here so a
 // test can hold every cue to not naming the word it is meant to be told apart
 // from, and so the two halves cannot drift apart unnoticed.
@@ -1804,7 +1816,14 @@ function restoreFocus(){
     return;
   }
   if(!_kbd){ holdKeyboard(); return; }
-  var go = el('#act button') || el('#screen .primary') || el('#screen button');
+  /* The primary action, not simply the first button. Every stage lays out "Hear it"
+     first and the action that moves her on second, so #act button always picked
+     Hear it — measured, a keyboard-only sitting needed an extra Tab on every look
+     and every verdict, and Enter on arrival replayed the word instead of going
+     forward. The ".primary" fallback further down shows this was the intent all
+     along; the selector just never looked inside #act for it. */
+  var go = el('#act .primary') || el('#act button')
+        || el('#screen .primary') || el('#screen button');
   if(go) go.focus({preventScroll:true});
 }
 /* The mark on her screens: a seed, drawn the way everything else she is
@@ -1840,10 +1859,13 @@ function markSvg(){
   var pts = markPoints(), b = blobBounds(pts);
   var side = Math.max(b.x1 - b.x0, b.y1 - b.y0);
   var vx = (b.x0 + b.x1) / 2 - side / 2, vy = (b.y0 + b.y1) / 2 - side / 2;
-  // role="img" with a label is what makes it announce as "Acorn" rather than as a
-  // path nobody can read — the same reason the word she is shown carries one.
+  /* Hidden, not labelled. It used to carry role="img" aria-label="Acorn" and sit
+     inside the <h1>, which then took its own name from the label — so a screen
+     reader read "Acorn, heading level 1" and then "Acorn, image", the same word
+     twice on every screen. The heading holds the name now and the drawing is a
+     shape nobody needs described. */
   return '<svg viewBox="' + vx.toFixed(2) + ' ' + vy.toFixed(2) + ' '
-       + side.toFixed(2) + ' ' + side.toFixed(2) + '" role="img" aria-label="Acorn">'
+       + side.toFixed(2) + ' ' + side.toFixed(2) + '" aria-hidden="true" focusable="false">'
        + '<path d="' + blobPath(pts) + '"/></svg>';
 }
 var MARK = markSvg();
@@ -1853,7 +1875,14 @@ var MARK = markSvg();
    her word already says, in a place she is actually looking. Two gauges for one fact
    is one too many, and the quieter one was the one she never looked at. */
 function header(){
-  el('#bar').innerHTML = '<h1 class="wordmark mark" id="wordmark">' + MARK + '</h1>';
+  /* The name is on the heading, not on the drawing inside it. A visually-hidden
+     span would work too but it is a real text node: it added two more line boxes
+     to a header measured for wrapping, and inside .wordmark it inherited
+     text-transform:uppercase, so the name came out "ACORN" — which is what makes a
+     screen reader spell a word out letter by letter. An aria-label is not
+     rendered text, so neither happens. */
+  el('#bar').innerHTML = '<h1 class="wordmark mark" id="wordmark" aria-label="Acorn">'
+                       + MARK + '</h1>';
 }
 
 /* The row above her word is her own words, not a row of circles: dot k is the
@@ -1952,9 +1981,18 @@ function renderWord(){
                 : close ? (missing === 1 ? 'So close. Look at this letter.'
                                          : 'So close. Look at these letters.')
                         : 'Here it is. Have a good look.';
+    /* "Look at this letter" points at something a screen reader cannot see: the
+       marked-up word reads out as "s a i d" with no hint which letter is the one,
+       because <u> against <b> carries no meaning to read. So the announcement
+       names them instead of pointing. Same information, each in the medium that
+       can carry it. */
+    var look = w.split('').filter(function(c, i){ return !m.hit[i]; });
+    var said_ = close ? 'So close. Look at the letter' + (look.length > 1 ? 's ' : ' ')
+                        + listOf(look) + '.'
+                      : verdict;
     // Spelt out letter by letter: a screen reader would otherwise read the word
     // as a word and never convey the spelling, which is the whole point here.
-    announce(verdict + ' ' + w + '. ' + spellOut(w) + '.');
+    announce(said_ + ' ' + w + '. ' + spellOut(w) + '.');
     body = '<div class="verdict ' + (ok ? 'ok' : 'again') + '">' + verdict + '</div>'
          // Only ever the correct spelling on screen. Seeing her own misspelling
          // is the one thing that measurably sets spelling back.
@@ -2014,8 +2052,17 @@ function renderDone(){
        both phones and never more than two anywhere. */
     : grew.length ? said(grew.length) + ' took root tonight.'
     : head;
+  // Computed once and used for both the announcement and the markup, so the two
+  // cannot say different things.
+  var cheer = (saying && line !== head) ? head : '';
   header();
-  announce(head + ' ' + count);
+  /* What is on the screen, in the order it is on the screen, and then where she is
+     up to — announced but not drawn, because the totals belong to a grown-up. The
+     line at the top was missing from this altogether: measured on the finished
+     screen, a screen reader was told "Every one, first go. 0 of 100 words known
+     well" and never "Three took root tonight." — the one thing the screen leads
+     with. On a dead end the line already is the count, so it is not said twice. */
+  announce([line, cheer, line === count ? '' : count].filter(Boolean).join(' '));
   /* The picture does the talking. What was here — a heading, the picture, tonight's
      line, a running total and a progress bar — was five things saying versions of the
      same thing, and the bar in particular reads as a target she has not reached rather
@@ -2028,7 +2075,7 @@ function renderDone(){
     + (net ? '<div class="donenet">' + renderNetwork(net, true) + '</div>'
            : '<div class="tick" aria-hidden="true">✓</div>')
     + '<div class="doneend">'
-    + (saying && line !== head ? '<div class="note cheer">' + esc(head) + '</div>' : '')
+    + (cheer ? '<div class="note cheer">' + esc(cheer) + '</div>' : '')
     + '</div>';
   el('#act').innerHTML = canPractise
     ? '<button class="quiet" id="again">Practise a bit more</button>' : '';

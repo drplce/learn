@@ -1,0 +1,245 @@
+// What she is told, and what moves, when she cannot see the screen or cannot take
+// the motion.
+//
+// Four defects, each measured before it was fixed: the finished screen's flourish
+// ignored a reduced-motion request; the mark named itself twice on every screen; the
+// finished screen announced a total it no longer draws and never the line it leads
+// with; and "Look at this letter" pointed at something a screen reader cannot see.
+const {test, expect} = require('@playwright/test');
+const {open, errorsOf} = require('./helpers');
+
+async function finishASitting(page){
+  await page.evaluate(() => {
+    const a = window.__acorn;
+    a.state.words.activeId = 'easy';
+    a.save(); a.go('parent'); a.go('day');
+    if(!a.session()) a.start();
+    for(let g = 0; g < 90 && a.session(); g++){
+      const W = a.session();
+      if(W.stage === 'look'){ a.cover(); continue; }
+      if(W.stage === 'write'){ a.type(W.words[W.i]); a.check(); a.next(); continue; }
+      a.next();
+    }
+  });
+}
+
+const said = page => page.evaluate(() => document.querySelector('#say').textContent.trim());
+
+test.describe('reduced motion', () => {
+
+  test('the flourish is the end state, not the same dance at zero speed', async ({page}) => {
+    // Killing transition-duration alone left every delay in place, so the cells
+    // still arrived one at a time — fourteen words was 2.8 seconds of popping for
+    // someone who asked for no motion.
+    await page.emulateMedia({reducedMotion: 'reduce'});
+    await open(page, '2026-08-01');
+    await finishASitting(page);
+    const delays = await page.evaluate(() =>
+      [...document.querySelectorAll('#screen .net-cell.arriving')]
+        .map(c => getComputedStyle(c).transitionDelay));
+    expect(delays.length, 'nothing was flourishing, so this proves nothing').toBeGreaterThan(0);
+    for(const d of delays) expect(d, `a cell still waits ${d} before arriving`).toBe('0s');
+    expect(errorsOf(page)).toEqual([]);
+  });
+
+  test('and it still plays for everyone else', async ({page}) => {
+    await page.emulateMedia({reducedMotion: 'no-preference'});
+    await open(page, '2026-08-01');
+    await finishASitting(page);
+    const delays = await page.evaluate(() =>
+      [...document.querySelectorAll('#screen .net-cell.arriving')]
+        .map(c => parseFloat(getComputedStyle(c).transitionDelay)));
+    expect(delays.length).toBeGreaterThan(1);
+    // Staggered, slow and gentle — the thing she practises more to see again.
+    expect(Math.max(...delays), 'the flourish stopped being staggered').toBeGreaterThan(0.15);
+  });
+
+});
+
+test.describe('what a screen reader is told', () => {
+
+  test('the mark names itself once, not twice', async ({page}) => {
+    await open(page, '2026-08-01');
+    // The heading held a labelled <svg role="img">, so the heading took its name
+    // from the label and both appeared: "Acorn, heading" then "Acorn, image".
+    const marks = await page.evaluate(() => {
+      const h = document.querySelector('#wordmark');
+      const svg = h.querySelector('svg');
+      return {label: h.getAttribute('aria-label'),
+              svgHidden: svg.getAttribute('aria-hidden'),
+              svgRole: svg.getAttribute('role'),
+              svgLabel: svg.getAttribute('aria-label')};
+    });
+    expect(marks.label).toBe('Acorn');
+    expect(marks.svgHidden, 'the drawing inside the heading still announces itself').toBe('true');
+    expect(marks.svgRole).toBeNull();
+    expect(marks.svgLabel).toBeNull();
+  });
+
+  test('and not in capitals, which is what makes it spelled out', async ({page}) => {
+    await open(page, '2026-08-01');
+    /* The accessible name of rendered text is the transformed text, not the source,
+       and .wordmark is uppercase — so a visually-hidden "Acorn" inside it named the
+       heading "ACORN", which is what makes a screen reader spell a word out. An
+       aria-label is never rendered, so it is immune. It also adds no line boxes to
+       a header that is measured for wrapping. */
+    const r = await page.evaluate(() => {
+      const h = document.querySelector('#wordmark');
+      const range = document.createRange();
+      range.selectNodeContents(h);
+      return {name: h.getAttribute('aria-label'),
+              text: h.textContent,
+              boxes: [...range.getClientRects()].length};
+    });
+    expect(r.name).toBe('Acorn');
+    expect(r.name).not.toBe(r.name.toUpperCase());
+    expect(r.text, 'the name is rendered text again, so text-transform reaches it').toBe('');
+    expect(r.boxes, 'the name added line boxes to the header').toBeLessThanOrEqual(1);
+  });
+
+  test('the finished screen says what is on it, starting with the line at the top',
+    async ({page}) => {
+      await open(page, '2026-08-01');
+      await finishASitting(page);
+      const heard = await said(page);
+      const headline = await page.locator('#screen .headline').textContent();
+      // It used to announce the cheer and a total and never this.
+      expect(heard, `the headline "${headline}" was never announced`).toContain(headline.trim());
+      // The total is still announced though it is no longer drawn — it belongs to a
+      // grown-up, and a screen reader is the one place she can still hear it.
+      expect(heard).toMatch(/known well/);
+      // And in the order the screen is in.
+      expect(heard.indexOf(headline.trim())).toBe(0);
+      expect(errorsOf(page)).toEqual([]);
+    });
+
+  test('a dead end is not said twice', async ({page}) => {
+    await open(page, '2026-08-01');
+    // With nothing to practise the line at the top already is the message, so
+    // appending the count would repeat the whole sentence.
+    const heard = await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'e', name:'Empty', words:[]}];
+      a.state.words.activeId = 'e';
+      a.state.words.mastery = {};
+      a.save(); a.go('parent'); a.go('day');
+      return document.querySelector('#say').textContent.trim();
+    });
+    expect(heard).toMatch(/Ask a grown-up/);
+    expect(heard.match(/Ask a grown-up/g).length, `said twice: "${heard}"`).toBe(1);
+  });
+
+  test('the letter to look at is named, not pointed at', async ({page}) => {
+    await open(page, '2026-08-01');
+    // On screen the letter is marked. Marked-up text reads out as "s a i d" with
+    // no hint which one, because <u> against <b> carries nothing to read.
+    const r = await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'x', name:'T', words:['said']}];
+      a.state.words.activeId = 'x';
+      a.save(); a.go('parent'); a.go('day');
+      if(!a.session()) a.start();
+      if(a.session().stage === 'look') a.cover();
+      a.type('sid'); a.check();                       // one letter missing: a
+      return {heard: document.querySelector('#say').textContent.trim(),
+              seen: document.querySelector('#screen .verdict').textContent.trim(),
+              marked: !!document.querySelector('#screen .marked')};
+    });
+    expect(r.marked, 'this attempt was not close enough to be marked').toBe(true);
+    expect(r.seen).toMatch(/Look at this letter/);
+    expect(r.heard, `pointed instead of named: "${r.heard}"`).toMatch(/Look at the letter a\./);
+    // Never her own spelling, here or anywhere.
+    expect(r.heard).not.toContain('sid');
+  });
+
+  test('several letters are read as a list, not a run of commas', async ({page}) => {
+    await open(page, '2026-08-01');
+    const heard = await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'x', name:'T', words:['beautiful']}];
+      a.state.words.activeId = 'x';
+      a.save(); a.go('parent'); a.go('day');
+      if(!a.session()) a.start();
+      if(a.session().stage === 'look') a.cover();
+      a.type('beatiful'); a.check();
+      return document.querySelector('#say').textContent.trim();
+    });
+    if(/Look at the letters/.test(heard))
+      expect(heard, 'a list read aloud needs an "and"').toMatch(/Look at the letters [^.]* and /);
+    else
+      expect(heard).toMatch(/Look at the letter /);
+  });
+
+  test('arriving at a screen puts her on the button that moves her on', async ({page}) => {
+    // Every stage lays out "Hear it" first and the action second, and the focus
+    // rule took the first button — so a keyboard-only sitting needed an extra Tab
+    // on every look and every verdict, and Enter on arrival replayed the word
+    // instead of going forward. Measured: 49 key presses for a six-word sitting
+    // against 41 once the primary action gets the focus.
+    await open(page, '2026-08-01');
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.activeId = 'easy'; a.save(); a.go('parent'); a.go('day');
+      if(!a.session()) a.start();
+    });
+    // Keyboard mode only turns on once Tab has been pressed, and that press moves
+    // the focus itself — so render once more afterwards, which is what really
+    // happens the moment she does anything.
+    await page.keyboard.press('Tab');
+    await page.evaluate(() => window.__acorn.go('day'));
+    const seen = [];
+    for(let step = 0; step < 40; step++){
+      const st = await page.evaluate(() => {
+        const a = window.__acorn, W = a.session();
+        return {stage: W ? W.stage : 'done', focus: (document.activeElement || {}).id || '',
+                word: W ? W.words[W.i] : null};
+      });
+      if(st.stage === 'done') break;
+      seen.push([st.stage, st.focus]);
+      if(st.stage === 'write'){
+        await page.keyboard.type(st.word);
+        await page.keyboard.press('Enter');
+      } else {
+        await page.keyboard.press('Enter');       // must be the action, not Hear it
+      }
+    }
+    const want = {look: 'cover', write: 'type', check: 'next'};
+    for(const [stage, focus] of seen)
+      expect(focus, `arriving at ${stage}, focus was on "${focus}"`).toBe(want[stage]);
+    // And Enter alone got her all the way through, with no Tabbing.
+    expect(await page.evaluate(() => !window.__acorn.session()),
+           'Enter on the focused button did not move her on').toBe(true);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
+  test('nothing on any of her screens is interactive without a name', async ({page}) => {
+    await open(page, '2026-08-01');
+    const stages = ['look', 'write', 'check', 'done'];
+    for(const stage of stages){
+      const nameless = await page.evaluate(s => {
+        const a = window.__acorn;
+        a.state.words.activeId = 'easy'; a.save(); a.go('parent'); a.go('day');
+        if(!a.session()) a.start();
+        if(s !== 'look' && a.session() && a.session().stage === 'look') a.cover();
+        if(s === 'check'){ a.type('zz'); a.check(); }
+        if(s === 'done'){
+          for(let g = 0; g < 90 && a.session(); g++){
+            const W = a.session();
+            if(W.stage === 'look'){ a.cover(); continue; }
+            if(W.stage === 'write'){ a.type(W.words[W.i]); a.check(); a.next(); continue; }
+            a.next();
+          }
+        }
+        return [...document.querySelectorAll('button, input, [role=img]')].filter(e => {
+          if(e.closest('[aria-hidden=true]') || e.getAttribute('aria-hidden') === 'true') return false;
+          if(e.getAttribute('tabindex') === '-1' && e.tagName === 'INPUT') return false;
+          const n = (e.getAttribute('aria-label') || e.textContent || '').trim();
+          return !n;
+        }).map(e => e.tagName.toLowerCase() + '.' + e.className);
+      }, stage);
+      expect(nameless, `unnamed on the ${stage} screen`).toEqual([]);
+    }
+    expect(errorsOf(page)).toEqual([]);
+  });
+
+});
