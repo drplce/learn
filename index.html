@@ -268,7 +268,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* ---------- what she knows ---------- */
 .net{display:block; width:100%; height:auto; margin:var(--s2) 0 var(--s3);
      overflow:visible;}
-.net-lobe{fill:var(--acc-soft); opacity:.5; stroke:var(--line); stroke-width:.6;}
+.net-hair{fill:none; stroke:var(--acc); stroke-width:.6; stroke-linecap:round; opacity:.22;}
 .net-link{fill:none; stroke:var(--line-2); stroke-width:.5; opacity:.45;}
 .net-link.lit{stroke:var(--acc); opacity:.4; stroke-width:.8;}
 /* Ghosted: the whole shape is there from the first day, waiting to be filled. */
@@ -349,7 +349,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '7.3';
+var VERSION = '7.4';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1748,42 +1748,87 @@ function seeded(str){
   };
 }
 
+/* Each word gets its own shape, seeded by the word itself, so no two are the same
+   and none of them is a circle. Bigger for a longer word, but only a little —
+   enough to give the colony texture, not enough to read as a ranking. */
+function cellPath(w, x, y, r){
+  var rnd = seeded('shape' + w), n = 7, pts = [];
+  for(var i = 0; i < n; i++){
+    var a = (i / n) * Math.PI * 2 + (rnd() - .5) * 0.35;
+    var rr = r * (0.8 + rnd() * 0.4);
+    pts.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]);
+  }
+  var d = '';
+  for(var j = 0; j < n; j++){
+    var p = pts[j], q = pts[(j + 1) % n];
+    var mid = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+    if(!j) d = 'M' + mid[0].toFixed(1) + ' ' + mid[1].toFixed(1);
+    var nx = pts[(j + 2) % n];
+    d += 'Q' + q[0].toFixed(1) + ' ' + q[1].toFixed(1) + ' '
+       + ((q[0] + nx[0]) / 2).toFixed(1) + ' ' + ((q[1] + nx[1]) / 2).toFixed(1);
+  }
+  return d + 'Z';
+}
+
+/* Branches out of a core rather than lobes in a ring: each spelling pattern is a
+   frond, its words strung along and gathered at the tip. Nothing here is a
+   circle and nothing is evenly spaced, which is what stops it reading as a
+   diagram. */
 function networkData(){
   var lists = allLists().filter(function(l){ return wordsOf(l).length; });
   if(!lists.length) return null;
   var rnd = seeded(lists.map(function(l){ return l.id + wordsOf(l).length; }).join('|'));
-
-  // Lobes around a centre, each sized by how many words it holds.
-  var total = lists.reduce(function(n, l){ return n + wordsOf(l).length; }, 0);
   var cx = NET_W / 2, cy = NET_W / 2;
-  // Close enough that the lobes press into each other and the middle fills: a
-  // ring of separate blobs reads as a doughnut, not a colony.
-  var ring = lists.length > 1 ? NET_W * 0.215 : 0;
-  var cells = [], lobes = [], byWord = {};
+  var total = lists.reduce(function(n, l){ return n + wordsOf(l).length; }, 0);
+  var cells = [], fronds = [], byWord = {};
 
   lists.forEach(function(l, li){
     var words = wordsOf(l);
-    var a = (li / lists.length) * Math.PI * 2 - Math.PI / 2 + (rnd() - .5) * 0.25;
-    var lr = Math.max(28, NET_W * 0.195 * Math.sqrt(words.length / Math.max(6, total / lists.length)));
-    var lx = cx + Math.cos(a) * ring, ly = cy + Math.sin(a) * ring;
-    lobes.push({x:lx, y:ly, r:lr, name:l.name, id:l.id, wobble:rnd()});
+    // Uneven angles and lengths: a perfect star is a diagram.
+    var a = (li / lists.length) * Math.PI * 2 - Math.PI / 2 + (rnd() - .5) * 0.55;
+    var reach = NET_W * (0.27 + 0.09 * Math.sqrt(words.length / Math.max(4, total / lists.length))
+                         + (rnd() - .5) * 0.06);
+    var bend = (rnd() - .5) * 0.9;                 // the frond curves as it goes
+    fronds.push({a:a, reach:reach, bend:bend, id:l.id, name:l.name});
 
-    // Phyllotaxis: even packing with no grid to it.
-    words.forEach(function(w, k){
-      var rr = lr * 0.88 * Math.sqrt((k + 0.5) / words.length);
-      var th = k * GOLDEN + rnd() * 0.2;
-      var box = mastery(w).box || 1;
-      var met = !!S.words.mastery[w];
-      var cell = {w:w, x:lx + Math.cos(th) * rr, y:ly + Math.sin(th) * rr,
-                  r:Math.max(2.6, lr / (2.6 + Math.sqrt(words.length))),
-                  box:box, met:met, lobe:li};
+    // Most of a family gathers into a head at the tip; a few trail back down the
+    // stem, which is what keeps it from looking like a lollipop.
+    var headFrom = Math.floor(words.length * 0.32);
+    var headN = words.length - headFrom;
+    var tipA = a + bend * 0.55;
+    var hx = Math.cos(tipA) * reach, hy = Math.sin(tipA) * reach;
+    var headR = NET_W * (0.045 + 0.042 * Math.sqrt(headN / 12));
+
+    words.forEach(function(k_w, k){
+      var px, py;
+      if(k >= headFrom){
+        // Phyllotaxis inside the head: even, dense, and not a grid.
+        var i2 = k - headFrom;
+        var pr = headR * Math.sqrt((i2 + 0.5) / headN);
+        var pa = i2 * GOLDEN + rnd() * 0.25;
+        px = hx + Math.cos(pa) * pr; py = hy + Math.sin(pa) * pr;
+      }else{
+        var t2 = 0.22 + 0.62 * ((k + 0.6) / Math.max(1, headFrom));
+        var aa2 = a + bend * t2 * t2;
+        var off = (rnd() - .5) * NET_W * 0.055;
+        px = Math.cos(aa2) * reach * t2 + Math.cos(aa2 + Math.PI/2) * off;
+        py = Math.sin(aa2) * reach * t2 + Math.sin(aa2 + Math.PI/2) * off;
+      }
+      var box = mastery(k_w).box || 1;
+      var cell = {w:k_w, x:cx + px, y:cy + py,
+                  // Subtle: a long word is a bigger cell, a short one smaller.
+                  r:3.1 + Math.min(9, k_w.replace(/[^a-z']/gi, '').length) * 0.42,
+                  box:box, met:!!S.words.mastery[k_w], frond:li};
+      var pad = cell.r + 2;
+      cell.x = Math.max(pad, Math.min(NET_W - pad, cell.x));
+      cell.y = Math.max(pad, Math.min(NET_W - pad, cell.y));
       cells.push(cell);
-      byWord[w] = cell;
+      byWord[k_w] = cell;
     });
   });
 
-  // A hairline where two words share a chunk. A chunk in a dozen words says
-  // nothing, so only the telling ones are drawn.
+  // A hairline where two words share a chunk, and only where the chunk is
+  // telling: one that turns up in a dozen words says nothing.
   var byPiece = {};
   cells.forEach(function(c){
     splitOf(c.w).forEach(function(p){
@@ -1791,38 +1836,20 @@ function networkData(){
       (byPiece[p] = byPiece[p] || []).push(c.w);
     });
   });
-  var links = [], far = NET_W * 0.42;
+  var links = [], far = NET_W * 0.34;
   Object.keys(byPiece).forEach(function(p){
     var ws = byPiece[p];
     if(ws.length < 2 || ws.length > 4) return;
-    for(var i = 1; i < ws.length && links.length < 90; i++){
-      var a = byWord[ws[i-1]], b = byWord[ws[i]];
-      // A filament right across the shape is noise, not a relationship.
-      if(!a || !b || Math.hypot(a.x - b.x, a.y - b.y) > far) continue;
-      links.push({a:a, b:b, piece:p});
+    for(var i = 1; i < ws.length && links.length < 110; i++){
+      var A = byWord[ws[i-1]], B = byWord[ws[i]];
+      if(!A || !B || Math.hypot(A.x - B.x, A.y - B.y) > far) continue;
+      links.push({a:A, b:B, piece:p});
     }
   });
 
-  return {cells:cells, lobes:lobes, links:links, total:total,
+  return {cells:cells, fronds:fronds, links:links, total:total, cx:cx, cy:cy,
           known:cells.filter(function(c){ return c.box >= KNOWN_BOX; }).length,
           met:cells.filter(function(c){ return c.met; }).length};
-}
-
-// A soft closed blob rather than a circle, so a family reads as a colony.
-function blobPath(l){
-  var n = 11, rnd = seeded(l.id + l.wobble), pts = [];
-  for(var i = 0; i < n; i++){
-    var a = (i / n) * Math.PI * 2;
-    var r = l.r * (1.06 + (rnd() - .5) * 0.22);
-    pts.push([l.x + Math.cos(a) * r, l.y + Math.sin(a) * r]);
-  }
-  var d = 'M' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1);
-  for(var j = 0; j < n; j++){
-    var p = pts[j], q = pts[(j + 1) % n];
-    d += 'Q' + p[0].toFixed(1) + ' ' + p[1].toFixed(1) + ' '
-       + ((p[0] + q[0]) / 2).toFixed(1) + ' ' + ((p[1] + q[1]) / 2).toFixed(1);
-  }
-  return d + 'Z';
 }
 
 function renderNetwork(){
@@ -1830,32 +1857,65 @@ function renderNetwork(){
   if(!d) return '';
   var svg = '<svg class="net" viewBox="0 0 ' + NET_W + ' ' + NET_W + '" role="img" aria-label="'
     + d.known + ' of ' + d.total + ' words known well, grouped by spelling pattern">';
-  d.lobes.forEach(function(l){ svg += '<path class="net-lobe" d="' + blobPath(l) + '"/>'; });
+
+  /* A few fine hairs out of the core to each head. Each one wanders: walked out
+     in steps with a small sideways drift at every one, then smoothed, so no line
+     in here is straight. A ruled line is the thing that gives a drawing like this
+     away as a diagram. */
+  d.fronds.forEach(function(f){
+    var rnd = seeded('hair' + f.id);
+    for(var h = 0; h < 5; h++){
+      var fan = (h - 2) * 0.055 + (rnd() - .5) * 0.05;
+      var len = f.reach * (0.84 + rnd() * 0.2);
+      var steps = 7, pts = [[d.cx, d.cy]], drift = 0;
+      for(var i = 1; i <= steps; i++){
+        var t = i / steps;
+        // The wander grows with distance from the core, like something reaching.
+        drift += (rnd() - .5) * len * 0.075;
+        var ang = f.a + fan + f.bend * 0.55 * t * t;
+        var px = d.cx + Math.cos(ang) * len * t + Math.cos(ang + Math.PI / 2) * drift * t;
+        var py = d.cy + Math.sin(ang) * len * t + Math.sin(ang + Math.PI / 2) * drift * t;
+        pts.push([px, py]);
+      }
+      var dd = 'M' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1);
+      for(var j = 1; j < pts.length - 1; j++)
+        dd += 'Q' + pts[j][0].toFixed(1) + ' ' + pts[j][1].toFixed(1) + ' '
+            + ((pts[j][0] + pts[j+1][0]) / 2).toFixed(1) + ' '
+            + ((pts[j][1] + pts[j+1][1]) / 2).toFixed(1);
+      dd += 'T' + pts[pts.length-1][0].toFixed(1) + ' ' + pts[pts.length-1][1].toFixed(1);
+      svg += '<path class="net-hair" d="' + dd + '"/>';
+    }
+  });
+
   d.links.forEach(function(k){
-    if(!k.a || !k.b) return;
-    // Curved, and bowed away from the middle, so they read as filaments between
-    // neighbours rather than threads flung across the shape.
-    var mx = (k.a.x + k.b.x) / 2, my = (k.a.y + k.b.y) / 2;
-    var away = Math.max(1, Math.hypot(mx - NET_W/2, my - NET_W/2));
-    var bow = 0.22 * Math.hypot(k.b.x - k.a.x, k.b.y - k.a.y);
-    var qx = mx + (mx - NET_W/2) / away * bow, qy = my + (my - NET_W/2) / away * bow;
-    var lit = k.a.met && k.b.met;
-    svg += '<path class="net-link' + (lit ? ' lit' : '') + '" d="M' + k.a.x.toFixed(1) + ' '
-        + k.a.y.toFixed(1) + 'Q' + qx.toFixed(1) + ' ' + qy.toFixed(1) + ' '
+    var rnd = seeded('lnk' + k.piece + k.a.w + k.b.w);
+    var dx = k.b.x - k.a.x, dy = k.b.y - k.a.y, len = Math.hypot(dx, dy) || 1;
+    var nx = -dy / len, ny = dx / len;
+    // Two control points with opposite-ish offsets: a lazy S rather than an arc.
+    var o1 = (rnd() - .35) * len * 0.22, o2 = (rnd() - .65) * len * 0.22;
+    var p1 = [k.a.x + dx * 0.33 + nx * o1, k.a.y + dy * 0.33 + ny * o1];
+    var p2 = [k.a.x + dx * 0.67 + nx * o2, k.a.y + dy * 0.67 + ny * o2];
+    svg += '<path class="net-link' + (k.a.met && k.b.met ? ' lit' : '') + '" d="M'
+        + k.a.x.toFixed(1) + ' ' + k.a.y.toFixed(1)
+        + 'C' + p1[0].toFixed(1) + ' ' + p1[1].toFixed(1) + ' '
+        + p2[0].toFixed(1) + ' ' + p2[1].toFixed(1) + ' '
         + k.b.x.toFixed(1) + ' ' + k.b.y.toFixed(1) + '"/>';
   });
+
   d.cells.forEach(function(c){
     // Ghosted until she meets it, then darker with every box it climbs.
     var fill = c.met ? (0.18 + 0.82 * Math.min(1, (c.box - 1) / (KNOWN_BOX - 1))) : 0;
-    svg += '<circle class="net-cell' + (c.met ? ' met' : '') + (c.box >= KNOWN_BOX ? ' well' : '')
-        + '" cx="' + c.x.toFixed(1) + '" cy="' + c.y.toFixed(1) + '" r="' + c.r.toFixed(1)
-        + '" style="--f:' + fill.toFixed(2) + '"><title>' + esc(c.w) + '</title></circle>';
+    svg += '<path class="net-cell' + (c.met ? ' met' : '') + (c.box >= KNOWN_BOX ? ' well' : '')
+        + '" d="' + cellPath(c.w, c.x, c.y, c.r) + '" style="--f:' + fill.toFixed(2) + '"'
+        + ' data-x="' + Math.round(c.x) + '" data-y="' + Math.round(c.y) + '"'
+        + ' data-r="' + c.r.toFixed(1) + '"><title>' + esc(c.w) + '</title></path>';
   });
   svg += '</svg>';
+
   return '<div class="sect"><h2>What she knows</h2>' + svg
     + '<div class="hint">Every word on her lists is here. They fill in and darken as '
     + 'she learns them, and a word she is losing dims rather than disappearing. '
-    + 'Each cluster is one spelling pattern; the hairlines join words that share a '
+    + 'Each frond is one spelling pattern; the hairlines join words that share a '
     + 'chunk — <b>or</b> is what morning, sorted and report have in common. '
     + d.met + ' met, <b>' + d.known + ' known well</b>, ' + d.total + ' in all.</div></div>';
 }
