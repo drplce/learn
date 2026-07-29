@@ -409,7 +409,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '9.0';
+var VERSION = '9.1';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1165,15 +1165,67 @@ function paceLabel(){
 /* Yesterday's words come back before anything new is introduced, most of a
    session is words she can already spell, and it opens with one she is likely
    to get right rather than the hardest thing she owns. */
+/* New words come from the list she is on, and then from the ones after it.
+   Without that the app quietly stops teaching her. Measured on the sixteen-word
+   starter list: she knew every word by day nine, and then practised the same
+   nine-word review for a hundred and eleven days at a hundred per cent right first
+   time, while the pace controller asked for three new words every single day and
+   got none — a hundred and thirteen sittings out of a hundred and twenty. The other
+   eighty-four built-in words sat there the whole time, reachable only by a grown-up
+   knowing to go into the grown-ups screen and switch lists by hand. Nothing in the
+   app said anything was wrong: she practised, she got everything right, and it told
+   her so. */
+function newPool(list){
+  var out = [], seen = {}, ls = allLists(), at = 0, i, j;
+  for(i = 0; i < ls.length; i++) if(ls[i].id === (list || {}).id){ at = i; break; }
+  for(i = at; i < ls.length; i++){
+    var ws = wordsOf(ls[i]);
+    for(j = 0; j < ws.length; j++){
+      if(seen[ws[j]] || S.words.mastery[ws[j]]) continue;
+      seen[ws[j]] = 1; out.push(ws[j]);
+    }
+  }
+  return out;
+}
+/* And review is every word she has met, wherever it now lives. Moving her on and
+   then never asking for the old list again would let a whole term's work go quietly
+   while the map showed it dimming. */
+function metWords(){
+  var out = [], seen = {};
+  allLists().forEach(function(l){
+    wordsOf(l).forEach(function(w){
+      if(seen[w] || !S.words.mastery[w]) return;
+      seen[w] = 1; out.push(w);
+    });
+  });
+  return out;
+}
+/* When every word on the list she is on is known well, she moves to the next list
+   that still needs work. A grown-up should not have to notice that she has finished
+   one, and she should not have to wait for them to. */
+function advanceList(){
+  var l = activeList();
+  if(!l) return;
+  var ws = wordsOf(l);
+  if(!ws.length || knownCount(l) < ws.length) return;
+  var ls = allLists(), at = -1, i;
+  for(i = 0; i < ls.length; i++) if(ls[i].id === l.id){ at = i; break; }
+  for(i = at + 1; i < ls.length; i++){
+    var next = wordsOf(ls[i]);
+    if(next.length && knownCount(ls[i]) < next.length){
+      S.words.activeId = ls[i].id; save(); return;
+    }
+  }
+}
 function buildSession(list, today){
-  var all = wordsOf(list);
+  var all = wordsOf(list), met = metWords();
   function seen(w){ return !!S.words.mastery[w]; }
 
-  var review = all.filter(function(w){ return seen(w) && !acquiring(w) && isDue(w, today); })
+  var review = met.filter(function(w){ return !acquiring(w) && isDue(w, today); })
                   .sort(function(a,b){ return overdueRatio(b, today) - overdueRatio(a, today); });
-  var started = all.filter(function(w){ return seen(w) && acquiring(w); })
+  var started = met.filter(function(w){ return acquiring(w); })
                    .sort(function(a,b){ return String(mastery(a).lastSeen).localeCompare(String(mastery(b).lastSeen)); });
-  var never = all.filter(function(w){ return !seen(w); });
+  var never = newPool(list);
 
   var size = sessionWords(), cap = poolCap();
   var acq = started.slice(0, cap);
@@ -1185,7 +1237,7 @@ function buildSession(list, today){
   var wantRev = Math.max(2, size - acq.length);
   var rev = review.slice(0, wantRev);
   if(rev.length < wantRev){
-    all.filter(function(w){ return seen(w) && !acquiring(w) && rev.indexOf(w) < 0; })
+    met.filter(function(w){ return !acquiring(w) && rev.indexOf(w) < 0; })
        .sort(function(a,b){ return overdueRatio(b, today) - overdueRatio(a, today); })
        .forEach(function(w){ if(rev.length < wantRev) rev.push(w); });
   }
@@ -1266,6 +1318,7 @@ function beginStage(word){
 }
 
 function start(){
+  advanceList();
   var words = buildSession(activeList(), todayISO());
   if(!words.length) return false;
   W = {words:words, i:0, stage:'write', attempt:'', tries:0,
