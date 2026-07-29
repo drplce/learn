@@ -242,9 +242,13 @@ const present = all.filter(t => {
 // Rewrite the one generated line in index.html. The index is inline so the app
 // costs no request, cannot 404 on a half-finished deploy, and works offline.
 const html = readFileSync(INDEX, 'utf8');
-const line = 'var CLIP_EXT = ' + JSON.stringify(EXT) + ', CLIPS = ' + JSON.stringify(present) +
-             ';   /* GENERATED */';
-const next = html.replace(/^var CLIP_EXT = .*\/\* GENERATED \*\/$/m, line);
+// The size goes in too, so the button that downloads the lot can say how much
+// that is before anyone taps it on mobile data.
+const totalKb = Math.round(present.reduce((n, t) =>
+  n + statSync(resolve(AUDIO, slug(t) + EXT)).size, 0) / 1024);
+const line = 'var CLIP_KB = ' + totalKb + ', CLIP_EXT = ' + JSON.stringify(EXT) +
+             ', CLIPS = ' + JSON.stringify(present) + ';   /* GENERATED */';
+const next = html.replace(/^var CLIP_KB = .*\/\* GENERATED \*\/$/m, line);
 if (next === html && !html.includes(line)) {
   console.error('\ncould not find the generated CLIPS line in index.html');
   process.exit(1);

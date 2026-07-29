@@ -338,7 +338,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '7.0';
+var VERSION = '7.1';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -470,7 +470,9 @@ function pickVoice(){
    no request, it cannot 404 on a half-finished deploy, and it keeps working with
    no network at all. tools/voice.mjs rewrites the two lines below. */
 var CLIP_DIR = 'audio/';
-var CLIP_EXT = ".m4a", CLIPS = ["a","ac","action","afraid","al","almost","ary","at","attention","au","august","aw","awful","back","be","beau","beautiful","because","before","between","boat","bore","boredom","bour","busi","business","call","calling","cas","castle","cause","cen","cence","centre","ci","climb","col","colour","com","come","complete","cus","de","decision","delight","di","dif","different","direction","dis","discussion","display","division","dom","dow","e","ed","el","elled","enough","ent","er","ern","est","every word counts.","ex","explosion","fa","favour","favourite","feb","february","fer","fore","fraid","friend","from","ful","gan","geth","gov","government","gust","har","harbour","haunt","haunted","height","help","hon","honest","in","ing","invention","is","ise","island","ite","jew","jewellery","knee","knife","know","lamb","land","law","lawless","lery","less","li","licence","light","like","lis","listen","made","me","ment","metre","might","mis","mor","morn","morning","most","mu","music","name","neigh","neighbour","ness","nise","nough","og","or","organise","our","peo","people","per","permission","play","ple","plete","plo","port","prac","practise","ques","question","rain","rate","re","rea","real","realise","reason","rec","recognise","report","row","ru","said","sep","separate","sic","sion","some","son","sort","sorted","sta","station","straight","talk","talking","tel","television","ten","thea","theatre","they","thought","thoughtful","through","thumb","ti","time","tion","tise","tle","to","together","tomorrow","trav","travelled","tre","tune","tween","ven","vi","vour","want","warm","warming","week","went","whis","whistle","win","window","with","wrist","write","wrong"];   /* GENERATED */
+// How much "save them all" will actually download, so nobody starts it on
+// mobile data without knowing. Written by tools/voice.mjs alongside the list.
+var CLIP_KB = 7439, CLIP_EXT = ".m4a", CLIPS = ["a","ac","action","afraid","al","almost","ary","at","attention","au","august","aw","awful","back","be","beau","beautiful","because","before","between","boat","bore","boredom","bour","busi","business","call","calling","cas","castle","cause","cen","cence","centre","ci","climb","col","colour","com","come","complete","cus","de","decision","delight","di","dif","different","direction","dis","discussion","display","division","dom","dow","e","ed","el","elled","enough","ent","er","ern","est","every word counts.","ex","explosion","fa","favour","favourite","feb","february","fer","fore","fraid","friend","from","ful","gan","geth","gov","government","gust","har","harbour","haunt","haunted","height","help","hon","honest","in","ing","invention","is","ise","island","ite","jew","jewellery","knee","knife","know","lamb","land","law","lawless","lery","less","li","licence","light","like","lis","listen","made","me","ment","metre","might","mis","mor","morn","morning","most","mu","music","name","neigh","neighbour","ness","nise","nough","og","or","organise","our","peo","people","per","permission","play","ple","plete","plo","port","prac","practise","ques","question","rain","rate","re","rea","real","realise","reason","rec","recognise","report","row","ru","said","sep","separate","sic","sion","some","son","sort","sorted","sta","station","straight","talk","talking","tel","television","ten","thea","theatre","they","thought","thoughtful","through","thumb","ti","time","tion","tise","tle","to","together","tomorrow","trav","travelled","tre","tune","tween","ven","vi","vour","want","warm","warming","week","went","whis","whistle","win","window","with","wrist","write","wrong"];   /* GENERATED */
 var _clips = null;
 var _clipEl = null, _clipSeq = 0;
 
@@ -568,6 +570,9 @@ var _clipPlays = 0, _clipFalls = 0, _clipTest = '';
 // Can this browser decode what was recorded at all? Playwright's Chromium, for
 // one, has no AAC decoder, so this is worth reporting rather than assuming.
 function _warmed(){ return Object.keys(_blob).length; }
+function clipSize(){
+  return CLIP_KB >= 1024 ? (CLIP_KB / 1024).toFixed(1) + ' MB' : CLIP_KB + ' KB';
+}
 function clipPlayable(){
   try{
     var a = document.createElement('audio');
@@ -1604,11 +1609,14 @@ function renderParent(){
     +   '<button class="quiet" id="cliptest">Play a test word</button>'
     +   (_clipTest ? '<div class="hint">' + esc(_clipTest) + '</div>' : '')
     +   '<button class="quiet" id="clipsave" style="margin-top:var(--s3)">'
-    +     (_saving ? 'Saving…' : 'Save all the audio on this device') + '</button>'
+    +     (_saving ? 'Saving…'
+              : 'Save all the audio on this device' + (CLIP_KB ? ' (' + clipSize() + ')' : ''))
+    +     '</button>'
     +   '<div class="hint">' + _warmed() + ' of ' + CLIPS.length + ' are on the device now. '
     +     'Each one is fetched the first time she meets it, which on a thin connection '
     +     'is a wait at exactly the wrong moment. Saving them all once removes that, '
-    +     'and lets a sitting work with no signal.'
+    +     'and lets a sitting work with no signal — worth doing on wifi rather than '
+    +     'on mobile data.'
     +     (_savedMsg ? ' <b>' + esc(_savedMsg) + '</b>' : '') + '</div>'
     + '</div>'
 
@@ -1862,6 +1870,7 @@ loadClips(); render(); },
   allLists: allLists, activeList: activeList, wordsOf: wordsOf,
   englishVoices: englishVoices, offerVoices: offerVoices, voiceScore: voiceScore,
   voicesChanged: voicesChanged, holdKeyboard: holdKeyboard,
+  clipKb: function(){ return CLIP_KB; },
   // Tests drive the clip index directly rather than depending on what happens to
   // be recorded in the repo at the time.
   // Changing the clip set invalidates the element holding the old one, in flight

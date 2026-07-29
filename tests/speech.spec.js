@@ -277,6 +277,30 @@ test.describe('telling a grown-up whether recordings are working', () => {
     expect(await page.locator('#app').innerText()).not.toMatch(/recorded|fell back|can play/i);
   });
 
+  test('the save button says how much it will download', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => window.__acorn.go('parent'));
+    const label = await page.locator('#clipsave').textContent();
+    const kb = await page.evaluate(() => window.__acorn.clipKb());
+    if(!kb) { expect(label).not.toMatch(/MB|KB/); return; }   // nothing recorded
+    // Nobody should start a several-megabyte download without being told.
+    expect(label).toMatch(/\((\d+(\.\d+)? (MB|KB))\)/);
+    await expect(page.locator('#clipreport')).toContainText(/worth doing on wifi/);
+  });
+
+  test('the stated size matches the files on disk', async ({page}) => {
+    await open(page, '2026-08-01');
+    const kb = await page.evaluate(() => window.__acorn.clipKb());
+    const dir = require('node:path').resolve(__dirname, '..', 'audio');
+    const fs = require('node:fs');
+    if(!kb || !fs.existsSync(dir)) test.skip(true, 'no recordings in the repo');
+    const real = Math.round(fs.readdirSync(dir)
+      .filter(f => /\.(m4a|mp3)$/.test(f))
+      .reduce((n, f) => n + fs.statSync(require('node:path').join(dir, f)).size, 0) / 1024);
+    // Within a percent: the generated figure must not drift from the files.
+    expect(Math.abs(kb - real) / real).toBeLessThan(0.01);
+  });
+
   test('the build stamp is a plain version she can read off the screen',
     async ({page}) => {
       await open(page, '2026-08-01');
