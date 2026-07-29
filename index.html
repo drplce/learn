@@ -455,7 +455,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '10.4';
+var VERSION = '10.5';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2221,7 +2221,13 @@ function renderParent(){
         + '</div><div class="hint">Tap one to hear it. These come back most often.</div></div>'
       : '')
 
-    + '<div class="sect"><h2>Which list</h2><div class="seg">'
+    /* The three groups below were plain <div class="seg">: a run of toggle buttons
+       with nothing saying they are one choice, and their heading a sibling the group
+       does not point at. Read out, "Largest, pressed false" arrives with no clue it
+       is about text size. Sound's four groups already did this properly; these are
+       the same pattern, and the heading is the label. */
+    + '<div class="sect"><h2 id="l-list">Which list</h2>'
+    +   '<div class="seg" role="group" aria-labelledby="l-list">'
     +   allLists().map(function(l){
           return '<button data-list="' + esc(l.id) + '" aria-pressed="' + (l.id === list.id) + '">'
                + esc(l.name) + ' <span style="opacity:.6">' + wordsOf(l).length + '</span></button>'; }).join('')
@@ -2290,12 +2296,14 @@ function renderParent(){
     +   'so Karen is usually the best it can do. Recorded words, where this app has '
     +   'them, do not use the phone voice at all.</div></div>'
 
-    + '<div class="sect"><h2>Text size</h2><div class="seg">'
+    + '<div class="sect"><h2 id="l-size">Text size</h2>'
+    +   '<div class="seg" role="group" aria-labelledby="l-size">'
     +   scales.map(function(s){ return '<button data-sc="' + s[1] + '" aria-pressed="'
           + (Number(S.settings.textScale||1) === s[1]) + '">' + s[0] + '</button>'; }).join('')
     + '</div></div>'
 
-    + '<div class="sect"><h2>Background</h2><div class="seg">'
+    + '<div class="sect"><h2 id="l-tint">Background</h2>'
+    +   '<div class="seg" role="group" aria-labelledby="l-tint">'
     +   tints.map(function(t){ return '<button class="swatch" data-tn="' + t[0] + '" style="background:'
           + t[1] + '" aria-pressed="' + ((S.settings.tint||'cream') === t[0]) + '" aria-label="' + t[0] + ' background"></button>'; }).join('')
     + '</div><div class="hint">A tint some readers find easier. Light mode only.</div></div>'

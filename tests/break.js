@@ -842,6 +842,126 @@ async function main(){
     if(!broke) ok('14 corners of screen size and text size all stayed usable');
   }
 
+  /* ---------------------------------------------------------------
+     22. no box is starved when the review queue is over-subscribed
+     --------------------------------------------------------------- */
+  {
+    console.log('\n22. the review queue under overload');
+    /* Measured over 120 days: the box intervals ask for about 21 reviews a day and a
+       sitting is nine words, so the queue runs roughly 2x over-subscribed — and that
+       is an equilibrium, not an accident. The pace controller adds new words until
+       she is at her target accuracy, and the backlog is what that costs. Something
+       has to be dropped every evening, so the question is not whether words run late
+       but whether the lateness is shared out.
+
+       overdueRatio() is what shares it: gap divided by the box's interval, highest
+       first. Measured, every box comes out between 2.2x and 3.0x its interval — a
+       word she knows well waits 60 days instead of 21, and a shaky one waits 6 days
+       instead of 2, in the same proportion. Order by absolute days overdue instead
+       and the long-interval words swallow every sitting; drop the ratio and they
+       never come back at all. Both are one edit away, and neither shows up as a
+       failure anywhere else, which is why this is here. */
+    const {page, ctx, errs} = await fresh(browser, '2026-08-01');
+    let r = null;
+    try{
+      r = await page.evaluate(days => {
+        const a = window.__acorn;
+        function hash(s){ let h = 2166136261;
+          for(let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+          return (h >>> 0) / 4294967296; }
+        const mem = {};
+        const diff = w => Math.min(1, .25 + .45 * Math.min(1, Math.max(0, (w.length - 3) / 7))
+                                       + .2 * hash(w));
+        const recall = (w, d) => { const m = mem[w]; if(!m) return 0;
+          return m.s * Math.exp(-(d - m.day) / (1.6 + 2.4 * m.s)); };
+        const learn = (w, d, got) => { const m = mem[w] || (mem[w] = {s: 0, day: d});
+          m.s = got ? Math.min(1, m.s + (1 - m.s) * (0.55 * (1 - diff(w)) + 0.35))
+                    : Math.max(0, m.s * 0.94 + 0.10);
+          m.day = d; };
+        let seed = 20260801;
+        const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+
+        localStorage.clear();
+        a.state.words.mastery = {}; a.state.words.sessions = []; a.state.words.lists = [];
+        a.state.words.activeId = 'easy'; a.save();
+        const t0 = new Date('2026-08-01');
+        const asks = [];                       // {word, day, boxWas}
+        for(let d = 0; d < days; d++){
+          a.setToday(new Date(t0.getTime() + d * 86400000).toISOString().slice(0, 10));
+          a.go('parent'); a.go('day');
+          if(!a.session()) a.start();
+          for(let g = 0; g < 120 && a.session(); g++){
+            const W = a.session(), w = W.words[W.i];
+            if(W.stage === 'look'){ learn(w, d, true); a.cover(); continue; }
+            if(W.stage === 'write'){
+              asks.push({w: w, day: d, boxWas: a.mastery(w).box || 1});
+              const got = rnd() < Math.min(0.99, recall(w, d) * 1.15 + 0.15);
+              learn(w, d, got);
+              a.type(got ? w : 'zzz'); a.check(); a.next(); continue;
+            }
+            a.next();
+          }
+        }
+        // The gap before each ask, grouped by the box the word was sitting in.
+        const lastAt = {}, byBox = {};
+        asks.forEach(x => {
+          if(lastAt[x.w] !== undefined) (byBox[x.boxWas] = byBox[x.boxWas] || []).push(x.day - lastAt[x.w]);
+          lastAt[x.w] = x.day;
+        });
+        const med = xs => { const s = xs.slice().sort((p, q) => p - q); return s[Math.floor(s.length / 2)]; };
+        const rows = Object.keys(byBox).map(Number).sort((p, q) => p - q).map(b => ({
+          box: b, n: byBox[b].length, interval: a.BOX_DAYS[b],
+          lateness: a.BOX_DAYS[b] > 0 ? med(byBox[b]) / a.BOX_DAYS[b] : null,
+        }));
+        const met = Object.keys(a.state.words.mastery);
+        return {
+          rows: rows,
+          met: met.length,
+          asked: asks.length,
+          // Every met word has to come back sometime. Nothing may be dropped for good.
+          neverAgain: met.filter(w => (byBox[a.mastery(w).box || 1] || []).length === 0
+                                     && asks.filter(x => x.w === w).length < 2).length,
+          demand: met.reduce((n, w) => n + 1 / Math.max(1, a.BOX_DAYS[a.mastery(w).box || 1] || 1), 0),
+        };
+      }, 120);
+    }catch(e){ r = {threw: e.message}; }
+
+    /* Boxes 1 and 2 are the requeue's ground, not the review queue's: a word she has
+       just missed comes back inside the same sitting, so its gap is 0 and its
+       "lateness" is 0.0x however you measure it. That is the requeue working, so they
+       are held to the opposite test below — that they are served fast — and the
+       share-out is judged on the boxes whose intervals are actually days long. */
+    const scored = r && r.rows ? r.rows.filter(x => x.lateness !== null && x.n >= 5
+                                                   && x.interval >= 2) : [];
+    const quick = r && r.rows ? r.rows.filter(x => x.interval <= 1 && x.n >= 5) : [];
+    const late = scored.map(x => x.lateness);
+    const why = !r ? 'nothing came back'
+      : r.threw ? 'threw: ' + r.threw
+      : r.met < 20 ? 'only ' + r.met + ' words were ever met, so nothing was over-subscribed'
+      : r.demand < r.asked / 120 ? 'the queue was not over-subscribed (' + r.demand.toFixed(1)
+                                   + ' a day wanted, ' + (r.asked / 120).toFixed(1) + ' asked)'
+      : scored.length < 3 ? 'too few boxes saw real traffic to compare them'
+      // A word she has just missed must come back quickly, not join the queue.
+      : quick.some(x => x.lateness > 1) ? 'a word she just missed is being made to wait: '
+          + quick.map(x => 'box ' + x.box + ' ' + x.lateness.toFixed(1) + 'x').join(', ')
+      : r.neverAgain > 0 ? r.neverAgain + ' met words were asked once and then dropped for good'
+      // The share-out. Every box between 1.5x and 5x, and no box more than three
+      // times as late as another.
+      : late.some(x => x < 1.5 || x > 5) ? 'a box is off on its own: '
+          + scored.map(x => 'box ' + x.box + ' ' + x.lateness.toFixed(1) + 'x').join(', ')
+      : Math.max(...late) / Math.min(...late) > 3 ? 'the lateness is not shared out: '
+          + scored.map(x => 'box ' + x.box + ' ' + x.lateness.toFixed(1) + 'x').join(', ')
+      : null;
+    if(why) bad('review queue', why);
+    else ok(r.met + ' words met, ' + r.demand.toFixed(0) + ' reviews a day wanted against '
+            + (r.asked / 120).toFixed(0) + ' asked, and boxes '
+            + scored.map(x => x.box).join('/') + ' all ran '
+            + scored.map(x => x.lateness.toFixed(1) + 'x').join('/')
+            + ' their interval — the lateness is shared, not dumped on one of them');
+    if(errs.length) bad('review queue', errs.slice(0, 2).join(' | '));
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));
