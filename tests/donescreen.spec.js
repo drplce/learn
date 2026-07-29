@@ -40,8 +40,7 @@ test.describe('the screen at the end of a sitting', () => {
 
   test('it says what tonight did, in words, at any count', async ({page}) => {
     await open(page, '2026-08-01');
-    for(const [n, want] of [[1, 'One more'], [3, 'Three more'], [9, 'Nine more'],
-                            [10, '10 more'], [40, '40 more']]){
+    for(const [n, want] of [[1, 'One'], [3, 'Three'], [9, 'Nine'], [10, '10'], [40, '40']]){
       const line = await page.evaluate(k => {
         const a = window.__acorn;
         a.reset(); a.setToday('2026-08-01');
@@ -92,7 +91,7 @@ test.describe('the screen at the end of a sitting', () => {
       const t = window.__acorn.tonight();
       return {marked: n, head: head, fresh: t.fresh.length, grew: t.grew.length};
     });
-    const said = out.head.match(/^(\w+) more took root/);
+    const said = out.head.match(/^(\w+) took root/);
     expect(said, 'unexpected wording: ' + out.head).not.toBeNull();
     const WORDS = {One:1, Two:2, Three:3, Four:4, Five:5, Six:6, Seven:7, Eight:8, Nine:9};
     const n = WORDS[said[1]] || Number(said[1]);
@@ -149,7 +148,7 @@ test.describe('the screen at the end of a sitting', () => {
     expect(out.two.filter(w => out.one.includes(w)),
            'she watched the same words arrive twice').toEqual([]);
     // The count is still the honest total for the evening — "tonight", not "just now".
-    expect(out.head).toMatch(/more took root tonight\.$/);
+    expect(out.head).toMatch(/took root tonight\.$/);
   });
 
   test('yesterday’s evening does not arrive again today', async ({page}) => {
@@ -162,6 +161,43 @@ test.describe('the screen at the end of a sitting', () => {
       return document.querySelectorAll('#screen .net-cell.arriving').length;
     });
     expect(marked).toBe(0);
+  });
+
+  /* A headline taller than the picture it introduces. "Three more took root tonight"
+     ran to two lines at her ordinary text size and three at the largest on a 375px
+     phone. Two mistakes in finding that: my first measurement used getClientRects on a
+     block element, which returns one rect however many lines it wraps to; and my first
+     test fed it candidate strings instead of asking the app what it says, so it passed
+     against the wording it was meant to catch. It renders real sittings now. */
+  test('the line at the top is never more than two lines', async ({page}) => {
+    for(const vp of [{width:320, height:568}, {width:375, height:667}, {width:390, height:844}]){
+      await page.setViewportSize(vp);
+      await open(page, '2026-08-01');
+      for(const scale of [0.9, 1, 1.15, 1.3, 1.5]){
+        for(const moved of [1, 3, 9, 14, 40, 0]){
+          const r = await page.evaluate(({s, k}) => {
+            const a = window.__acorn;
+            a.reset(); a.setToday('2026-08-01');
+            a.state.settings.textScale = s;
+            const all = [];
+            a.allLists().forEach(l => a.wordsOf(l).forEach(w => { if(all.indexOf(w) < 0) all.push(w); }));
+            all.slice(0, k).forEach(w => a.state.words.mastery[w] =
+              {right:1, wrong:0, box:2, lastSeen:'2026-08-01'});
+            a.state.words.sessions = [{date:'2026-08-01', list:a.activeList().id,
+                                       asked:Math.max(1, k), words:Math.max(1, k),
+                                       firstTime:Math.max(1, k),
+                                       fresh:all.slice(0, k), grew:[], slipped:[]}];
+            a.save(); a.go('parent'); a.go('day');
+            const h = document.querySelector('.headline');
+            const range = document.createRange();
+            range.selectNodeContents(h);
+            const tops = new Set([...range.getClientRects()].map(x => Math.round(x.top)));
+            return {text: h.textContent, lines: tops.size};
+          }, {s: scale, k: moved});
+          expect(r.lines, `${vp.width}px at ${scale}x: "${r.text}"`).toBeLessThanOrEqual(2);
+        }
+      }
+    }
   });
 
   test('the whole screen still fits, on every phone at every text size', async ({page}) => {

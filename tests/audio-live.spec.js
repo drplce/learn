@@ -91,42 +91,35 @@ const events = page => page.evaluate(() => window.__ev.slice());
 
 test.describe('kept on the device rather than fetched when she needs it', () => {
 
-  test('the sitting is fetched ahead, and a warmed clip plays with no wait',
+  /* "Plays with no wait" is a claim about the network, so it is tested as one: the
+     clip is a blob off the device, and playing it asks the server for nothing. It used
+     to be a stopwatch — under 60ms — which failed about one run in three when the whole
+     suite is going at once, because a busy machine is slow at everything. A test that
+     fails on a coin toss is worse than no test, and the request count proves the actual
+     property rather than standing in for it. */
+  test('the sitting is fetched ahead, and playing it asks the server for nothing',
     async ({page}) => {
       await boot(page, ['because','be','cause','said']);
       await page.waitForFunction(() => window.__acorn.warmed() > 0, null, {timeout:10000});
+      const asked = [];
+      page.on('request', r => { if(/\.wav$/.test(r.url())) asked.push(r.url()); });
       const t = await page.evaluate(async () => {
         const warm = window.__acorn.sittingPhrases()
           .find(p => (window.__acorn.clipFor(p) || '').startsWith('blob:'));
         const url = window.__acorn.clipFor(warm);
-        const t0 = performance.now();
         const el = new Audio(url);
-        await new Promise(r => { el.addEventListener('loadeddata', r, {once:true});
-                                 el.addEventListener('error', r, {once:true});
-                                 el.load(); setTimeout(r, 4000); });
-        return {phrase: warm, ms: performance.now() - t0, fromDevice: url.startsWith('blob:'),
-                // What the same file costs when it has to be asked for.
-                cold: await (async () => {
-                  const raw = window.__acorn.clipUrl(warm) + '?cold=' + Math.random();
-                  const c0 = performance.now();
-                  const el2 = new Audio(raw);
-                  await new Promise(r => { el2.addEventListener('loadeddata', r, {once:true});
-                                           el2.addEventListener('error', r, {once:true});
-                                           el2.load(); setTimeout(r, 4000); });
-                  return performance.now() - c0;
-                })()};
+        const how = await new Promise(r => {
+          el.addEventListener('loadeddata', () => r('loaded'), {once:true});
+          el.addEventListener('error', () => r('failed'), {once:true});
+          el.load(); setTimeout(() => r('timed out'), 5000);
+        });
+        return {phrase: warm, how: how, fromDevice: url.startsWith('blob:'),
+                file: window.__acorn.clipUrl(warm).replace(/^.*\//, '')};
       });
-      /* The proof that nothing about the network is in the way is that it is a blob
-         off the device — that is the claim, and it is exact. The timing is a guard
-         against a pathological regression, so it is measured against what the same
-         file costs when it has to be asked for, and bounded generously: a tight
-         absolute bound here failed about one run in three when the whole suite is
-         going at once, and a test that fails on a coin toss is worse than no test. */
-      expect(t.fromDevice).toBe(true);
-      expect(t.ms, `${t.phrase} took ${Math.round(t.ms)}ms off the device`)
-        .toBeLessThan(400);
-      expect(t.ms, `off the device ${Math.round(t.ms)}ms vs asked for ${Math.round(t.cold)}ms`)
-        .toBeLessThanOrEqual(Math.max(60, t.cold * 2));
+      expect(t.fromDevice, 'it did not come off the device').toBe(true);
+      expect(t.how, `${t.phrase} ${t.how}`).toBe('loaded');
+      expect(asked.filter(u => u.endsWith(t.file)),
+             'playing a stored clip went to the network').toEqual([]);
     });
 
   test('nothing is fetched twice, and nothing is fetched again after a reload',

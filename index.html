@@ -430,7 +430,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '9.8';
+var VERSION = '9.9';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1908,7 +1908,12 @@ function renderDone(){
      is the one thing this screen has to say instead of anything else — stripping the
      totals off it took that message with them the first time. */
   var line = !canPractise ? count
-    : grew.length ? said(grew.length) + ' more took root tonight.'
+    /* "Three more took root tonight" was two lines at her ordinary text size and three
+       at the largest, on a 375px phone — a headline taller than the picture it is
+       introducing. "More" was doing no work either: the picture already shows what she
+       had before tonight. Measured, the shorter line is one line at the default size on
+       both phones and never more than two anywhere. */
+    : grew.length ? said(grew.length) + ' took root tonight.'
     : head;
   header();
   announce(head + ' ' + count);
