@@ -213,6 +213,79 @@ test.describe('the shape of what she knows', () => {
     expect(await page.locator('#app').innerText()).not.toMatch(/what she knows/i);
   });
 
+  // "said" and "they" are on half the sight-word lists anyone would paste in.
+  // Counting them once per list drew the same word twice — two unconnected cells,
+  // only one of them joined to anything — and inflated the total.
+  test('a word on two lists is on the map once', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => window.__acorn.go('parent'));
+    const before = (await cells(page)).map(c => c.word);
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists.push({id:'w1', name:'Week 4', words:['said','they','went','zebra']});
+      a.save(); a.go('parent');
+    });
+    const after = (await cells(page)).map(c => c.word);
+    expect(new Set(after).size, 'no word is drawn twice').toBe(after.length);
+    // Only the genuinely new word is added.
+    expect(after.length).toBe(before.length + 1);
+    expect(after).toContain('zebra');
+    const hint = await page.locator('.sect:has(h2:text-is("What she knows"))').innerText();
+    expect(hint).toContain(after.length + ' in all');
+  });
+
+  // Two counts of the same thing, worked out separately, drifted: the picture
+  // counted every list, the card counted the open one, and both said
+  // "known well".
+  test('the picture and the Progress card give the same numbers', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      // Words known well on a list that is not the open one.
+      const other = a.allLists().filter(l => l.id !== a.activeList().id)[0];
+      const m = {};
+      a.wordsOf(other).slice(0, 4).forEach(w => { m[w] = {right:5, wrong:0, box:6, lastSeen:'2026-07-20'}; });
+      a.wordsOf(a.activeList()).slice(0, 2).forEach(w => { m[w] = {right:1, wrong:1, box:2, lastSeen:'2026-07-20'}; });
+      a.state.words.mastery = m; a.save(); a.go('parent');
+    });
+    const all = await cells(page);
+    const known = all.filter(c => c.well).length, met = all.filter(c => c.met).length;
+    expect(known).toBe(4);
+    expect(met).toBe(6);
+    const card = await page.locator('.sect:has(h2:text-is("Progress"))').innerText();
+    expect(card).toMatch(new RegExp('\\b' + known + '\\s*\\n?\\s*known well', 'i'));
+    expect(card).toMatch(new RegExp('\\b' + met + '\\s*\\n?\\s*words met', 'i'));
+    const pic = await page.locator('.sect:has(h2:text-is("What she knows"))').innerText();
+    expect(pic).toContain(met + ' met, ' + known + ' known well');
+    expect(await page.locator('.net').getAttribute('aria-label'))
+      .toContain(met + ' met, ' + known + ' known well');
+  });
+
+  // role="img" is meant to make an image's children presentational, but no
+  // browser prunes SVG shapes that carry a <title> — so a hundred cells became a
+  // hundred nodes, and a screen reader read the whole word list out in layout
+  // order with nothing to say which ones she knew. It has to be one picture that
+  // states its numbers once.
+  test('it is one picture to a screen reader, not a hundred words', async ({page}) => {
+    await open(page, '2026-08-01');
+    await master(page, {said:6, they:3, went:1});
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Accessibility.enable');
+    const {nodes} = await cdp.send('Accessibility.getFullAXTree');
+    const name = n => (n.name && n.name.value) || '';
+    const pic = nodes.filter(n => /growing picture of her words/.test(name(n)));
+    expect(pic.length, 'the picture is announced exactly once').toBe(1);
+    expect(name(pic[0])).toMatch(/3 met, 1 known well, \d+ in all/);
+    expect((pic[0].childIds || []).length, 'the shapes are not walkable').toBe(0);
+
+    const words = (await cells(page)).map(c => c.word);
+    const leaked = nodes.filter(n => !n.ignored && words.indexOf(name(n)) >= 0);
+    expect(leaked.map(name), 'no cell reaches the accessibility tree').toEqual([]);
+    // The tooltip is the only thing the titles are for, so they stay.
+    expect(await page.locator('.net-cell title').count()).toBe(words.length);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
   test('it fits the phone at every text size', async ({page}) => {
     await open(page, '2026-08-01');
     await page.setViewportSize({width:375, height:667});

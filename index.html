@@ -223,7 +223,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 .sect h2{font-size:var(--t-xs); font-weight:800; letter-spacing:.14em; text-transform:uppercase;
          color:var(--ink-soft); margin-bottom:var(--s3);}
 .field{margin-bottom:var(--s4);}
-.field label{display:block; font-size:var(--t-sm); font-weight:700; margin-bottom:var(--s1);}
+.field label, .field .lbl{display:block; font-size:var(--t-sm); font-weight:700; margin-bottom:var(--s1);}
 .hint{font-size:var(--t-sm); color:var(--ink-soft); margin-top:var(--s1); max-width:42ch;}
 .field input[type=text], .field textarea{
   width:100%; padding:var(--s3); border-radius:var(--r-md); background:var(--surface-2);
@@ -349,7 +349,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '7.4';
+var VERSION = '7.5';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1525,7 +1525,7 @@ function renderDone(){
 
 function renderParent(){
   el('#act').innerHTML = '';
-  var list = activeList(), all = wordsOf(list);
+  var list = activeList(), all = wordsOf(list), net = networkData();
   var voices = offerVoices(), chosen = pickVoice();
   var tricky = Object.keys(S.words.mastery)
     .filter(function(w){ return mastery(w).wrong > 0 && (mastery(w).box || 1) < KNOWN_BOX; })
@@ -1545,10 +1545,14 @@ function renderParent(){
           + 'This device isn’t saving her progress — it may be out of space, or in a private '
           + 'browsing window. Practice still works, but today won’t be remembered.</div></div>'
         : '')
-    + renderNetwork()
+    + renderNetwork(net)
+      // The same three numbers the picture above states, from the same count.
+      // They used to be worked out separately and to different scopes — one
+      // list here, everything there — so the screen gave two answers to
+      // "how many does she know well?".
     + '<div class="sect"><h2>Progress</h2><div class="stats">'
-    +   '<div class="stat"><b>' + knownCount(list) + '</b><span>known well</span></div>'
-    +   '<div class="stat"><b>' + Object.keys(S.words.mastery).length + '</b><span>words tried</span></div>'
+    +   '<div class="stat"><b>' + (net ? net.known : 0) + '</b><span>known well</span></div>'
+    +   '<div class="stat"><b>' + (net ? net.met : 0) + '</b><span>words met</span></div>'
     +   '<div class="stat"><b>' + S.words.sessions.length + '</b><span>sessions</span></div>'
     + '</div>'
     + '<div class="hint">' + esc(paceLabel()) + '. The pace follows her over her last five '
@@ -1579,7 +1583,8 @@ function renderParent(){
     +   '<div class="hint">Commas, spaces or one per line — numbering and bullets are ignored. '
     +   'A long list is dripped a couple of words at a time, never dumped on her at once.</div>'
     +   (S.words.lists.length
-        ? '<div class="field" style="margin-top:1rem"><label>Saved lists</label><div class="seg">'
+        ? '<div class="field" style="margin-top:1rem"><div class="lbl" id="l-saved">Saved lists</div>'
+          + '<div class="seg" role="group" aria-labelledby="l-saved">'
           + S.words.lists.map(function(l){
               return '<button class="danger" data-del="' + esc(l.id) + '">Delete “' + esc(l.name) + '”</button>'; }).join('')
           + '</div></div>'
@@ -1587,24 +1592,29 @@ function renderParent(){
     + '</div>'
 
     + '<div class="sect"><h2>Her name</h2>'
-    +   '<div class="field"><input type="text" id="pname" value="' + esc(S.profile.name || '') + '" '
+    +   '<div class="field"><label for="pname">First name</label>'
+    +     '<input type="text" id="pname" value="' + esc(S.profile.name || '') + '" '
     +     'placeholder="First name" autocomplete="off" autocapitalize="words">'
     +     '<div class="hint">Used for a little encouragement. Stored only on this device — it is never '
     +     'in the app’s code.</div></div></div>'
 
     + '<div class="sect"><h2>Sound</h2>'
-    +   '<div class="field"><label>Read aloud</label><div class="seg">'
+    +   '<div class="field"><div class="lbl" id="l-ra">Read aloud</div>'
+    +     '<div class="seg" role="group" aria-labelledby="l-ra">'
     +     '<button data-ra="1" aria-pressed="' + (S.settings.readAloud !== false) + '">On</button>'
     +     '<button data-ra="0" aria-pressed="' + (S.settings.readAloud === false) + '">Off</button></div></div>'
-    +   '<div class="field"><label>Chimes</label><div class="seg">'
+    +   '<div class="field"><div class="lbl" id="l-sn">Chimes</div>'
+    +     '<div class="seg" role="group" aria-labelledby="l-sn">'
     +     '<button data-sn="1" aria-pressed="' + (S.settings.sound !== false) + '">On</button>'
     +     '<button data-sn="0" aria-pressed="' + (S.settings.sound === false) + '">Off</button></div></div>'
-    +   '<div class="field"><label>Speaking speed</label><div class="seg">'
+    +   '<div class="field"><div class="lbl" id="l-rate">Speaking speed</div>'
+    +     '<div class="seg" role="group" aria-labelledby="l-rate">'
     +     [['Slow',.7],['Steady',.85],['Normal',.95],['Quick',1.1]].map(function(r){
             return '<button data-rate="' + r[1] + '" aria-pressed="'
                  + (Number(S.settings.speechRate||.95) === r[1]) + '">' + r[0] + '</button>'; }).join('')
     +   '</div></div>'
-    +   '<div class="field"><label>Voice</label><div class="seg">'
+    +   '<div class="field"><div class="lbl" id="l-voice">Voice</div>'
+    +     '<div class="seg" role="group" aria-labelledby="l-voice">'
     +     (voices.length
           ? voices.map(function(v){
               // Keep a "(Premium)" / "(Enhanced)" suffix — that is the part worth seeing.
@@ -1614,9 +1624,15 @@ function renderParent(){
                    + ' <span style="opacity:.6">' + esc((v.lang||'').replace('_','-')) + '</span></button>'; }).join('')
           : '<span class="hint">Tap anything that speaks once, then come back — the phone only lists '
             + 'its voices after the first bit of speech.</span>')
-    +   '</div><div class="hint">Your phone is offering ' + voices.length + ' English '
-    +   (voices.length === 1 ? 'voice' : 'voices')
-    +   ', Australian first. Safari only ever offers the handful built into iOS — '
+      // With no voices yet the list above already says why, and "offering 0
+      // English voices, Australian first" is both nonsense and a contradiction
+      // of it.
+    +   '</div><div class="hint">'
+    +   (voices.length
+        ? 'Your phone is offering ' + voices.length + ' English '
+          + (voices.length === 1 ? 'voice' : 'voices') + ', Australian first. '
+        : 'No voices listed yet — the ones it has appear above once something has spoken. ')
+    +   'Safari only ever offers the handful built into iOS — '
     +   'voices you download under Accessibility are not available to a web page, '
     +   'so Karen is usually the best it can do. Recorded words, where this app has '
     +   'them, do not use the phone voice at all.</div></div>'
@@ -1775,15 +1791,28 @@ function cellPath(w, x, y, r){
    circle and nothing is evenly spaced, which is what stops it reading as a
    diagram. */
 function networkData(){
-  var lists = allLists().filter(function(l){ return wordsOf(l).length; });
+  /* This is a map of her words, not of the lists — so a word is on it once even
+     when it is on two lists. "said" and "they" turn up on half the sight-word
+     lists anyone would paste in, and counting them twice both inflated "in all"
+     and drew the same word as two unconnected cells, one of which got none of
+     the filaments. A word belongs to the earliest list that has it, which is
+     also the pattern it was first taught as, since lists run easiest first. */
+  var claimed = {};
+  var lists = allLists().map(function(l){
+    var mine = wordsOf(l).filter(function(w){
+      if(claimed[w]) return false;
+      claimed[w] = true; return true;
+    });
+    return {list:l, words:mine};
+  }).filter(function(g){ return g.words.length; });
   if(!lists.length) return null;
-  var rnd = seeded(lists.map(function(l){ return l.id + wordsOf(l).length; }).join('|'));
+  var rnd = seeded(lists.map(function(g){ return g.list.id + g.words.length; }).join('|'));
   var cx = NET_W / 2, cy = NET_W / 2;
-  var total = lists.reduce(function(n, l){ return n + wordsOf(l).length; }, 0);
+  var total = lists.reduce(function(n, g){ return n + g.words.length; }, 0);
   var cells = [], fronds = [], byWord = {};
 
-  lists.forEach(function(l, li){
-    var words = wordsOf(l);
+  lists.forEach(function(g, li){
+    var l = g.list, words = g.words;
     // Uneven angles and lengths: a perfect star is a diagram.
     var a = (li / lists.length) * Math.PI * 2 - Math.PI / 2 + (rnd() - .5) * 0.55;
     var reach = NET_W * (0.27 + 0.09 * Math.sqrt(words.length / Math.max(4, total / lists.length))
@@ -1852,11 +1881,18 @@ function networkData(){
           met:cells.filter(function(c){ return c.met; }).length};
 }
 
-function renderNetwork(){
-  var d = networkData();
+function renderNetwork(d){
   if(!d) return '';
+  /* One picture, one label. role="img" is supposed to make the children
+     presentational, but browsers do not prune SVG shapes that carry a <title>:
+     without aria-hidden a screen reader walks a hundred word-shaped nodes in
+     layout order, which is the word list read out scrambled and with no idea
+     which ones she knows. Every shape below is hidden by hand and the whole
+     thing says its numbers once. The <title>s stay — they are the hover
+     tooltip, which is the only thing they are good for. */
   var svg = '<svg class="net" viewBox="0 0 ' + NET_W + ' ' + NET_W + '" role="img" aria-label="'
-    + d.known + ' of ' + d.total + ' words known well, grouped by spelling pattern">';
+    + 'A growing picture of her words, grouped by spelling pattern: '
+    + d.met + ' met, ' + d.known + ' known well, ' + d.total + ' in all">';
 
   /* A few fine hairs out of the core to each head. Each one wanders: walked out
      in steps with a small sideways drift at every one, then smoothed, so no line
@@ -1883,7 +1919,7 @@ function renderNetwork(){
             + ((pts[j][0] + pts[j+1][0]) / 2).toFixed(1) + ' '
             + ((pts[j][1] + pts[j+1][1]) / 2).toFixed(1);
       dd += 'T' + pts[pts.length-1][0].toFixed(1) + ' ' + pts[pts.length-1][1].toFixed(1);
-      svg += '<path class="net-hair" d="' + dd + '"/>';
+      svg += '<path class="net-hair" aria-hidden="true" d="' + dd + '"/>';
     }
   });
 
@@ -1895,7 +1931,7 @@ function renderNetwork(){
     var o1 = (rnd() - .35) * len * 0.22, o2 = (rnd() - .65) * len * 0.22;
     var p1 = [k.a.x + dx * 0.33 + nx * o1, k.a.y + dy * 0.33 + ny * o1];
     var p2 = [k.a.x + dx * 0.67 + nx * o2, k.a.y + dy * 0.67 + ny * o2];
-    svg += '<path class="net-link' + (k.a.met && k.b.met ? ' lit' : '') + '" d="M'
+    svg += '<path class="net-link' + (k.a.met && k.b.met ? ' lit' : '') + '" aria-hidden="true" d="M'
         + k.a.x.toFixed(1) + ' ' + k.a.y.toFixed(1)
         + 'C' + p1[0].toFixed(1) + ' ' + p1[1].toFixed(1) + ' '
         + p2[0].toFixed(1) + ' ' + p2[1].toFixed(1) + ' '
@@ -1906,7 +1942,7 @@ function renderNetwork(){
     // Ghosted until she meets it, then darker with every box it climbs.
     var fill = c.met ? (0.18 + 0.82 * Math.min(1, (c.box - 1) / (KNOWN_BOX - 1))) : 0;
     svg += '<path class="net-cell' + (c.met ? ' met' : '') + (c.box >= KNOWN_BOX ? ' well' : '')
-        + '" d="' + cellPath(c.w, c.x, c.y, c.r) + '" style="--f:' + fill.toFixed(2) + '"'
+        + '" aria-hidden="true" d="' + cellPath(c.w, c.x, c.y, c.r) + '" style="--f:' + fill.toFixed(2) + '"'
         + ' data-x="' + Math.round(c.x) + '" data-y="' + Math.round(c.y) + '"'
         + ' data-r="' + c.r.toFixed(1) + '"><title>' + esc(c.w) + '</title></path>';
   });

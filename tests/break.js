@@ -467,15 +467,30 @@ async function main(){
         if(o.stage === 'write') a.cover();
         if(o.stage === 'check'){ a.cover(); a.type('becuase'); a.check(); }
       }, {where, stage});
-      const problems = await page.evaluate(() =>
-        [...document.querySelectorAll('#app button, #app input, #app textarea')].map(el => {
-          const name = (el.getAttribute('aria-label') || el.textContent || el.placeholder || '').trim();
+      const problems = await page.evaluate(() => {
+        // A placeholder is not a name: it is grey hint text that disappears the
+        // moment anything is typed, and screen readers are not required to use
+        // it. Only a real label, aria-label or the control's own text counts.
+        const labelled = el => !!(el.id && document.querySelector('#app label[for="' + el.id + '"]'));
+        const out = [...document.querySelectorAll('#app button, #app input, #app textarea')].map(el => {
+          const name = (el.getAttribute('aria-label') || el.textContent || '').trim();
           const r = el.getBoundingClientRect();
           if(!r.width || !r.height) return null;
-          if(!name) return (el.id || el.className || el.tagName) + ' has no accessible name';
-          if(el.tabIndex < 0) return name + ' cannot be reached by Tab';
+          if(!name && !labelled(el)) return (el.id || el.className || el.tagName) + ' has no accessible name';
+          if(el.tabIndex < 0) return (name || el.id) + ' cannot be reached by Tab';
           return null;
-        }).filter(Boolean));
+        }).filter(Boolean);
+        // And a heading that looks like a label but labels nothing leaves the
+        // controls under it anonymous — five On/Off pairs in a row with no way
+        // to tell which setting each belongs to.
+        [...document.querySelectorAll('#app label')].forEach(l => {
+          const to = l.getAttribute('for');
+          if(to && document.getElementById(to)) return;
+          if(l.querySelector('input, textarea, select, button')) return;
+          out.push('the label “' + l.textContent.trim() + '” labels nothing');
+        });
+        return out;
+      });
       if(problems.length) bad('screen ' + where + '/' + stage, problems.join('; '));
     }
     if(!fails.length) ok('every control on every screen is named and tabbable');

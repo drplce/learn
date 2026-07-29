@@ -387,7 +387,13 @@ test.describe('what she hears', () => {
     await listen(page, []);
     await page.evaluate(() => { window.__acorn.voicesChanged(); window.__acorn.go('parent'); });
     await expect(page.locator('[data-voice]')).toHaveCount(0);
-    await expect(page.locator('.hint').filter({hasText:'offering 0 English'})).toBeVisible();
+    // With nothing to list, the screen used to claim it was "offering 0 English
+    // voices, Australian first" — nonsense, and a flat contradiction of the line
+    // just above it telling you to make something speak first.
+    const sound = page.locator('.sect').filter({hasText:'Speaking speed'});
+    await expect(sound).toContainText('No voices listed yet');
+    expect(await sound.innerText()).not.toMatch(/\b0 English/);
+    expect(await sound.innerText()).not.toMatch(/Australian first/);
 
     await listen(page, [{name:'Karen', lang:'en-AU'}, {name:'Matilda', lang:'en-AU'},
                         {name:'Daniel', lang:'en-GB'}]);
