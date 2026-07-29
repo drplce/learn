@@ -405,7 +405,14 @@ test.describe('finishing', () => {
     await page.locator('#check').click();
     await page.evaluate(() => window.__acorn.go('parent'));
     expect(await page.evaluate(() => window.__acorn.mastery('rain').box)).toBe(2);
-    expect(await page.evaluate(() => window.__acorn.session())).toBeNull();
+    /* The sitting used to be thrown away here, and this line asserted that. It kept
+       the progress either way — the box above is the progress — but discarding the
+       sitting also discarded which words she had been shown, so coming back showed
+       her a word she had covered up and was writing from memory. It is kept now and
+       validated on the way back; see tests/handback.spec.js. */
+    const held = await page.evaluate(() => window.__acorn.session());
+    expect(held, 'the sitting she was in was thrown away').not.toBeNull();
+    expect(held.shown).toContain('rain');
   });
 });
 

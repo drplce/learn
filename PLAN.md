@@ -217,7 +217,9 @@ Each phase shipped and Playwright-tested on its own, same as Goal Girls.
 ## 12. Notes & minor risks
 - iOS `speechSynthesis` needs a first user tap to activate; en-AU voice quality varies
   a little by device — acceptable, just flagging.
-- Backups are now automatic via §3a (private-repo sync); a manual "copy my progress"
-  export (like Goal Girls) is still worth keeping as a belt-and-braces fallback for when
-  no token is set.
+- Backups are **manual only**. §3a is still unbuilt — there is no sync code in
+  `index.html` and no credential anywhere — so the grown-ups screen's "Copy her
+  progress" / "Put a backup back" is the whole of it, and nothing leaves the phone
+  unless someone copies it out. This line used to claim sync was done, which
+  contradicted "Still open: §3a" at the top of this file.
 - Keep it a supplement to school's structured literacy; aim = confidence + daily practice.

@@ -455,7 +455,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '10.5';
+var VERSION = '10.6';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1513,6 +1513,10 @@ function start(){
   var words = buildSession(activeList(), todayISO());
   if(!words.length) return false;
   W = {words:words, i:0, stage:'write', attempt:'', tries:0,
+       // Which list, and which day, this sitting belongs to — so a grown-up who
+       // looks in mid-word can be handed back the same sitting, and only the same
+       // sitting. See go().
+       listId:(activeList() || {}).id, day:todayISO(),
        // plan is the number of words the sitting set out to cover. Requeued
        // words lengthen W.words but not the plan, so progress only ever moves
        // forward — a row of dots that grew would read as losing ground.
@@ -2958,12 +2962,33 @@ function finishedToday(){
   var id = (activeList() || {}).id, t = todayISO();
   return (S.words.sessions || []).some(function(x){ return x.date === t && x.list === id; });
 }
+/* Is the sitting we walked away from still the sitting to come back to? It is if it
+   belongs to today and to the list she is still on, and every word in it still exists
+   somewhere in the corpus. Anything a grown-up did that invalidates it — switching
+   lists, deleting the one she was on, restoring a backup, erasing everything, or
+   simply staying until midnight — fails one of those and she gets a fresh one. */
+function sessionStillGood(){
+  if(!W) return false;
+  if(W.day !== todayISO()) return false;
+  if(W.listId !== (activeList() || {}).id) return false;
+  var have = allWords();
+  for(var i = 0; i < W.words.length; i++) if(have.indexOf(W.words[i]) < 0) return false;
+  return true;
+}
 function go(s){
-  if(s !== 'day'){ W = null; screen = s; saying = ''; window.scrollTo(0, 0); render(); return; }
+  /* Leaving her screen used to throw the sitting away outright, and coming back
+     built a new one. Two things went with it. Her half-typed answer, which is
+     annoying. And W.shown — the record of which words she had already been shown —
+     so a word she had covered up and was writing from memory was shown to her again:
+     a grown-up glancing at Progress mid-word silently turned the one exercise that
+     works into a copying exercise. The sitting is kept now and validated on the way
+     back instead. */
+  if(s !== 'day'){ screen = s; saying = ''; window.scrollTo(0, 0); render(); return; }
   // Landing on her screen with no session used to render "All done for today",
   // so a grown-up who pasted the week's list and tapped Back handed her a
   // screen saying there was nothing to do.
   screen = s; saying = ''; window.scrollTo(0, 0);
+  if(!sessionStillGood()) W = null;
   if(!W && !finishedToday() && start()) return;
   render();
 }
@@ -3169,9 +3194,14 @@ loadClips(); render(); },
   reset: function(){ localStorage.removeItem(KEY); load(); },
   cover: function(){ if(W){ W.stage = 'write'; render(); } },
   type: function(v){ if(W){ W.attempt = v; if(el('#type')) el('#type').value = v; } },
+  /* plan, day, listId and shown are here so a test can tell the sitting she was
+     handed back apart from a fresh one that happens to look like it. Without them,
+     asserting plan === plan compared undefined with undefined and passed. */
   session: function(){ return W && {words:W.words.slice(), i:W.i, stage:W.stage, tries:W.tries,
                                      right:W.right, firstTime:W.firstTime, failed:W.failed.slice(),
-                                     requeue:W.requeue.slice()}; },
+                                     requeue:W.requeue.slice(), plan:W.plan, day:W.day,
+                                     listId:W.listId, shown:W.shown.slice(),
+                                     done:(W.done || []).slice()}; },
   go: go, screen: function(){ return screen; },
   BOX_DAYS: BOX_DAYS, MAX_BOX: MAX_BOX, KNOWN_BOX: KNOWN_BOX,
   meanings: function(){ return Object.assign({}, MEANING); },

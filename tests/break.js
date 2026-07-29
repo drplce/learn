@@ -962,6 +962,97 @@ async function main(){
     await ctx.close();
   }
 
+  /* ---------------------------------------------------------------
+     23. a grown-up meddling while she has a word on screen
+     --------------------------------------------------------------- */
+  {
+    console.log('\n23. a grown-up meddling mid-word');
+    /* Scenario 8 walks to the grown-ups screen and back without touching anything.
+       This one uses it: the destructive buttons are all on that screen and she may
+       well have a word up when someone goes looking. Whatever is done, she has to
+       come back to a word she can actually be asked — and a change that is only
+       cosmetic must not cost her the one she was on, because going back to the look
+       stage shows her a spelling she had covered up and was writing from memory. */
+    const MEDDLE = {
+      'looks and leaves':      async () => {},
+      'changes her text size': async page => { await page.locator('[data-sc="1.5"]').click(); },
+      'changes the tint':      async page => { await page.locator('[data-tn="mint"]').click(); },
+      'turns sound off':       async page => { await page.locator('[data-ra="0"]').click(); },
+      'switches list':         async page => { await page.locator('[data-list="tricky"]').click(); },
+      'saves a new list':      async page => {
+        await page.locator('#paste').fill('zebra, kangaroo, wombat');
+        await page.locator('#pname2').fill('New');
+        await page.locator('#pasteSave').click(); },
+      'deletes her list':      async page => {
+        const d = page.locator('[data-del]').first();
+        if(await d.count()){ await d.click(); await d.click(); } },
+      'erases everything':     async page => {
+        const b = page.locator('#reset');
+        if(await b.count()){ await b.click(); await b.click(); } },
+    };
+    // A cosmetic change must leave her exactly where she was; the rest may rebuild.
+    const COSMETIC = ['looks and leaves', 'changes her text size', 'changes the tint',
+                      'turns sound off'];
+    let broke = 0;
+    for(const [name, fn] of Object.entries(MEDDLE)){
+      const {page, ctx, errs} = await fresh(browser, '2026-08-01');
+      let r = null;
+      try{
+        await page.evaluate(() => {
+          const a = window.__acorn;
+          a.state.words.lists = [{id:'w1', name:'Week 5', words:['said','went','rain']}];
+          a.state.words.activeId = 'w1';
+          a.state.words.mastery = {}; a.state.words.sessions = [];
+          a.save(); a.go('day');
+          if(!a.session()) a.start();
+          if(a.session().stage === 'look') a.cover();      // covered up, writing from memory
+        });
+        await page.locator('#type').fill('sai');
+        const before = await page.evaluate(() => {
+          const s = window.__acorn.session();
+          return {stage:s.stage, word:s.words[s.i], i:s.i, plan:s.plan};
+        });
+        await page.evaluate(() => window.__acorn.go('parent'));
+        await fn(page);
+        await page.evaluate(() => window.__acorn.go('day'));
+        r = await page.evaluate(b => {
+          const a = window.__acorn, s = a.session();
+          return {
+            before: b,
+            after: s ? {stage:s.stage, word:s.words[s.i], i:s.i, plan:s.plan} : null,
+            typed: (document.querySelector('#type') || {}).value || '',
+            // Whatever she is looking at, it has to be a real word she can be asked.
+            askable: s ? a.allWords().indexOf(s.words[s.i]) >= 0 : false,
+            alive: !!document.querySelector('#screen')
+                   && document.querySelector('#screen').children.length > 0,
+            wayIn: !!document.querySelector('#wordmark, .wordmark'),
+          };
+        }, before);
+      }catch(e){ r = {threw: e.message}; }
+      const cosmetic = COSMETIC.indexOf(name) >= 0;
+      const why = !r ? 'nothing came back'
+        : r.threw ? 'threw: ' + r.threw
+        : !r.alive ? 'she came back to an empty screen'
+        : !r.after ? 'she came back to no word at all'
+        : !r.askable ? 'she came back to "' + r.after.word + '", which is on no list'
+        : !r.wayIn ? 'the way back to the grown-ups screen is gone'
+        : cosmetic && r.after.stage !== r.before.stage
+            ? 'a cosmetic change rewound her from ' + r.before.stage + ' to ' + r.after.stage
+              + ', which shows her the spelling she was writing from memory'
+        : cosmetic && r.after.word !== r.before.word
+            ? 'a cosmetic change moved her from "' + r.before.word + '" to "' + r.after.word + '"'
+        : cosmetic && r.typed !== 'sai'
+            ? 'a cosmetic change threw away what she had typed (' + JSON.stringify(r.typed) + ')'
+        : null;
+      if(why){ bad('mid-word, a grown-up ' + name, why); broke++; }
+      if(errs.length){ bad('mid-word, a grown-up ' + name, errs[0]); broke++; }
+      await ctx.close();
+    }
+    if(!broke) ok(Object.keys(MEDDLE).length + ' things done to the app mid-word all handed'
+                  + ' her back a word she can be asked, and the four harmless ones left'
+                  + ' her exactly where she was');
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));
