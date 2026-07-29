@@ -80,6 +80,56 @@ test.describe('the buttons hold still', () => {
            'the action button moved: ' + seen.join(', ')).toBe(0);
   });
 
+  /* The header is the last thing that was allowed to move. It is the first item
+     in #app, which is a flex column the height of the visual viewport, so it can
+     only stay put if the algorithm is not entitled to take height out of it: it
+     is flex:none, and everything the keyboard changes comes out of main. Measured
+     at every text size, with the keyboard opening and closing, because the header
+     is hidden outright on a short screen and a test that only looked at the tall
+     one would prove nothing. */
+  test('and so does the header, at every text size', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.setViewportSize({width:375, height:667});
+    await pretendTouch(page, true);
+    await fakeKeyboard(page);
+    await page.evaluate(() => {
+      window.__acorn.state.settings.kbInset = 320;         // as remembered from before
+      window.__acorn.save();
+    });
+    const bar = () => page.evaluate(() => {
+      const n = document.querySelector('.bar'), r = n.getBoundingClientRect();
+      const app = document.querySelector('#app'), ar = app.getBoundingClientRect();
+      return {shown: getComputedStyle(n).display !== 'none',
+              top: Math.round(r.top),
+              // Pinned to the top of the app, not floated over it: still in flow,
+              // still flush against the padding.
+              flush: Math.round(r.top - ar.top - parseFloat(getComputedStyle(app).paddingTop)),
+              inFlow: getComputedStyle(n).position === 'static'};
+    });
+    const moved = [];
+    for(const scale of [0.9, 1, 1.15, 1.3, 1.5]){
+      await page.evaluate(s => {
+        const a = window.__acorn;
+        a.state.settings.textScale = s;
+        a.state.words.lists = [{id:'w1', name:'T', words:['because','friend','thought']}];
+        a.state.words.activeId = 'w1'; a.state.words.mastery = {}; a.state.words.sessions = [];
+        a.save(); a.go('parent'); a.go('day'); a.cover();
+      }, scale);
+      await kb(page, 0);
+      const down = await bar();
+      await kb(page, 320);
+      const up = await bar();
+      await kb(page, 0);
+      const again = await bar();
+      const say = s => (s.shown ? 'top ' + s.top : 'hidden');
+      if(JSON.stringify(up) !== JSON.stringify(down) || JSON.stringify(again) !== JSON.stringify(down))
+        moved.push(scale + 'x: ' + say(down) + ' -> ' + say(up) + ' -> ' + say(again));
+      if(down.shown && (!down.inFlow || down.flush !== 0))
+        moved.push(scale + 'x: the header is not pinned to the top of the app');
+    }
+    expect(moved).toEqual([]);
+  });
+
   test('the keyboard height is remembered, so only a new phone ever moves',
     async ({page}) => {
       await open(page, '2026-08-01');

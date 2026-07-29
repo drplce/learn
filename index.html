@@ -123,14 +123,38 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 }
 #act:empty{display:none;}
 
-/* ---------- header: wordmark + today's progress ---------- */
-.bar{display:flex; align-items:center; gap:var(--s3); min-height:var(--tap); margin-bottom:var(--s5);
-     flex-wrap:wrap; row-gap:var(--s2);}
+/* ---------- header: the mark + today's progress ---------- */
+/* flex:none, so the header is pinned to the top of the app exactly the way #act
+   is pinned to the bottom of it, and main takes whatever is between the two. The
+   only thing that changes size when the software keyboard opens or closes is then
+   the whitespace inside main — the header cannot ride the change. Without it the
+   header keeps flex-shrink's default of 1, so on a screen with too little room the
+   flex algorithm is entitled to take height out of the one row she navigates by:
+   at the largest text "← Back" and the crumb are two rows, and a row of that is
+   the way out of the grown-ups screen. It stays in flow, because the header
+   floating over her word is the bug fitScreen() exists to prevent. */
+.bar{flex:none; display:flex; align-items:center; gap:var(--s3); min-height:var(--tap);
+     margin-bottom:var(--s5); flex-wrap:wrap; row-gap:var(--s2);}
 /* At the largest text size on a narrow phone the label and the back button
    cannot share a line. Stacking is fine; breaking "GROWN-UPS" in half is not. */
-.wordmark{font-size:var(--t-xs); font-weight:800; letter-spacing:.18em; text-transform:uppercase;
-          color:var(--acc); user-select:none; white-space:nowrap;}
+.wordmark{position:relative; font-size:var(--t-xs); font-weight:800; letter-spacing:.18em;
+          text-transform:uppercase; color:var(--acc); user-select:none; white-space:nowrap;}
 .wordmark.crumb{color:var(--ink-soft);}
+/* Her own header is a mark rather than the word: the same hand-drawn outline the
+   progress dots and the map cells are drawn with, at three points instead of
+   seven. It has to occupy the box the letters occupied or the header shifts under
+   her, so it is square and exactly one line box tall — 1.3em is the h1's own
+   line-height, which is what the text measured. That leaves it narrower than the
+   letterspaced word it replaces, and the spacer beside it takes up the slack, so
+   the progress bar does not move either. */
+.mark svg{display:block; width:1.3em; height:1.3em;}
+.mark path{fill:var(--acc);}
+/* The mark is also the way in to the grown-ups screen, and one line of small caps
+   is a 15px target. The hit area is grown to the same 44px-plus floor everything
+   else here keeps, on a pseudo-element so it costs no layout: the mark's own box
+   is still the box the text had. */
+.mark::after{content:""; position:absolute; left:50%; top:50%; width:var(--tap); height:var(--tap);
+             transform:translate(-50%,-50%);}
 .bar .sp{flex:1;}
 .daybar{flex:none; width:5.5rem; height:var(--s1); border-radius:var(--r-pill);
         background:var(--line); overflow:hidden;}
@@ -365,7 +389,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '8.2';
+var VERSION = '8.3';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1508,12 +1532,56 @@ function restoreFocus(){
   var go = el('#act button') || el('#screen .primary') || el('#screen button');
   if(go) go.focus({preventScroll:true});
 }
-// Her header: the wordmark (press and hold for grown-ups) and today's progress.
+/* The mark on her screens: a seed, drawn the way everything else she is
+   collecting is drawn — the same jitter and the same cornerless curve through the
+   midpoints as a progress dot or a cell on her map, with three points in the ring
+   instead of seven, so it is three lobes rather than three sides.
+
+   It is a sibling of cellPoints rather than a call to it, for two reasons. Laid
+   out from angle zero, three points put a lobe straight out to the right and the
+   thing reads as a pebble on its side; a seed wants the lobe pointing down.
+   And a ring of three at one radius is a rounded triangle, not a seed — the tip
+   has to reach further than the two shoulders. Neither belongs in the function
+   that draws her words, where every shape is one of a hundred in a colony and
+   none of them has an up.
+
+   One fixed seed, so it is the same seed on every render and every reload: this
+   is her app's mark, not a shape per word. */
+var MARK_SEED = 'acorn';
+function markPoints(){
+  var rnd = seeded(MARK_SEED), n = 3, pts = [], reach = [1.24, .94, .94], i;
+  for(i = 0; i < n; i++){
+    // Math.PI/2 is straight down in SVG's coordinates: one lobe below, two above.
+    var a = Math.PI / 2 + (i / n) * Math.PI * 2 + (rnd() - .5) * 0.30;
+    var rr = 10 * reach[i] * (0.92 + rnd() * 0.16);
+    pts.push([Math.cos(a) * rr, Math.sin(a) * rr]);
+  }
+  return pts;
+}
+/* Fitted to the square the outline actually fills, so the drawing meets the edges
+   of the box the letters had rather than sitting inside a margin of nothing — and
+   so it lands identically at every text size, the box being the only thing that
+   changes. Built once: the shape is fixed, and the header is rebuilt on every
+   render. */
+function markSvg(){
+  var pts = markPoints(), b = blobBounds(pts);
+  var side = Math.max(b.x1 - b.x0, b.y1 - b.y0);
+  var vx = (b.x0 + b.x1) / 2 - side / 2, vy = (b.y0 + b.y1) / 2 - side / 2;
+  // role="img" with a label is what makes it announce as "Acorn" rather than as a
+  // path nobody can read — the same reason the word she is shown carries one.
+  return '<svg viewBox="' + vx.toFixed(2) + ' ' + vy.toFixed(2) + ' '
+       + side.toFixed(2) + ' ' + side.toFixed(2) + '" role="img" aria-label="Acorn">'
+       + '<path d="' + blobPath(pts) + '"/></svg>';
+}
+var MARK = markSvg();
+
+// Her header: the mark (press and hold for grown-ups) and today's progress.
 function header(done, total){
   var bar = (done != null && total)
     ? '<span class="daybar" role="img" aria-label="' + done + ' of ' + total + ' words done">'
       + '<i style="width:' + Math.round(100 * Math.min(done, total) / total) + '%"></i></span>' : '';
-  el('#bar').innerHTML = '<h1 class="wordmark" id="wordmark">Acorn</h1><span class="sp"></span>' + bar;
+  el('#bar').innerHTML = '<h1 class="wordmark mark" id="wordmark">' + MARK
+                       + '</h1><span class="sp"></span>' + bar;
 }
 
 /* The row above her word is her own words, not a row of circles: dot k is the
@@ -1958,8 +2026,9 @@ function cellPoints(w, x, y, r){
    width of a cell, which is the difference between the colony filling the picture
    and sitting inside a margin of nothing. Each piece of the outline is a
    quadratic, so its extreme is either one of its ends or its one turning point. */
-function cellBounds(w, x, y, r){
-  var pts = cellPoints(w, x, y, r), n = pts.length;
+function cellBounds(w, x, y, r){ return blobBounds(cellPoints(w, x, y, r)); }
+function blobBounds(pts){
+  var n = pts.length;
   var lo = [Infinity, Infinity], hi = [-Infinity, -Infinity];
   function see(k, v){ if(v < lo[k]) lo[k] = v; if(v > hi[k]) hi[k] = v; }
   for(var j = 0; j < n; j++){
@@ -1974,8 +2043,13 @@ function cellBounds(w, x, y, r){
   }
   return {x0:lo[0], y0:lo[1], x1:hi[0], y1:hi[1]};
 }
-function cellPath(w, x, y, r){
-  var pts = cellPoints(w, x, y, r), n = pts.length, d = '';
+function cellPath(w, x, y, r){ return blobPath(cellPoints(w, x, y, r)); }
+/* The outline itself: a closed curve through the midpoints of the ring, each
+   piece a quadratic bending towards the point between them. Nothing in here has
+   a corner, and it works for any number of points — seven for a word, three for
+   the mark in her header, which is what keeps the two of a piece. */
+function blobPath(pts){
+  var n = pts.length, d = '';
   for(var j = 0; j < n; j++){
     var p = pts[j], q = pts[(j + 1) % n];
     var mid = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];

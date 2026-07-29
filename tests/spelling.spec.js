@@ -1347,6 +1347,167 @@ test.describe('the header at every text size', () => {
   });
 });
 
+test.describe('the mark on her screens', () => {
+
+  const SCALES = [0.9, 1, 1.15, 1.3, 1.5];
+
+  async function herScreen(page, scale){
+    await page.evaluate(s => {
+      const a = window.__acorn;
+      a.state.settings.textScale = s;
+      a.state.words.lists = [{id:'w1', name:'T', words:['because','friend','thought']}];
+      a.state.words.activeId = 'w1'; a.state.words.mastery = {}; a.state.words.sessions = [];
+      a.save(); a.go('parent'); a.go('day'); a.start();
+    }, scale);
+  }
+
+  test('it is a drawn mark on her screens and a text crumb on the grown-ups one',
+    async ({page}) => {
+      await open(page, '2026-08-01');
+      await herScreen(page, 1);
+      const hers = await page.evaluate(() => {
+        const h = document.querySelector('#wordmark');
+        const svg = h.querySelector('svg');
+        return {first: document.querySelector('#bar').firstElementChild.id,
+                heading: h.tagName, paths: h.querySelectorAll('path').length,
+                text: h.textContent.trim(),
+                label: svg && svg.getAttribute('aria-label'),
+                role: svg && svg.getAttribute('role'),
+                fill: getComputedStyle(h.querySelector('path')).fill};
+      });
+      // It still announces as "Acorn", and it is still the first thing on her
+      // screen — nothing has been put in front of it.
+      expect(hers.first).toBe('wordmark');
+      expect(hers.heading).toBe('H1');
+      expect(hers.paths).toBe(1);
+      expect(hers.text).toBe('');
+      expect(hers.label).toBe('Acorn');
+      expect(hers.role).toBe('img');
+      expect(hers.fill).toBe('rgb(53, 112, 90)');           // --acc, unchanged
+      // The grown-ups screen keeps its crumb as words: it is a place, not a badge.
+      await page.evaluate(() => window.__acorn.go('parent'));
+      const theirs = await page.evaluate(() => {
+        const n = document.querySelector('.wordmark');
+        return {text: n.textContent.trim(), svgs: document.querySelectorAll('#bar svg').length};
+      });
+      expect(theirs.text).toBe('Grown-ups');
+      expect(theirs.svgs).toBe(0);
+    });
+
+  /* The header must not shift when the letters become a mark, so the mark is
+     measured against the box the letters actually occupied: a clone of the
+     heading with "Acorn" back in it, laid out with the same styles and measured
+     out of flow so the header itself is not disturbed. */
+  for(const scale of SCALES){
+    test(`it holds the box the letters had at ${scale}x`, async ({page}) => {
+      await open(page, '2026-08-01');
+      await page.setViewportSize({width:375, height:667});
+      await herScreen(page, scale);
+      const m = await page.evaluate(() => {
+        const h = document.querySelector('#wordmark');
+        const probe = h.cloneNode(false);
+        probe.textContent = 'Acorn';
+        probe.style.position = 'absolute';
+        probe.style.visibility = 'hidden';
+        h.parentNode.appendChild(probe);
+        const t = probe.getBoundingClientRect();
+        probe.remove();
+        const r = h.getBoundingClientRect();
+        return {mark:[+r.width.toFixed(2), +r.height.toFixed(2)],
+                text:[+t.width.toFixed(2), +t.height.toFixed(2)]};
+      });
+      expect(m.mark[1], 'the same height').toBe(m.text[1]);
+      expect(m.mark[0], 'no wider').toBeLessThanOrEqual(m.text[0]);
+      expect(m.mark[0], 'square').toBe(m.mark[1]);
+    });
+  }
+
+  test('the whole header is where it was, at every text size', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.setViewportSize({width:375, height:667});
+    const seen = [];
+    for(const scale of SCALES){
+      await herScreen(page, scale);
+      seen.push(await page.evaluate(() => {
+        const r = s => { const q = document.querySelector(s).getBoundingClientRect();
+                         return [Math.round(q.x), Math.round(q.y), Math.round(q.width),
+                                 Math.round(q.height)].join(','); };
+        return {bar:r('.bar'), day:r('.daybar'), dots:r('.dots'), main:r('main')};
+      }));
+    }
+    // The bar's own box, and the progress bar's, are decided by the text size and
+    // by nothing the mark does: a mark wider than the word it replaced would push
+    // the progress bar along, and a taller one would push her word down.
+    expect(seen.map(s => s.bar)).toEqual(['15,17,344,46', '17,17,341,51', '20,17,336,59',
+                                          '22,17,331,66', '26,17,324,77']);
+    expect(seen.map(s => s.day)).toEqual(['276,38,84,4', '265,40,94,4', '248,44,108,5',
+                                          '231,47,122,6', '209,52,140,6']);
+  });
+
+  test('the same shape every render and every reload', async ({page}) => {
+    await open(page, '2026-08-01');
+    const shape = () => page.evaluate(() => {
+      const s = document.querySelector('#wordmark svg');
+      return s.getAttribute('viewBox') + ' ' + s.querySelector('path').getAttribute('d');
+    });
+    await herScreen(page, 1);
+    const first = await shape();
+    expect(first).toMatch(/^[-\d. ]+ M[-\d.QZ ]+$/);        // a real path, not empty
+    await page.locator('#cover').click();                    // a later stage, redrawn
+    expect(await shape()).toBe(first);
+    await page.evaluate(() => { window.__acorn.state.settings.textScale = 1.5;
+                                window.__acorn.save(); window.__acorn.go('day'); });
+    expect(await shape(), 'a different text size is the same shape').toBe(first);
+    await page.reload();
+    await page.waitForFunction(() => !!window.__acorn);
+    await page.evaluate(() => window.__acorn.setToday('2026-08-01'));
+    expect(await shape(), 'a reload is the same shape').toBe(first);
+  });
+
+  // The way in to the grown-ups screen is a press and hold on the mark, and the
+  // mark is the size of a line of small caps. The hit area is bigger than the
+  // drawing, at the smallest text size on the narrowest phone.
+  test('it is a 44px target at 0.9x, and press-and-hold still opens the way in',
+    async ({page}) => {
+      await open(page, '2026-08-01');
+      await page.setViewportSize({width:375, height:667});
+      await herScreen(page, 0.9);
+      const hit = await page.evaluate(() => {
+        const h = document.querySelector('#wordmark');
+        const r = h.getBoundingClientRect();
+        const cx = r.x + r.width / 2, cy = r.y + r.height / 2;
+        const at = (dx, dy) => {
+          const n = document.elementFromPoint(cx + dx, cy + dy);
+          return !!(n && n.closest && n.closest('.wordmark'));
+        };
+        // The corners of a 44x44 box centred on the mark, a hair inside it.
+        return {drawn:[Math.round(r.width), Math.round(r.height)],
+                corners:[at(-21, -21), at(21, -21), at(-21, 21), at(21, 21)]};
+      });
+      expect(hit.drawn[0]).toBeLessThan(44);                 // the drawing really is small
+      expect(hit.corners).toEqual([true, true, true, true]);
+
+      // And a hold in the top-left of that target — outside the drawing — opens it.
+      const r = await page.locator('#wordmark').boundingBox();
+      await page.mouse.move(r.x + r.width / 2 - 20, r.y + r.height / 2 - 20);
+      await page.mouse.down();
+      await page.waitForTimeout(900);
+      await page.mouse.up();
+      expect(await page.evaluate(() => window.__acorn.screen())).toBe('parent');
+    });
+
+  test('nothing about it moves', async ({page}) => {
+    await open(page, '2026-08-01');
+    await herScreen(page, 1);
+    const still = await page.evaluate(() => {
+      const cs = getComputedStyle(document.querySelector('#wordmark svg'));
+      const h = getComputedStyle(document.querySelector('#wordmark'));
+      return [cs.transitionDuration, cs.animationName, h.transitionDuration, h.animationName];
+    });
+    expect(still).toEqual(['0s', 'none', '0s', 'none']);
+  });
+});
+
 test.describe('she never has to scroll to answer', () => {
 
   const STAGES = ['look','write','nearly','wild','right','done'];
@@ -1816,9 +1977,11 @@ test.describe('what a screen reader is told', () => {
 
 test.describe('reachable without a touchscreen', () => {
 
+  // The heading is a drawn mark rather than the letters, so what has to be true
+  // of it is its name, not its text: a screen reader still meets "Acorn" first.
   test('the app has a heading', async ({page}) => {
     await open(page, '2026-07-28');
-    await expect(page.locator('h1')).toHaveText('Acorn');
+    await expect(page.locator('h1')).toHaveAccessibleName('Acorn');
   });
 
   test('the syllables are buttons, labelled and focusable', async ({page}) => {
