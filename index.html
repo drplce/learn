@@ -454,7 +454,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '11.1';
+var VERSION = '11.2';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1018,6 +1018,17 @@ function wordsOf(list){
    instead of fixing it. */
 function tidyPunct(text){
   return String(text == null ? '' : text)
+    /* An accented letter, taken back to the letter under it. A school list can hold
+       "cafe", "facade" or "creche" with their accents on, and the same word arrives from
+       the clipboard in either of two Unicode forms. Decomposed — base letter plus a
+       combining mark — the mark was already being dropped as a non-letter and the word
+       came out right. Precomposed, the whole character is one code point and was dropped
+       entire: "cafe" became "caf", "naive" became "nave", "facade" became "faade". Same
+       word, different result, and the broken one is the form most software produces.
+       NFD splits every precomposed character into base plus marks, so removing the marks
+       leaves the letter behind either way. Both her typed answer and a pasted list come
+       through here, so an accent she types matches a list stored without one. */
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[\u2018\u2019\u201A\u201B\u2032\u00B4`]/g, "'")
     // Hyphen substitutes only. An em dash is punctuation between words, never a
     // hyphen inside one, so it is left to be treated as a separator.
@@ -1040,7 +1051,17 @@ function typedLetters(text){
 // Whatever the school sends: commas, new lines, numbering, stray bullets.
 function parseWordList(text){
   return tidyPunct(text)
-    .split(/[\s,;\u2014\u2015]+/)
+    /* The zero-width characters split words too. They are invisible, \s does not match
+       them, and copying out of a PDF or a web page puts them between words as a matter
+       of course — so "said\u200bthey\u200bwent" fell through the split as one token, had
+       them stripped out as non-letters further down, and saved a single twelve-letter
+       non-word with a confident "1 word saved." She would then be asked to spell
+       "saidtheywent" every evening and could never get it right. Zero-width space,
+       non-joiner, joiner, word joiner and the byte-order mark. A soft hyphen is not
+       here on purpose: it is a hyphenation hint inside a word, and dropping it as a
+       non-letter — which already happens — turns "beau\u00adti\u00adful" back into
+       "beautiful", which is the right answer. */
+    .split(/[\s,;\u2014\u2015\u200b\u200c\u200d\u2060\ufeff]+/)
     .map(function(w){
       return w.replace(/^[\d]+[.)]?/, '')
               .replace(/[^A-Za-z'\-]/g, '')

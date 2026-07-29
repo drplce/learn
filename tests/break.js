@@ -15,6 +15,7 @@ const OUT = process.env.ACORN_SHOTS || require('os').tmpdir();
 const fails = [];
 function bad(what, detail){ fails.push(what + ' — ' + detail); console.log('  ✗ ' + what + ': ' + detail); }
 function ok(what){ console.log('  ✓ ' + what); }
+function bad2(what, detail){ bad('pasted "' + what + '"', detail); }
 
 async function fresh(browser, today){
   const ctx = await browser.newContext({...devices['iPhone 13'], isMobile:false,
@@ -1063,6 +1064,107 @@ async function main(){
     if(!broke) ok(Object.keys(MEDDLE).length + ' things done to the app mid-word all handed'
                   + ' her back a word she can be asked, and the four harmless ones left'
                   + ' her exactly where she was');
+  }
+
+  /* ---------------------------------------------------------------
+     24. every kind of text a clipboard can hand over
+     --------------------------------------------------------------- */
+  {
+    console.log('\n24. hostile and exotic pasted lists');
+    /* The list is the one thing a grown-up types into this app, and it arrives by paste
+       from a school email, a PDF or a Word table. Whatever survives the parse becomes a
+       word she is asked to spell every evening until she gets it right — so the bar is
+       not "does not crash", it is "every saved word is a word she could actually write
+       from hearing it". Two real defects came out of this path: zero-width characters
+       merged a whole list into one twelve-letter non-word, and a precomposed accent was
+       dropped entire, turning "cafe" into "caf". */
+    /* Where the right answer is knowable, say what it is. "Every word is spellable" is
+       not enough on its own: "saidtheywent" is twelve lowercase letters and "caf" is
+       three, so both of the defects that sent me down this path passed that check. */
+    const WANT = {
+      'zero-width separated':  ['said', 'they', 'went'],
+      'word joiners':          ['said', 'they', 'went'],
+      'byte-order marks':      ['said', 'they'],
+      'precomposed accents':   ['cafe', 'naive', 'facade'],
+      'combining accents':     ['cafe', 'naive'],
+      'full-width letters':    ['they'],          // full-width Latin is not typeable here
+      'only punctuation':      [],
+      'only invisibles':       [],
+      'newlines only':         [],
+    };
+    const PASTES = {
+      'zero-width separated':  'said\u200bthey\u200bwent',
+      'word joiners':          'said\u2060they\u2060went',
+      'byte-order marks':      '\ufeffsaid\ufeffthey',
+      'precomposed accents':   'caf\u00e9, na\u00efve, fa\u00e7ade',
+      'combining accents':     'cafe\u0301, nai\u0308ve',
+      'right-to-left marks':   '\u200esaid\u200f, they',
+      'combining overload':    'a\u0301\u0302\u0303\u0304said, rain',
+      'emoji in the list':     'said 😀, they 🎉, went',
+      'CJK and Cyrillic':      'said, \u4f60\u597d, \u043f\u0440\u0438, they',
+      'full-width letters':    '\uff53\uff41\uff49\uff44, they',
+      'a whole paragraph':     'This week we are learning said, they and went. Please '
+                               + 'practise every night. Thank you!',
+      'one very long token':   'a'.repeat(400) + ', said',
+      'thousands of words':    Array.from({length: 900}, (_, i) => 'w' + i).join(', '),
+      'only punctuation':      '.,;:!?-()[]{}',
+      'only invisibles':       '\u200b\u200c\u200d\u2060\ufeff',
+      'nul and controls':      'said\u0000they\u0001, went',
+      'surrogate half':        'said\ud83d, they',
+      'newlines only':         '\n\n\n\n',
+    };
+    let broke = 0;
+    const {page, ctx, errs} = await fresh(browser, '2026-08-01');
+    for(const [why, text] of Object.entries(PASTES)){
+      let r = null;
+      try{
+        r = await page.evaluate(t => {
+          const a = window.__acorn;
+          a.state.words.lists = []; a.state.words.mastery = {}; a.state.words.sessions = [];
+          a.state.words.activeId = 'easy'; a.save(); a.go('parent');
+          const words = a.parseWordList(t);
+          if(!words.length) return {words: words, saved: false};
+          a.state.words.lists = [{id: 'p', name: 'Pasted', words: words}];
+          a.state.words.activeId = 'p'; a.save();
+          a.go('day');
+          if(!a.session()) a.start();
+          const s = a.session();
+          // Walk the whole sitting: every word has to be askable and spellable.
+          const shown = [];
+          for(let g = 0; g < 60 && a.session(); g++){
+            const W = a.session();
+            shown.push(W.words[W.i]);
+            if(W.stage === 'look'){ a.cover(); continue; }
+            if(W.stage === 'write'){ a.type(W.words[W.i]); a.check(); a.next(); continue; }
+            a.next();
+          }
+          return {words: words, saved: true, shown: [...new Set(shown)],
+                  alive: !!document.querySelector('#screen')
+                         && document.querySelector('#screen').children.length > 0,
+                  screenText: (document.querySelector('#screen') || {}).innerText || ''};
+        }, text);
+      }catch(e){ r = {threw: e.message}; }
+
+      // Every word saved must be spellable from hearing it: letters, and at most one
+      // apostrophe or hyphen inside. Nothing invisible, nothing from another script.
+      const bad = !r || r.threw ? [] : r.words.filter(w =>
+        !/^[a-z]+(?:['-][a-z]+)*$/.test(w) || w.length < 2 || w.length > 24);
+      const want = WANT[why];
+      const why2 = !r ? 'nothing came back'
+        : r.threw ? 'threw: ' + r.threw
+        : bad.length ? 'saved ' + JSON.stringify(bad.slice(0, 3))
+                       + ', which she cannot be asked to spell'
+        : want && JSON.stringify(r.words) !== JSON.stringify(want)
+            ? 'came out as ' + JSON.stringify(r.words) + ' rather than ' + JSON.stringify(want)
+        : r.saved && !r.alive ? 'the sitting rendered an empty screen'
+        : r.saved && /undefined|NaN|\[object/.test(r.screenText) ? 'printed rubbish on her screen'
+        : null;
+      if(why2){ bad2(why, why2); broke++; }
+    }
+    if(errs.length){ bad2('pasted lists', errs.slice(0, 2).join(' | ')); broke++; }
+    if(!broke) ok(Object.keys(PASTES).length + ' kinds of pasted text all became words she'
+                  + ' could be asked, or nothing at all');
+    await ctx.close();
   }
 
   await browser.close();
