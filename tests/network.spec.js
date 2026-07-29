@@ -71,20 +71,68 @@ test.describe('the shape of what she knows', () => {
     expect(drawn).toEqual(met);
   });
 
-  // Nothing new is introduced on a bad run, which must not leave her a bare
-  // picture: the outlines fall back to the most she can be learning at once.
-  test('a hard week tightens the horizon rather than emptying it', async ({page}) => {
+  // The horizon must never retract. Following her pace looked clever and made the
+  // picture go backwards: newWordsToday() answers 3 before her first sitting and 1
+  // after it, so one evening of practice took the shape from twelve outlines to
+  // four. A hard week earns no new words at all, and must still not shrink it.
+  test('the shape only ever grows', async ({page}) => {
     await open(page, '2026-08-01');
-    const pace = await page.evaluate(() => {
+    await page.evaluate(() => window.__acorn.go('parent'));
+    const day1 = (await cells(page)).length;
+
+    // One good sitting behind her.
+    const after = await page.evaluate(() => {
+      const a = window.__acorn;
+      a.wordsOf(a.activeList()).slice(0, 3).forEach(w => {
+        a.state.words.mastery[w] = {right:3, wrong:0, box:3, lastSeen:'2026-07-31'}; });
+      a.state.words.sessions = [{date:'2026-07-31', list:'easy', words:8, firstTime:7}];
+      a.save(); a.go('parent');
+      return document.querySelectorAll('.net-cell').length;
+    });
+    expect(after, 'a sitting must not shrink her map').toBeGreaterThan(day1);
+
+    // And a bad run after that.
+    const hard = await page.evaluate(() => {
       const a = window.__acorn;
       a.state.words.sessions = [1, 2, 3, 4, 5].map(i =>
         ({date:'2026-07-2' + i, list:'easy', words:8, firstTime:3}));
       a.save(); a.go('parent');
-      return {n: a.newWordsToday(), ahead: a.ghostAhead()};
+      return {n: a.newWordsToday(), ahead: a.ghostAhead(),
+              cells: document.querySelectorAll('.net-cell').length};
     });
-    expect(pace.n).toBe(0);
-    expect(pace.ahead).toBe(3);
-    expect((await cells(page)).length).toBe(3);
+    expect(hard.n, 'nothing new is introduced on a bad run').toBe(0);
+    expect(hard.ahead, 'but the horizon holds').toBe(12);
+    expect(hard.cells).toBe(after);
+  });
+
+  // The camera is fitted to a stable set — every list she has started plus the open
+  // one — because one fitted to what happens to be drawn re-frames every time she
+  // meets a word, and then the whole colony slides and rescales under her. Measured
+  // before this was fixed: all seven shared cells moved and grew.
+  test('the picture holds still on screen as she learns', async ({page}) => {
+    await open(page, '2026-08-01');
+    const onScreen = () => page.evaluate(() => {
+      const out = {view: document.querySelector('.net').getAttribute('viewBox'), pos: {}};
+      document.querySelectorAll('.net-cell').forEach(c => {
+        const r = c.getBoundingClientRect();
+        out.pos[c.querySelector('title').textContent] =
+          [Math.round(r.left), Math.round(r.top), Math.round(r.width)].join(',');
+      });
+      return out;
+    });
+    await page.evaluate(() => window.__acorn.go('parent'));
+    const before = await onScreen();
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.wordsOf(a.activeList()).slice(0, 3).forEach(w => {
+        a.state.words.mastery[w] = {right:3, wrong:0, box:4, lastSeen:'2026-08-01'}; });
+      a.state.words.sessions.push({date:'2026-07-31', list:'easy', words:8, firstTime:7});
+      a.save(); a.go('day'); a.go('parent');
+    });
+    const after = await onScreen();
+    expect(after.view, 'the frame moved').toBe(before.view);
+    const moved = Object.keys(before.pos).filter(w => after.pos[w] && after.pos[w] !== before.pos[w]);
+    expect(moved, 'cells moved on screen').toEqual([]);
   });
 
   // The frame is a camera: it crops to what is drawn so a dozen outlines fill the

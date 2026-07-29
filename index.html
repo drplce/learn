@@ -361,7 +361,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '7.9';
+var VERSION = '8.0';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1878,10 +1878,14 @@ var NET_W = 320, GOLDEN = 2.39996323;
    most she can be learning at once, so a hard week (which earns no new words at
    all) still leaves something waiting rather than a bare shape; the ceiling keeps
    a good run from ghosting half the list again. */
-var GHOST_DAYS = 4, GHOST_MAX = 12;
-function ghostAhead(){
-  return Math.max(ACQUIRING_CAP, Math.min(GHOST_MAX, newWordsToday() * GHOST_DAYS));
-}
+/* Not the pace she is on, though: following it made the picture go backwards.
+   newWordsToday() answers 3 before her first sitting and 1 after it, so her very
+   first evening of practice took the shape from twelve outlines down to four —
+   she does some work and her map gets smaller. It is a fixed few days at the most
+   she can be learning at once, so the drawn shape only ever grows: each word she
+   meets fills in, and one more outline joins the horizon behind it. */
+var GHOST_DAYS = 4;
+function ghostAhead(){ return ACQUIRING_CAP * GHOST_DAYS; }
 // The unmet words she is about to meet: the front of the open list, in the order
 // the engine takes them.
 function ghostWords(){
@@ -2060,19 +2064,30 @@ function networkData(){
     }
   });
 
-  /* The frame is a camera, not the layout: it crops to what is drawn, so a dozen
-     outlines fill the picture as well as a hundred do rather than sitting in a
-     corner of an empty square. Nothing in the colony moves when it widens —
-     every cell keeps the coordinates it was laid out with — and the strokes are
-     pinned to the screen, so zooming in does not turn the hairlines into ropes.
-     A floor on the frame stops two or three cells being blown up like a poster. */
-  var pad = NET_W * 0.01, x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  cells.forEach(function(c){
+  /* The frame is a camera, not the layout: it crops in, so a dozen outlines fill
+     the picture as well as a hundred do rather than sitting in a corner of an
+     empty square. The strokes are pinned to the screen, so cropping in does not
+     turn the hairlines into ropes, and a floor on the frame stops two or three
+     cells being blown up like a poster.
+
+     What it is fitted to is every list she has started plus the open one — not to
+     what happens to be drawn. A camera that follows the drawn set re-frames every
+     time she meets a word, and then the whole colony slides and rescales under
+     her: measured on a 375px screen, all seven cells moved and grew when she
+     learned three words. It only widens when she starts a new list, which is the
+     one time her map really has got bigger. */
+  var framed = {};
+  laid.forEach(function(c){ if(c.met) framed[c.frond] = true; });
+  lists.forEach(function(g, li){ if(g.list.id === (activeList() || {}).id) framed[li] = true; });
+  var inFrame = laid.filter(function(c){ return framed[c.frond]; });
+  if(!inFrame.length) inFrame = cells;
+  var pad = NET_W * 0.005, x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  inFrame.forEach(function(c){
     var b = cellBounds(c.w, c.x, c.y, c.r);
     x0 = Math.min(x0, b.x0); x1 = Math.max(x1, b.x1);
     y0 = Math.min(y0, b.y0); y1 = Math.max(y1, b.y1);
   });
-  if(!cells.length){ x0 = y0 = 0; x1 = y1 = NET_W; }
+  if(!inFrame.length){ x0 = y0 = 0; x1 = y1 = NET_W; }
   var side = Math.max(x1 - x0, y1 - y0, NET_W * 0.18) + pad * 2;
   var view = {x:(x0 + x1) / 2 - side / 2, y:(y0 + y1) / 2 - side / 2, s:side};
 
