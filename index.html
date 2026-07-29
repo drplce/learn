@@ -57,7 +57,12 @@
 
   --scale:1;
   --shadow:0 1px 2px rgba(59,65,73,.05), 0 6px 18px rgba(59,65,73,.06);
+  /* Motion. One easing everywhere, and three durations that were already a coherent
+     ladder — .18s for a press, .3s for a small state change, .6s for the slow ones —
+     but written as literals in six places, which is how a seventh ad-hoc value gets
+     in without anyone noticing. Same drift the length scales had in 10.3. */
   --ease:cubic-bezier(.22,.61,.36,1);
+  --m-press:.18s; --m-quick:.3s; --m-slow:.6s;
 }
 /* Background tints — some readers find a particular tint easier. */
 [data-tint="peach"]{--surface:#FBF0E8;--surface-2:#FFF8F2;}
@@ -186,7 +191,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
    dot and the differences in size and spacing are drawn inside it, so the row
    cannot reflow and the current one is still only ever scaled. */
 .dots i{flex:none; width:calc(var(--t-sm) * var(--ornament)); height:calc(var(--t-sm) * var(--ornament));
-        transition:transform .3s var(--ease);}
+        transition:transform var(--m-quick) var(--ease);}
 .dots i svg{display:block; width:100%; height:100%; overflow:visible;}
 .dots i path{fill:var(--line-2);}
 .dots i.on path, .dots i.now path{fill:var(--acc);}
@@ -254,7 +259,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
          min-height:var(--tap-xl); margin-top:0; padding:var(--s2) var(--s4);
          border-radius:var(--r-lg); background:var(--acc); color:var(--acc-ink);
          font-size:var(--t-lg); font-weight:700; box-shadow:var(--shadow);
-         transition:transform .18s var(--ease);}
+         transition:transform var(--m-press) var(--ease);}
 .primary:active{transform:scale(.985);}
 .quiet{display:block; width:100%; margin-top:var(--s3); min-height:var(--tap);
        border-radius:var(--r-md); color:var(--ink-soft); font-size:var(--t-md);
@@ -274,20 +279,15 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
    wide and no taller, which on a phone wasted the whole middle of the screen. */
 .donenet .net{margin:0; width:100%; height:100%; max-height:100%;}
 .doneend{flex:none;}
-.tally{text-align:center; color:var(--ink-soft); font-size:var(--t-sm); margin-top:var(--s1);}
 /* Tonight's words arrive: a speck that swells and fills. */
 .net-cell.arriving{transform-box:fill-box; transform-origin:center;
-  transition:transform .6s var(--ease), fill-opacity .6s var(--ease),
-             stroke-opacity .6s var(--ease);}
+  transition:transform var(--m-slow) var(--ease), fill-opacity var(--m-slow) var(--ease),
+             stroke-opacity var(--m-slow) var(--ease);}
 .net.seeded .net-cell.arriving{transform:scale(.12); fill-opacity:0; stroke-opacity:0;}
 .tick{text-align:center; font-size:calc(var(--t-4xl) * var(--ornament)); color:var(--acc); line-height:1;
       margin:var(--s2) 0 var(--s5);}
 .headline{text-align:center; font-size:var(--t-xl); font-weight:700; margin:var(--s4) 0 var(--s1);}
 .headline.cheer{color:var(--good);}
-.pbar{height:var(--s2); border-radius:var(--r-pill); background:var(--line); overflow:hidden;
-      margin:var(--s3) 0 var(--s5);}
-.pbar i{display:block; height:100%; background:var(--acc); border-radius:var(--r-pill);
-        transition:width .6s var(--ease);}
 
 /* ---------- grown-ups ---------- */
 .sect{margin-bottom:var(--s6);}
@@ -311,7 +311,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
             color:var(--ink-soft); text-align:left;}
 .seg button[aria-pressed=true]{background:var(--acc); color:var(--acc-ink); border-color:transparent;}
 .swatch{position:relative; width:var(--tap); min-height:var(--tap); border-radius:var(--r-sm);
-        border:2px solid var(--line-2); transition:transform .18s var(--ease);}
+        border:2px solid var(--line-2); transition:transform var(--m-press) var(--ease);}
 .swatch[aria-pressed=true]{border-color:var(--acc); box-shadow:0 0 0 3px var(--acc-soft); transform:scale(1.07);}
 .swatch[aria-pressed=true]::after{content:"✓"; position:absolute; inset:0; display:flex;
         align-items:center; justify-content:center; color:#35705A; font-size:var(--t-lg); font-weight:800;}
@@ -376,7 +376,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 #toast{position:fixed; left:50%; bottom:calc(var(--s5) + env(safe-area-inset-bottom));
        transform:translateX(-50%); padding:var(--s3) var(--s4); border-radius:var(--r-md);
        background:var(--ink); color:var(--surface); font-size:var(--t-sm); font-weight:600;
-       z-index:30; opacity:0; pointer-events:none; transition:opacity .3s var(--ease);
+       z-index:30; opacity:0; pointer-events:none; transition:opacity var(--m-quick) var(--ease);
        max-width:88vw; text-align:center;}
 #toast.on{opacity:.96;}
 
@@ -390,8 +390,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 :root[data-tight]:not([data-stage=parent]) .bar,
 :root[data-tight]:not([data-stage=parent]) .dots,
 :root[data-tight]:not([data-stage=parent]) .note{ display:none; }
-:root[data-tight][data-stage=done] .tick,
-:root[data-tight][data-stage=done] .pbar{ display:none; }
+:root[data-tight][data-stage=done] .tick{ display:none; }
 /* With the keyboard up there is no room for a picture, and she is not looking at it
    then anyway — she is on her way to the next word. */
 :root[data-tight][data-stage=done] .donenet{ display:none; }
@@ -455,7 +454,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '10.6';
+var VERSION = '10.7';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1818,15 +1817,22 @@ function render(){
    resolves against the initial font size and not the size she chose. It runs
    inside the same task as the render, so nothing is ever painted and then taken
    away. */
+/* What gets dropped when the screen runs out of room, least useful first. Named up
+   here so it can be checked against what the app actually renders. */
+var SHED_ORDER = {word: ['.note', '.dots', '.verdict'],
+                  done: ['.tick', '.donenet', '.note']};
 function fitScreen(){
   if(screen === 'parent') return;              // a long page there is fine
   var m = el('#screen');
   if(!m) return;
-  // Least useful first. The word and its pieces are the lesson and never go; on
-  // her finished screen the count is the point of the screen, so the bar and the
-  // tick go before it. What is dropped is still announced either way.
-  var order = W ? ['.note', '.dots', '.verdict']
-                : ['.pbar', '.tally', '.tick', '.donenet', '.note'];
+  // Least useful first. The word and its pieces are the lesson and never go. What is
+  // dropped is still announced either way.
+  /* This named .pbar and .tally first for four versions after the bar and the running
+     total came off the finished screen in 9.7 — two selectors that could no longer
+     match anything, at the head of a list whose whole purpose is to say what goes
+     first. Nothing misbehaved; it just described a screen that no longer exists, and
+     tests/shed-order.spec.js now checks every name here can still be rendered. */
+  var order = SHED_ORDER[W ? 'word' : 'done'];
   for(var i = 0; i < order.length && m.scrollHeight > m.clientHeight + 1; i++){
     var n = m.querySelector(order[i]);
     if(n) n.style.display = 'none';
@@ -2147,6 +2153,12 @@ function said(n){ return NUMBER[n] || String(n); }
    flourish is about this viewing of the screen, so coming back after a reload showing
    the evening's arrivals once more is right. */
 var _arrived = {day:'', words:bare(null)};
+/* The stagger, in seconds. Not on the --m-* ladder because these are not the length
+   of a movement but the spacing between movements: a beat before the first word
+   arrives, then one every fifth of a second, so a nine-word evening is over in under
+   two. The cells themselves move at --m-slow. Under prefers-reduced-motion the media
+   query zeroes every transition-delay, so this becomes one instant arrival. */
+var ARRIVE_LEAD = 0.18, ARRIVE_STEP = 0.2;
 function growTonight(all){
   if(_arrived.day !== todayISO()) _arrived = {day:todayISO(), words:bare(null)};
   var words = all.filter(function(w){ return !_arrived.words[w]; });
@@ -2161,7 +2173,7 @@ function growTonight(all){
       var t = cells[k].querySelector('title');
       if(!t || t.textContent !== w) continue;
       cells[k].classList.add('arriving');
-      cells[k].style.transitionDelay = (0.18 + marked * 0.2).toFixed(2) + 's';
+      cells[k].style.transitionDelay = (ARRIVE_LEAD + marked * ARRIVE_STEP).toFixed(2) + 's';
       marked++;
       break;
     }
@@ -3205,6 +3217,7 @@ loadClips(); render(); },
   go: go, screen: function(){ return screen; },
   BOX_DAYS: BOX_DAYS, MAX_BOX: MAX_BOX, KNOWN_BOX: KNOWN_BOX,
   meanings: function(){ return Object.assign({}, MEANING); },
+  shedOrder: function(){ return {word: SHED_ORDER.word.slice(), done: SHED_ORDER.done.slice()}; },
   twins: function(){ return TWINS.map(function(p){ return p.slice(); }); },
   ACQUIRING_CAP: ACQUIRING_CAP, SEED_NEW: SEED_NEW, sessionWords: sessionWords,
   // The map: how far the outlines reach, and the one outline every word carries

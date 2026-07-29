@@ -69,7 +69,8 @@ test.describe('the three scales', () => {
       const names = ['--t-xs','--t-sm','--t-md','--t-lg','--t-xl','--t-2xl','--t-3xl','--t-4xl',
                      '--s1','--s2','--s3','--s4','--s5','--s6','--s7',
                      '--r-sm','--r-md','--r-lg','--r-pill',
-                     '--tap','--tap-lg','--tap-xl'];
+                     '--tap','--tap-lg','--tap-xl',
+                     '--m-press','--m-quick','--m-slow'];
       const tokens = {};
       names.forEach(n => { const v = cs.getPropertyValue(n).trim(); if(v) tokens[n] = v; });
       const sheet = [...document.styleSheets].find(s => !s.href);
@@ -99,14 +100,14 @@ test.describe('the three scales', () => {
     });
     /* Every value the three scales hold, as written. Fewer entries than there are
        tokens, and that is the scales agreeing with each other: --t-xs and --s3 are
-       both .75rem, --t-md and --s4 and --r-md are all 1rem. 22 tokens, 15 values. */
+       both .75rem, --t-md and --s4 and --r-md are all 1rem. 25 tokens; durations are their own units so they add three more values. */
     const scaleValues = new Map();
     for(const [k, v] of Object.entries(found.tokens)){
       const n = norm(v);
       if(n) scaleValues.set(n, k);
     }
     expect(Object.keys(found.tokens).length, 'the scales did not parse out of the page')
-      .toBe(22);
+      .toBe(25);
     expect(scaleValues.size).toBeGreaterThan(10);
 
     const drift = [];
