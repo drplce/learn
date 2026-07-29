@@ -413,7 +413,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '9.3';
+var VERSION = '9.4';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1150,6 +1150,18 @@ function tonight(){
 function knownCount(list){
   return wordsOf(list).filter(function(w){ return (mastery(w).box || 1) >= KNOWN_BOX; }).length;
 }
+/* Every word on her lists, counted once. Her lists overlap — "said" and "they" are on
+   half of them — so this is the honest size of what she is working through. */
+function allWords(){
+  var out = [], seen = {};
+  allLists().forEach(function(l){
+    wordsOf(l).forEach(function(w){ if(seen[w]) return; seen[w] = 1; out.push(w); });
+  });
+  return out;
+}
+function knownEverywhere(){
+  return allWords().filter(function(w){ return (mastery(w).box || 1) >= KNOWN_BOX; }).length;
+}
 
 /* Pace. Practice works best around 80-85% success: below that she is being
    overloaded, above it she is coasting. So the number of new words follows her
@@ -1839,24 +1851,36 @@ function renderWord(){
   el('#act').innerHTML = act;
 }
 
+/* Counted across all her words, not the list she happens to be on. It used to be the
+   open list, which was fine while she never left one — and then 9.1 started moving her
+   on when she had mastered it, and her bar went from full to empty overnight: "16 of 16
+   words known well" one evening and "0 of 16" the next, with sixteen words of work
+   apparently gone. The number she is shown has to be one that cannot go backwards. */
 function renderDone(){
-  var list = activeList(), all = wordsOf(list), known = knownCount(list);
+  var all = allWords(), known = knownEverywhere();
+  /* Whether she has anything to practise is a different question from how many words
+     exist: the built-in lists are always there, so the count is never zero, but a
+     grown-up who has left her on an empty list has given her a dead end and should be
+     told. She can practise if the list she is on has words, or there are words ahead
+     of it, or there is something of hers to come back to. */
+  var canPractise = wordsOf(activeList()).length || newPool(activeList()).length
+                    || metWords().length;
   var pct = all.length ? Math.round(100 * known / all.length) : 0;
   var head = saying || 'All done for today';
-  var count = all.length ? known + ' of ' + all.length + (all.length === 1 ? ' word' : ' words')
-                           + ' known well'
-                         : 'No words yet. Ask a grown-up to add some.';
+  var count = canPractise
+    ? known + ' of ' + all.length + (all.length === 1 ? ' word' : ' words') + ' known well'
+    : 'No words yet. Ask a grown-up to add some.';
   header();
   announce(head + ' ' + count);
   el('#screen').innerHTML =
       '<h2 class="headline' + (saying ? ' cheer' : '') + '">' + esc(head) + '</h2>'
     + '<div class="tick" aria-hidden="true">✓</div>'
     + '<div class="note">' + esc(count) + '</div>'
-    + (all.length
-        ? '<div class="pbar" role="img" aria-label="' + pct + ' per cent of this list known well">'
+    + (canPractise
+        ? '<div class="pbar" role="img" aria-label="' + pct + ' per cent of her words known well">'
           + '<i style="width:' + pct + '%"></i></div>'
         : '');
-  el('#act').innerHTML = all.length
+  el('#act').innerHTML = canPractise
     ? '<button class="quiet" id="again">Practise a bit more</button>' : '';
 }
 

@@ -91,6 +91,43 @@ test.describe('she does not run out of app', () => {
     expect(stayed).toBe('easy');
   });
 
+  /* Moving her on cost her her progress bar. She filled it to "16 of 16 words known
+     well", and the next evening it read "0 of 16" with an empty bar — sixteen words of
+     work apparently gone. The number on her screen has to be one that cannot go
+     backwards, so it counts every word she knows rather than the list she is on. */
+  test('her progress never goes backwards when she is moved on', async ({page}) => {
+    await open(page, '2026-08-01');
+    const rows = await page.evaluate(() => {
+      const a = window.__acorn;
+      const out = [];
+      for(let d = 0; d < 26; d++){
+        a.setToday(new Date(Date.UTC(2026, 7, 1 + d)).toISOString().slice(0, 10));
+        if(!a.start()) continue;
+        let g = 0;
+        while(a.session() && g++ < 300){
+          const S = a.session();
+          if(S.stage === 'look'){ a.cover(); continue; }
+          if(S.stage === 'write'){ a.type(S.words[S.i]); a.check(); a.next(); continue; }
+          a.next();
+        }
+        const bar = document.querySelector('.pbar i');
+        const note = document.querySelector('.note');
+        out.push({d, list: a.activeList().id,
+                  pct: Number(String(bar ? bar.style.width : '0').replace('%', '')) || 0,
+                  says: note ? note.textContent : ''});
+      }
+      return out;
+    });
+    // She really does get moved on inside the window, or this proves nothing.
+    expect(new Set(rows.map(r => r.list)).size, 'she never changed list').toBeGreaterThan(1);
+    for(let i = 1; i < rows.length; i++)
+      expect(rows[i].pct, 'her bar emptied on day ' + rows[i].d + ' (' + rows[i].says + ')')
+        .toBeGreaterThanOrEqual(rows[i - 1].pct);
+    // And the number she reads is the same on both sides of the change.
+    const denominators = new Set(rows.map(r => (r.says.match(/of (\d+)/) || [])[1]));
+    expect(denominators.size, 'the total she is measured against changed under her').toBe(1);
+  });
+
   test('the last list is the end of it, and that is not a fault', async ({page}) => {
     await open(page, '2026-08-01');
     const r = await page.evaluate(() => {

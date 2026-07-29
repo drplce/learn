@@ -1965,13 +1965,20 @@ test.describe('what a screen reader is told', () => {
     await expect(page.locator('h2.headline')).toBeVisible();
   });
 
-  test('a one-word list reads as one word, not one words', async ({page}) => {
+  /* The count is across all her words now rather than the open list, because moving
+     her on when she had mastered one used to empty her bar overnight. Her lists always
+     include the built-in ones, so the total is never one — but the line still has to
+     agree with whatever number it is showing. */
+  test('the finished line agrees with its own numbers', async ({page}) => {
     await open(page, '2026-08-01');
     await startOn(page, ['rain']);
     await finishSession(page);
     const note = await page.locator('.note').textContent();
-    expect(note).toMatch(/of 1 word known well/);
-    expect(note).not.toContain('1 words');
+    const m = note.match(/^(\d+) of (\d+) (word|words) known well$/);
+    expect(m, 'unexpected wording: ' + note).not.toBeNull();
+    expect(m[3]).toBe(Number(m[2]) === 1 ? 'word' : 'words');
+    expect(Number(m[1]), 'she cannot know more than she has')
+      .toBeLessThanOrEqual(Number(m[2]));
   });
 });
 
@@ -2097,7 +2104,7 @@ test.describe('reachable without a touchscreen', () => {
     await startOn(page, ['rain','boat']);
     await finishSession(page);
     expect(await page.locator('#say').textContent()).toMatch(/words known well/);
-    await expect(page.locator('.pbar')).toHaveAttribute('aria-label', /per cent of this list/);
+    await expect(page.locator('.pbar')).toHaveAttribute('aria-label', /per cent of her words/);
   });
 });
 
