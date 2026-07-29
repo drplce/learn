@@ -338,7 +338,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '7.1';
+var VERSION = '7.2';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -360,7 +360,8 @@ function fresh(){
   return {
     profile:  {name:'', createdAt:todayISO()},
     words:    {lists:[], mastery:{}, activeId:'easy', sessions:[]},
-    settings: {textScale:1, tint:'cream', readAloud:true, sound:true, voice:null, speechRate:.95}
+    settings: {textScale:1, tint:'cream', readAloud:true, sound:true, voice:null,
+               speechRate:.95, kbInset:0}
   };
 }
 function load(){
@@ -1281,11 +1282,34 @@ addEventListener('pointerdown', function(){ _kbd = false; }, true);
    viewport and 100dvh both stay put. Following it keeps the footer above the
    keyboard, and tells the stylesheet how little room is left — measured against
    her actual root font size, because that is what decides whether the box fits. */
+/* The keyboard's space is reserved from the moment her screen opens, using what
+   it measured last time, and stays reserved even if the keyboard drops for a
+   moment. Growing the app back and shrinking it again is the "dance": the two
+   buttons slide down the screen and back up, and she has to look for them. A
+   stable band of empty space is worth more than a moving target. Remembered
+   across sittings, so the buttons are in the same place from the first screen —
+   only the very first sitting on a new phone can move at all. */
+var _kbInset = 0;
+
 function fitViewport(){
   var vv = window.visualViewport;
   var h = Math.round(vv ? vv.height : window.innerHeight);
   var r = document.documentElement;
   if(!h) return;
+  var full = Math.round(window.innerHeight) || h;
+  var inset = Math.max(0, full - h);
+  // Only a keyboard takes this much; browser chrome appearing is smaller and
+  // should not pin the layout.
+  if(inset > 120){
+    if(inset > _kbInset) _kbInset = inset;
+    if(S && S.settings && inset > (Number(S.settings.kbInset) || 0) && inset < full * 0.8){
+      S.settings.kbInset = inset; save();
+    }
+  }
+  if(!_kbInset && S && S.settings) _kbInset = Number(S.settings.kbInset) || 0;
+  // Reserved on her screens only: on the grown-ups screen a band of dead space
+  // would just get in the way of a long page.
+  if(_kbInset && screen !== 'parent') h = Math.min(h, Math.max(200, full - _kbInset));
   r.style.setProperty('--vh', h + 'px');
   var em = parseFloat(getComputedStyle(r).fontSize) || 16;
   // 21em is what the writing screen needs with everything on it; 13em is what it
@@ -1812,9 +1836,24 @@ document.addEventListener('keydown', function(ev){
   }
 });
 
-// A tap on any button moves focus to it, which closes the keyboard. This runs
-// after the handler above — listeners on one target fire in the order they were
-// added — so whatever it did, the keyboard is held open afterwards.
+/* A tap on a button takes focus off the input, and iOS starts closing the
+   keyboard the moment that happens — refocusing afterwards is too late, which is
+   why holding it open was not enough on the phone. Cancelling the default on
+   mousedown stops the focus moving at all, so the keyboard never begins to go.
+   The click still fires. Touch only, and never over something she needs to type
+   in. */
+document.addEventListener('mousedown', function(ev){
+  if(_kbd || !touchOnly()) return;
+  var t = ev.target;
+  if(!t || !t.closest) return;
+  if(t.closest('input, textarea')) return;              // she is aiming at a box
+  if(!t.closest('button')) return;
+  var on = document.activeElement;
+  if(!on || (on.tagName !== 'INPUT' && on.tagName !== 'TEXTAREA')) return;
+  ev.preventDefault();                                  // focus stays where it is
+}, true);
+
+// Belt and braces: if the focus moved anyway, put it back.
 document.addEventListener('click', function(){ holdKeyboard(); });
 
 // Grown-ups: press and hold ACORN. No PIN to forget, and nothing on her screens

@@ -27,6 +27,125 @@ async function startOn(page, words){
 const focused = page => page.evaluate(() =>
   document.activeElement.id || document.activeElement.className || document.activeElement.tagName);
 
+/* A faithful software keyboard: it shrinks visualViewport and leaves
+   window.innerHeight alone, which is what iOS does and what makes this hard.
+   Resizing the whole viewport, as an earlier version of this test did, is not
+   the same thing and hides the bug. */
+async function fakeKeyboard(page){
+  await page.evaluate(() => {
+    let kb = 0;
+    const listeners = [];
+    Object.defineProperty(window, 'visualViewport', {configurable: true, value: {
+      get height(){ return window.innerHeight - kb; },
+      get width(){ return window.innerWidth; },
+      addEventListener(t, fn){ listeners.push(fn); }, removeEventListener(){},
+    }});
+    window.__kb = n => { kb = n; listeners.forEach(fn => fn());
+                         window.dispatchEvent(new Event('resize')); };
+  });
+}
+const kb = (page, n) => page.evaluate(v => window.__kb(v), n);
+const actionTop = page => page.evaluate(() =>
+  Math.round(document.querySelector('#act .primary').getBoundingClientRect().top));
+
+test.describe('the buttons hold still', () => {
+
+  test('nothing moves once the keyboard height is known', async ({page}) => {
+    await open(page, '2026-08-01');
+    await pretendTouch(page, true);
+    await fakeKeyboard(page);
+    await page.evaluate(() => {
+      // As remembered from a previous sitting.
+      window.__acorn.state.settings.kbInset = 320;
+      window.__acorn.save();
+    });
+    await startOn(page, ['because','friend','thought']);
+    const seen = [];
+    seen.push(await actionTop(page));                    // look, keyboard not up
+    await page.locator('#cover').click();
+    await kb(page, 320);                                 // it opens
+    seen.push(await actionTop(page));
+    await page.locator('#hear').click();
+    await kb(page, 0);                                   // iOS drops it anyway
+    seen.push(await actionTop(page));
+    await kb(page, 320);
+    seen.push(await actionTop(page));
+    await page.locator('#type').fill('becuase');
+    await page.locator('#check').click();
+    seen.push(await actionTop(page));
+    await page.locator('#next').click();
+    seen.push(await actionTop(page));
+    // The whole point: she should never have to look for the button again.
+    expect(Math.max(...seen) - Math.min(...seen),
+           'the action button moved: ' + seen.join(', ')).toBe(0);
+  });
+
+  test('the keyboard height is remembered, so only a new phone ever moves',
+    async ({page}) => {
+      await open(page, '2026-08-01');
+      await pretendTouch(page, true);
+      await fakeKeyboard(page);
+      await startOn(page, ['because','friend']);
+      await page.locator('#cover').click();
+      await kb(page, 300);                               // measured for the first time
+      await page.waitForFunction(() => window.__acorn.state.settings.kbInset > 0,
+                                 null, {timeout:3000});
+      expect(await page.evaluate(() => window.__acorn.state.settings.kbInset)).toBe(300);
+
+      // It survives a reload, so the next sitting starts stable.
+      await page.reload();
+      await page.waitForFunction(() => !!window.__acorn);
+      expect(await page.evaluate(() => window.__acorn.state.settings.kbInset)).toBe(300);
+    });
+
+  test('a tap on a button does not take focus off the box', async ({page}) => {
+    await open(page, '2026-08-01');
+    await pretendTouch(page, true);
+    await startOn(page, ['because','friend']);
+    await page.locator('#cover').click();
+    expect(await focused(page)).toBe('type');
+    // Cancelling mousedown is what stops iOS beginning to close the keyboard;
+    // refocusing after the tap is too late.
+    const prevented = await page.evaluate(() => {
+      const ev = new MouseEvent('mousedown', {bubbles:true, cancelable:true});
+      document.querySelector('#hear').dispatchEvent(ev);
+      return ev.defaultPrevented;
+    });
+    expect(prevented).toBe(true);
+    expect(await focused(page)).toBe('type');
+  });
+
+  test('but a tap on a box she needs to type in still works', async ({page}) => {
+    await open(page, '2026-08-01');
+    await pretendTouch(page, true);
+    await page.evaluate(() => window.__acorn.go('parent'));
+    const prevented = await page.evaluate(() => {
+      document.querySelector('#pname').focus();
+      const ev = new MouseEvent('mousedown', {bubbles:true, cancelable:true});
+      document.querySelector('#paste').dispatchEvent(ev);
+      return ev.defaultPrevented;
+    });
+    expect(prevented).toBe(false);
+  });
+
+  test('the grown-ups screen is not given a dead band', async ({page}) => {
+    await open(page, '2026-08-01');
+    await pretendTouch(page, true);
+    await fakeKeyboard(page);
+    await page.evaluate(() => {
+      window.__acorn.state.settings.kbInset = 320; window.__acorn.save();
+      window.__acorn.go('parent');
+    });
+    const used = await page.evaluate(() => {
+      const app = document.querySelector('#app').getBoundingClientRect();
+      return Math.round(app.height / window.innerHeight * 100);
+    });
+    // A long page needs its whole screen; reserving keyboard space there would
+    // just get in the way.
+    expect(used).toBeGreaterThan(90);
+  });
+});
+
 test.describe('keeping the keyboard open', () => {
 
   test('a focused input is held through every stage of a word', async ({page}) => {
