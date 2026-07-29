@@ -11,11 +11,6 @@
 <meta name="theme-color" content="#FBF6EC" media="(prefers-color-scheme:light)">
 <meta name="theme-color" content="#22242A" media="(prefers-color-scheme:dark)">
 <meta name="description" content="A calm spelling practice app.">
-<!-- Without an apple-touch-icon iOS puts a letter in a box on her home screen.
-     tools/icon.mjs regenerates these; run it on a Mac for Apple's own acorn. -->
-<link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png">
-<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-<link rel="manifest" href="manifest.webmanifest">
 <style>
 /* ===========================================================
    Acorn — spelling practice, dyslexia-friendly by default.
@@ -465,8 +460,8 @@ function pickVoice(){
 /* =========================================================
    3a. Pre-recorded audio. Studio clips for the built-in words, keyed by the
    text itself; anything without a clip — a list a grown-up pasted in — falls
-   through to the phone's own voice, so she never meets silence. The manifest
-   loads in the background and its absence is simply the old behaviour.
+   through to the phone's own voice, so she never meets silence, and a clip that
+   will not decode on some browser does the same rather than going quiet.
    ========================================================= */
 /* The index is inline rather than fetched: it is a couple of kilobytes, it costs
    no request, it cannot 404 on a half-finished deploy, and it keeps working with

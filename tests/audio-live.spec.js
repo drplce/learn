@@ -34,12 +34,6 @@ test.beforeAll(async () => {
   mkdirSync(path.join(root, 'learn', 'audio'), {recursive: true});
   writeFileSync(path.join(root, 'learn', 'index.html'),
                 readFileSync(path.join(__dirname, '..', 'index.html')));
-  // The home-screen files too, so a missing one is caught here rather than by a
-  // letter in a box on her phone.
-  mkdirSync(path.join(root, 'learn', 'icons'), {recursive: true});
-  for(const f of ['icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png',
-                  'icons/icon-maskable-512.png', 'manifest.webmanifest'])
-    writeFileSync(path.join(root, 'learn', f), readFileSync(path.join(__dirname, '..', f)));
   for(const name of ['because', 'be', 'cause', 'said'])
     writeFileSync(path.join(root, 'learn', 'audio', name + '.wav'), silentWav());
 
@@ -159,20 +153,4 @@ test.describe('the audio path for real', () => {
     }
   });
 
-  test('the icon and manifest the home screen needs are actually served',
-    async ({page}) => {
-      // These only matter on a real server; a missing one is a letter in a box.
-      for(const url of ['icons/icon-180.png', 'icons/icon-192.png', 'manifest.webmanifest']){
-        const res = await page.request.get(base + url);
-        expect(res.status(), url).toBe(200);
-      }
-      // And that the document actually points at them, relatively, so they
-      // resolve under /learn/ rather than at the domain root.
-      await page.goto(base + 'index.html');
-      const links = await page.evaluate(() =>
-        [...document.querySelectorAll('link[rel*=icon], link[rel=manifest]')]
-          .map(l => ({rel: l.getAttribute('rel'), href: l.getAttribute('href')})));
-      expect(links.length).toBeGreaterThanOrEqual(3);
-      links.forEach(l => expect(l.href, l.rel).not.toMatch(/^\//));
-    });
 });

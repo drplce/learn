@@ -140,13 +140,6 @@ After `--write`, regenerate the recordings:
     node tools/phrases.mjs
     ACORN_TTS=say ACORN_VOICE=Matilda node tools/voice.mjs
 
-## The home-screen icon
-
-    node tools/icon.mjs
-
-Run it on a Mac and you get Apple's own acorn, the artwork she already knows.
-Anywhere else you get the local emoji font, which will not match.
-
 ## Recorded audio
 
 Safari only exposes the handful of voices built into iOS. Voices downloaded under
