@@ -312,6 +312,38 @@ test.describe('telling a grown-up whether recordings are working', () => {
 
 test.describe('what she hears', () => {
 
+  // Praise is shown, not spoken. Nothing with her name in it is ever recorded, so
+  // the phone voice had to read it, and a synthetic voice delivering "Every one,
+  // first go" lands between flat and sarcastic.
+  test('the finished screen says nothing out loud', async ({page}) => {
+    await open(page, '2026-08-01');
+    await noClips(page);
+    await listen(page, [{name:'Karen', lang:'en-AU'}]);
+    await startOn(page, ['rain', 'boat']);
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      window.__spoken = [];
+      // Walk the sitting to the end through the real flow.
+      for(let i = 0; i < 30 && a.session(); i++){
+        const W = a.session();
+        if(W.stage === 'look'){ a.cover(); continue; }
+        if(W.stage === 'write'){ a.type(W.words[W.i]); a.check(); continue; }
+        a.next();
+      }
+    });
+    await expect(page.locator('.headline')).toHaveText(/first go|All done/);
+    const spoken = await page.evaluate(() => (window.__spoken || []).map(u => u.text.trim()));
+    // Only words, never a sentence. Nothing spoken carries her name or the praise.
+    expect(spoken.filter(t => !['rain', 'boat'].includes(t)),
+           'something other than a word was read aloud').toEqual([]);
+    const head = await page.locator('.headline').textContent();
+    expect(spoken).not.toContain(head.trim());
+    // It is still shown, and a screen reader is still told through the live region.
+    expect(head).toMatch(/first go|All done/);
+    expect(await page.locator('#say').textContent()).toMatch(/\S/);
+  });
+
+
   test.beforeEach(async ({page}) => { await open(page, '2026-08-01'); await noClips(page); });
 
   test('the word is spoken when it comes up', async ({page}) => {

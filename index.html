@@ -389,7 +389,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '8.4';
+var VERSION = '8.5';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1302,7 +1302,13 @@ function finish(){
   saying = withName(every ? 'Every one, first go{n}.' : 'All done{n}.');
   screen = 'day'; render();
   chime('done');
-  say(saying);
+  /* The praise is shown, not spoken. There is no recording of it — there is no
+     recording of anything with her name in it — so the phone voice had to read it,
+     and a synthetic voice delivering "Every one, first go" lands somewhere between
+     flat and sarcastic. Praise that sounds insincere is worse than praise nobody
+     said out loud. The words she is practising are still spoken, because there the
+     job is the sound of the word and not the warmth of it, and a screen reader is
+     still told through the live region. */
 }
 
 /* =========================================================
