@@ -528,7 +528,12 @@ function warmOne(text){
       if(res) return res;
       return fetch(url, {cache:'force-cache'}).then(function(r){
         if(!r || !r.ok) throw new Error('not ok');
-        if(cache) try{ cache.put(url, r.clone()); }catch(e){}
+        // A full device rejects cache.put, and it rejects a promise rather than
+        // throwing — so the try/catch alone left an unhandled rejection per
+        // clip. Failing to store one is fine: it still plays this time, it just
+        // gets fetched again next time.
+        if(cache) try{ var put = cache.put(url, r.clone());
+                       if(put && put.catch) put.catch(function(){}); }catch(e){}
         return r;
       });
     });
@@ -1366,10 +1371,15 @@ function saveAllClips(){
   warmClips(all).then(function(n){
     _saving = false;
     var missed = all.filter(function(t){ return !clipUrl(t) ? false : !_blob[t]; }).length;
-    _savedMsg = missed
-      ? (all.length - missed) + ' of ' + all.length + ' saved on this device. '
-        + missed + ' could not be fetched — try again on a better connection.'
-      : 'All ' + all.length + ' saved on this device. They will not need the network again.';
+    // Blaming the connection when the app is open from a saved file, and there
+    // is no connection involved at all, sends someone off fixing the wrong thing.
+    _savedMsg = !canWarm()
+      ? 'This copy is open from a file rather than from the web, so there is nothing to fetch.'
+      : missed
+        ? (all.length - missed) + ' of ' + all.length + ' saved on this device. '
+          + missed + ' could not be saved — try again on a better connection, or make '
+          + 'some room on the phone.'
+        : 'All ' + all.length + ' saved on this device. They will not need the network again.';
     render();
   }).catch(function(){
     _saving = false;

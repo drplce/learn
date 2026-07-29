@@ -183,6 +183,32 @@ test.describe('kept on the device rather than fetched when she needs it', () => 
     await expect(page.locator('#clipreport')).toContainText(/4 of 4 are on the device/);
     await expect(page.locator('#clipreport')).toContainText(/All 4 saved on this device/);
   });
+
+  // A phone with no room left rejects cache.put — and it rejects a promise
+  // rather than throwing, so wrapping the call in try/catch left one unhandled
+  // rejection per clip. The audio must still play; it just gets fetched again.
+  test('a phone with no room left still plays, and says so quietly', async ({page}) => {
+    const rejections = [];
+    page.on('pageerror', e => rejections.push('pageerror: ' + e.message));
+    page.on('console', m => { if(m.type() === 'error' && !/Failed to load resource/i.test(m.text()))
+                                rejections.push('console: ' + m.text()); });
+    await boot(page, ['because','be','cause','said']);
+    await page.evaluate(() => {
+      const open = caches.open.bind(caches);
+      caches.open = name => open(name).then(c => ({
+        match: c.match.bind(c),
+        put: () => Promise.reject(new DOMException('quota', 'QuotaExceededError'))
+      }));
+      // Forget what is already stored so every clip has to be put again.
+      window.__acorn.setClips(['because','be','cause','said'], '.wav');
+      window.__acorn.go('parent');
+    });
+    await page.locator('#clipsave').click();
+    // Nothing is stored, but every clip is still fetched and playable now.
+    await page.waitForFunction(() => window.__acorn.warmed() >= 4, null, {timeout:15000});
+    await expect(page.locator('#clipreport')).toContainText(/All 4 saved on this device/);
+    expect(rejections, 'a full device must not spray errors').toEqual([]);
+  });
 });
 
 test.describe('the audio path for real', () => {
