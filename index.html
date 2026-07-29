@@ -454,7 +454,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '11.0';
+var VERSION = '11.1';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -3104,6 +3104,20 @@ document.addEventListener('click', function(ev){
     r.dataset.armed = '1'; r.textContent = 'Tap again to erase everything';
     setTimeout(function(){ if(r.isConnected){ delete r.dataset.armed; r.textContent = 'Erase everything'; } }, 3000);
     return;
+  }
+
+  /* A tap that hit nothing, while she has a word to write. The whole design keeps some
+     input focused at all times so the software keyboard never closes and the two buttons
+     never jump — holdKeyboard() does it between stages, and the spelling box itself does
+     it while she is writing. A finger that lands slightly wide, on the instruction just
+     above the box or on the covered word, blurs the box and there was nothing to put it
+     back: the keyboard closes and the buttons move, which is the exact dance #kbhold was
+     added to stop. Touchscreens only, as everywhere else here — pulling focus back would
+     fight anyone driving by keyboard or exploring by screen reader. */
+  if(el('#type') && touchOnly() && !_kbd && !t.closest('button, input, textarea, a[href], [data-syl]')
+     && document.activeElement !== el('#type')){
+    var box = el('#type');
+    try{ box.focus({preventScroll:true}); box.setSelectionRange(box.value.length, box.value.length); }catch(e){}
   }
 });
 
