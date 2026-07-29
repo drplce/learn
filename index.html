@@ -265,6 +265,17 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 #kbhold{position:fixed; bottom:0; left:0; width:1px; height:1px; opacity:0;
         border:0; padding:0; font-size:16px; pointer-events:none; z-index:-1;}
 
+/* ---------- what she knows ---------- */
+.net{display:block; width:100%; height:auto; margin:var(--s2) 0 var(--s3);
+     overflow:visible;}
+.net-lobe{fill:var(--acc-soft); opacity:.5; stroke:var(--line); stroke-width:.6;}
+.net-link{fill:none; stroke:var(--line-2); stroke-width:.5; opacity:.45;}
+.net-link.lit{stroke:var(--acc); opacity:.4; stroke-width:.8;}
+/* Ghosted: the whole shape is there from the first day, waiting to be filled. */
+.net-cell{fill:var(--acc); fill-opacity:var(--f, 0); stroke:var(--line-2); stroke-width:.7;}
+.net-cell.met{stroke:var(--acc); stroke-opacity:.5;}
+.net-cell.well{stroke:var(--acc); stroke-opacity:1; stroke-width:1;}
+
 /* ---------- toast ---------- */
 #toast{position:fixed; left:50%; bottom:calc(var(--s5) + env(safe-area-inset-bottom));
        transform:translateX(-50%); padding:var(--s3) var(--s4); border-radius:var(--r-md);
@@ -338,7 +349,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '7.2';
+var VERSION = '7.3';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1534,6 +1545,7 @@ function renderParent(){
           + 'This device isn’t saving her progress — it may be out of space, or in a private '
           + 'browsing window. Practice still works, but today won’t be remembered.</div></div>'
         : '')
+    + renderNetwork()
     + '<div class="sect"><h2>Progress</h2><div class="stats">'
     +   '<div class="stat"><b>' + knownCount(list) + '</b><span>known well</span></div>'
     +   '<div class="stat"><b>' + Object.keys(S.words.mastery).length + '</b><span>words tried</span></div>'
@@ -1711,6 +1723,141 @@ function restore(btn){
     load(); render();
     toast('That backup could not be restored. Nothing was changed.');
   }
+}
+
+/* =========================================================
+   The shape of what she knows. Every word on every list is here from the first
+   day as a faint outline, so the whole form is there to be filled in rather than
+   grown from a speck — and a word that slips back dims rather than vanishing.
+   Words cluster into the pattern family they belong to, and a hairline joins
+   words that share a spelling chunk, because that is the structure she is
+   actually learning: "or" is what morning, sorted and report have in common.
+   The layout is deterministic. It has to be the same shape every time or it is
+   decoration rather than her map.
+   ========================================================= */
+var NET_W = 320, GOLDEN = 2.39996323;
+
+// A small deterministic generator, so the jitter that keeps this from looking
+// mechanical is the same jitter every time.
+function seeded(str){
+  var h = 2166136261;
+  for(var i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return function(){
+    h = Math.imul(h ^ (h >>> 15), 2246822507); h ^= h >>> 13;
+    return ((h >>> 0) % 100000) / 100000;
+  };
+}
+
+function networkData(){
+  var lists = allLists().filter(function(l){ return wordsOf(l).length; });
+  if(!lists.length) return null;
+  var rnd = seeded(lists.map(function(l){ return l.id + wordsOf(l).length; }).join('|'));
+
+  // Lobes around a centre, each sized by how many words it holds.
+  var total = lists.reduce(function(n, l){ return n + wordsOf(l).length; }, 0);
+  var cx = NET_W / 2, cy = NET_W / 2;
+  // Close enough that the lobes press into each other and the middle fills: a
+  // ring of separate blobs reads as a doughnut, not a colony.
+  var ring = lists.length > 1 ? NET_W * 0.215 : 0;
+  var cells = [], lobes = [], byWord = {};
+
+  lists.forEach(function(l, li){
+    var words = wordsOf(l);
+    var a = (li / lists.length) * Math.PI * 2 - Math.PI / 2 + (rnd() - .5) * 0.25;
+    var lr = Math.max(28, NET_W * 0.195 * Math.sqrt(words.length / Math.max(6, total / lists.length)));
+    var lx = cx + Math.cos(a) * ring, ly = cy + Math.sin(a) * ring;
+    lobes.push({x:lx, y:ly, r:lr, name:l.name, id:l.id, wobble:rnd()});
+
+    // Phyllotaxis: even packing with no grid to it.
+    words.forEach(function(w, k){
+      var rr = lr * 0.88 * Math.sqrt((k + 0.5) / words.length);
+      var th = k * GOLDEN + rnd() * 0.2;
+      var box = mastery(w).box || 1;
+      var met = !!S.words.mastery[w];
+      var cell = {w:w, x:lx + Math.cos(th) * rr, y:ly + Math.sin(th) * rr,
+                  r:Math.max(2.6, lr / (2.6 + Math.sqrt(words.length))),
+                  box:box, met:met, lobe:li};
+      cells.push(cell);
+      byWord[w] = cell;
+    });
+  });
+
+  // A hairline where two words share a chunk. A chunk in a dozen words says
+  // nothing, so only the telling ones are drawn.
+  var byPiece = {};
+  cells.forEach(function(c){
+    splitOf(c.w).forEach(function(p){
+      if(p.length < 2) return;
+      (byPiece[p] = byPiece[p] || []).push(c.w);
+    });
+  });
+  var links = [], far = NET_W * 0.42;
+  Object.keys(byPiece).forEach(function(p){
+    var ws = byPiece[p];
+    if(ws.length < 2 || ws.length > 4) return;
+    for(var i = 1; i < ws.length && links.length < 90; i++){
+      var a = byWord[ws[i-1]], b = byWord[ws[i]];
+      // A filament right across the shape is noise, not a relationship.
+      if(!a || !b || Math.hypot(a.x - b.x, a.y - b.y) > far) continue;
+      links.push({a:a, b:b, piece:p});
+    }
+  });
+
+  return {cells:cells, lobes:lobes, links:links, total:total,
+          known:cells.filter(function(c){ return c.box >= KNOWN_BOX; }).length,
+          met:cells.filter(function(c){ return c.met; }).length};
+}
+
+// A soft closed blob rather than a circle, so a family reads as a colony.
+function blobPath(l){
+  var n = 11, rnd = seeded(l.id + l.wobble), pts = [];
+  for(var i = 0; i < n; i++){
+    var a = (i / n) * Math.PI * 2;
+    var r = l.r * (1.06 + (rnd() - .5) * 0.22);
+    pts.push([l.x + Math.cos(a) * r, l.y + Math.sin(a) * r]);
+  }
+  var d = 'M' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1);
+  for(var j = 0; j < n; j++){
+    var p = pts[j], q = pts[(j + 1) % n];
+    d += 'Q' + p[0].toFixed(1) + ' ' + p[1].toFixed(1) + ' '
+       + ((p[0] + q[0]) / 2).toFixed(1) + ' ' + ((p[1] + q[1]) / 2).toFixed(1);
+  }
+  return d + 'Z';
+}
+
+function renderNetwork(){
+  var d = networkData();
+  if(!d) return '';
+  var svg = '<svg class="net" viewBox="0 0 ' + NET_W + ' ' + NET_W + '" role="img" aria-label="'
+    + d.known + ' of ' + d.total + ' words known well, grouped by spelling pattern">';
+  d.lobes.forEach(function(l){ svg += '<path class="net-lobe" d="' + blobPath(l) + '"/>'; });
+  d.links.forEach(function(k){
+    if(!k.a || !k.b) return;
+    // Curved, and bowed away from the middle, so they read as filaments between
+    // neighbours rather than threads flung across the shape.
+    var mx = (k.a.x + k.b.x) / 2, my = (k.a.y + k.b.y) / 2;
+    var away = Math.max(1, Math.hypot(mx - NET_W/2, my - NET_W/2));
+    var bow = 0.22 * Math.hypot(k.b.x - k.a.x, k.b.y - k.a.y);
+    var qx = mx + (mx - NET_W/2) / away * bow, qy = my + (my - NET_W/2) / away * bow;
+    var lit = k.a.met && k.b.met;
+    svg += '<path class="net-link' + (lit ? ' lit' : '') + '" d="M' + k.a.x.toFixed(1) + ' '
+        + k.a.y.toFixed(1) + 'Q' + qx.toFixed(1) + ' ' + qy.toFixed(1) + ' '
+        + k.b.x.toFixed(1) + ' ' + k.b.y.toFixed(1) + '"/>';
+  });
+  d.cells.forEach(function(c){
+    // Ghosted until she meets it, then darker with every box it climbs.
+    var fill = c.met ? (0.18 + 0.82 * Math.min(1, (c.box - 1) / (KNOWN_BOX - 1))) : 0;
+    svg += '<circle class="net-cell' + (c.met ? ' met' : '') + (c.box >= KNOWN_BOX ? ' well' : '')
+        + '" cx="' + c.x.toFixed(1) + '" cy="' + c.y.toFixed(1) + '" r="' + c.r.toFixed(1)
+        + '" style="--f:' + fill.toFixed(2) + '"><title>' + esc(c.w) + '</title></circle>';
+  });
+  svg += '</svg>';
+  return '<div class="sect"><h2>What she knows</h2>' + svg
+    + '<div class="hint">Every word on her lists is here. They fill in and darken as '
+    + 'she learns them, and a word she is losing dims rather than disappearing. '
+    + 'Each cluster is one spelling pattern; the hairlines join words that share a '
+    + 'chunk — <b>or</b> is what morning, sorted and report have in common. '
+    + d.met + ' met, <b>' + d.known + ' known well</b>, ' + d.total + ' in all.</div></div>';
 }
 
 var _toastT = null;

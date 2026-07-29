@@ -1,0 +1,170 @@
+// The shape of what she knows: every word on her lists present from the first
+// day as a faint outline, filling in and darkening as she learns them.
+const {test, expect} = require('@playwright/test');
+const {open, errorsOf} = require('./helpers');
+
+const cells = page => page.evaluate(() =>
+  [...document.querySelectorAll('.net-cell')].map(c => ({
+    word: c.querySelector('title').textContent,
+    met: c.classList.contains('met'),
+    well: c.classList.contains('well'),
+    fill: Number(getComputedStyle(c).fillOpacity.toString()),
+    x: Math.round(Number(c.getAttribute('cx'))), y: Math.round(Number(c.getAttribute('cy'))),
+    r: Number(c.getAttribute('r')),
+  })));
+
+async function master(page, pairs){
+  await page.evaluate(p => {
+    const a = window.__acorn, m = {};
+    Object.keys(p).forEach(w => { m[w] = {right:3, wrong:0, box:p[w], lastSeen:'2026-07-20'}; });
+    a.state.words.mastery = m; a.save(); a.go('parent');
+  }, pairs);
+}
+
+test.describe('the shape of what she knows', () => {
+
+  test('every word is there on the first day, as an outline', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => window.__acorn.go('parent'));
+    const all = await cells(page);
+    const expected = await page.evaluate(() => {
+      const a = window.__acorn, out = [];
+      a.allLists().forEach(l => a.wordsOf(l).forEach(w => out.push(w)));
+      return out;
+    });
+    expect(all.length).toBe(expected.length);
+    expect(all.map(c => c.word).sort()).toEqual(expected.sort());
+    // Nothing met yet, so nothing filled — the whole form waiting.
+    expect(all.every(c => !c.met)).toBe(true);
+    expect(all.every(c => c.fill === 0)).toBe(true);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
+  test('the waiting shape is a reasonable size, not a speck', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => window.__acorn.go('parent'));
+    const m = await page.evaluate(() => {
+      const svg = document.querySelector('.net').getBoundingClientRect();
+      const app = document.querySelector('#app').getBoundingClientRect();
+      const cs = [...document.querySelectorAll('.net-cell')].map(c => c.getBoundingClientRect());
+      const left = Math.min(...cs.map(r => r.left)), right = Math.max(...cs.map(r => r.right));
+      const top = Math.min(...cs.map(r => r.top)), bottom = Math.max(...cs.map(r => r.bottom));
+      return {widthShare: (right - left) / app.width,
+              squareish: (right - left) / (bottom - top),
+              cellPx: cs[0].width, svgWide: svg.width > 200};
+    });
+    expect(m.svgWide).toBe(true);
+    expect(m.widthShare, 'the shape does not fill its space').toBeGreaterThan(0.7);
+    expect(m.squareish).toBeGreaterThan(0.6);
+    expect(m.squareish).toBeLessThan(1.6);
+    expect(m.cellPx, 'the cells are too small to read as cells').toBeGreaterThan(8);
+  });
+
+  test('a word darkens as it climbs, and never darkens backwards', async ({page}) => {
+    await open(page, '2026-08-01');
+    const fills = [];
+    for(const box of [1, 2, 3, 4, 5, 6, 7]){
+      await master(page, {said: box});
+      const said = (await cells(page)).find(c => c.word === 'said');
+      expect(said.met, `box ${box}`).toBe(true);
+      fills.push(said.fill);
+    }
+    // Monotonic: more known is never lighter.
+    for(let i = 1; i < fills.length; i++)
+      expect(fills[i], `box ${i + 1} vs ${i}`).toBeGreaterThanOrEqual(fills[i - 1]);
+    expect(fills[0]).toBeGreaterThan(0);
+    expect(fills[fills.length - 1]).toBeCloseTo(1, 1);
+  });
+
+  test('a word she is losing dims rather than disappearing', async ({page}) => {
+    await open(page, '2026-08-01');
+    await master(page, {said: 6});
+    const strong = (await cells(page)).find(c => c.word === 'said');
+    await master(page, {said: 1});
+    const faded = (await cells(page)).find(c => c.word === 'said');
+    expect(faded).toBeTruthy();                       // still on the map
+    expect(faded.fill).toBeLessThan(strong.fill);
+    expect(faded.fill).toBeGreaterThan(0);            // still met, not a ghost again
+  });
+
+  test('known well is marked out from merely met', async ({page}) => {
+    await open(page, '2026-08-01');
+    await master(page, {said: 2, they: 5, went: 7});
+    const c = await cells(page);
+    expect(c.find(x => x.word === 'said').well).toBe(false);
+    expect(c.find(x => x.word === 'they').well).toBe(true);
+    expect(c.find(x => x.word === 'went').well).toBe(true);
+  });
+
+  test('it is the same shape every time, or it is decoration', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => window.__acorn.go('parent'));
+    const first = (await cells(page)).map(c => `${c.word}:${c.x},${c.y},${c.r}`);
+    await page.evaluate(() => { window.__acorn.go('day'); window.__acorn.go('parent'); });
+    expect((await cells(page)).map(c => `${c.word}:${c.x},${c.y},${c.r}`)).toEqual(first);
+    await page.reload();
+    await page.waitForFunction(() => !!window.__acorn);
+    await page.evaluate(() => { window.__acorn.setToday('2026-08-01'); window.__acorn.go('parent'); });
+    expect((await cells(page)).map(c => `${c.word}:${c.x},${c.y},${c.r}`)).toEqual(first);
+  });
+
+  test('learning a word moves nothing else', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => window.__acorn.go('parent'));
+    const before = (await cells(page)).map(c => `${c.word}:${c.x},${c.y}`);
+    await master(page, {said: 5, they: 3});
+    expect((await cells(page)).map(c => `${c.word}:${c.x},${c.y}`)).toEqual(before);
+  });
+
+  test('the filaments join words that share a chunk', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => window.__acorn.go('parent'));
+    const links = await page.evaluate(() => document.querySelectorAll('.net-link').length);
+    expect(links).toBeGreaterThan(4);
+    // And they light up only once both ends have been met.
+    const litBefore = await page.evaluate(() => document.querySelectorAll('.net-link.lit').length);
+    expect(litBefore).toBe(0);
+    await page.evaluate(() => {
+      const a = window.__acorn, m = {};
+      a.allLists().forEach(l => a.wordsOf(l).forEach(w => m[w] = {right:3, wrong:0, box:5, lastSeen:'2026-07-20'}));
+      a.state.words.mastery = m; a.save(); a.go('parent');
+    });
+    expect(await page.evaluate(() => document.querySelectorAll('.net-link.lit').length))
+      .toBeGreaterThan(0);
+  });
+
+  test('a word she added herself is on the map too', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'w1', name:'Week 6', words:['zebra','xylophone']}];
+      a.save(); a.go('parent');
+    });
+    const words = (await cells(page)).map(c => c.word);
+    expect(words).toContain('zebra');
+    expect(words).toContain('xylophone');
+  });
+
+  test('it stays on the grown-ups side', async ({page}) => {
+    await open(page, '2026-08-01');
+    await expect(page.locator('.net')).toHaveCount(0);
+    expect(await page.locator('#app').innerText()).not.toMatch(/what she knows/i);
+  });
+
+  test('it fits the phone at every text size', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.setViewportSize({width:375, height:667});
+    for(const scale of [0.9, 1, 1.25, 1.5]){
+      await page.evaluate(s => {
+        window.__acorn.state.settings.textScale = s;
+        window.__acorn.save(); window.__acorn.go('parent');
+      }, scale);
+      const past = await page.evaluate(() => {
+        const vw = document.documentElement.clientWidth;
+        const r = document.querySelector('.net').getBoundingClientRect();
+        return Math.round(Math.max(r.right - vw, -r.left));
+      });
+      expect(past, `at ${scale}x`).toBeLessThanOrEqual(1);
+    }
+  });
+});
