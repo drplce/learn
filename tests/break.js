@@ -533,6 +533,70 @@ async function main(){
     await ctx.close();
   }
 
+  // ---- 18. hostile and broken backups pasted into Restore
+  {
+    console.log('\n18. rubbish pasted into Restore');
+    const {page, ctx, errs} = await fresh(browser, '2026-08-01');
+    const seed = await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'w1', name:'W', words:['because','friend']}];
+      a.state.words.activeId = 'w1';
+      a.state.words.mastery = {because:{right:3, wrong:1, box:3, lastSeen:'2026-07-20'}};
+      a.state.words.sessions = [{date:'2026-07-30', list:'w1', asked:8, words:7, right:6, firstTime:5}];
+      a.save();
+      return JSON.stringify(a.state);
+    });
+    const PAYLOADS = [
+      '', '   ', 'hello', '{', '[]', 'null', 'true', '"a string"',
+      '{"words":null}', '{"words":"nope"}', '{"words":{}}',
+      '{"words":{"mastery":"not an object","lists":"nope","sessions":5}}',
+      '{"words":{"lists":[],"mastery":{},"sessions":[]},"settings":{"textScale":"huge"}}',
+      '{"words":{"mastery":{"a":{"box":"nine","lastSeen":{}}},"lists":[]}}',
+      '{"__proto__":{"polluted":true},"words":{"lists":[],"mastery":{}}}',
+      '<script>window.__pwned=1</script>',
+      seed.slice(0, Math.floor(seed.length * 0.5)),                 // truncated
+      seed.replace(/\}$/, ''),                                      // one brace short
+      '{"words":{"lists":[{"id":"x","name":"<img src=x onerror=window.__pwned=1>","words":["a"]}],' +
+        '"activeId":"x","mastery":{}}}',
+      JSON.stringify({words:{lists:[], mastery:{}, sessions:new Array(500).fill(0)
+        .map((_, i) => ({date:'2026-01-01', asked:1, words:1, right:1, firstTime:1}))}}),
+    ];
+    let broke = null;
+    for(const raw of PAYLOADS){
+      await page.evaluate(() => window.__acorn.go('parent'));
+      await page.locator('#restore').fill(raw);
+      await page.locator('#restoreGo').click();
+      await page.locator('#restoreGo').click().catch(() => {});
+      if(!await alive(page)){ broke = 'blank screen after ' + JSON.stringify(raw.slice(0, 40)); break; }
+      const st = await page.evaluate(() => {
+        const a = window.__acorn;
+        return {mastery: typeof a.state.words.mastery, lists: Array.isArray(a.state.words.lists),
+                sessions: Array.isArray(a.state.words.sessions),
+                pwned: !!window.__pwned, polluted: !!({}).polluted,
+                usable: !!document.querySelector('#screen').children.length};
+      });
+      if(st.mastery !== 'object' || !st.lists || !st.sessions)
+        { broke = 'state left malformed by ' + JSON.stringify(raw.slice(0, 40)); break; }
+      if(st.pwned) { broke = 'script executed from ' + JSON.stringify(raw.slice(0, 40)); break; }
+      if(st.polluted) { broke = 'prototype polluted by ' + JSON.stringify(raw.slice(0, 40)); break; }
+      if(!st.usable) { broke = 'unusable screen after ' + JSON.stringify(raw.slice(0, 40)); break; }
+    }
+    if(broke) bad('rubbish pasted into Restore', broke);
+    else ok(PAYLOADS.length + ' broken and hostile backups all refused safely');
+
+    // And a real one still works after all that.
+    await page.evaluate(() => { localStorage.clear(); window.__acorn.reset();
+                                window.__acorn.go('parent'); });
+    await page.locator('#restore').fill(seed);
+    await page.locator('#restoreGo').click();
+    await page.locator('#restoreGo').click();
+    const back = await page.evaluate(() => Object.keys(window.__acorn.state.words.mastery));
+    if(!back.includes('because')) bad('restore after rubbish', 'a good backup no longer restores');
+    else ok('a good backup still restores afterwards');
+    if(errs.length) bad('Restore', errs.join(' | '));
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));

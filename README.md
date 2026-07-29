@@ -118,6 +118,16 @@ being switched on: **Settings → Pages → Source: Deploy from a branch**, pick
 Pages on a **private** repo needs a paid plan. There are no secrets in this app,
 so public is safe — and her name is not in the code.
 
+## Backup and restore
+
+Her progress lives in this device's local storage and nowhere else. The
+grown-ups screen copies the whole lot out as text — an email to yourself is
+enough — and takes it back in through the same box. Restoring goes through the
+app's normal loading path, so a truncated or hand-edited file meets the same
+hardening as anything already stored, nothing is written until the text has been
+read and recognised, and the previous state is put back if it does not take. It
+asks twice, and tells you what is in the backup before the second tap.
+
 ## Adding words
 
 Splits are looked up, not guessed. `tools/words.mjs` reads a hyphenation

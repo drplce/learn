@@ -1468,10 +1468,71 @@ function renderParent(){
 
     + '<div class="sect"><h2>Backup</h2>'
     +   '<button class="quiet" id="copy">Copy her progress</button>'
-    +   '<div class="hint">Copies everything as text you can paste somewhere safe.</div>'
+    +   '<div class="hint">Copies everything as text you can paste somewhere safe — '
+    +     'an email to yourself does the job.</div>'
+    +   '<div class="field" style="margin-top:var(--s4)">'
+    +     '<label for="restore">Put a backup back</label>'
+    +     '<textarea id="restore" placeholder="Paste the text you copied" '
+    +       'autocapitalize="off" spellcheck="false"></textarea></div>'
+    +   '<button class="quiet" id="restoreGo">Restore</button>'
+    +   '<div class="hint">Replaces everything on this device with the backup. '
+    +     'It will tell you what is in it and ask again before it does.</div>'
     +   '<button class="quiet danger" id="reset" style="margin-top:var(--s3)">Erase everything</button>'
     + '</div>'
     + '<span class="stamp" id="stamp">Build ' + esc(VERSION) + '</span>';
+}
+
+/* A backup nobody can put back is not a backup. This is the only way in, and it
+   goes through load() so a hand-edited or truncated file meets exactly the same
+   hardening as anything already in storage. Nothing is written until the text has
+   been read and found to be hers, and the old state is put back if it is not. */
+function looksLikeBackup(text){
+  var o;
+  try{ o = JSON.parse(text); }catch(e){ return null; }
+  if(!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  var w = o.words;
+  if(!w || typeof w !== 'object') return null;
+  if(!Array.isArray(w.lists) && !w.mastery && !Array.isArray(w.sessions)) return null;
+  return o;
+}
+function restore(btn){
+  var box = el('#restore'), text = box ? box.value.trim() : '';
+  if(!text){ toast('Paste the backup text in the box first.'); return; }
+  var o = looksLikeBackup(text);
+  if(!o){ toast('That does not look like a backup from this app.'); return; }
+
+  var words = Object.keys((o.words && o.words.mastery) || {}).length;
+  var lists = ((o.words && o.words.lists) || []).length;
+  var sits  = ((o.words && o.words.sessions) || []).length;
+  var summary = words + (words === 1 ? ' word' : ' words') + ', '
+              + lists + (lists === 1 ? ' saved list' : ' saved lists') + ', '
+              + sits + (sits === 1 ? ' sitting' : ' sittings');
+
+  if(!btn.dataset.armed){
+    btn.dataset.armed = '1';
+    btn.classList.add('danger');           // it is about to replace everything
+    btn.textContent = 'Tap again to replace everything with: ' + summary;
+    setTimeout(function(){ if(btn.isConnected){ delete btn.dataset.armed; render(); } }, 6000);
+    return;
+  }
+
+  var before = null;
+  try{ before = localStorage.getItem(KEY); }catch(e){}
+  try{
+    localStorage.setItem(KEY, JSON.stringify(o));
+    load();
+    // load() falls back to a blank slate on anything it cannot use, which would
+    // be a silent wipe. Check it took, and undo if it did not.
+    if(!S || !S.words || typeof S.words.mastery !== 'object') throw new Error('did not take');
+    save();
+    go('day');
+    if(!start()) render();
+    toast('Restored: ' + summary);
+  }catch(e){
+    try{ if(before !== null) localStorage.setItem(KEY, before); }catch(e2){}
+    load(); render();
+    toast('That backup could not be restored. Nothing was changed.');
+  }
 }
 
 var _toastT = null;
@@ -1540,6 +1601,10 @@ document.addEventListener('click', function(ev){
     return;
   }
   if(t.closest('#pasteSave')){
+    if(looksLikeBackup(el('#paste').value)){
+      toast('That is a backup — use Restore, further down.');
+      return;
+    }
     var words = parseWordList(el('#paste').value);
     if(!words.length){ toast('No words found in that.'); return; }
     var name = (el('#pname2').value || '').trim() || 'Her list';
@@ -1566,6 +1631,7 @@ document.addEventListener('click', function(ev){
     }catch(e){ toast('Could not copy.'); }
     return;
   }
+  if(t.closest('#restoreGo')){ restore(t.closest('#restoreGo')); return; }
   if(t.closest('#reset')){
     var r = t.closest('#reset');
     if(r.dataset.armed){
