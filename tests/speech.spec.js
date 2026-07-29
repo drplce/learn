@@ -223,6 +223,63 @@ test.describe('the pre-recorded voice', () => {
   });
 });
 
+test.describe('telling a grown-up whether recordings are working', () => {
+
+  // A clip that will not decode falls back to the phone voice, so a total
+  // failure looks like nothing being wrong. These make it visible.
+  test('the grown-ups screen reports what is recorded and what fell back',
+    async ({page}) => {
+      await open(page, '2026-08-01');
+      await page.evaluate(() => { window.__acorn.setClips(['said','rain'], '.mp3');
+                                  window.__acorn.go('parent'); });
+      const sect = page.locator('#clipreport');
+      await expect(sect).toContainText('2');
+      await expect(sect).toContainText('recorded');
+      await expect(sect).toContainText('played');
+      await expect(sect).toContainText('fell back');
+      await expect(sect).toContainText(/can play \.mp3: (yes|no)/);
+    });
+
+  test('the fell-back count moves when a clip will not load', async ({page}) => {
+    await open(page, '2026-08-01');
+    await listen(page, AU);                           // so the fallback is observable
+    await watchAudio(page, {failing: true});          // every clip refuses to load
+    await page.evaluate(() => window.__acorn.setClips(['because'], '.mp3'));
+    await startOn(page, ['because','rain','boat']);
+    await page.waitForFunction(() => window.__spoken && window.__spoken.length > 0,
+                               null, {timeout:3000});
+    await page.evaluate(() => window.__acorn.go('parent'));
+    const counts = await page.evaluate(() =>
+      [...document.querySelectorAll('#clipreport .stat b')].map(b => Number(b.textContent)));
+    expect(counts[0], 'recorded').toBe(1);
+    expect(counts[2], 'fell back').toBeGreaterThan(0);
+  });
+
+  test('the test button says plainly what happened', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => { window.__acorn.setClips(['said'], '.mp3');
+                                window.__acorn.go('parent'); });
+    await page.locator('#cliptest').click();
+    // No decodable file here, so it must report the failure rather than hang.
+    await expect(page.locator('#clipreport'))
+      .toContainText(/did not play|Heard it|No answer|refused/, {timeout:8000});
+  });
+
+  test('none of this appears on her screens', async ({page}) => {
+    await open(page, '2026-08-01');
+    await startOn(page, ['because','rain']);
+    await expect(page.locator('#cliptest')).toHaveCount(0);
+    await expect(page.locator('#clipreport')).toHaveCount(0);
+    expect(await page.locator('#app').innerText()).not.toMatch(/recorded|fell back|can play/i);
+  });
+
+  test('the build stamp names this build', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => window.__acorn.go('parent'));
+    await expect(page.locator('#stamp')).toContainText(/^Build \d+/);
+  });
+});
+
 test.describe('what she hears', () => {
 
   test.beforeEach(async ({page}) => { await open(page, '2026-08-01'); await noClips(page); });

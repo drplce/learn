@@ -335,7 +335,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 (function(){
 'use strict';
 
-var VERSION = '5 · spelling';
+var VERSION = '6 · recorded voice';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -470,6 +470,19 @@ var CLIP_DIR = 'audio/';
 var CLIP_EXT = ".m4a", CLIPS = ["a","ac","action","afraid","al","almost","ary","at","attention","au","august","aw","awful","back","be","beau","beautiful","because","before","between","boat","bore","boredom","bour","busi","business","call","calling","cas","castle","cause","cen","cence","centre","ci","climb","col","colour","com","come","complete","cus","de","decision","delight","di","dif","different","direction","dis","discussion","display","division","dom","dow","e","ed","el","elled","enough","ent","er","ern","est","every word counts.","ex","explosion","fa","favour","favourite","feb","february","fer","fore","fraid","friend","from","ful","gan","geth","gov","government","gust","har","harbour","haunt","haunted","height","help","hon","honest","in","ing","invention","is","ise","island","ite","jew","jewellery","knee","knife","know","lamb","land","law","lawless","lery","less","li","licence","light","like","lis","listen","made","me","ment","metre","might","mis","mor","morn","morning","most","mu","music","name","neigh","neighbour","ness","nise","nough","og","or","organise","our","peo","people","per","permission","play","ple","plete","plo","port","prac","practise","ques","question","rain","rate","re","rea","real","realise","reason","rec","recognise","report","row","ru","said","sep","separate","sic","sion","some","son","sort","sorted","sta","station","straight","talk","talking","tel","television","ten","thea","theatre","they","thought","thoughtful","through","thumb","ti","time","tion","tise","tle","to","together","tomorrow","trav","travelled","tre","tune","tween","ven","vi","vour","want","warm","warming","week","went","whis","whistle","win","window","with","wrist","write","wrong"];   /* GENERATED */
 var _clips = null;
 var _clipEl = null, _clipSeq = 0;
+// A clip that will not decode falls back to the phone voice, which looks like
+// nothing is wrong — she simply hears the old voice. These make it visible.
+var _clipPlays = 0, _clipFalls = 0, _clipTest = '';
+// Can this browser decode what was recorded at all? Playwright's Chromium, for
+// one, has no AAC decoder, so this is worth reporting rather than assuming.
+function clipPlayable(){
+  try{
+    var a = document.createElement('audio');
+    var t = CLIP_EXT === '.mp3' ? 'audio/mpeg'
+          : CLIP_EXT === '.wav' ? 'audio/wav' : 'audio/mp4; codecs="mp4a.40.2"';
+    return a.canPlayType(t) || '';
+  }catch(e){ return ''; }
+}
 
 // Must match slug() in tools/voice.mjs.
 function clipSlug(text){ return String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-'); }
@@ -507,10 +520,10 @@ function playClips(items, onFail){
     el.src = src;
     el.playbackRate = it[1] || 1;
     if('preservesPitch' in el) el.preservesPitch = true;
-    el.onended = next;
-    el.onerror = function(){ if(mine === _clipSeq && onFail) onFail(); };
+    el.onended = function(){ _clipPlays++; next(); };
+    el.onerror = function(){ _clipFalls++; if(mine === _clipSeq && onFail) onFail(); };
     var p = el.play();
-    if(p && p.catch) p.catch(function(){ if(mine === _clipSeq && onFail) onFail(); });
+    if(p && p.catch) p.catch(function(){ _clipFalls++; if(mine === _clipSeq && onFail) onFail(); });
   }
   next();
   return true;
@@ -1168,6 +1181,30 @@ if(window.visualViewport){
 addEventListener('resize', fitViewport);
 addEventListener('orientationchange', fitViewport);
 
+/* Plays one recording on its own, with no fallback in the way, and reports what
+   actually happened. Without this a browser that cannot decode them looks
+   identical to one that can — the phone voice simply covers for it. */
+function testClip(){
+  var first = null;
+  for(var i = 0; i < CLIPS.length && !first; i++) if(clipFor(CLIPS[i])) first = CLIPS[i];
+  if(!first){ _clipTest = 'Nothing is recorded yet.'; render(); return; }
+  _clipTest = 'Playing “' + first + '”…';
+  render();
+  var el = new Audio(clipFor(first));
+  var settled = false;
+  function done(msg){ if(settled) return; settled = true; _clipTest = msg; render(); }
+  el.addEventListener('ended', function(){
+    done('Heard it. Recordings are working — that was “' + first + '”.'); });
+  el.addEventListener('error', function(){
+    done('That did not play. ' + (clipPlayable() ? 'The file may be damaged.'
+         : 'This browser cannot decode ' + CLIP_EXT + ' at all.') +
+         ' She is hearing the phone voice instead.'); });
+  setTimeout(function(){ done('No answer either way after four seconds. ' +
+    'If you heard it, recordings are working.'); }, 4000);
+  var p = el.play();
+  if(p && p.catch) p.catch(function(){ done('The browser refused to play it — tap again.'); });
+}
+
 function applySettings(){
   var r = document.documentElement;
   r.style.setProperty('--scale', S.settings.textScale || 1);
@@ -1414,6 +1451,21 @@ function renderParent(){
           + t[1] + '" aria-pressed="' + ((S.settings.tint||'cream') === t[0]) + '" aria-label="' + t[0] + ' background"></button>'; }).join('')
     + '</div><div class="hint">A tint some readers find easier. Light mode only.</div></div>'
 
+    + '<div class="sect" id="clipreport"><h2>Recorded voice</h2>'
+    +   '<div class="stats">'
+    +     '<div class="stat"><b>' + CLIPS.length + '</b><span>recorded</span></div>'
+    +     '<div class="stat"><b>' + _clipPlays + '</b><span>played</span></div>'
+    +     '<div class="stat"><b>' + _clipFalls + '</b><span>fell back</span></div>'
+    +   '</div>'
+    +   '<div class="hint">This phone can play ' + esc(CLIP_EXT) + ': '
+    +     (clipPlayable() ? '<b>yes</b>' : '<b>no</b>') + '. '
+    +     'A recording that will not play falls back to the phone voice, so she '
+    +     'hears the old voice rather than nothing — which is why the counts above '
+    +     'are worth a look.</div>'
+    +   '<button class="quiet" id="cliptest">Play a test word</button>'
+    +   (_clipTest ? '<div class="hint">' + esc(_clipTest) + '</div>' : '')
+    + '</div>'
+
     + '<div class="sect"><h2>Backup</h2>'
     +   '<button class="quiet" id="copy">Copy her progress</button>'
     +   '<div class="hint">Copies everything as text you can paste somewhere safe.</div>'
@@ -1499,6 +1551,7 @@ document.addEventListener('click', function(ev){
     toast(words.length + (words.length === 1 ? ' word saved.' : ' words saved.'));
     return;
   }
+  if(t.closest('#cliptest')){ testClip(); return; }
   if(t.closest('#copy')){
     var text = JSON.stringify(S, null, 2);
     try{
