@@ -26,9 +26,10 @@ async function master(page, pairs){
 test.describe('the shape of what she knows', () => {
 
   // Every word on every list used to be drawn from day one: a hundred faint
-  // outlines, which said more about how far there is to go than about her. The
-  // outlines now reach only as far as the next few days of new words.
-  test('only the next few days are outlined, not the whole hundred', async ({page}) => {
+  // outlines, which said more about how far there is to go than about her. Then a
+  // fixed dozen, which still starts big and blank. The outlines now start at two
+  // sittings' worth of new words and reach further as she meets more.
+  test('only the next few words are outlined, not the whole hundred', async ({page}) => {
     await open(page, '2026-08-01');
     await page.evaluate(() => window.__acorn.go('parent'));
     const all = await cells(page);
@@ -40,8 +41,8 @@ test.describe('the shape of what she knows', () => {
               next: a.buildSession(a.activeList(), a.todayISO())
                      .filter(w => !a.state.words.mastery[w])};
     });
-    // Her first sitting introduces three words, so four days of them is a dozen.
-    expect(facts.ahead).toBe(12);
+    // Her first sitting introduces three words: tonight's three and three behind.
+    expect(facts.ahead).toBe(6);
     expect(all.map(c => c.word).sort()).toEqual(facts.horizon.slice().sort());
     expect(all.length, 'the ghost is no longer the whole corpus')
       .toBeLessThan(facts.corpus / 4);
@@ -75,10 +76,13 @@ test.describe('the shape of what she knows', () => {
   // picture go backwards: newWordsToday() answers 3 before her first sitting and 1
   // after it, so one evening of practice took the shape from twelve outlines to
   // four. A hard week earns no new words at all, and must still not shrink it.
+  // It is off words met, which is the one measure of how far she has come that
+  // cannot go down.
   test('the shape only ever grows', async ({page}) => {
     await open(page, '2026-08-01');
     await page.evaluate(() => window.__acorn.go('parent'));
     const day1 = (await cells(page)).length;
+    expect(day1, 'it starts at a handful').toBe(6);
 
     // One good sitting behind her.
     const after = await page.evaluate(() => {
@@ -101,22 +105,45 @@ test.describe('the shape of what she knows', () => {
               cells: document.querySelectorAll('.net-cell').length};
     });
     expect(hard.n, 'nothing new is introduced on a bad run').toBe(0);
-    expect(hard.ahead, 'but the horizon holds').toBe(12);
+    expect(hard.ahead, 'but the horizon holds').toBe(6);
     expect(hard.cells).toBe(after);
+
+    // And it does widen: a term's worth of words met looks further ahead than
+    // her first evening did.
+    const later = await page.evaluate(() => {
+      const a = window.__acorn, m = {};
+      const seen = [];
+      a.allLists().forEach(l => a.wordsOf(l).forEach(w => { if(seen.indexOf(w) < 0) seen.push(w); }));
+      seen.slice(0, 25).forEach(w => m[w] = {right:3, wrong:0, box:3, lastSeen:'2026-07-31'});
+      a.state.words.mastery = m; a.save(); a.go('parent');
+      return {ahead: a.ghostAhead(), cells: document.querySelectorAll('.net-cell').length};
+    });
+    expect(later.ahead, 'the horizon widens as she meets more').toBeGreaterThan(6);
+    expect(later.cells).toBeGreaterThan(hard.cells);
   });
 
-  // The camera is fitted to a stable set — every list she has started plus the open
-  // one — because one fitted to what happens to be drawn re-frames every time she
-  // meets a word, and then the whole colony slides and rescales under her. Measured
-  // before this was fixed: all seven shared cells moved and grew.
+  /* The camera is fitted to a stable set — every list she has started plus the open
+     one — because one fitted to what happens to be drawn re-frames every time she
+     meets a word, and then the whole colony slides and rescales under her. Measured
+     before that was fixed: all seven shared cells moved and grew.
+     The picture is deliberately not the same size any more: it is small on her
+     first evening and grows with the words she has met, so the on-screen
+     coordinates legitimately change. What must still hold is that only the size
+     changes — the same frame, and every cell in the same place relative to the
+     others. So positions are read off getBoundingClientRect, as they must be (this
+     defect got in because the old test read the coordinates the code had chosen),
+     and then normalised by the picture's own box before they are compared. */
   test('the picture holds still on screen as she learns', async ({page}) => {
     await open(page, '2026-08-01');
     const onScreen = () => page.evaluate(() => {
-      const out = {view: document.querySelector('.net').getAttribute('viewBox'), pos: {}};
+      const svg = document.querySelector('.net'), box = svg.getBoundingClientRect();
+      const out = {view: svg.getAttribute('viewBox'), width: box.width, pos: {}};
       document.querySelectorAll('.net-cell').forEach(c => {
         const r = c.getBoundingClientRect();
+        // In fractions of the picture, not in pixels of the page.
         out.pos[c.querySelector('title').textContent] =
-          [Math.round(r.left), Math.round(r.top), Math.round(r.width)].join(',');
+          [(r.left - box.left) / box.width, (r.top - box.top) / box.height,
+           r.width / box.width];
       });
       return out;
     });
@@ -131,8 +158,13 @@ test.describe('the shape of what she knows', () => {
     });
     const after = await onScreen();
     expect(after.view, 'the frame moved').toBe(before.view);
-    const moved = Object.keys(before.pos).filter(w => after.pos[w] && after.pos[w] !== before.pos[w]);
-    expect(moved, 'cells moved on screen').toEqual([]);
+    expect(after.width, 'the picture should have grown').toBeGreaterThan(before.width);
+    // Within a pixel of the bigger picture: the arrangement is identical, only
+    // the scale is not.
+    const tol = 1 / after.width;
+    const moved = Object.keys(before.pos).filter(w => after.pos[w] &&
+      after.pos[w].some((v, i) => Math.abs(v - before.pos[w][i]) > tol));
+    expect(moved, 'cells moved relative to the picture').toEqual([]);
   });
 
   // The frame is a camera: it crops to what is drawn so a dozen outlines fill the
@@ -153,12 +185,23 @@ test.describe('the shape of what she knows', () => {
     });
     const wide = await frame();
     expect(wide.cells).toBeGreaterThan(tight.cells * 5);
+    // Half again as wide, rather than twice: the frame now holds the core and the
+    // hairs from the first evening, so it does not start as tightly as it did.
     expect(wide.side, 'the frame pulled back as the colony grew')
-      .toBeGreaterThan(tight.side * 2);
+      .toBeGreaterThan(tight.side * 1.8);
     const after = (await cells(page)).map(c => `${c.word}:${c.x},${c.y},${c.r}`);
     before.forEach(b => expect(after).toContain(b));
   });
 
+  /* The picture is meant to start small — a handful of outlines on a sprout rather
+     than a full-width square — but small is not the same as a speck, and on her
+     first evening this is all a grown-up has to look at.
+     The share it fills is measured against the picture itself and taken over
+     everything drawn, not over the cells alone: the frame is fitted to the hairs
+     and the core as well now, so on the day she has one list going the cells sit
+     in the head of a sprout and cannot fill the frame by themselves. What the
+     check is for is that the camera is cropped to the drawing rather than leaving
+     it in the corner of an empty square, and that is what this says. */
   test('the waiting shape is a reasonable size, not a speck', async ({page}) => {
     await open(page, '2026-08-01');
     await page.evaluate(() => window.__acorn.go('parent'));
@@ -166,17 +209,54 @@ test.describe('the shape of what she knows', () => {
       const svg = document.querySelector('.net').getBoundingClientRect();
       const app = document.querySelector('#app').getBoundingClientRect();
       const cs = [...document.querySelectorAll('.net-cell')].map(c => c.getBoundingClientRect());
-      const left = Math.min(...cs.map(r => r.left)), right = Math.max(...cs.map(r => r.right));
-      const top = Math.min(...cs.map(r => r.top)), bottom = Math.max(...cs.map(r => r.bottom));
-      return {widthShare: (right - left) / app.width,
-              squareish: (right - left) / (bottom - top),
-              cellPx: Math.min(...cs.map(r => r.width)), svgWide: svg.width > 200};
+      const ink = [...document.querySelectorAll('.net path')].map(p => p.getBoundingClientRect());
+      const span = rs => [Math.max(...rs.map(r => r.right)) - Math.min(...rs.map(r => r.left)),
+                          Math.max(...rs.map(r => r.bottom)) - Math.min(...rs.map(r => r.top))];
+      const drawn = span(ink), cell = span(cs);
+      return {fillsFrame: Math.max(drawn[0], drawn[1]) / svg.width,
+              squareish: cell[0] / cell[1],
+              cellPx: Math.min(...cs.map(r => r.width)),
+              svgPx: svg.width, roomLeftToGrow: svg.width / app.width};
     });
-    expect(m.svgWide).toBe(true);
-    expect(m.widthShare, 'the shape does not fill its space').toBeGreaterThan(0.7);
+    // Small, but a real picture: a good part of the column wide, and not yet the
+    // whole of it, because there is a lot of growing left to do.
+    expect(m.svgPx, 'the picture is a speck').toBeGreaterThan(200);
+    expect(m.roomLeftToGrow).toBeLessThan(0.75);
+    expect(m.fillsFrame, 'the drawing does not fill its frame').toBeGreaterThan(0.9);
     expect(m.squareish).toBeGreaterThan(0.6);
     expect(m.squareish).toBeLessThan(1.6);
     expect(m.cellPx, 'the cells are too small to read as cells').toBeGreaterThan(6);
+  });
+
+  /* Both complaints in one: the picture starts small on the page and grows, and
+     the growing is the whole picture getting bigger rather than the cells
+     spreading out. Measured on the phone she uses. */
+  test('the picture grows on the page as she learns', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.setViewportSize({width:375, height:667});
+    const size = () => page.evaluate(() => {
+      const svg = document.querySelector('.net');
+      return {px: Math.round(svg.getBoundingClientRect().width),
+              view: svg.getAttribute('viewBox')};
+    });
+    await page.evaluate(() => window.__acorn.go('parent'));
+    const first = await size();
+    // Everything met and known well: the far end of the growth.
+    const full = await page.evaluate(() => {
+      const a = window.__acorn, m = {};
+      a.allLists().forEach(l => a.wordsOf(l).forEach(w =>
+        m[w] = {right:5, wrong:0, box:6, lastSeen:'2026-07-20'}));
+      a.state.words.mastery = m; a.save(); a.go('parent');
+      const svg = document.querySelector('.net');
+      return {px: Math.round(svg.getBoundingClientRect().width),
+              cells: document.querySelectorAll('.net-cell').length};
+    });
+    expect(full.px, 'the picture did not grow').toBeGreaterThan(first.px * 1.4);
+    expect(full.cells).toBe(100);
+    // The frame it grew into is her own list of lists, not the page: at every
+    // stage the picture is square and inside the column.
+    expect(first.px).toBeLessThan(await page.evaluate(() =>
+      document.querySelector('#app').clientWidth));
   });
 
   test('a word darkens as it climbs, and never darkens backwards', async ({page}) => {
@@ -270,44 +350,94 @@ test.describe('the shape of what she knows', () => {
 
   test('nothing in it is a straight line', async ({page}) => {
     await open(page, '2026-08-01');
-    await page.evaluate(() => window.__acorn.go('parent'));
-    const paths = await page.evaluate(() =>
+    const drawn = () => page.evaluate(() =>
       [...document.querySelectorAll('.net path, .net line')].map(p => ({
         tag: p.tagName.toLowerCase(), d: p.getAttribute('d') || ''})));
-    expect(paths.length).toBeGreaterThan(10);
-    // A ruled line is what gives a drawing like this away as a diagram.
-    expect(paths.filter(p => p.tag === 'line')).toEqual([]);
-    const straight = paths.filter(p => !/[QCTS]/.test(p.d));
-    expect(straight.map(p => p.d.slice(0, 30))).toEqual([]);
+    await page.evaluate(() => window.__acorn.go('parent'));
+    // Her first evening, and then the whole colony — the filaments only appear
+    // once there are words on the map that share a chunk, and they are held inside
+    // the frame, which must not straighten them.
+    for(const paths of [await drawn(), await page.evaluate(() => {
+      const a = window.__acorn, m = {};
+      a.allLists().forEach(l => a.wordsOf(l).forEach(w =>
+        m[w] = {right:5, wrong:0, box:5, lastSeen:'2026-07-20'}));
+      a.state.words.mastery = m; a.save(); a.go('parent');
+      return [...document.querySelectorAll('.net path, .net line')].map(p => ({
+        tag: p.tagName.toLowerCase(), d: p.getAttribute('d') || ''}));
+    })]){
+      expect(paths.length).toBeGreaterThan(10);
+      // A ruled line is what gives a drawing like this away as a diagram.
+      expect(paths.filter(p => p.tag === 'line')).toEqual([]);
+      const straight = paths.filter(p => !/[QCTS]/.test(p.d));
+      expect(straight.map(p => p.d.slice(0, 30))).toEqual([]);
+    }
     // And the hairs wander rather than bending once: several segments each.
     const hairs = await page.evaluate(() =>
       [...document.querySelectorAll('.net-hair')].map(p => (p.getAttribute('d').match(/Q/g) || []).length));
     expect(Math.min(...hairs), 'the hairs are too simple to wander').toBeGreaterThan(3);
   });
 
+  /* All of the drawing has to be inside the picture — not just the cells. The
+     hairs start at the core, and on the days when her words are all on one side of
+     it the core sat outside a frame drawn round the cells: on a phone that came
+     out as five hairlines running off the bottom edge towards something you cannot
+     see, and .net{overflow:hidden} cropped them where they left. The filaments
+     bulge sideways between two cells and could leave the frame the same way.
+     Read off getBoundingClientRect, so this is where the lines are on her screen
+     and not where the code meant to put them. */
   test('nothing is clipped by the edge of the frame', async ({page}) => {
     await open(page, '2026-08-01');
-    await page.evaluate(() => window.__acorn.go('parent'));
-    const outside = await page.evaluate(() => {
-      const svg = document.querySelector('.net');
-      const box = svg.viewBox.baseVal;
-      return [...document.querySelectorAll('.net-cell')].map(c => {
-        const b = c.getBBox();
-        return (b.x < box.x - 0.5 || b.y < box.y - 0.5 ||
-                b.x + b.width > box.x + box.width + 0.5 ||
-                b.y + b.height > box.y + box.height + 0.5)
-          ? c.querySelector('title').textContent : null;
+    const spilling = () => page.evaluate(() => {
+      const box = document.querySelector('.net').getBoundingClientRect();
+      return [...document.querySelectorAll('.net path')].map(p => {
+        const b = p.getBoundingClientRect();
+        return (b.left < box.left - 1 || b.top < box.top - 1 ||
+                b.right > box.right + 1 || b.bottom > box.bottom + 1)
+          ? p.getAttribute('class') + ' ' + [Math.round(b.left - box.left),
+              Math.round(b.top - box.top), Math.round(b.right - box.right),
+              Math.round(b.bottom - box.bottom)].join(',')
+          : null;
       }).filter(Boolean);
     });
-    expect(outside).toEqual([]);
+    // Her first evening: one list, and the core off to one side of its cells.
+    await page.evaluate(() => window.__acorn.go('parent'));
+    expect(await spilling(), 'the waiting shape spills').toEqual([]);
+    // Two lists going, some of the second met — the state the screenshot came from.
+    await page.evaluate(() => {
+      const a = window.__acorn, m = {}, seen = [];
+      a.allLists().forEach(l => a.wordsOf(l).forEach(w => { if(seen.indexOf(w) < 0) seen.push(w); }));
+      seen.slice(0, 30).forEach((w, i) => m[w] = {right:3, wrong:0, box:1 + (i % 6), lastSeen:'2026-07-20'});
+      a.state.words.mastery = m;
+      a.state.words.activeId = a.allLists()[1].id;
+      a.save(); a.go('parent');
+    });
+    expect(await spilling(), 'a half-learned map spills').toEqual([]);
+    // And the whole colony, where the filaments are.
+    await page.evaluate(() => {
+      const a = window.__acorn, m = {};
+      a.allLists().forEach(l => a.wordsOf(l).forEach(w =>
+        m[w] = {right:5, wrong:0, box:5, lastSeen:'2026-07-20'}));
+      a.state.words.mastery = m; a.save(); a.go('parent');
+    });
+    expect(await page.evaluate(() => document.querySelectorAll('.net-link').length))
+      .toBeGreaterThan(0);
+    expect(await spilling(), 'the grown colony spills').toEqual([]);
   });
 
   test('the filaments join words that share a chunk', async ({page}) => {
     await open(page, '2026-08-01');
-    // A dozen outlines is all that is drawn now, so the shared chunks have to be
-    // among them: on the "or" list, four of the twelve end in -ing.
+    /* Only what she has met and a short horizon ahead of it is drawn, so the
+       shared chunks have to be among them. Her first list finished and the "or"
+       sound list opened, which is the real order of things: the horizon has
+       widened to nine by then, and among those nine are morning, warming and
+       talking, and awful and thoughtful. The words of the easy list are all one
+       syllable, so none of them shares a chunk with anything — the filaments here
+       are the "or" list's own. */
     await page.evaluate(() => {
-      const a = window.__acorn;
+      const a = window.__acorn, m = {};
+      a.wordsOf(a.allLists()[0]).forEach(w => {
+        m[w] = {right:4, wrong:0, box:5, lastSeen:'2026-07-25'}; });
+      a.state.words.mastery = m;
       a.state.words.activeId = 'orsound'; a.save(); a.go('parent');
     });
     const links = await page.evaluate(() => document.querySelectorAll('.net-link').length);
@@ -418,20 +548,30 @@ test.describe('the shape of what she knows', () => {
     expect(errorsOf(page)).toEqual([]);
   });
 
+  // At both ends of the growth: the smallest picture on her first evening and the
+  // largest one, with a hundred words behind her, both have to sit on the phone.
   test('it fits the phone at every text size', async ({page}) => {
     await open(page, '2026-08-01');
     await page.setViewportSize({width:375, height:667});
-    for(const scale of [0.9, 1, 1.25, 1.5]){
-      await page.evaluate(s => {
-        window.__acorn.state.settings.textScale = s;
-        window.__acorn.save(); window.__acorn.go('parent');
-      }, scale);
-      const past = await page.evaluate(() => {
-        const vw = document.documentElement.clientWidth;
-        const r = document.querySelector('.net').getBoundingClientRect();
-        return Math.round(Math.max(r.right - vw, -r.left));
+    for(const grown of [false, true]){
+      if(grown) await page.evaluate(() => {
+        const a = window.__acorn, m = {};
+        a.allLists().forEach(l => a.wordsOf(l).forEach(w =>
+          m[w] = {right:5, wrong:0, box:6, lastSeen:'2026-07-20'}));
+        a.state.words.mastery = m; a.save();
       });
-      expect(past, `at ${scale}x`).toBeLessThanOrEqual(1);
+      for(const scale of [0.9, 1, 1.25, 1.5]){
+        await page.evaluate(s => {
+          window.__acorn.state.settings.textScale = s;
+          window.__acorn.save(); window.__acorn.go('parent');
+        }, scale);
+        const past = await page.evaluate(() => {
+          const vw = document.documentElement.clientWidth;
+          const r = document.querySelector('.net').getBoundingClientRect();
+          return Math.round(Math.max(r.right - vw, -r.left));
+        });
+        expect(past, `at ${scale}x, ${grown ? 'grown' : 'new'}`).toBeLessThanOrEqual(1);
+      }
     }
   });
 });

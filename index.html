@@ -271,9 +271,13 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
         border:0; padding:0; font-size:16px; pointer-events:none; z-index:-1;}
 
 /* ---------- what she knows ---------- */
-/* The frame crops to what is drawn, and a frond reaches in from outside it in the
-   early days, so this clips rather than spilling its hairs over the text. */
-.net{display:block; width:100%; height:auto; margin:var(--s2) 0 var(--s3);
+/* Everything drawn is inside the frame now — the hairs are fitted along with the
+   cells and the filaments are held inside it — so this clips nothing in practice.
+   It stays as a guarantee that the picture can never spill over her words.
+   The width comes from the drawing itself: it is small on her first evening and
+   full width once she is a long way in, so it is centred rather than sitting off
+   to one side of the space it has. */
+.net{display:block; width:100%; height:auto; margin:var(--s2) auto var(--s3);
      overflow:hidden;}
 /* The frame is a camera and it zooms in when there is little to show, so the
    strokes are pinned to the screen instead of scaling with it — otherwise a
@@ -361,7 +365,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '8.0';
+var VERSION = '8.2';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1881,11 +1885,40 @@ var NET_W = 320, GOLDEN = 2.39996323;
 /* Not the pace she is on, though: following it made the picture go backwards.
    newWordsToday() answers 3 before her first sitting and 1 after it, so her very
    first evening of practice took the shape from twelve outlines down to four —
-   she does some work and her map gets smaller. It is a fixed few days at the most
-   she can be learning at once, so the drawn shape only ever grows: each word she
-   meets fills in, and one more outline joins the horizon behind it. */
-var GHOST_DAYS = 4;
-function ghostAhead(){ return ACQUIRING_CAP * GHOST_DAYS; }
+   she does some work and her map gets smaller. */
+/* And not a fixed dozen either, which is what it was: twelve empty outlines on
+   her first evening is a picture that starts big and blank and spends a term
+   filling up. It starts at two sittings' worth of new words — six, the three she
+   meets tonight and the three behind them — and widens by one for every five
+   words she has met. So the first evening is a handful of shapes she is about to
+   fill, and by the time a hundred are behind her the map looks that much further
+   ahead as well.
+   Words met, and not words known well or the pace she is on, because it is the
+   only one of those that cannot go down. A horizon that retracted after a bad
+   week would be taking shapes off her map for having a bad week. The ceiling is
+   there so a good run does not end up ghosting a whole list she has not
+   started. */
+var GHOST_MIN = 6, GHOST_MAX = 14, GHOST_PER_MET = 5;
+// Every word she has ever met, whatever list it came from and however long ago:
+// the one measure of how far she has come that can only ever go up.
+function wordsMet(){ return Object.keys(S.words.mastery || {}).length; }
+function ghostAhead(){
+  return Math.min(GHOST_MAX, GHOST_MIN + Math.floor(wordsMet() / GHOST_PER_MET));
+}
+
+/* How big the whole picture is drawn, as a share of the width it is given. Her
+   first evening had it at full size whatever was on it, which reads as a fixed
+   box slowly filling up rather than as something of hers getting bigger; it now
+   starts at a little under two thirds and reaches full width at GROW_FULL words.
+   Nothing inside it moves: the frame and every cell keep the places they had, the
+   whole drawing is simply scaled, so this is one thing growing and not a layout
+   rearranging itself. Off words met again, for the same reason as the horizon —
+   a picture that got smaller after a hard week would be telling her she had gone
+   backwards. */
+var GROW_MIN = 0.62, GROW_FULL = 80;
+function netGrow(){
+  return GROW_MIN + (1 - GROW_MIN) * Math.min(1, wordsMet() / GROW_FULL);
+}
 // The unmet words she is about to meet: the front of the open list, in the order
 // the engine takes them.
 function ghostWords(){
@@ -1952,6 +1985,42 @@ function cellPath(w, x, y, r){
        + ((q[0] + nx[0]) / 2).toFixed(1) + ' ' + ((q[1] + nx[1]) / 2).toFixed(1);
   }
   return d + 'Z';
+}
+
+/* A few fine hairs out of the core to each head. Each one wanders: walked out in
+   steps with a small sideways drift at every one, then smoothed, so no line in
+   here is straight. A ruled line is the thing that gives a drawing like this away
+   as a diagram.
+   They are worked out here rather than while drawing because the frame has to
+   know where they reach — see the fit below. A hair's shape comes from its frond
+   and nothing else, so it is in the same place on the day she starts a list as it
+   is a year later. */
+function hairPaths(fronds, cx, cy){
+  var out = [];
+  fronds.forEach(function(f){
+    var rnd = seeded('hair' + f.id);
+    for(var h = 0; h < 5; h++){
+      var fan = (h - 2) * 0.055 + (rnd() - .5) * 0.05;
+      var len = f.reach * (0.84 + rnd() * 0.2);
+      var steps = 7, pts = [[cx, cy]], drift = 0;
+      for(var i = 1; i <= steps; i++){
+        var t = i / steps;
+        // The wander grows with distance from the core, like something reaching.
+        drift += (rnd() - .5) * len * 0.075;
+        var ang = f.a + fan + f.bend * 0.55 * t * t;
+        pts.push([cx + Math.cos(ang) * len * t + Math.cos(ang + Math.PI / 2) * drift * t,
+                  cy + Math.sin(ang) * len * t + Math.sin(ang + Math.PI / 2) * drift * t]);
+      }
+      var d = 'M' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1);
+      for(var j = 1; j < pts.length - 1; j++)
+        d += 'Q' + pts[j][0].toFixed(1) + ' ' + pts[j][1].toFixed(1) + ' '
+           + ((pts[j][0] + pts[j+1][0]) / 2).toFixed(1) + ' '
+           + ((pts[j][1] + pts[j+1][1]) / 2).toFixed(1);
+      d += 'T' + pts[pts.length-1][0].toFixed(1) + ' ' + pts[pts.length-1][1].toFixed(1);
+      out.push({d:d, pts:pts});
+    }
+  });
+  return out;
 }
 
 /* Branches out of a core rather than lobes in a ring: each spelling pattern is a
@@ -2043,26 +2112,7 @@ function networkData(){
   var live = {};
   cells.forEach(function(c){ live[c.frond] = true; });
   fronds = fronds.filter(function(f){ return live[f.i]; });
-
-  // A hairline where two words share a chunk, and only where the chunk is
-  // telling: one that turns up in a dozen words says nothing.
-  var byPiece = {};
-  cells.forEach(function(c){
-    splitOf(c.w).forEach(function(p){
-      if(p.length < 2) return;
-      (byPiece[p] = byPiece[p] || []).push(c.w);
-    });
-  });
-  var links = [], far = NET_W * 0.34;
-  Object.keys(byPiece).forEach(function(p){
-    var ws = byPiece[p];
-    if(ws.length < 2 || ws.length > 4) return;
-    for(var i = 1; i < ws.length && links.length < 110; i++){
-      var A = byWord[ws[i-1]], B = byWord[ws[i]];
-      if(!A || !B || Math.hypot(A.x - B.x, A.y - B.y) > far) continue;
-      links.push({a:A, b:B, piece:p});
-    }
-  });
+  var hairs = hairPaths(fronds, cx, cy);
 
   /* The frame is a camera, not the layout: it crops in, so a dozen outlines fill
      the picture as well as a hundred do rather than sitting in a corner of an
@@ -2075,7 +2125,20 @@ function networkData(){
      time she meets a word, and then the whole colony slides and rescales under
      her: measured on a 375px screen, all seven cells moved and grew when she
      learned three words. It only widens when she starts a new list, which is the
-     one time her map really has got bigger. */
+     one time her map really has got bigger.
+
+     The hairs are fitted too, and that is the whole reason they are worked out
+     before this point. They start at the core, and until she has words on more
+     than one side of it the core sits well outside a frame drawn round her cells:
+     on her phone that came out as five hairlines running off the bottom edge
+     towards something she cannot see, which reads as a drawing that was never
+     finished. Of the ways to stop that — leave the hairs out on the days their
+     origin is off-frame, or re-root them onto something visible — taking them
+     into the frame is the only one that keeps the picture honest, because the
+     colony really does come out of one core and that is the shape it has when she
+     has all her lists going. It costs nothing in stability: a hair's path comes
+     from its frond alone, so the same set of lists gives the same frame however
+     much she has learned. */
   var framed = {};
   laid.forEach(function(c){ if(c.met) framed[c.frond] = true; });
   lists.forEach(function(g, li){ if(g.list.id === (activeList() || {}).id) framed[li] = true; });
@@ -2087,11 +2150,58 @@ function networkData(){
     x0 = Math.min(x0, b.x0); x1 = Math.max(x1, b.x1);
     y0 = Math.min(y0, b.y0); y1 = Math.max(y1, b.y1);
   });
-  if(!inFrame.length){ x0 = y0 = 0; x1 = y1 = NET_W; }
+  // Each stretch of a hair is a curve between two of these points, and a curve
+  // never leaves the box its points sit in, so the points are the whole reach.
+  hairs.forEach(function(h){
+    h.pts.forEach(function(p){
+      x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]);
+      y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]);
+    });
+  });
+  if(!inFrame.length && !hairs.length){ x0 = y0 = 0; x1 = y1 = NET_W; }
   var side = Math.max(x1 - x0, y1 - y0, NET_W * 0.18) + pad * 2;
   var view = {x:(x0 + x1) / 2 - side / 2, y:(y0 + y1) / 2 - side / 2, s:side};
 
-  return {cells:cells, fronds:fronds, links:links, total:total, cx:cx, cy:cy, view:view,
+  // A hairline where two words share a chunk, and only where the chunk is
+  // telling: one that turns up in a dozen words says nothing.
+  var byPiece = {};
+  cells.forEach(function(c){
+    splitOf(c.w).forEach(function(p){
+      if(p.length < 2) return;
+      (byPiece[p] = byPiece[p] || []).push(c.w);
+    });
+  });
+  /* Two control points with opposite-ish offsets: a lazy S rather than an arc.
+     They are what makes it lazy, and pushed out sideways they can carry the curve
+     out of the picture even though both of its ends are cells sitting safely
+     inside it — the other half of the hairlines-off-the-edge complaint. A curve
+     stays inside the box its control points are in, so holding those just inside
+     the frame is enough, and it only bites on the handful of filaments that were
+     bulging out anyway. It has to happen after the frame, which is why the
+     filaments are worked out here rather than above the fit. */
+  function held(p){
+    return [Math.min(view.x + view.s - 1, Math.max(view.x + 1, p[0])),
+            Math.min(view.y + view.s - 1, Math.max(view.y + 1, p[1]))];
+  }
+  var links = [], far = NET_W * 0.34;
+  Object.keys(byPiece).forEach(function(p){
+    var ws = byPiece[p];
+    if(ws.length < 2 || ws.length > 4) return;
+    for(var i = 1; i < ws.length && links.length < 110; i++){
+      var A = byWord[ws[i-1]], B = byWord[ws[i]];
+      if(!A || !B || Math.hypot(A.x - B.x, A.y - B.y) > far) continue;
+      var rnd = seeded('lnk' + p + A.w + B.w);
+      var dx = B.x - A.x, dy = B.y - A.y, len = Math.hypot(dx, dy) || 1;
+      var nx = -dy / len, ny = dx / len;
+      var o1 = (rnd() - .35) * len * 0.22, o2 = (rnd() - .65) * len * 0.22;
+      links.push({a:A, b:B, piece:p,
+                  p1:held([A.x + dx * 0.33 + nx * o1, A.y + dy * 0.33 + ny * o1]),
+                  p2:held([A.x + dx * 0.67 + nx * o2, A.y + dy * 0.67 + ny * o2])});
+    }
+  });
+
+  return {cells:cells, fronds:fronds, links:links, hairs:hairs, grow:netGrow(),
+          total:total, cx:cx, cy:cy, view:view,
           known:cells.filter(function(c){ return c.box >= KNOWN_BOX; }).length,
           met:cells.filter(function(c){ return c.met; }).length};
 }
@@ -2106,51 +2216,22 @@ function renderNetwork(d){
      thing says its numbers once. The <title>s stay — they are the hover
      tooltip, which is the only thing they are good for. */
   var svg = '<svg class="net" viewBox="' + d.view.x.toFixed(1) + ' ' + d.view.y.toFixed(1)
-    + ' ' + d.view.s.toFixed(1) + ' ' + d.view.s.toFixed(1) + '" role="img" aria-label="'
+    + ' ' + d.view.s.toFixed(1) + ' ' + d.view.s.toFixed(1) + '"'
+    // Small at the start and bigger as she gets on; see netGrow(). The frame is
+    // untouched, so this scales the whole drawing and moves nothing within it.
+    + ' style="width:' + (d.grow * 100).toFixed(1) + '%" role="img" aria-label="'
     + 'A growing picture of her words, grouped by spelling pattern: '
     + d.met + ' met, ' + d.known + ' known well, ' + d.total + ' in all">';
 
-  /* A few fine hairs out of the core to each head. Each one wanders: walked out
-     in steps with a small sideways drift at every one, then smoothed, so no line
-     in here is straight. A ruled line is the thing that gives a drawing like this
-     away as a diagram. */
-  d.fronds.forEach(function(f){
-    var rnd = seeded('hair' + f.id);
-    for(var h = 0; h < 5; h++){
-      var fan = (h - 2) * 0.055 + (rnd() - .5) * 0.05;
-      var len = f.reach * (0.84 + rnd() * 0.2);
-      var steps = 7, pts = [[d.cx, d.cy]], drift = 0;
-      for(var i = 1; i <= steps; i++){
-        var t = i / steps;
-        // The wander grows with distance from the core, like something reaching.
-        drift += (rnd() - .5) * len * 0.075;
-        var ang = f.a + fan + f.bend * 0.55 * t * t;
-        var px = d.cx + Math.cos(ang) * len * t + Math.cos(ang + Math.PI / 2) * drift * t;
-        var py = d.cy + Math.sin(ang) * len * t + Math.sin(ang + Math.PI / 2) * drift * t;
-        pts.push([px, py]);
-      }
-      var dd = 'M' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1);
-      for(var j = 1; j < pts.length - 1; j++)
-        dd += 'Q' + pts[j][0].toFixed(1) + ' ' + pts[j][1].toFixed(1) + ' '
-            + ((pts[j][0] + pts[j+1][0]) / 2).toFixed(1) + ' '
-            + ((pts[j][1] + pts[j+1][1]) / 2).toFixed(1);
-      dd += 'T' + pts[pts.length-1][0].toFixed(1) + ' ' + pts[pts.length-1][1].toFixed(1);
-      svg += '<path class="net-hair" aria-hidden="true" d="' + dd + '"/>';
-    }
+  d.hairs.forEach(function(h){
+    svg += '<path class="net-hair" aria-hidden="true" d="' + h.d + '"/>';
   });
 
   d.links.forEach(function(k){
-    var rnd = seeded('lnk' + k.piece + k.a.w + k.b.w);
-    var dx = k.b.x - k.a.x, dy = k.b.y - k.a.y, len = Math.hypot(dx, dy) || 1;
-    var nx = -dy / len, ny = dx / len;
-    // Two control points with opposite-ish offsets: a lazy S rather than an arc.
-    var o1 = (rnd() - .35) * len * 0.22, o2 = (rnd() - .65) * len * 0.22;
-    var p1 = [k.a.x + dx * 0.33 + nx * o1, k.a.y + dy * 0.33 + ny * o1];
-    var p2 = [k.a.x + dx * 0.67 + nx * o2, k.a.y + dy * 0.67 + ny * o2];
     svg += '<path class="net-link' + (k.a.met && k.b.met ? ' lit' : '') + '" aria-hidden="true" d="M'
         + k.a.x.toFixed(1) + ' ' + k.a.y.toFixed(1)
-        + 'C' + p1[0].toFixed(1) + ' ' + p1[1].toFixed(1) + ' '
-        + p2[0].toFixed(1) + ' ' + p2[1].toFixed(1) + ' '
+        + 'C' + k.p1[0].toFixed(1) + ' ' + k.p1[1].toFixed(1) + ' '
+        + k.p2[0].toFixed(1) + ' ' + k.p2[1].toFixed(1) + ' '
         + k.b.x.toFixed(1) + ' ' + k.b.y.toFixed(1) + '"/>';
   });
 
@@ -2165,10 +2246,11 @@ function renderNetwork(d){
   svg += '</svg>';
 
   return '<div class="sect"><h2>What she knows</h2>' + svg
-    + '<div class="hint">Every word she has met is here, and the next few days’ worth '
-    + 'of new ones as faint outlines. The rest of her lists are not drawn until she '
-    + 'is close to them: a hundred empty outlines says more about how far there is to '
-    + 'go than about her. '
+    + '<div class="hint">Every word she has met is here, and the few she is coming to '
+    + 'next as faint outlines. The picture starts small and grows: the outlines reach a '
+    + 'little further ahead with every few words she meets, and the rest of her lists '
+    + 'are not drawn until she is close to them, because a hundred empty outlines says '
+    + 'more about how far there is to go than about her. '
     + 'They fill in and darken as she learns them, and a word she is losing dims '
     + 'rather than disappearing. Each frond is one spelling pattern; the hairlines '
     + 'join words that share a chunk — <b>or</b> is what morning, sorted and report '
