@@ -1290,6 +1290,66 @@ test.describe('with the software keyboard up', () => {
     }
   }
 
+  // Holding the keyboard open means it is now up on the look and check screens
+  // too, not only while she is typing — so every stage has to survive the
+  // reduced height, which the first version of this did not.
+  const SHORT = [['keyboard up', 375, 360], ['big keyboard', 375, 300],
+                 ['very big keyboard', 375, 260], ['landscape, keyboard up', 667, 200],
+                 ['a taller phone', 390, 310], ['a taller phone, landscape', 390, 200]];
+
+  for(const [name, w, h] of SHORT){
+    test(`${name}: nothing essential is lost on any stage`, async ({page}) => {
+      await open(page, '2026-08-01');
+      await page.setViewportSize({width:w, height:h});
+      const problems = [];
+      for(const scale of [0.9, 1, 1.25, 1.5]){
+        for(const stage of ['look','write','nearly','wild','right','done']){
+          await page.evaluate(o => {
+            const a = window.__acorn;
+            a.state.settings.textScale = o.scale;
+            a.state.words.lists = [{id:'w1', name:'T', words:['because','friend','thought']}];
+            a.state.words.activeId = 'w1'; a.state.words.mastery = {}; a.state.words.sessions = [];
+            a.save(); a.go('parent'); a.go('day');
+            if(o.stage === 'write') a.cover();
+            if(o.stage === 'nearly'){ a.cover(); a.type('becuase'); a.check(); }
+            if(o.stage === 'wild'){ a.cover(); a.type('zzz'); a.check(); }
+            if(o.stage === 'right'){ a.cover(); a.type('because'); a.check(); }
+            if(o.stage === 'done'){
+              a.state.words.lists = [{id:'w2', name:'E', words:['rain']}];
+              a.state.words.activeId = 'w2';
+              a.state.words.mastery = {rain:{right:4, wrong:0, box:4, lastSeen:'2026-08-01'}};
+              a.state.words.sessions = [{date:'2026-08-01', list:'w2', asked:1, words:1,
+                                         right:1, firstTime:1}];
+              a.save(); a.go('parent'); a.go('day');
+            }
+          }, {scale, stage});
+          const m = await page.evaluate(() => {
+            const vh = window.innerHeight, vw = document.documentElement.clientWidth;
+            const main = document.querySelector('main'), mr = main.getBoundingClientRect();
+            const key = document.querySelector('.word,.marked,#type');
+            const kr = key && key.getBoundingClientRect();
+            const acts = [...document.querySelectorAll('#act button')];
+            return {
+              cut: kr ? !(kr.top >= mr.top - 1 && kr.bottom <= mr.bottom + 1) : false,
+              wide: kr ? kr.right > vw + 1 : false,
+              below: acts.filter(x => x.getBoundingClientRect().bottom > vh + 1).length,
+              small: acts.filter(x => { const r = x.getBoundingClientRect();
+                                        return r.width < 44 || r.height < 44; }).length,
+              size: kr ? Math.round(parseFloat(getComputedStyle(key).fontSize)) : null,
+            };
+          });
+          const at = `${stage} at ${scale}x`;
+          if(m.cut) problems.push(`${at}: the word or the box is cut off`);
+          if(m.wide) problems.push(`${at}: the word runs off the right`);
+          if(m.below) problems.push(`${at}: an action is below the fold`);
+          if(m.small) problems.push(`${at}: an action is under 44px`);
+          if(m.size !== null && m.size < 14) problems.push(`${at}: the word shrank to ${m.size}px`);
+        }
+      }
+      expect(problems).toEqual([]);
+    });
+  }
+
   test('what gives way, gives way in the right order', async ({page}) => {
     await open(page, '2026-08-01');
     await page.evaluate(() => {

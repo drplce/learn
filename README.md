@@ -181,7 +181,9 @@ The clips are loaded one at a time as she meets each word, not up front, so the
 total size on disk does not affect how fast the app starts. Newly recorded ones
 are passed through `afconvert`, which macOS ships: say writes AAC at about 35KB
 for a single word, and re-encoding took the first full set from 7.6MB to 1.8MB
-with no audible difference. `ACORN_NOSHRINK=1` skips it; `ACORN_BITRATE` sets it.
+with no audible difference. `ACORN_NOSHRINK=1` skips it; `ACORN_BITRATE` sets it. For a set recorded before
+that step existed, `node tools/voice.mjs --shrink` re-encodes what is already on
+disk without recording anything.
 
 ### The paid options
 

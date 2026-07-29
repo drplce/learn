@@ -25,6 +25,8 @@
  *   ACORN_VOICE=en-AU-Neural2-C   which voice (provider-specific name)
  *   ACORN_ONLY=because,friend     just these, for auditioning
  *   ACORN_FORCE=1                 re-record phrases that already exist
+ *
+ *   node tools/voice.mjs --shrink   re-encode what is already in audio/ and stop
  */
 import {readFileSync, writeFileSync, mkdirSync, existsSync, statSync} from 'node:fs';
 import {resolve, dirname} from 'node:path';
@@ -148,6 +150,33 @@ if (typeof speak !== 'function') {
   process.exit(2);
 }
 const EXT = (PROVIDERS.ext && PROVIDERS.ext[provider]) || '.mp3';
+
+// Re-encode files that are already on disk, without recording anything. For a
+// set made before the shrink step existed.
+if (process.argv.includes('--shrink')) {
+  const {all} = JSON.parse(readFileSync(resolve(here, 'phrases.json'), 'utf8'));
+  let before = 0, after = 0, done$ = 0;
+  for (const ext of ['.m4a', '.mp3', '.wav']) {
+    for (const t of all) {
+      const p = resolve(AUDIO, slug(t) + ext);
+      if (!existsSync(p)) continue;
+      const was = statSync(p).size;
+      const r = await shrink(p);
+      before += was;
+      after += r ? r.after : was;
+      if (r) done$++;
+    }
+  }
+  if (!before) { console.error('nothing in audio/ to re-encode'); process.exit(2); }
+  if (!done$) {
+    console.error('afconvert did not shrink anything — is it on this machine?');
+    console.error('(it ships with macOS; elsewhere there is nothing to do here)');
+    process.exit(2);
+  }
+  console.log(`${done$} file(s) re-encoded: ${(before/1024/1024).toFixed(1)}MB -> ` +
+              `${(after/1024/1024).toFixed(1)}MB`);
+  process.exit(0);
+}
 
 // What voices this machine actually has, so a name can be picked rather than guessed.
 if (process.argv.includes('--voices')) {

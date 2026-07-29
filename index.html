@@ -285,19 +285,35 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
    keyboard does not change the layout viewport at all. data-tight is set from
    visualViewport, measured against the real root font size. Scoped to the
    writing stage — on the grown-ups screen this would hide the way back out. */
-:root[data-tight][data-stage=write] .bar,
-:root[data-tight][data-stage=write] .dots,
-:root[data-tight][data-stage=write] .note{ display:none; }
+:root[data-tight]:not([data-stage=parent]) .bar,
+:root[data-tight]:not([data-stage=parent]) .dots,
+:root[data-tight]:not([data-stage=parent]) .note{ display:none; }
+:root[data-tight][data-stage=done] .tick,
+:root[data-tight][data-stage=done] .pbar{ display:none; }
 :root[data-tight][data-stage=write] .spellin{ padding:var(--s2); }
 :root[data-cramped][data-stage=write] .spellin{ font-size:var(--t-lg); letter-spacing:.08em; }
 /* Landscape with a keyboard up leaves almost nothing. The action keeps a real
    44px target but stops scaling with her text, and the page padding tightens,
-   so the box she is typing into still has somewhere to be. */
-:root[data-cramped][data-stage=write] #act .primary{
+   so what she is looking at still has somewhere to be. */
+:root[data-cramped]:not([data-stage=parent]) #act .primary,
+:root[data-cramped]:not([data-stage=parent]) #act .quiet{
   min-height:calc(var(--tap) * var(--ornament)); font-size:var(--t-md); padding:0 var(--s3); }
-:root[data-cramped][data-stage=write] #act .hear{
+:root[data-cramped]:not([data-stage=parent]) #act .hear{
   min-height:calc(var(--tap) * var(--ornament)); }
-:root[data-cramped][data-stage=write] #app{ padding-top:0; padding-bottom:var(--s1); }
+:root[data-cramped]:not([data-stage=parent]) #app{
+  padding-top:0; padding-bottom:var(--s1); }
+:root[data-cramped][data-stage=done] .headline{ font-size:var(--t-lg); margin:0; }
+/* The verdict is a caption; with this little room the word it captions wins.
+   The syllable chips are a real aid, so they hold on one step longer. */
+:root[data-tight][data-stage=check] .verdict{ font-size:var(--t-sm); margin:0; }
+:root[data-cramped][data-stage=check] .syls{ display:none; }
+/* The word is fitted to the width it has, which says nothing about height. With
+   this little of that, its ceiling comes down — a smaller word she can see beats
+   a bigger one cut off at the edge of the panel. */
+:root[data-cramped]:not([data-stage=parent]):not([data-stage=done]) .word,
+:root[data-cramped]:not([data-stage=parent]):not([data-stage=done]) .marked{
+  font-size:clamp(.75rem, calc((min(100vw, 34rem) - 2 * var(--s4)) / (var(--wl,6) * .8)),
+                  var(--t-lg));}
 
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms!important; transition-duration:.001ms!important;}
@@ -1587,7 +1603,7 @@ loadClips(); render(); },
   voicesChanged: voicesChanged, holdKeyboard: holdKeyboard,
   // Tests drive the clip index directly rather than depending on what happens to
   // be recorded in the repo at the time.
-  setClips: function(list){ CLIPS = list || []; loadClips(); },
+  setClips: function(list, ext){ CLIPS = list || []; if(ext) CLIP_EXT = ext; loadClips(); },
   clipFor: clipFor,
   start: start, check: check, next: next, paceLabel: paceLabel, announce: announce,
   // Enough of a handle to drive a whole session from a script — the
