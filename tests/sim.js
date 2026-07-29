@@ -77,6 +77,9 @@ async function run(page, opts){
       a.state.words.activeId = listId;
     }
     a.save();
+    // Before the first sitting: she is moved on when a list is done, so reading
+    // this at the end gave the size of wherever she had got to, not where she began.
+    const startSize = a.wordsOf(a.activeList()).length;
 
     const start = new Date('2026-08-01T00:00:00Z');
     const iso = d => new Date(start.getTime() + d * 864e5).toISOString().slice(0, 10);
@@ -135,7 +138,11 @@ async function run(page, opts){
         pace: a.paceLabel()
       });
     }
-    return {rows, total: a.wordsOf(a.activeList()).length};
+    /* Two totals, because she does not stop at the end of a list. knownWell and
+       touched count every word she has met anywhere, so measuring them against the
+       size of the list she started on read as "known well 56.3/14" — four times her
+       own list. "start" is what she was set; "corpus" is what there is to learn. */
+    return {rows, start: startSize, total: a.allWords().length};
   }, opts);
   return report;
 }
@@ -191,8 +198,9 @@ async function main(){
                                  seed: 10007 + i * 7919, ability: one ? 1 : abilityOf(i)});
       runs.push({...r, stats: stats(r.rows)});
     }
-    const total = runs[0].total;
-    console.log('\n=== ' + listId + ' — ' + total + ' words, ' + days + ' days, ' +
+    const total = runs[0].total, start = runs[0].start;
+    console.log('\n=== ' + listId + ' — ' + start + ' words to start, ' + total
+              + ' in all, ' + days + ' days, ' +
                 n + (n === 1 ? ' learner' : ' learners') +
                 (attend === 'daily' ? '' : ', practising ' + attend) + ' ===');
 

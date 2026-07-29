@@ -445,7 +445,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '10.1';
+var VERSION = '10.2';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1284,11 +1284,26 @@ function knownEverywhere(){
 /* Pace. Practice works best around 80-85% success: below that she is being
    overloaded, above it she is coasting. So the number of new words follows her
    accuracy rather than a fixed setting. */
+/* Of the three ceilings below, only NEW_SHARE ever decides anything, because
+   poolCap() takes the smaller of ACQUIRING_CAP and floor(sessionWords() *
+   NEW_SHARE) and sessionWords() is 9 at its largest — so the share term tops out at
+   exactly 3 and the cap can only ever tie with it. Measured over 60 simulated days
+   on the easy list: ACQUIRING_CAP at 3, 4 and 5 all give 87.0% first go and 56.3 of
+   100 words known well, byte for byte. At 2 it binds and gives 91.2% and 44.9 — so
+   it is a one-way lever that can only slow her down. Reach for NEW_SHARE, not this,
+   and see tests/pace-levers.spec.js. */
 var ACQUIRING_CAP = 3;      // words still being learned, at once — never more
 var SEED_NEW = 3;           // her very first session
 var PACE_WINDOW = 5;        // sessions to judge on
 var PACE_MIN_WORDS = 12;    // ...over at least this many words
 var PACE_HIGH = .85, PACE_LOW = .70;
+/* The one that steers. 1/3 lands her at 86-89% right first time on every list she
+   has material ahead of, which is 1-4 points above the 80-85% this is aiming for.
+   Measured alternatives, 60 days, 12 learners: at 0.4, easy/tricky are 85.5%/84.6%
+   and she learns 57.3/50.9 of 100; at 0.45 they are 85.2%/84.5% and 58.7/51.5, with
+   fewer hard days (0.3 against 0.5) and no short sittings at all. Left at 1/3
+   because it is her difficulty level and not a number to change on a simulation's
+   word — the trade is a worst-day-in-ten of 66.7% against 75.0%. */
 var NEW_SHARE = 1/3;        // at most a third of a sitting is new material
 var MIN_SESSION = 4;
 
@@ -3090,7 +3105,7 @@ loadClips(); render(); },
   tonight: tonight,
   buildSession: buildSession, recentAccuracy: recentAccuracy,
   newWordsToday: newWordsToday, poolCap: poolCap, stageFor: stageFor,
-  allLists: allLists, activeList: activeList, wordsOf: wordsOf,
+  allLists: allLists, activeList: activeList, wordsOf: wordsOf, allWords: allWords,
   englishVoices: englishVoices, offerVoices: offerVoices, voiceScore: voiceScore,
   voicesChanged: voicesChanged, holdKeyboard: holdKeyboard,
   clipKb: function(){ return CLIP_KB; },
