@@ -119,6 +119,39 @@ test.describe('the screen at the end of a sitting', () => {
     expect(seeded, 'the flourish replayed on a re-render').toBe(false);
   });
 
+  /* She practised again after tea and watched the same three words swell a second
+     time, which says "this is new" about something she had already been shown. Only
+     what is new since she last looked arrives. */
+  test('a second sitting the same evening only grows what is new', async ({page}) => {
+    await open(page, '2026-08-01');
+    const out = await page.evaluate(() => {
+      const a = window.__acorn;
+      const arriving = () => [...document.querySelectorAll('#screen .net-cell.arriving')]
+        .map(c => c.querySelector('title').textContent);
+      const sit = () => {
+        a.start();
+        let g = 0;
+        while(a.session() && g++ < 80){
+          const W = a.session();
+          if(W.stage === 'look'){ a.cover(); continue; }
+          if(W.stage === 'write'){ a.type(W.words[W.i]); a.check(); a.next(); continue; }
+          a.next();
+        }
+      };
+      sit();
+      const one = arriving();
+      document.querySelector('#again').click();
+      sit();
+      const two = arriving();
+      return {one, two, head: (document.querySelector('.headline') || {}).textContent};
+    });
+    expect(out.one.length, 'nothing arrived the first time').toBeGreaterThan(0);
+    expect(out.two.filter(w => out.one.includes(w)),
+           'she watched the same words arrive twice').toEqual([]);
+    // The count is still the honest total for the evening — "tonight", not "just now".
+    expect(out.head).toMatch(/more took root tonight\.$/);
+  });
+
   test('yesterday’s evening does not arrive again today', async ({page}) => {
     await open(page, '2026-08-01');
     await sit(page, ['rain', 'boat', 'said']);

@@ -430,7 +430,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '9.7';
+var VERSION = '9.8';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1943,11 +1943,18 @@ function said(n){ return NUMBER[n] || String(n); }
    that repeats every time she taps something is the dancing problem in a party hat.
    A phone asking for reduced motion gets the finished picture with no transit, which
    is what the global rule at the bottom of the stylesheet already does. */
-var _grown = '';
-function growTonight(words){
-  var key = todayISO() + '|' + words.join(',');
-  if(!words.length || _grown === key) return;
-  _grown = key;
+/* Which words she has already watched arrive, so a second sitting in the same evening
+   grows only what is new since she last looked. Without this she practised again after
+   tea and saw the same three words swell a second time, which says "this is new" about
+   something she had already been shown. Kept in memory rather than in storage: the
+   flourish is about this viewing of the screen, so coming back after a reload showing
+   the evening's arrivals once more is right. */
+var _arrived = {day:'', words:{}};
+function growTonight(all){
+  if(_arrived.day !== todayISO()) _arrived = {day:todayISO(), words:{}};
+  var words = all.filter(function(w){ return !_arrived.words[w]; });
+  if(!words.length) return;
+  words.forEach(function(w){ _arrived.words[w] = 1; });
   var svg = el('#screen .net');
   if(!svg) return;
   var marked = 0;
