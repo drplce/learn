@@ -335,7 +335,10 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 (function(){
 'use strict';
 
-var VERSION = '6 · recorded voice';
+/* Bumped on every push, so a glance at the bottom of the grown-ups screen says
+   whether the phone has the current build. Major goes up for a change she would
+   notice; minor for a fix. */
+var VERSION = '7.0';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -470,11 +473,101 @@ var CLIP_DIR = 'audio/';
 var CLIP_EXT = ".m4a", CLIPS = ["a","ac","action","afraid","al","almost","ary","at","attention","au","august","aw","awful","back","be","beau","beautiful","because","before","between","boat","bore","boredom","bour","busi","business","call","calling","cas","castle","cause","cen","cence","centre","ci","climb","col","colour","com","come","complete","cus","de","decision","delight","di","dif","different","direction","dis","discussion","display","division","dom","dow","e","ed","el","elled","enough","ent","er","ern","est","every word counts.","ex","explosion","fa","favour","favourite","feb","february","fer","fore","fraid","friend","from","ful","gan","geth","gov","government","gust","har","harbour","haunt","haunted","height","help","hon","honest","in","ing","invention","is","ise","island","ite","jew","jewellery","knee","knife","know","lamb","land","law","lawless","lery","less","li","licence","light","like","lis","listen","made","me","ment","metre","might","mis","mor","morn","morning","most","mu","music","name","neigh","neighbour","ness","nise","nough","og","or","organise","our","peo","people","per","permission","play","ple","plete","plo","port","prac","practise","ques","question","rain","rate","re","rea","real","realise","reason","rec","recognise","report","row","ru","said","sep","separate","sic","sion","some","son","sort","sorted","sta","station","straight","talk","talking","tel","television","ten","thea","theatre","they","thought","thoughtful","through","thumb","ti","time","tion","tise","tle","to","together","tomorrow","trav","travelled","tre","tune","tween","ven","vi","vour","want","warm","warming","week","went","whis","whistle","win","window","with","wrist","write","wrong"];   /* GENERATED */
 var _clips = null;
 var _clipEl = null, _clipSeq = 0;
+
+/* Kept on the device, not fetched when she needs it. Every clip used to be a
+   network round trip at the moment she was waiting for it, which on a phone is
+   the difference between a word arriving and a word taking forever. The whole
+   sitting is fetched ahead into the Cache API — which survives a reload and
+   needs no network afterwards — and played from a blob in memory, so the
+   element never waits. Where Cache is unavailable (an insecure origin, a
+   private window) the blobs alone still spare her the wait within a sitting. */
+var CLIP_CACHE = 'acorn-audio-v1';
+var _blob = {};                 // phrase -> blob: URL, ready to play instantly
+var _warming = {};              // phrase -> promise, so nothing is fetched twice
+var _cacheReady = null;
+
+// Fetching only works over http; opened from a file it is refused, noisily, and
+// there is nothing to gain because the file is already local.
+function canWarm(){
+  try{ return /^https?:$/.test(location.protocol); }catch(e){ return false; }
+}
+function clipCache(){
+  if(_cacheReady) return _cacheReady;
+  _cacheReady = (function(){
+    try{
+      if(!window.caches || !window.isSecureContext) return Promise.resolve(null);
+      return caches.open(CLIP_CACHE).catch(function(){ return null; });
+    }catch(e){ return Promise.resolve(null); }
+  })();
+  return _cacheReady;
+}
+
+// Fetch one clip, keep it on the device, and hold a blob URL for playing.
+function warmOne(text){
+  var url = clipUrl(text);
+  if(!canWarm()) return Promise.resolve(false);
+  if(!url || _blob[text]) return Promise.resolve(!!_blob[text]);
+  if(_warming[text]) return _warming[text];
+  _warming[text] = clipCache().then(function(cache){
+    var hit = cache ? cache.match(url) : Promise.resolve(null);
+    return hit.then(function(res){
+      if(res) return res;
+      return fetch(url, {cache:'force-cache'}).then(function(r){
+        if(!r || !r.ok) throw new Error('not ok');
+        if(cache) try{ cache.put(url, r.clone()); }catch(e){}
+        return r;
+      });
+    });
+  }).then(function(res){
+    return res.blob();
+  }).then(function(b){
+    if(!b || b.size < 200) throw new Error('empty');
+    _blob[text] = URL.createObjectURL(b);
+    return true;
+  }).catch(function(){ return false; })
+    .then(function(ok){ delete _warming[text]; return ok; });
+  return _warming[text];
+}
+
+/* Everything this sitting will need, a few at a time so a phone on a thin
+   connection is not asked for twenty things at once. The word she is on comes
+   first, because that is the one she is waiting for. */
+function warmClips(texts){
+  if(!canWarm()) return Promise.resolve(0);
+  var queue = [];
+  (texts || []).forEach(function(t){
+    if(!t || queue.indexOf(t) >= 0 || _blob[t] || !clipUrl(t)) return;
+    queue.push(t);
+  });
+  if(!queue.length) return Promise.resolve(0);
+  var done = 0, lanes = Math.min(3, queue.length);
+  function lane(){
+    var t = queue.shift();
+    if(!t) return Promise.resolve();
+    return warmOne(t).then(function(ok){ if(ok) done++; return lane(); });
+  }
+  var running = [];
+  for(var i = 0; i < lanes; i++) running.push(lane());
+  return Promise.all(running).then(function(){ return done; });
+}
+
+// Everything a sitting could ask to speak, in the order she will meet it.
+function sittingPhrases(){
+  if(!W) return [];
+  var out = [], here = W.i;
+  var order = W.words.slice(here).concat(W.words.slice(0, here));
+  order.forEach(function(w){
+    if(out.indexOf(w) < 0) out.push(w);
+    splitOf(w).forEach(function(p){ if(out.indexOf(p) < 0) out.push(p); });
+  });
+  return out;
+}
 // A clip that will not decode falls back to the phone voice, which looks like
 // nothing is wrong — she simply hears the old voice. These make it visible.
 var _clipPlays = 0, _clipFalls = 0, _clipTest = '';
 // Can this browser decode what was recorded at all? Playwright's Chromium, for
 // one, has no AAC decoder, so this is worth reporting rather than assuming.
+function _warmed(){ return Object.keys(_blob).length; }
 function clipPlayable(){
   try{
     var a = document.createElement('audio');
@@ -490,10 +583,16 @@ function loadClips(){
   _clips = {};
   for(var i = 0; i < CLIPS.length; i++) _clips[CLIPS[i]] = clipSlug(CLIPS[i]) + CLIP_EXT;
 }
-function clipFor(text){
+function clipUrl(text){
   if(!_clips) return null;
   var k = String(text || '').trim().toLowerCase();
   return _clips[k] ? CLIP_DIR + _clips[k] : null;
+}
+// A blob already on the device plays with no wait at all; the file is the
+// fallback for anything not warmed yet.
+function clipFor(text){
+  var k = String(text || '').trim().toLowerCase();
+  return _blob[k] || clipUrl(k);
 }
 // True only when every part of what is about to be said has a clip. Half
 // recorded and half synthesised in one breath sounds worse than either.
@@ -517,6 +616,7 @@ function playClips(items, onFail){
     if(!src) return onFail && onFail();
     var el = _clipEl || (_clipEl = new Audio());
     el.onended = el.onerror = null;
+    el.setAttribute('data-phrase', it[0]);        // a blob URL carries no name
     el.src = src;
     el.playbackRate = it[1] || 1;
     if('preservesPitch' in el) el.preservesPitch = true;
@@ -1027,7 +1127,16 @@ function start(){
   W.stage = beginStage(words[0]);
   screen = 'day';
   render();
+  // Speaking never waits on the network: it says the word now, and the rest of
+  // the sitting is fetched behind it so nothing after this one waits at all. The
+  // word just spoken is left out, or the element and the prefetch would race for
+  // the same file and it would be fetched twice.
   say(words[0]);
+  // The word just spoken goes last, so the element's own request finishes first
+  // and this one comes off the browser's cache instead of racing it — but it is
+  // still stored, or a sitting with no signal would start on a missing clip.
+  var ahead = sittingPhrases().filter(function(p){ return p !== words[0]; });
+  warmClips(ahead.concat([words[0]]));
   return true;
 }
 function word(){ return W && W.words[W.i]; }
@@ -1067,6 +1176,14 @@ function check(){
   if(!ok) sayParts(w, splitOf(w));
 }
 function next(){
+  // Keep just ahead of her: the next word and its pieces, if they are not
+  // already on the device.
+  if(W){
+    var soon = W.words.slice(W.i + 1, W.i + 3);
+    if(soon.length) setTimeout(function(){
+      warmClips(soon.concat(soon.reduce(function(a, w){ return a.concat(splitOf(w)); }, [])));
+    }, 0);
+  }
   if(W.i + 1 < W.words.length) W.i++;
   else if(W.requeue.length){ W.words.push(W.requeue.shift()); W.i++; }
   else { finish(); return; }
@@ -1184,6 +1301,28 @@ addEventListener('orientationchange', fitViewport);
 /* Plays one recording on its own, with no fallback in the way, and reports what
    actually happened. Without this a browser that cannot decode them looks
    identical to one that can — the phone voice simply covers for it. */
+/* Puts every recording on the device in one go, so nothing waits on a network
+   again — and so a sitting works with no signal at all. */
+var _saving = false, _savedMsg = '';
+function saveAllClips(){
+  if(_saving) return;
+  _saving = true; _savedMsg = 'Saving…'; render();
+  var all = CLIPS.slice();
+  warmClips(all).then(function(n){
+    _saving = false;
+    var missed = all.filter(function(t){ return !clipUrl(t) ? false : !_blob[t]; }).length;
+    _savedMsg = missed
+      ? (all.length - missed) + ' of ' + all.length + ' saved on this device. '
+        + missed + ' could not be fetched — try again on a better connection.'
+      : 'All ' + all.length + ' saved on this device. They will not need the network again.';
+    render();
+  }).catch(function(){
+    _saving = false;
+    _savedMsg = 'Could not save them. Nothing was lost — she will hear the phone voice.';
+    render();
+  });
+}
+
 function testClip(){
   var first = null;
   for(var i = 0; i < CLIPS.length && !first; i++) if(clipFor(CLIPS[i])) first = CLIPS[i];
@@ -1464,6 +1603,13 @@ function renderParent(){
     +     'are worth a look.</div>'
     +   '<button class="quiet" id="cliptest">Play a test word</button>'
     +   (_clipTest ? '<div class="hint">' + esc(_clipTest) + '</div>' : '')
+    +   '<button class="quiet" id="clipsave" style="margin-top:var(--s3)">'
+    +     (_saving ? 'Saving…' : 'Save all the audio on this device') + '</button>'
+    +   '<div class="hint">' + _warmed() + ' of ' + CLIPS.length + ' are on the device now. '
+    +     'Each one is fetched the first time she meets it, which on a thin connection '
+    +     'is a wait at exactly the wrong moment. Saving them all once removes that, '
+    +     'and lets a sitting work with no signal.'
+    +     (_savedMsg ? ' <b>' + esc(_savedMsg) + '</b>' : '') + '</div>'
     + '</div>'
 
     + '<div class="sect"><h2>Backup</h2>'
@@ -1617,6 +1763,7 @@ document.addEventListener('click', function(ev){
     return;
   }
   if(t.closest('#cliptest')){ testClip(); return; }
+  if(t.closest('#clipsave')){ saveAllClips(); return; }
   if(t.closest('#copy')){
     var text = JSON.stringify(S, null, 2);
     try{
@@ -1722,8 +1869,13 @@ loadClips(); render(); },
   // soon as it opens, so a real element already exists by then.
   setClips: function(list, ext){
     stopClips(); _clipEl = null;
+    Object.keys(_blob).forEach(function(k){
+      try{ URL.revokeObjectURL(_blob[k]); }catch(e){} delete _blob[k]; });
+    _warming = {};
     CLIPS = list || []; if(ext) CLIP_EXT = ext; loadClips();
   },
+  warmClips: warmClips, sittingPhrases: sittingPhrases,
+  clipUrl: clipUrl, warmed: function(){ return Object.keys(_blob).length; },
   clipFor: clipFor,
   start: start, check: check, next: next, paceLabel: paceLabel, announce: announce,
   // Enough of a handle to drive a whole session from a script — the

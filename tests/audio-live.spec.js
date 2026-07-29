@@ -74,13 +74,13 @@ async function boot(page, clips){
     // Track what the real element actually does, without replacing it.
     window.__ev = [];
     const realPlay = HTMLMediaElement.prototype.play;
+    // The src may be a blob URL now, which carries no name — the element says
+    // which phrase it is playing instead.
+    const name = el => el.getAttribute('data-phrase') || el.src.replace(/^.*\//, '');
     HTMLMediaElement.prototype.play = function(){
-      window.__ev.push({play: this.src.replace(/^.*\//, ''),
-                        rate: Math.round(this.playbackRate * 100) / 100});
-      this.addEventListener('ended', () => window.__ev.push({ended: this.src.replace(/^.*\//, '')}),
-                            {once: true});
-      this.addEventListener('error', () => window.__ev.push({error: this.src.replace(/^.*\//, '')}),
-                            {once: true});
+      window.__ev.push({play: name(this), rate: Math.round(this.playbackRate * 100) / 100});
+      this.addEventListener('ended', () => window.__ev.push({ended: name(this)}), {once: true});
+      this.addEventListener('error', () => window.__ev.push({error: name(this)}), {once: true});
       return realPlay.call(this);
     };
     a.go('parent'); a.go('day');
@@ -89,6 +89,102 @@ async function boot(page, clips){
 }
 const events = page => page.evaluate(() => window.__ev.slice());
 
+test.describe('kept on the device rather than fetched when she needs it', () => {
+
+  test('the sitting is fetched ahead, and a warmed clip plays with no wait',
+    async ({page}) => {
+      await boot(page, ['because','be','cause','said']);
+      await page.waitForFunction(() => window.__acorn.warmed() > 0, null, {timeout:10000});
+      const t = await page.evaluate(async () => {
+        const warm = window.__acorn.sittingPhrases()
+          .find(p => (window.__acorn.clipFor(p) || '').startsWith('blob:'));
+        const url = window.__acorn.clipFor(warm);
+        const t0 = performance.now();
+        const el = new Audio(url);
+        await new Promise(r => { el.addEventListener('loadeddata', r, {once:true});
+                                 el.addEventListener('error', r, {once:true});
+                                 el.load(); setTimeout(r, 4000); });
+        return {phrase: warm, ms: performance.now() - t0, fromDevice: url.startsWith('blob:')};
+      });
+      // It comes off the device, so nothing about the network is in the way.
+      expect(t.fromDevice).toBe(true);
+      expect(t.ms, `${t.phrase} took ${Math.round(t.ms)}ms`).toBeLessThan(60);
+    });
+
+  test('nothing is fetched twice, and nothing is fetched again after a reload',
+    async ({page}) => {
+      const asked = await boot(page, ['because','be','cause','said']);
+      // Wait for the phrases of this sitting specifically — the blob count also
+      // includes whatever is committed in the repo, warmed at boot.
+      const allWarm = () => page.waitForFunction(() =>
+        window.__acorn.sittingPhrases()
+          .filter(p => window.__acorn.clipUrl(p))
+          .every(p => (window.__acorn.clipFor(p) || '').startsWith('blob:')),
+        null, {timeout:15000});
+      await allWarm();
+      await page.waitForTimeout(200);
+      const first = asked.length;
+      expect(first).toBeGreaterThan(0);
+      // The word spoken as the sitting opens is fetched by the element and then
+      // stored by the prefetcher, so it can be asked for twice where the server
+      // sends no cache headers. Everything else must be fetched exactly once.
+      const twice = asked.filter((u, i) => asked.indexOf(u) !== i);
+      expect(twice.length, 'more than one file was fetched twice: ' + twice).toBeLessThanOrEqual(1);
+
+      const firstRun = asked.length;
+      asked.length = 0;
+      await page.reload();
+      await page.waitForFunction(() => !!window.__acorn);
+      await page.evaluate(() => {
+        const a = window.__acorn;
+        a.setToday('2026-08-01'); a.setClips(['because','be','cause','said'], '.wav');
+        a.state.words.lists = [{id:'w1', name:'T', words:['because','said','rain']}];
+        a.state.words.activeId = 'w1'; a.state.words.mastery = {}; a.save();
+        a.go('parent'); a.go('day');
+      });
+      await allWarm();
+      await page.waitForTimeout(300);
+      // Stored on the device, so the second sitting costs less than the first.
+      // (Measured against the committed recordings it costs nothing at all; this
+      // test's own files go through a server with no cache headers.)
+      expect(asked.length, 'the cache did not help after a reload')
+        .toBeLessThan(firstRun);
+    });
+
+  test('a stored clip plays with the network gone', async ({page}) => {
+    await boot(page, ['because','be','cause','said']);
+    // Store them explicitly rather than waiting on whatever the sitting picked,
+    // so this tests the claim and nothing else.
+    await page.evaluate(() => window.__acorn.warmClips(['because','be','cause','said']));
+    await page.waitForFunction(() =>
+      (window.__acorn.clipFor('because') || '').startsWith('blob:'), null, {timeout:15000});
+
+    await page.context().setOffline(true);
+    try {
+      const outcome = await page.evaluate(async () => {
+        const url = window.__acorn.clipFor('because');
+        const el = new Audio(url);
+        return await new Promise(res => {
+          el.addEventListener('ended', () => res('played'), {once:true});
+          el.addEventListener('error', () => res('failed'), {once:true});
+          el.play().catch(() => res('refused'));
+          setTimeout(() => res('timed out'), 4000);
+        });
+      });
+      expect(outcome).toBe('played');
+    } finally { await page.context().setOffline(false); }
+  });
+
+  test('saving them all puts the whole set on the device', async ({page}) => {
+    await boot(page, ['because','be','cause','said']);
+    await page.evaluate(() => window.__acorn.go('parent'));
+    await page.locator('#clipsave').click();
+    await page.waitForFunction(() => window.__acorn.warmed() >= 4, null, {timeout:15000});
+    await expect(page.locator('#clipreport')).toContainText(/4 of 4 are on the device/);
+    await expect(page.locator('#clipreport')).toContainText(/All 4 saved on this device/);
+  });
+});
+
 test.describe('the audio path for real', () => {
 
   test('a recorded word is fetched from the right place and plays to the end',
@@ -96,8 +192,8 @@ test.describe('the audio path for real', () => {
       const asked = await boot(page, ['because','be','cause','said']);
       await page.waitForFunction(() => window.__ev.some(e => e.ended), null, {timeout:5000});
       const ev = await events(page);
-      expect(ev[0].play).toBe('because.wav');
-      expect(ev.some(e => e.ended === 'because.wav'), 'it never finished playing').toBe(true);
+      expect(ev[0].play).toBe('because');
+      expect(ev.some(e => e.ended === 'because'), 'it never finished playing').toBe(true);
       expect(ev.some(e => e.error)).toBe(false);
       // Served from /learn/, so the path must be relative to the app, not the root.
       expect(asked.some(u => u.endsWith('/learn/audio/because.wav'))).toBe(true);
@@ -113,11 +209,11 @@ test.describe('the audio path for real', () => {
       await page.waitForFunction(() => window.__ev.filter(e => e.play).length >= 3,
                                  null, {timeout:5000});
       const played = (await events(page)).filter(e => e.play).map(e => e.play);
-      expect(played).toEqual(['because.wav','be.wav','cause.wav']);
+      expect(played).toEqual(['because','be','cause']);
       // Each one really ended before the next began.
       const ev = await events(page);
       const order = ev.map(e => e.play ? 'play:' + e.play : e.ended ? 'end:' + e.ended : 'err');
-      expect(order.indexOf('end:because.wav')).toBeLessThan(order.indexOf('play:be.wav'));
+      expect(order.indexOf('end:because')).toBeLessThan(order.indexOf('play:be'));
     });
 
   test('a missing file falls through to the phone voice rather than silence',

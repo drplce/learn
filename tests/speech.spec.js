@@ -58,13 +58,17 @@ async function watchAudio(page, {failing = false} = {}){
     const Real = window.Audio;
     window.Audio = function(){
       const el = {
-        _src: '', playbackRate: 1, preservesPitch: false,
+        _src: '', _attrs: {}, playbackRate: 1, preservesPitch: false,
         onended: null, onerror: null,
         set src(v){ this._src = v; },
         get src(){ return this._src; },
+        // The real element carries the phrase, since a blob URL has no name.
+        setAttribute(k, v){ this._attrs[k] = String(v); },
+        getAttribute(k){ return k in this._attrs ? this._attrs[k] : null; },
         pause(){ window.__played.push({paused: this._src}); },
         play(){
-          window.__played.push({src: this._src, rate: Math.round(this.playbackRate * 100) / 100});
+          window.__played.push({src: this._src, phrase: this._attrs['data-phrase'],
+                                rate: Math.round(this.playbackRate * 100) / 100});
           // Hand control back the way a real element does: asynchronously.
           setTimeout(() => { if(f && this.onerror) this.onerror(); else if(this.onended) this.onended(); }, 0);
           return Promise.resolve();
@@ -273,11 +277,13 @@ test.describe('telling a grown-up whether recordings are working', () => {
     expect(await page.locator('#app').innerText()).not.toMatch(/recorded|fell back|can play/i);
   });
 
-  test('the build stamp names this build', async ({page}) => {
-    await open(page, '2026-08-01');
-    await page.evaluate(() => window.__acorn.go('parent'));
-    await expect(page.locator('#stamp')).toContainText(/^Build \d+/);
-  });
+  test('the build stamp is a plain version she can read off the screen',
+    async ({page}) => {
+      await open(page, '2026-08-01');
+      await page.evaluate(() => window.__acorn.go('parent'));
+      // Bumped on every push, so a glance says whether the phone has this build.
+      await expect(page.locator('#stamp')).toHaveText(/^Build \d+\.\d+$/);
+    });
 });
 
 test.describe('what she hears', () => {

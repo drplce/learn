@@ -180,6 +180,13 @@ Recording is incremental: anything already in `audio/` is left alone, so after
 adding words you re-run the same command and only the new phrases are made.
 `ACORN_FORCE=1` re-records everything.
 
+Clips are kept on the device rather than fetched when she needs them. A sitting
+is prefetched into the Cache API as it starts and played from memory, so the
+audio element never waits: measured against a link with 300ms of latency, a
+stored clip plays in 2ms against 310ms for one not yet fetched, and a second
+sitting asks the network for nothing at all. The grown-ups screen has a button to
+store the whole set at once, which also lets a sitting work with no signal.
+
 The clips are loaded one at a time as she meets each word, not up front, so the
 total size on disk does not affect how fast the app starts. Newly recorded ones
 are passed through `afconvert`, which macOS ships: say writes AAC at about 35KB
