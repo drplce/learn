@@ -678,6 +678,47 @@ test.describe('the shape of what she knows', () => {
       .toContain(met + ' met, ' + known + ' known well');
   });
 
+  // A word she has only got coming up is sketched rather than drawn: a second line
+  // round it at a different jitter, so the pair opens and closes like a pen going
+  // round twice. A word she has met is one confident shape. The difference between
+  // "not yet" and "known" should be visible across the room.
+  test('a word she has not met is sketched, not drawn', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.wordsOf(a.activeList()).slice(0, 8).forEach((w, i) => {
+        a.state.words.mastery[w] = {right:4, wrong:0, box: i < 3 ? 6 : 3, lastSeen:'2026-08-01'}; });
+      a.save(); a.go('parent');
+    });
+    const r = await page.evaluate(() => {
+      const svg = document.querySelector('.net');
+      const cells = [...svg.querySelectorAll('.net-cell')];
+      const sketches = [...svg.querySelectorAll('.net-sketch')];
+      const unmet = cells.filter(c => !c.classList.contains('met'));
+      const ds = cells.map(c => c.getAttribute('d'));
+      return {
+        sketches: sketches.length, unmet: unmet.length, met: cells.length - unmet.length,
+        // A different jitter, not the same outline scaled up.
+        distinct: sketches.every(s => ds.indexOf(s.getAttribute('d')) < 0),
+        unique: new Set(sketches.map(s => s.getAttribute('d'))).size,
+        stroke: getComputedStyle(sketches[0]).fill,
+      };
+    });
+    expect(r.met, 'this state should have met words too').toBeGreaterThan(2);
+    expect(r.sketches, 'one sketch line per word she has not met').toBe(r.unmet);
+    expect(r.distinct, 'the sketch is a different jitter, not the same shape again').toBe(true);
+    expect(r.unique).toBe(r.unmet);          // and each word sketches its own
+    expect(r.stroke).toBe('none');           // a line, never a second fill
+    // Filled words stay single: no sketch anywhere near a met cell's own shape.
+    const same = await page.evaluate(() => {
+      const met = [...document.querySelectorAll('.net-cell.met')].map(c => c.getAttribute('d'));
+      return [...document.querySelectorAll('.net-sketch')]
+        .filter(s => met.indexOf(s.getAttribute('d')) >= 0).length;
+    });
+    expect(same).toBe(0);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
   // A word she has not met is a hollow outline, and the threads run under the cells
   // to reach the words they land on — so a thread showed straight through the empty
   // ones, and a faint outline with a line through it reads as crossed out. Which is

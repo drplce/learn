@@ -315,6 +315,10 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 .net-link.lit{stroke:var(--acc); opacity:.4; stroke-width:.9;}
 /* Ghosted: what she has met, and a few days of what is coming, waiting to be
    filled. */
+/* The second line round a word she has not met yet — see the sketch loop. Lighter
+   than the word's own outline, so the pair reads as one sketched shape rather than
+   as two words on top of each other. */
+.net-sketch{fill:none; stroke:var(--line-2); stroke-width:.6; opacity:.55;}
 /* The paper, painted in behind each cell so a thread passing under an empty
    outline does not read as a line struck through it. */
 .net-plate{fill:var(--surface); stroke:none;}
@@ -395,7 +399,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '8.8';
+var VERSION = '8.9';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1980,6 +1984,8 @@ function restore(btn){
    decoration rather than her map.
    ========================================================= */
 var NET_W = 320, GOLDEN = 2.39996323;
+// How much bigger the sketch line round an unmet word is than the word itself.
+var SKETCH_R = 1.07;
 /* The frame is fitted to the drawing rather than squared up, and this is the one
    thing it is not allowed to do: be taller than this much of its own width. The
    picture takes its width from her column and its height from this ratio, so a
@@ -2310,7 +2316,13 @@ function networkData(){
   if(!inFrame.length) inFrame = cells;
   var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   inFrame.forEach(function(c){
+    // The sketch line round an unmet word reaches a little further than the word.
     var b = cellBounds(c.w, c.x, c.y, c.r);
+    if(!c.met){
+      var sb = cellBounds(c.w + '~', c.x, c.y, c.r * SKETCH_R);
+      b = {x0:Math.min(b.x0, sb.x0), x1:Math.max(b.x1, sb.x1),
+           y0:Math.min(b.y0, sb.y0), y1:Math.max(b.y1, sb.y1)};
+    }
     x0 = Math.min(x0, b.x0); x1 = Math.max(x1, b.x1);
     y0 = Math.min(y0, b.y0); y1 = Math.max(y1, b.y1);
   });
@@ -2434,6 +2446,19 @@ function renderNetwork(d){
         + 'C' + k.p1[0].toFixed(1) + ' ' + k.p1[1].toFixed(1) + ' '
         + k.p2[0].toFixed(1) + ' ' + k.p2[1].toFixed(1) + ' '
         + k.b.x.toFixed(1) + ' ' + k.b.y.toFixed(1) + '"/>';
+  });
+
+  /* A word she has not met is sketched rather than drawn: a second line round it,
+     the same word's shape at a different jitter and a hair's width bigger, so the
+     two lines open and close around each other the way a pen does when it goes
+     round twice. It arrived by accident — two outlines happened to overlap and
+     looked hand-drawn — and it earns its place, because a word that is only coming
+     up should look provisional. A word she has met is one confident shape, and the
+     difference between the two is now something you can see across the room. */
+  d.cells.forEach(function(c){
+    if(c.met) return;
+    svg += '<path class="net-sketch" aria-hidden="true" d="'
+        + cellPath(c.w + '~', c.x, c.y, c.r * SKETCH_R) + '"/>';
   });
 
   /* Every cell gets the paper painted in behind it first. A word she has not met
