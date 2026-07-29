@@ -194,4 +194,62 @@ test.describe('putting a backup back', () => {
     await expect(page.locator('#restore')).toHaveCount(0);
     await expect(page.locator('#restoreGo')).toHaveCount(0);
   });
+
+  test('a backup from real use comes back whole, field for field', async ({page}) => {
+    /* The round trip above seeds a state by hand and compares five things. This one
+       plays a fortnight of real sittings, moves every setting off its default, and
+       compares the entire state deeply — so a field added to the session record or to
+       settings cannot be silently dropped on the way through. Three have been added
+       since that test was written: fresh, grew and slipped, in 9.8. */
+    await open(page, '2026-08-01');
+    const before = await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.activeId = 'easy';
+      a.state.words.mastery = {}; a.state.words.sessions = []; a.state.words.lists = [];
+      a.state.profile.name = 'X';
+      a.save();
+      const t0 = new Date('2026-07-18');
+      let n = 0;
+      for(let d = 0; d < 14; d++){
+        a.setToday(new Date(t0.getTime() + d * 86400000).toISOString().slice(0, 10));
+        a.go('parent'); a.go('day');
+        if(!a.session()) a.start();
+        for(let g = 0; g < 90 && a.session(); g++){
+          const W = a.session();
+          if(W.stage === 'look'){ a.cover(); continue; }
+          if(W.stage === 'write'){
+            const w = W.words[W.i];
+            a.type(n++ % 4 ? w : w.slice(0, -1));    // a mix, so nothing is all-clean
+            a.check(); a.next(); continue;
+          }
+          a.next();
+        }
+      }
+      // Every setting off its default, and a list of her own on top.
+      a.state.words.lists.push({id: 'w9', name: 'Week 9', words: ['zebra', 'wombat']});
+      Object.assign(a.state.settings, {textScale: 1.3, tint: 'mint', readAloud: false,
+        sound: false, speechRate: 0.7, voice: 'Karen', kbInset: 320});
+      a.save();
+      return JSON.parse(JSON.stringify(a.state));
+    });
+    const backup = await page.evaluate(() => JSON.stringify(window.__acorn.state));
+    // Something must actually have happened, or this compares two empty states.
+    expect(Object.keys(before.words.mastery).length).toBeGreaterThan(5);
+    expect(before.words.sessions.length).toBeGreaterThan(5);
+    expect(before.words.sessions.some(s => s.fresh && s.fresh.length)).toBe(true);
+
+    await page.evaluate(() => { localStorage.clear(); window.__acorn.reset(); });
+    await pasteAndRestore(page, backup);
+    const after = await page.evaluate(() => JSON.parse(JSON.stringify(window.__acorn.state)));
+    expect(after).toEqual(before);
+
+    // And the prototype-free word maps have to survive it: load() rebases them, and
+    // a restore goes through load(). Without that, "constructor" on her list is
+    // treated as already known and never asked again.
+    const bare = await page.evaluate(() => ({
+      mastery: Object.getPrototypeOf(window.__acorn.state.words.mastery) === null,
+    }));
+    expect(bare.mastery, 'mastery came back with a prototype on it').toBe(true);
+    expect(errorsOf(page)).toEqual([]);
+  });
 });
