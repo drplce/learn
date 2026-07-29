@@ -364,7 +364,8 @@ test.describe('finishing', () => {
     // Three words, each shown once and then asked again from memory.
     expect(asked.length).toBe(6);
     expect([...new Set(asked)].sort()).toEqual(['boat','light','rain']);
-    await expect(page.locator('.tick')).toBeVisible();
+    // Her words rather than a tick: the picture is what says the sitting happened.
+    await expect(page.locator('#screen .net')).toBeVisible();
     await expect(page.locator('.headline')).toHaveText(/first go|All done/);
     const s = await page.evaluate(() => window.__acorn.state.words.sessions);
     expect(s.length).toBe(1);
@@ -376,7 +377,7 @@ test.describe('finishing', () => {
     await open(page, '2026-07-28');
     await startOn(page, ['rain','boat']);
     await finishSession(page);
-    await expect(page.locator('.note')).toContainText(/of \d+ words known well/);
+    await expect(page.locator('.doneend')).toContainText(/of \d+ words known well/);
     await expect(page.locator('.pbar')).toBeVisible();
   });
 
@@ -1973,8 +1974,8 @@ test.describe('what a screen reader is told', () => {
     await open(page, '2026-08-01');
     await startOn(page, ['rain']);
     await finishSession(page);
-    const note = await page.locator('.note').textContent();
-    const m = note.match(/^(\d+) of (\d+) (word|words) known well$/);
+    const note = await page.locator('.doneend').innerText();
+    const m = note.match(/(\d+) of (\d+) (word|words) known well/);
     expect(m, 'unexpected wording: ' + note).not.toBeNull();
     expect(m[3]).toBe(Number(m[2]) === 1 ? 'word' : 'words');
     expect(Number(m[1]), 'she cannot know more than she has')
