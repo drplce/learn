@@ -1,5 +1,5 @@
-// The shape of what she knows: every word on her lists present from the first
-// day as a faint outline, filling in and darkening as she learns them.
+// The shape of what she knows: every word she has met, plus a few days of what is
+// coming as faint outlines, filling in and darkening as she learns them.
 const {test, expect} = require('@playwright/test');
 const {open, errorsOf} = require('./helpers');
 
@@ -25,21 +25,90 @@ async function master(page, pairs){
 
 test.describe('the shape of what she knows', () => {
 
-  test('every word is there on the first day, as an outline', async ({page}) => {
+  // Every word on every list used to be drawn from day one: a hundred faint
+  // outlines, which said more about how far there is to go than about her. The
+  // outlines now reach only as far as the next few days of new words.
+  test('only the next few days are outlined, not the whole hundred', async ({page}) => {
     await open(page, '2026-08-01');
     await page.evaluate(() => window.__acorn.go('parent'));
     const all = await cells(page);
-    const expected = await page.evaluate(() => {
-      const a = window.__acorn, out = [];
-      a.allLists().forEach(l => a.wordsOf(l).forEach(w => out.push(w)));
-      return out;
+    const facts = await page.evaluate(() => {
+      const a = window.__acorn;
+      return {horizon: a.ghostWords(), ahead: a.ghostAhead(),
+              corpus: a.allLists().reduce((n, l) => n + a.wordsOf(l).length, 0),
+              // What the engine will hand her today that she has not met before.
+              next: a.buildSession(a.activeList(), a.todayISO())
+                     .filter(w => !a.state.words.mastery[w])};
     });
-    expect(all.length).toBe(expected.length);
-    expect(all.map(c => c.word).sort()).toEqual(expected.sort());
-    // Nothing met yet, so nothing filled — the whole form waiting.
+    // Her first sitting introduces three words, so four days of them is a dozen.
+    expect(facts.ahead).toBe(12);
+    expect(all.map(c => c.word).sort()).toEqual(facts.horizon.slice().sort());
+    expect(all.length, 'the ghost is no longer the whole corpus')
+      .toBeLessThan(facts.corpus / 4);
+    // And it is the near horizon, not an arbitrary dozen: the words she is about
+    // to meet are all on it.
+    expect(facts.next.length).toBeGreaterThan(0);
+    facts.next.forEach(w => expect(facts.horizon).toContain(w));
+    // Nothing met yet, so nothing filled — the form waiting.
     expect(all.every(c => !c.met)).toBe(true);
     expect(all.every(c => c.fill === 0)).toBe(true);
     expect(errorsOf(page)).toEqual([]);
+  });
+
+  test('a word she has met is never hidden, however far behind the horizon', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => {
+      const a = window.__acorn, m = {};
+      // Three words on a list she is not on, and the last word of the open one —
+      // all of them well past the few days the outlines reach.
+      const other = a.allLists().filter(l => l.id !== a.activeList().id)[0];
+      a.wordsOf(other).slice(0, 3).forEach(w => m[w] = {right:2, wrong:0, box:3, lastSeen:'2026-07-20'});
+      m[a.wordsOf(a.activeList()).slice(-1)[0]] = {right:1, wrong:1, box:2, lastSeen:'2026-07-20'};
+      a.state.words.mastery = m; a.save(); a.go('parent');
+    });
+    const drawn = (await cells(page)).filter(c => c.met).map(c => c.word).sort();
+    const met = await page.evaluate(() => Object.keys(window.__acorn.state.words.mastery).sort());
+    expect(drawn).toEqual(met);
+  });
+
+  // Nothing new is introduced on a bad run, which must not leave her a bare
+  // picture: the outlines fall back to the most she can be learning at once.
+  test('a hard week tightens the horizon rather than emptying it', async ({page}) => {
+    await open(page, '2026-08-01');
+    const pace = await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.sessions = [1, 2, 3, 4, 5].map(i =>
+        ({date:'2026-07-2' + i, list:'easy', words:8, firstTime:3}));
+      a.save(); a.go('parent');
+      return {n: a.newWordsToday(), ahead: a.ghostAhead()};
+    });
+    expect(pace.n).toBe(0);
+    expect(pace.ahead).toBe(3);
+    expect((await cells(page)).length).toBe(3);
+  });
+
+  // The frame is a camera: it crops to what is drawn so a dozen outlines fill the
+  // picture, and the colony keeps the coordinates it was laid out with whatever is
+  // being shown.
+  test('the frame crops to what is drawn, and the colony never moves', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => window.__acorn.go('parent'));
+    const frame = () => page.evaluate(() => ({
+      side: Math.round(document.querySelector('.net').viewBox.baseVal.width),
+      cells: document.querySelectorAll('.net-cell').length}));
+    const tight = await frame();
+    const before = (await cells(page)).map(c => `${c.word}:${c.x},${c.y},${c.r}`);
+    await page.evaluate(() => {
+      const a = window.__acorn, m = {};
+      a.allLists().forEach(l => a.wordsOf(l).forEach(w => m[w] = {right:3, wrong:0, box:4, lastSeen:'2026-07-20'}));
+      a.state.words.mastery = m; a.save(); a.go('parent');
+    });
+    const wide = await frame();
+    expect(wide.cells).toBeGreaterThan(tight.cells * 5);
+    expect(wide.side, 'the frame pulled back as the colony grew')
+      .toBeGreaterThan(tight.side * 2);
+    const after = (await cells(page)).map(c => `${c.word}:${c.x},${c.y},${c.r}`);
+    before.forEach(b => expect(after).toContain(b));
   });
 
   test('the waiting shape is a reasonable size, not a speck', async ({page}) => {
@@ -115,12 +184,19 @@ test.describe('the shape of what she knows', () => {
     await page.evaluate(() => window.__acorn.go('parent'));
     const before = (await cells(page)).map(c => `${c.word}:${c.x},${c.y}`);
     await master(page, {said: 5, they: 3});
-    expect((await cells(page)).map(c => `${c.word}:${c.x},${c.y}`)).toEqual(before);
+    const after = (await cells(page)).map(c => `${c.word}:${c.x},${c.y}`);
+    // Meeting two words slides the horizon on by two, so the picture can gain an
+    // outline — but everything already on it keeps the exact place it had.
+    before.forEach(b => expect(after).toContain(b));
+    expect(after.length).toBeGreaterThanOrEqual(before.length);
   });
 
   test('a longer word is a bigger cell, but only a little', async ({page}) => {
     await open(page, '2026-08-01');
-    await page.evaluate(() => window.__acorn.go('parent'));
+    // Only what she has met and the near horizon is drawn, and the open list is
+    // all four-letter words — so the spread of lengths has to be met, not assumed.
+    await master(page, {said:2, they:2, went:2,
+                        beautiful:3, different:3, favourite:3, government:3});
     const all = await cells(page);
     const bySize = {};
     all.forEach(c => { bySize[c.word.length] = bySize[c.word.length] || c.r; });
@@ -180,9 +256,14 @@ test.describe('the shape of what she knows', () => {
 
   test('the filaments join words that share a chunk', async ({page}) => {
     await open(page, '2026-08-01');
-    await page.evaluate(() => window.__acorn.go('parent'));
+    // A dozen outlines is all that is drawn now, so the shared chunks have to be
+    // among them: on the "or" list, four of the twelve end in -ing.
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.activeId = 'orsound'; a.save(); a.go('parent');
+    });
     const links = await page.evaluate(() => document.querySelectorAll('.net-link').length);
-    expect(links).toBeGreaterThan(4);
+    expect(links).toBeGreaterThan(3);
     // And they light up only once both ends have been met.
     const litBefore = await page.evaluate(() => document.querySelectorAll('.net-link.lit').length);
     expect(litBefore).toBe(0);
@@ -200,6 +281,7 @@ test.describe('the shape of what she knows', () => {
     await page.evaluate(() => {
       const a = window.__acorn;
       a.state.words.lists = [{id:'w1', name:'Week 6', words:['zebra','xylophone']}];
+      a.state.words.activeId = 'w1';          // the list she is on is the one outlined
       a.save(); a.go('parent');
     });
     const words = (await cells(page)).map(c => c.word);
@@ -218,20 +300,22 @@ test.describe('the shape of what she knows', () => {
   // only one of them joined to anything — and inflated the total.
   test('a word on two lists is on the map once', async ({page}) => {
     await open(page, '2026-08-01');
+    // "In all" is her whole corpus — every word on her lists, counted once —
+    // rather than the part of it that is drawn today.
+    const inAll = async () => Number((await page.locator('.sect:has(h2:text-is("What she knows"))')
+      .innerText()).match(/(\d+) in all/)[1]);
     await page.evaluate(() => window.__acorn.go('parent'));
-    const before = (await cells(page)).map(c => c.word);
+    const before = await inAll();
     await page.evaluate(() => {
       const a = window.__acorn;
       a.state.words.lists.push({id:'w1', name:'Week 4', words:['said','they','went','zebra']});
-      a.save(); a.go('parent');
+      a.state.words.activeId = 'w1'; a.save(); a.go('parent');
     });
-    const after = (await cells(page)).map(c => c.word);
-    expect(new Set(after).size, 'no word is drawn twice').toBe(after.length);
-    // Only the genuinely new word is added.
-    expect(after.length).toBe(before.length + 1);
-    expect(after).toContain('zebra');
-    const hint = await page.locator('.sect:has(h2:text-is("What she knows"))').innerText();
-    expect(hint).toContain(after.length + ' in all');
+    const drawn = (await cells(page)).map(c => c.word);
+    expect(new Set(drawn).size, 'no word is drawn twice').toBe(drawn.length);
+    ['said', 'they', 'went', 'zebra'].forEach(w => expect(drawn).toContain(w));
+    // Three of the four were already hers, so the count goes up by one.
+    expect(await inAll()).toBe(before + 1);
   });
 
   // Two counts of the same thing, worked out separately, drifted: the picture

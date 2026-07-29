@@ -141,16 +141,21 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
       font-weight:600; color:var(--ink-soft); white-space:nowrap;}
 
 /* ---------- the word ---------- */
-.dots{display:flex; justify-content:center; gap:var(--s2);
+.dots{display:flex; justify-content:center; align-items:center; gap:var(--s2);
       /* The current dot is scaled up, and main clips: without this the top of it
          is shaved off. */
-      padding-block:calc(var(--s1) * var(--ornament));
+      padding-block:calc(var(--s2) * var(--ornament));
       margin-bottom:calc(var(--s3) * var(--ornament));}
-.dots i{width:calc(.5rem * var(--ornament)); height:calc(.5rem * var(--ornament));
-        border-radius:50%; background:var(--line-2);
+/* Each dot is the outline that word has on her map, not a circle — the row is a
+   handful of the things she is collecting. The box is the same size for every
+   dot and the differences in size and spacing are drawn inside it, so the row
+   cannot reflow and the current one is still only ever scaled. */
+.dots i{flex:none; width:calc(.875rem * var(--ornament)); height:calc(.875rem * var(--ornament));
         transition:transform .3s var(--ease);}
-.dots i.on{background:var(--acc);}
-.dots i.now{background:var(--acc); transform:scale(1.5);}
+.dots i svg{display:block; width:100%; height:100%; overflow:visible;}
+.dots i path{fill:var(--line-2);}
+.dots i.on path, .dots i.now path{fill:var(--acc);}
+.dots i.now{transform:scale(1.5);}
 
 /* The word she reads and the word she is shown afterwards must be the
    same size, weight and spacing — otherwise the shape she memorised
@@ -266,13 +271,20 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
         border:0; padding:0; font-size:16px; pointer-events:none; z-index:-1;}
 
 /* ---------- what she knows ---------- */
+/* The frame crops to what is drawn, and a frond reaches in from outside it in the
+   early days, so this clips rather than spilling its hairs over the text. */
 .net{display:block; width:100%; height:auto; margin:var(--s2) 0 var(--s3);
-     overflow:visible;}
-.net-hair{fill:none; stroke:var(--acc); stroke-width:.6; stroke-linecap:round; opacity:.22;}
-.net-link{fill:none; stroke:var(--line-2); stroke-width:.5; opacity:.45;}
-.net-link.lit{stroke:var(--acc); opacity:.4; stroke-width:.8;}
-/* Ghosted: the whole shape is there from the first day, waiting to be filled. */
-.net-cell{fill:var(--acc); fill-opacity:var(--f, 0); stroke:var(--line-2); stroke-width:.7;}
+     overflow:hidden;}
+/* The frame is a camera and it zooms in when there is little to show, so the
+   strokes are pinned to the screen instead of scaling with it — otherwise a
+   hairline becomes a rope on the day she has a dozen words. */
+.net path{vector-effect:non-scaling-stroke;}
+.net-hair{fill:none; stroke:var(--acc); stroke-width:.7; stroke-linecap:round; opacity:.22;}
+.net-link{fill:none; stroke:var(--line-2); stroke-width:.6; opacity:.45;}
+.net-link.lit{stroke:var(--acc); opacity:.4; stroke-width:.9;}
+/* Ghosted: what she has met, and a few days of what is coming, waiting to be
+   filled. */
+.net-cell{fill:var(--acc); fill-opacity:var(--f, 0); stroke:var(--line-2); stroke-width:.8;}
 .net-cell.met{stroke:var(--acc); stroke-opacity:.5;}
 .net-cell.well{stroke:var(--acc); stroke-opacity:1; stroke-width:1;}
 
@@ -349,7 +361,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '7.6';
+var VERSION = '7.8';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1343,12 +1355,15 @@ function fitViewport(){
   if(_kbInset && screen !== 'parent') h = Math.min(h, Math.max(200, full - _kbInset));
   r.style.setProperty('--vh', h + 'px');
   var em = parseFloat(getComputedStyle(r).fontSize) || 16;
-  // 21em is what the writing screen needs with everything on it; 13em is what it
-  // needs with the box and the action alone. Both measured, not guessed. The
-  // panel is a flex column, which does not collapse adjacent margins the way
-  // block layout did, so the column runs a little taller than the arithmetic
-  // of the elements alone suggests.
-  if(h < 21 * em) r.setAttribute('data-tight', ''); else r.removeAttribute('data-tight');
+  // 22em is what the writing screen needs with everything on it; 13em is what it
+  // needs with the box and the action alone. Both measured, not guessed — the
+  // first was 21em until the progress dots became her word shapes, which is half
+  // a line taller than a row of circles was; measured across her five text sizes
+  // the writing screen now wants 21.96em at the smallest of them. The panel is a
+  // flex column, which does not collapse adjacent margins the way block layout
+  // did, so the column runs a little taller than the arithmetic of the elements
+  // alone suggests.
+  if(h < 22 * em) r.setAttribute('data-tight', ''); else r.removeAttribute('data-tight');
   if(h < 13 * em) r.setAttribute('data-cramped', ''); else r.removeAttribute('data-cramped');
 }
 if(window.visualViewport){
@@ -1448,14 +1463,40 @@ function header(done, total){
   el('#bar').innerHTML = '<h1 class="wordmark" id="wordmark">Acorn</h1><span class="sp"></span>' + bar;
 }
 
+/* The row above her word is her own words, not a row of circles: dot k is the
+   word the sitting set out to cover at k, drawn with the outline that word has on
+   the map on the grown-ups screen — the same shape for the same word, every time.
+   The box each one sits in is a fixed size and the differences in size and
+   spacing happen inside it, so the row is the same width whatever words came up
+   and nothing reflows when the current one is scaled up. */
+var DOT_BOX = 20;      // the little square each dot is drawn in
+var DOT_R = 6.4;       // its middling radius, near enough the circle it replaces
+function dotShape(w){
+  var rnd = seeded('dot' + w);
+  // The map's own driver — word length, capped at nine letters — but squeezed
+  // into a tenth either side of the middle. On the map a long word is nearly
+  // twice a short one; on a row of eight that would read as a ranking of her
+  // words by length rather than as texture.
+  var len = String(w).replace(/[^a-z']/gi, '').length;
+  var r = DOT_R * (0.9 + 0.2 * Math.min(9, len) / 9);
+  // And a nudge off centre, seeded by the word, so the gaps between them are not
+  // all identical either. It stays inside the box, so it costs no layout.
+  return {r:r, x:DOT_BOX / 2 + (rnd() - .5) * 5, y:DOT_BOX / 2 + (rnd() - .5) * 1.2};
+}
+
 function renderWord(){
   var w = word(), parts = splitOf(w), done = W.done.length;
   header(done, W.plan);
 
   // One dot per word the sitting set out to cover, filled as each is finished.
   var dots = '<div class="dots" aria-hidden="true">';
-  for(var k = 0; k < W.plan; k++)
-    dots += '<i class="' + (k < done ? 'on' : k === done ? 'now' : '') + '"></i>';
+  for(var k = 0; k < W.plan; k++){
+    var dw = W.words[k] || String(k), ds = dotShape(dw);
+    dots += '<i class="' + (k < done ? 'on' : k === done ? 'now' : '') + '"'
+         + ' data-r="' + ds.r.toFixed(2) + '" data-x="' + ds.x.toFixed(2) + '">'
+         + '<svg viewBox="0 0 ' + DOT_BOX + ' ' + DOT_BOX + '" aria-hidden="true">'
+         + '<path d="' + cellPath(dw, ds.x, ds.y, ds.r) + '"/></svg></i>';
+  }
   dots += '</div>';
 
   // A one-syllable word needs no syllable row — it would just repeat itself.
@@ -1767,16 +1808,41 @@ function restore(btn){
 }
 
 /* =========================================================
-   The shape of what she knows. Every word on every list is here from the first
-   day as a faint outline, so the whole form is there to be filled in rather than
-   grown from a speck — and a word that slips back dims rather than vanishing.
-   Words cluster into the pattern family they belong to, and a hairline joins
-   words that share a spelling chunk, because that is the structure she is
-   actually learning: "or" is what morning, sorted and report have in common.
+   The shape of what she knows. Every word she has met is here, and a few days of
+   what is coming next as faint outlines waiting to be filled — a word that slips
+   back dims rather than vanishing. Words cluster into the pattern family they
+   belong to, and a hairline joins words that share a spelling chunk, because that
+   is the structure she is actually learning: "or" is what morning, sorted and
+   report have in common.
    The layout is deterministic. It has to be the same shape every time or it is
    decoration rather than her map.
    ========================================================= */
 var NET_W = 320, GOLDEN = 2.39996323;
+
+/* How far ahead the outlines reach. Every word she has met stays on the map for
+   good, but an unmet one is only worth drawing while it is nearly here: a hundred
+   empty outlines from the first day said more about how much there is to get
+   through than about her.
+   So it is a few days of new words at the pace she is actually on —
+   newWordsToday() is 0 to 3, and 3 on her very first sitting — taken from the
+   open list in the order buildSession() will introduce them. The floor is the
+   most she can be learning at once, so a hard week (which earns no new words at
+   all) still leaves something waiting rather than a bare shape; the ceiling keeps
+   a good run from ghosting half the list again. */
+var GHOST_DAYS = 4, GHOST_MAX = 12;
+function ghostAhead(){
+  return Math.max(ACQUIRING_CAP, Math.min(GHOST_MAX, newWordsToday() * GHOST_DAYS));
+}
+// The unmet words she is about to meet: the front of the open list, in the order
+// the engine takes them.
+function ghostWords(){
+  var want = ghostAhead(), out = {}, n = 0;
+  wordsOf(activeList()).forEach(function(w){
+    if(S.words.mastery[w] || out[w] || n >= want) return;
+    out[w] = true; n++;
+  });
+  return out;
+}
 
 // A small deterministic generator, so the jitter that keeps this from looking
 // mechanical is the same jitter every time.
@@ -1792,14 +1858,38 @@ function seeded(str){
 /* Each word gets its own shape, seeded by the word itself, so no two are the same
    and none of them is a circle. Bigger for a longer word, but only a little —
    enough to give the colony texture, not enough to read as a ranking. */
-function cellPath(w, x, y, r){
+function cellPoints(w, x, y, r){
   var rnd = seeded('shape' + w), n = 7, pts = [];
   for(var i = 0; i < n; i++){
     var a = (i / n) * Math.PI * 2 + (rnd() - .5) * 0.35;
     var rr = r * (0.8 + rnd() * 0.4);
     pts.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]);
   }
-  var d = '';
+  return pts;
+}
+/* How far an outline actually reaches, so the frame can be fitted to the shapes
+   themselves rather than to circles drawn around them — the difference is the
+   width of a cell, which is the difference between the colony filling the picture
+   and sitting inside a margin of nothing. Each piece of the outline is a
+   quadratic, so its extreme is either one of its ends or its one turning point. */
+function cellBounds(w, x, y, r){
+  var pts = cellPoints(w, x, y, r), n = pts.length;
+  var lo = [Infinity, Infinity], hi = [-Infinity, -Infinity];
+  function see(k, v){ if(v < lo[k]) lo[k] = v; if(v > hi[k]) hi[k] = v; }
+  for(var j = 0; j < n; j++){
+    var p = pts[j], q = pts[(j + 1) % n], nx = pts[(j + 2) % n];
+    for(var k = 0; k < 2; k++){
+      var A = (p[k] + q[k]) / 2, B = q[k], C = (q[k] + nx[k]) / 2, den = A - 2 * B + C;
+      see(k, A); see(k, C);
+      if(!den) continue;
+      var t = (A - B) / den;
+      if(t > 0 && t < 1) see(k, A + 2 * t * (B - A) + t * t * den);
+    }
+  }
+  return {x0:lo[0], y0:lo[1], x1:hi[0], y1:hi[1]};
+}
+function cellPath(w, x, y, r){
+  var pts = cellPoints(w, x, y, r), n = pts.length, d = '';
   for(var j = 0; j < n; j++){
     var p = pts[j], q = pts[(j + 1) % n];
     var mid = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
@@ -1833,9 +1923,17 @@ function networkData(){
   if(!lists.length) return null;
   var rnd = seeded(lists.map(function(g){ return g.list.id + g.words.length; }).join('|'));
   var cx = NET_W / 2, cy = NET_W / 2;
+  // "In all" is every word on her lists, counted once — the whole corpus, not the
+  // part of it that is drawn today. It is the honest answer to how many there are,
+  // and the hint under the picture says which of the two it is.
   var total = lists.reduce(function(n, g){ return n + g.words.length; }, 0);
-  var cells = [], fronds = [], byWord = {};
+  var laid = [], fronds = [], byWord = {};
 
+  /* Every word is laid out, whether it is drawn or not, so a cell's place is
+     fixed by its list and its position in it and by nothing else. The outlines
+     that are drawn move forward as she meets words; the colony itself never
+     shifts, because a map that reshuffled when she learned a word would be
+     decoration rather than hers. */
   lists.forEach(function(g, li){
     var l = g.list, words = g.words;
     // Uneven angles and lengths: a perfect star is a diagram.
@@ -1843,43 +1941,55 @@ function networkData(){
     var reach = NET_W * (0.27 + 0.09 * Math.sqrt(words.length / Math.max(4, total / lists.length))
                          + (rnd() - .5) * 0.06);
     var bend = (rnd() - .5) * 0.9;                 // the frond curves as it goes
-    fronds.push({a:a, reach:reach, bend:bend, id:l.id, name:l.name});
+    fronds.push({a:a, reach:reach, bend:bend, id:l.id, name:l.name, i:li});
 
-    // Most of a family gathers into a head at the tip; a few trail back down the
-    // stem, which is what keeps it from looking like a lollipop.
-    var headFrom = Math.floor(words.length * 0.32);
-    var headN = words.length - headFrom;
+    /* Most of a family gathers into a head at the tip; the last few of the list
+       trail back down the stem, which is what keeps it from looking like a
+       lollipop. The last few rather than the first few, because the head fills
+       from the middle outwards: that puts the words she meets first at the heart
+       of the family and grows the shape outwards from there, and it keeps the near
+       horizon — which is always the front of the list — from being nothing but
+       stem. The stem sits close under the head so a family on its own is a club
+       rather than a spoke; on the day she has one list going, that is the whole
+       picture. */
+    var stemN = Math.min(3, Math.floor(words.length * 0.25));
+    var headN = words.length - stemN;
     var tipA = a + bend * 0.55;
     var hx = Math.cos(tipA) * reach, hy = Math.sin(tipA) * reach;
-    var headR = NET_W * (0.045 + 0.042 * Math.sqrt(headN / 12));
+    var headR = NET_W * (0.05 + 0.05 * Math.sqrt(headN / 12));
 
     words.forEach(function(k_w, k){
       var px, py;
-      if(k >= headFrom){
+      if(k < headN){
         // Phyllotaxis inside the head: even, dense, and not a grid.
-        var i2 = k - headFrom;
-        var pr = headR * Math.sqrt((i2 + 0.5) / headN);
-        var pa = i2 * GOLDEN + rnd() * 0.25;
+        var pr = headR * Math.sqrt((k + 0.5) / headN);
+        var pa = k * GOLDEN + rnd() * 0.25;
         px = hx + Math.cos(pa) * pr; py = hy + Math.sin(pa) * pr;
       }else{
-        var t2 = 0.22 + 0.62 * ((k + 0.6) / Math.max(1, headFrom));
+        var t2 = 0.6 + 0.28 * ((k - headN + 0.6) / Math.max(1, stemN));
         var aa2 = a + bend * t2 * t2;
         var off = (rnd() - .5) * NET_W * 0.055;
         px = Math.cos(aa2) * reach * t2 + Math.cos(aa2 + Math.PI/2) * off;
         py = Math.sin(aa2) * reach * t2 + Math.sin(aa2 + Math.PI/2) * off;
       }
       var box = mastery(k_w).box || 1;
-      var cell = {w:k_w, x:cx + px, y:cy + py,
-                  // Subtle: a long word is a bigger cell, a short one smaller.
-                  r:3.1 + Math.min(9, k_w.replace(/[^a-z']/gi, '').length) * 0.42,
-                  box:box, met:!!S.words.mastery[k_w], frond:li};
-      var pad = cell.r + 2;
-      cell.x = Math.max(pad, Math.min(NET_W - pad, cell.x));
-      cell.y = Math.max(pad, Math.min(NET_W - pad, cell.y));
-      cells.push(cell);
-      byWord[k_w] = cell;
+      laid.push({w:k_w, x:cx + px, y:cy + py,
+                 // Subtle: a long word is a bigger cell, a short one smaller.
+                 r:3.1 + Math.min(9, k_w.replace(/[^a-z']/gi, '').length) * 0.42,
+                 box:box, met:!!S.words.mastery[k_w], frond:li});
     });
   });
+
+  /* What is drawn: everything she has met — progress is never hidden — and the
+     near horizon of unmet words from the open list. */
+  var ghost = ghostWords();
+  var cells = laid.filter(function(c){ return c.met || ghost[c.w]; });
+  cells.forEach(function(c){ byWord[c.w] = c; });
+  // A frond with nothing drawn on it gets no hairs either: five threads reaching
+  // out to an empty tip is a promise about a list she has not started.
+  var live = {};
+  cells.forEach(function(c){ live[c.frond] = true; });
+  fronds = fronds.filter(function(f){ return live[f.i]; });
 
   // A hairline where two words share a chunk, and only where the chunk is
   // telling: one that turns up in a dozen words says nothing.
@@ -1901,7 +2011,23 @@ function networkData(){
     }
   });
 
-  return {cells:cells, fronds:fronds, links:links, total:total, cx:cx, cy:cy,
+  /* The frame is a camera, not the layout: it crops to what is drawn, so a dozen
+     outlines fill the picture as well as a hundred do rather than sitting in a
+     corner of an empty square. Nothing in the colony moves when it widens —
+     every cell keeps the coordinates it was laid out with — and the strokes are
+     pinned to the screen, so zooming in does not turn the hairlines into ropes.
+     A floor on the frame stops two or three cells being blown up like a poster. */
+  var pad = NET_W * 0.01, x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  cells.forEach(function(c){
+    var b = cellBounds(c.w, c.x, c.y, c.r);
+    x0 = Math.min(x0, b.x0); x1 = Math.max(x1, b.x1);
+    y0 = Math.min(y0, b.y0); y1 = Math.max(y1, b.y1);
+  });
+  if(!cells.length){ x0 = y0 = 0; x1 = y1 = NET_W; }
+  var side = Math.max(x1 - x0, y1 - y0, NET_W * 0.18) + pad * 2;
+  var view = {x:(x0 + x1) / 2 - side / 2, y:(y0 + y1) / 2 - side / 2, s:side};
+
+  return {cells:cells, fronds:fronds, links:links, total:total, cx:cx, cy:cy, view:view,
           known:cells.filter(function(c){ return c.box >= KNOWN_BOX; }).length,
           met:cells.filter(function(c){ return c.met; }).length};
 }
@@ -1915,7 +2041,8 @@ function renderNetwork(d){
      which ones she knows. Every shape below is hidden by hand and the whole
      thing says its numbers once. The <title>s stay — they are the hover
      tooltip, which is the only thing they are good for. */
-  var svg = '<svg class="net" viewBox="0 0 ' + NET_W + ' ' + NET_W + '" role="img" aria-label="'
+  var svg = '<svg class="net" viewBox="' + d.view.x.toFixed(1) + ' ' + d.view.y.toFixed(1)
+    + ' ' + d.view.s.toFixed(1) + ' ' + d.view.s.toFixed(1) + '" role="img" aria-label="'
     + 'A growing picture of her words, grouped by spelling pattern: '
     + d.met + ' met, ' + d.known + ' known well, ' + d.total + ' in all">';
 
@@ -1974,11 +2101,15 @@ function renderNetwork(d){
   svg += '</svg>';
 
   return '<div class="sect"><h2>What she knows</h2>' + svg
-    + '<div class="hint">Every word on her lists is here. They fill in and darken as '
-    + 'she learns them, and a word she is losing dims rather than disappearing. '
-    + 'Each frond is one spelling pattern; the hairlines join words that share a '
-    + 'chunk — <b>or</b> is what morning, sorted and report have in common. '
-    + d.met + ' met, <b>' + d.known + ' known well</b>, ' + d.total + ' in all.</div></div>';
+    + '<div class="hint">Every word she has met is here, and the next few days’ worth '
+    + 'of new ones as faint outlines. The rest of her lists are not drawn until she '
+    + 'is close to them: a hundred empty outlines says more about how far there is to '
+    + 'go than about her. '
+    + 'They fill in and darken as she learns them, and a word she is losing dims '
+    + 'rather than disappearing. Each frond is one spelling pattern; the hairlines '
+    + 'join words that share a chunk — <b>or</b> is what morning, sorted and report '
+    + 'have in common. ' + d.met + ' met, <b>' + d.known + ' known well</b>, '
+    + d.total + ' in all on her lists.</div></div>';
 }
 
 var _toastT = null;
@@ -2204,7 +2335,11 @@ loadClips(); render(); },
                                      requeue:W.requeue.slice()}; },
   go: go, screen: function(){ return screen; },
   BOX_DAYS: BOX_DAYS, MAX_BOX: MAX_BOX, KNOWN_BOX: KNOWN_BOX,
-  ACQUIRING_CAP: ACQUIRING_CAP, SEED_NEW: SEED_NEW, sessionWords: sessionWords
+  ACQUIRING_CAP: ACQUIRING_CAP, SEED_NEW: SEED_NEW, sessionWords: sessionWords,
+  // The map: how far the outlines reach, and the one outline every word carries
+  // — the dots on her word screen are the same shapes from the same function.
+  ghostAhead: ghostAhead, ghostWords: function(){ return Object.keys(ghostWords()); },
+  cellPath: cellPath, dotShape: dotShape
 };
 
 /* ---- boot: she opens the app and is on a word ---- */

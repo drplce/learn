@@ -1181,6 +1181,125 @@ test.describe('the progress dots', () => {
       expect(shaved, `at ${scale}x`).toBeLessThanOrEqual(0);
     }
   });
+
+  // The row used to be circles. Each dot is now the outline that word carries on
+  // the map on the grown-ups screen, so the row is a handful of the things she is
+  // collecting rather than a progress bar in pieces.
+  test('each dot is the outline of the word it stands for', async ({page}) => {
+    await open(page, '2026-08-01');
+    await startOn(page, ['because','friend','thought']);
+    const m = await page.evaluate(() => {
+      const a = window.__acorn, words = a.session().words;
+      return [...document.querySelectorAll('.dots i')].map((i, k) => {
+        const s = a.dotShape(words[k]);
+        return {word: words[k], d: i.querySelector('path').getAttribute('d'),
+                want: a.cellPath(words[k], s.x, s.y, s.r)};
+      });
+    });
+    expect(m.length).toBe(3);
+    // Dot k is the word at k, out of the same function the map draws with.
+    m.forEach(d => expect(d.d, d.word).toBe(d.want));
+    expect(new Set(m.map(d => d.d)).size, 'each word its own outline').toBe(m.length);
+    expect(await page.locator('.dots circle').count()).toBe(0);
+    m.forEach(d => expect(d.d, 'nothing in it is a straight edge').toMatch(/^M[-\d. ]+Q/));
+    // Decoration: the real progress is announced elsewhere.
+    expect(await page.locator('.dots').getAttribute('aria-hidden')).toBe('true');
+  });
+
+  test('the dot for a word is the shape that word has on her map', async ({page}) => {
+    await open(page, '2026-08-01');
+    await startOn(page, ['because','friend','thought']);
+    const dot = await page.evaluate(() => ({
+      word: window.__acorn.session().words[0],
+      d: document.querySelector('.dots i path').getAttribute('d')}));
+    await page.evaluate(() => window.__acorn.go('parent'));
+    const cell = await page.evaluate(w => {
+      const c = [...document.querySelectorAll('.net-cell')]
+        .find(c => c.querySelector('title').textContent === w);
+      return c && c.getAttribute('d');
+    }, dot.word);
+    expect(cell).toBeTruthy();
+    // The same outline at a different size and place: normalise both to their own
+    // width and they land on each other.
+    const norm = d => {
+      const n = d.match(/-?\d+(?:\.\d+)?/g).map(Number);
+      const xs = n.filter((_, i) => i % 2 === 0), ys = n.filter((_, i) => i % 2 === 1);
+      const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+      const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+      const s = Math.max(...xs) - Math.min(...xs);
+      return n.map((v, i) => (i % 2 ? v - cy : v - cx) / s);
+    };
+    const a = norm(dot.d), b = norm(cell);
+    expect(a.length).toBe(b.length);
+    a.forEach((v, i) => expect(Math.abs(v - b[i]), dot.word + ' point ' + i).toBeLessThan(0.02));
+  });
+
+  test('the dots vary a little in size and spacing, the same way every time', async ({page}) => {
+    await open(page, '2026-08-01');
+    // Nine words of every length the app can serve, all due, so the row is as
+    // long and as varied as it will ever be.
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      const words = ['go','said','light','friend','thought','together','beautiful',
+                     'government','jewellery'], m = {};
+      words.forEach(w => m[w] = {right:3, wrong:0, box:3, lastSeen:'2026-07-20'});
+      a.state.words.lists = [{id:'w1', name:'T', words}];
+      a.state.words.activeId = 'w1'; a.state.words.mastery = m;
+      a.state.words.sessions = [1, 2, 3, 4, 5].map(i =>
+        ({date:'2026-07-2' + i, list:'w1', words:8, firstTime:8}));
+      a.save(); a.start();
+    });
+    const read = () => page.evaluate(() => [...document.querySelectorAll('.dots i')].map(i => ({
+      r: Number(i.dataset.r), x: Number(i.dataset.x),
+      // offsetWidth, so the scaled current dot is measured as it is laid out: the
+      // box is the same for every dot and only what is drawn inside it differs.
+      box: i.offsetWidth,
+      paint: Math.round(i.querySelector('path').getBBox().width * 100) / 100})));
+    const first = await read();
+    expect(first.length).toBe(9);
+    const rs = first.map(d => d.r);
+    // Subtle: texture, not a ranking of her words by length.
+    expect(Math.max(...rs) / Math.min(...rs), 'the sizes shout').toBeLessThan(1.25);
+    expect(new Set(rs).size, 'they are not all the same size either').toBeGreaterThan(2);
+    // Drawn, the band is a little wider than that: an outline that wanders is
+    // wider than one that does not, whatever radius it was given.
+    expect(Math.max(...first.map(d => d.paint)) / Math.min(...first.map(d => d.paint)))
+      .toBeLessThan(1.35);
+    // Spacing: every dot sits a little off centre in its box, and no two the same.
+    const xs = first.map(d => d.x);
+    expect(new Set(xs).size).toBe(xs.length);
+    xs.forEach(x => expect(Math.abs(x - 10)).toBeLessThan(2.6));
+    // The boxes are identical, which is what stops the row reflowing.
+    expect(new Set(first.map(d => d.box)).size).toBe(1);
+    // And it is the same row on the next render, and after a reload.
+    await page.evaluate(() => window.__acorn.cover());
+    expect(await read()).toEqual(first);
+    await page.reload();
+    await page.waitForFunction(() => !!window.__acorn);
+    await page.evaluate(() => window.__acorn.setToday('2026-08-01'));
+    expect(await read()).toEqual(first);
+  });
+
+  test('the row keeps its width through the stages of a word', async ({page}) => {
+    await open(page, '2026-08-01');
+    await startOn(page, ['because','friend','thought']);
+    const width = () => page.evaluate(() => {
+      const is = [...document.querySelectorAll('.dots i')], last = is[is.length - 1];
+      return {row: Math.round(document.querySelector('.dots').getBoundingClientRect().width),
+              // Laid-out positions, so the scaled current dot moving along the row
+              // cannot flatter the measurement.
+              span: last.offsetLeft + last.offsetWidth - is[0].offsetLeft,
+              left: is[0].offsetLeft};
+    });
+    const look = await width();
+    await page.locator('#cover').click();
+    expect(await width(), 'covering the word moved the row').toEqual(look);
+    await page.locator('#type').fill('because');
+    await page.locator('#check').click();
+    expect(await width(), 'checking it moved the row').toEqual(look);
+    await page.locator('#next').click();
+    expect(await width(), 'the next word moved the row').toEqual(look);
+  });
 });
 
 test.describe('the header at every text size', () => {
