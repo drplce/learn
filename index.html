@@ -455,7 +455,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '10.3';
+var VERSION = '10.4';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2026,7 +2026,14 @@ function renderWord(){
          + sylRow
          // Words first, then what happens next, then the buttons — so what she
          // reads runs top to bottom without a button interrupting it.
-         + (!ok ? '<div class="note">You’ll see this one again in a moment.</div>' : '');
+         /* Only when it is true. This said "in a moment" for every miss, including
+            the last attempt at the last word of the sitting, where the button beside
+            it already says Finish and nothing is requeued — driven for real, she was
+            told she would see it again and then the sitting ended. A missed word
+            drops to box 1 and is due at once, so "soon" is the honest version of the
+            same reassurance. */
+         + (!ok ? '<div class="note">You’ll see this one again '
+                + (W.requeue.indexOf(w) >= 0 ? 'in a moment' : 'soon') + '.</div>' : '');
     act = hear + '<button class="primary" id="next">' + (more ? 'Next word' : 'Finish') + '</button>';
   }
 
@@ -2063,8 +2070,18 @@ function renderDone(){
      recorded in both lists — so counting them separately told her "10 more took root"
      when five shapes had changed. What she is being told is how many words moved, and
      a word moves once. */
-  var t = tonight(), grew = t.fresh.concat(t.grew.filter(function(w){
-    return t.fresh.indexOf(w) < 0; }));
+  /* A word she met tonight and never once got right has not taken root. tonight()
+     records meeting it, which is true and is why a new shape appears on her map —
+     but the line above the map is a claim about learning, and it was making that
+     claim on the strength of having been shown the word. Driven for real: a sitting
+     where every answer was wrong still said "Three took root tonight." The evening
+     she struggled is the worst possible evening to be told something she knows is
+     not so. A fresh word has no history, so its right count is tonight's: one
+     correct answer, at any point today, is the whole test. The shape still appears;
+     it just does not flourish or count until she has actually got it, which puts
+     the flourish on the evening that earned it. */
+  var t = tonight(), got = t.fresh.filter(function(w){ return mastery(w).right > 0; });
+  var grew = got.concat(t.grew.filter(function(w){ return got.indexOf(w) < 0; }));
   var net = canPractise ? networkData() : null;
   /* A grown-up who has left her on an empty list has given her a dead end, and that
      is the one thing this screen has to say instead of anything else — stripping the
@@ -2184,8 +2201,12 @@ function renderParent(){
       // "how many does she know well?".
     + '<div class="sect"><h2>Progress</h2><div class="stats">'
     +   '<div class="stat"><b>' + (net ? net.known : 0) + '</b><span>known well</span></div>'
-    +   '<div class="stat"><b>' + (net ? net.met : 0) + '</b><span>words met</span></div>'
-    +   '<div class="stat"><b>' + S.words.sessions.length + '</b><span>sessions</span></div>'
+    /* "1 words met" and "1 sessions" — both read wrong on the one day of the year
+       they can, which is her first. "known well" carries no noun and needs none. */
+    +   '<div class="stat"><b>' + (net ? net.met : 0) + '</b><span>'
+    +     ((net ? net.met : 0) === 1 ? 'word met' : 'words met') + '</span></div>'
+    +   '<div class="stat"><b>' + S.words.sessions.length + '</b><span>'
+    +     (S.words.sessions.length === 1 ? 'sitting' : 'sittings') + '</span></div>'
     + '</div>'
     + '<div class="hint">' + esc(paceLabel()) + '. The pace follows her over her last five '
     + 'sessions: above 85% right first time she gets a nine-word sitting and up to three new '
