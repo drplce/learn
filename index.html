@@ -361,7 +361,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '7.8';
+var VERSION = '7.9';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -802,10 +802,28 @@ function wordsOf(list){
   if(!list) return [];
   return Array.isArray(list.words) ? list.words.slice() : Object.keys(list.words);
 }
+/* iOS Smart Punctuation is on by default and a web page cannot turn it off —
+   autocorrect="off" does not touch it — so the box she types in gets a curly ’
+   whether anyone wants one or not. A list pasted out of a newsletter or a Word
+   document brings the same characters in from the other end. Both are tidied to
+   the plain ones the word lists use, so she is never marked wrong for what her
+   keyboard did, and never taught "dont" because a paste dropped the apostrophe
+   instead of fixing it. */
+function tidyPunct(text){
+  return String(text == null ? '' : text)
+    .replace(/[\u2018\u2019\u201A\u201B\u2032\u00B4`]/g, "'")
+    // Hyphen substitutes only. An em dash is punctuation between words, never a
+    // hyphen inside one, so it is left to be treated as a separator.
+    .replace(/[\u2010\u2011\u2012\u2013\u2212]/g, '-');
+}
+// Reading her answer, be generous about which dash came out: typing "--" on a
+// phone puts an em dash in the box. Reading a pasted list, an em dash is a
+// separator between words, so it is not folded there.
+function tidyTyped(text){ return tidyPunct(text).replace(/[\u2014\u2015]/g, '-'); }
 // Whatever the school sends: commas, new lines, numbering, stray bullets.
 function parseWordList(text){
-  return String(text || '')
-    .split(/[\s,;]+/)
+  return tidyPunct(text)
+    .split(/[\s,;\u2014\u2015]+/)
     .map(function(w){
       return w.replace(/^[\d]+[.)]?/, '')
               .replace(/[^A-Za-z'\-]/g, '')
@@ -1127,7 +1145,9 @@ function buildSession(list, today){
    dropped letter doesn't mark the whole word wrong.
    ========================================================= */
 function matched(attempt, target){
-  var a = String(attempt||'').toLowerCase(), b = String(target||'').toLowerCase();
+  // Tidied on both sides, so the marking lines up on what she meant to type
+  // rather than on which apostrophe her phone chose.
+  var a = tidyTyped(attempt).toLowerCase(), b = tidyTyped(target).toLowerCase();
   var n = a.length, m = b.length, dp = [], i, j;
   for(i = 0; i <= n; i++){ dp.push(new Array(m+1).fill(0)); }
   for(i = 1; i <= n; i++)
@@ -1142,7 +1162,9 @@ function matched(attempt, target){
   }
   return {hit:hit, count:count};
 }
-function sameWord(a, b){ return String(a||'').trim().toLowerCase() === String(b||'').trim().toLowerCase(); }
+function sameWord(a, b){
+  return tidyTyped(a).trim().toLowerCase() === tidyTyped(b).trim().toLowerCase();
+}
 
 /* =========================================================
    8. A practice session.
@@ -1437,7 +1459,34 @@ function render(){
   if(screen === 'parent') renderParent();
   else if(W) renderWord();
   else renderDone();
+  fitScreen();
   restoreFocus();
+}
+
+/* main scrolls inside itself, so anything that does not fit is quietly cut in
+   half rather than pushed onto a second screen — and a screen that looks
+   finished is not one a nine-year-old thinks to scroll. On a 375px phone at the
+   largest text that was cutting "You'll see this one again in a moment." after
+   "again"; on a 320px one it took the syllable pieces with it, which are the
+   most useful thing on that screen.
+
+   So: measure, and drop the least useful thing until the rest fits. Measured
+   here rather than declared in a media query, because rem in a media query
+   resolves against the initial font size and not the size she chose. It runs
+   inside the same task as the render, so nothing is ever painted and then taken
+   away. */
+function fitScreen(){
+  if(screen === 'parent') return;              // a long page there is fine
+  var m = el('#screen');
+  if(!m) return;
+  // Least useful first. The word and its pieces are the lesson and never go; on
+  // her finished screen the count is the point of the screen, so the bar and the
+  // tick go before it. What is dropped is still announced either way.
+  var order = W ? ['.note', '.dots', '.verdict'] : ['.pbar', '.tick', '.note'];
+  for(var i = 0; i < order.length && m.scrollHeight > m.clientHeight + 1; i++){
+    var n = m.querySelector(order[i]);
+    if(n) n.style.display = 'none';
+  }
 }
 // Focus follows the render: the spelling box when there is one, otherwise the
 // action, otherwise whatever the first control is — the finished screen offers
