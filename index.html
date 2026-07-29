@@ -229,8 +229,14 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 @media (prefers-color-scheme:dark){ .syl{color:var(--ink);} }
 .syl:active{border-color:var(--acc);}
 
+/* overflow-wrap:anywhere because the praise carries her name, and a name with no
+   break in it had nowhere to wrap: measured at 320px and her largest text, forty
+   unbroken characters ran straight out of the 269px box. "Bartholomew-Wilhelmina" is
+   fine — the hyphen is a break — so it takes something pasted or hammered into the
+   name field to do it, which is exactly the case nothing else was catching. The word
+   she is spelling has had this since it was written. */
 .note{text-align:center; color:var(--ink-soft); margin:var(--s4) 0 0; font-size:var(--t-md);
-      max-width:32ch; margin-left:auto; margin-right:auto;}
+      max-width:32ch; margin-left:auto; margin-right:auto; overflow-wrap:anywhere;}
 /* Quieter than the instruction above it but not soft-grey: this is the only
    thing telling her which of two real words is wanted, so it stays on --ink at
    full contrast and the meaning itself is the bold part. */
@@ -454,7 +460,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '11.2';
+var VERSION = '11.3';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -547,6 +553,13 @@ function load(){
       S.words.lists.forEach(function(l){
         if(l && l.words && typeof l.words === 'object' && !Array.isArray(l.words)) l.words = bare(l.words);
       });
+      /* A first name, and nothing else. There is no cap on the field, so a hand-edited
+         backup or a child with the phone can put any length in here, and it is rendered
+         into the praise she reads. The wrap above stops it breaking the layout; this
+         stops it being absurd in the first place. Trimmed, because " Ivy " should not
+         come back as a name with spaces round it. */
+      if(typeof S.profile.name !== 'string') S.profile.name = '';
+      S.profile.name = S.profile.name.trim().slice(0, 32);
       S.settings = saneSettings(S.settings);
       return;
     }
@@ -2303,8 +2316,12 @@ function renderParent(){
 
     + '<div class="sect"><h2>Her name</h2>'
     +   '<div class="field"><label for="pname">First name</label>'
+    /* maxlength, because the typed path writes straight to state and only load() bounds
+       it — so a name typed in today stayed however long it was until the next reload,
+       and past about forty characters the praise it appears in was shed off the finished
+       screen altogether, leaving her nothing. 32 is generous for a first name. */
     +     '<input type="text" id="pname" value="' + esc(S.profile.name || '') + '" '
-    +     'placeholder="First name" autocomplete="off" autocapitalize="words">'
+    +     'maxlength="32" placeholder="First name" autocomplete="off" autocapitalize="words">'
     +     '<div class="hint">Used for a little encouragement. Stored only on this device — it is never '
     +     'in the app’s code.</div></div></div>'
 
