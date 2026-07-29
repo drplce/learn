@@ -35,9 +35,23 @@ below) and then removed to keep the app to one thing; they are preserved in
 - Testing grew a third leg: `tests/sim.js` simulates the real engine against a
   cohort of learners, because simulation caught defects the unit tests did not.
 
-**Still open:** §3a private-repo sync, §5B maths, and interleaving spelling
-patterns once a pattern is established (currently every list is practised on its
-own).
+**Still open:** §3a private-repo sync, §5B maths.
+
+**Interleaving spelling patterns: already done, and measured.** This was listed as
+open on the grounds that "every list is practised on its own". It is not, and has not
+been since `metWords()` started spanning every word she has met. Over 40 simulated
+days, 25 sittings drew on more than one spelling pattern — the first at day 14, the
+moment she had words from two of them — and by day 22 a sitting was 7 words of one
+pattern and 1 of another. Review interleaves across everything she knows.
+
+What stays blocked is the *introduction* of new words: they come in corpus order,
+walking forward from the list she is on, so she meets one pattern at a time. That is
+the right way round — interleaving helps retrieval and discrimination, blocking helps
+acquisition, and nobody teaches a dyslexic nine-year-old two new patterns at once. The
+one exception is a list boundary, where the intake spills into the next pattern rather
+than stalling her on the last word of the old one; measured, one word from `easy` and
+two from `tricky` in the same sitting. Both properties are pinned by
+`tests/interleaving.spec.js`.
 
 ---
 
