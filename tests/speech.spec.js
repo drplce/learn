@@ -331,12 +331,15 @@ test.describe('what she hears', () => {
         a.next();
       }
     });
-    await expect(page.locator('.headline')).toHaveText(/first go|All done/);
+    // The praise is the quiet line under her words now; the headline is what tonight did.
+    await expect(page.locator('#screen')).toContainText(/first go|All done/);
     const spoken = await page.evaluate(() => (window.__spoken || []).map(u => u.text.trim()));
     // Only words, never a sentence. Nothing spoken carries her name or the praise.
     expect(spoken.filter(t => !['rain', 'boat'].includes(t)),
            'something other than a word was read aloud').toEqual([]);
-    const head = await page.locator('.headline').textContent();
+    const head = (await page.locator('.cheer').count())
+      ? await page.locator('.cheer').textContent()
+      : await page.locator('.headline').textContent();
     expect(spoken).not.toContain(head.trim());
     // It is still shown, and a screen reader is still told through the live region.
     expect(head).toMatch(/first go|All done/);

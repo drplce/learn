@@ -14,8 +14,8 @@
      for apple-touch-icon, so the tile has to be a real PNG next to this page — and
      it has to be fully opaque, because iOS composites transparency to black and
      applies its own rounded mask, so square corners and no alpha channel.
-     It is her word map: five word-shapes from her own lists, one of them left as an
-     outline, which is what the map looks like part-way through.
+     It is the mark from her header, drawn as an outline: the same three lobes, the
+     same accent green, hollow instead of filled.
      iOS snapshots this when the shortcut is created and never re-fetches it, so
      changing it here does nothing to a phone that already has the app on its Home
      Screen — that needs the shortcut deleted and added again. -->
@@ -166,10 +166,6 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 .mark::after{content:""; position:absolute; left:50%; top:50%; width:var(--tap); height:var(--tap);
              transform:translate(-50%,-50%);}
 .bar .sp{flex:1;}
-.daybar{flex:none; width:5.5rem; height:var(--s1); border-radius:var(--r-pill);
-        background:var(--line); overflow:hidden;}
-.daybar i{display:block; height:100%; background:var(--acc); border-radius:var(--r-pill);
-          transition:width .4s var(--ease);}
 .back{display:inline-flex; align-items:center; gap:var(--s2); min-height:var(--tap);
       padding-right:var(--s3); border-radius:var(--r-md); font-size:var(--t-md);
       font-weight:600; color:var(--ink-soft); white-space:nowrap;}
@@ -255,8 +251,10 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 :root[data-stage=done] main > :first-child{margin-top:0;}
 :root[data-stage=done] main > :last-child{margin-bottom:0;}
 .donenet{flex:1; min-height:0; display:flex; align-items:center; justify-content:center;
-         margin:var(--s3) 0;}
-.donenet .net{margin:0; max-height:100%;}
+         margin:var(--s4) 0;}
+/* The picture takes the room that is there. width:100% alone left it as tall as it was
+   wide and no taller, which on a phone wasted the whole middle of the screen. */
+.donenet .net{margin:0; width:100%; height:100%; max-height:100%;}
 .doneend{flex:none;}
 .tally{text-align:center; color:var(--ink-soft); font-size:var(--t-sm); margin-top:var(--s1);}
 /* Tonight's words arrive: a speck that swells and fills. */
@@ -432,7 +430,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '9.5';
+var VERSION = '9.7';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1583,9 +1581,13 @@ function fitViewport(){
     }
   }
   if(!_kbInset && S && S.settings) _kbInset = Number(S.settings.kbInset) || 0;
-  // Reserved on her screens only: on the grown-ups screen a band of dead space
-  // would just get in the way of a long page.
-  if(_kbInset && screen !== 'parent') h = Math.min(h, Math.max(200, full - _kbInset));
+  /* Reserved only while she is on a word, which is the only time the keyboard is
+     coming back. On the grown-ups screen a band of dead space gets in the way of a
+     long page — and on the finished screen it left the whole app ending two thirds
+     up the phone, with her picture squeezed into the middle of it and the way on
+     stranded above an inch of nothing. There is no keyboard on that screen and
+     nothing to hold still for. */
+  if(_kbInset && W && screen === 'day') h = Math.min(h, Math.max(200, full - _kbInset));
   r.style.setProperty('--vh', h + 'px');
   var em = parseFloat(getComputedStyle(r).fontSize) || 16;
   // 22em is what the writing screen needs with everything on it; 13em is what it
@@ -1757,13 +1759,12 @@ function markSvg(){
 }
 var MARK = markSvg();
 
-// Her header: the mark (press and hold for grown-ups) and today's progress.
-function header(done, total){
-  var bar = (done != null && total)
-    ? '<span class="daybar" role="img" aria-label="' + done + ' of ' + total + ' words done">'
-      + '<i style="width:' + Math.round(100 * Math.min(done, total) / total) + '%"></i></span>' : '';
-  el('#bar').innerHTML = '<h1 class="wordmark mark" id="wordmark">' + MARK
-                       + '</h1><span class="sp"></span>' + bar;
+/* Her header: the mark, and nothing else. There was a thin bar in the corner saying
+   how far through the sitting she was, which is exactly what the row of shapes above
+   her word already says, in a place she is actually looking. Two gauges for one fact
+   is one too many, and the quieter one was the one she never looked at. */
+function header(){
+  el('#bar').innerHTML = '<h1 class="wordmark mark" id="wordmark">' + MARK + '</h1>';
 }
 
 /* The row above her word is her own words, not a row of circles: dot k is the
@@ -1789,7 +1790,7 @@ function dotShape(w){
 
 function renderWord(){
   var w = word(), parts = splitOf(w), done = W.done.length;
-  header(done, W.plan);
+  header();
 
   // One dot per word the sitting set out to cover, filled as each is finished.
   var dots = '<div class="dots" aria-hidden="true">';
@@ -1896,26 +1897,34 @@ function renderDone(){
      fixed rows — the line at the top, the picture in a window that is the same size
      whatever she knows, the count at the bottom — so nothing moves as her map grows
      over the months. */
-  var t = tonight(), grew = t.fresh.concat(t.grew);
+  /* Met tonight and climbed tonight are the same event for a brand-new word — it is
+     recorded in both lists — so counting them separately told her "10 more took root"
+     when five shapes had changed. What she is being told is how many words moved, and
+     a word moves once. */
+  var t = tonight(), grew = t.fresh.concat(t.grew.filter(function(w){
+    return t.fresh.indexOf(w) < 0; }));
   var net = canPractise ? networkData() : null;
-  var line = grew.length ? said(grew.length) + ' more took root tonight.' : count;
+  /* A grown-up who has left her on an empty list has given her a dead end, and that
+     is the one thing this screen has to say instead of anything else — stripping the
+     totals off it took that message with them the first time. */
+  var line = !canPractise ? count
+    : grew.length ? said(grew.length) + ' more took root tonight.'
+    : head;
   header();
   announce(head + ' ' + count);
+  /* The picture does the talking. What was here — a heading, the picture, tonight's
+     line, a running total and a progress bar — was five things saying versions of the
+     same thing, and the bar in particular reads as a target she has not reached rather
+     than as work she has done. So: what tonight did, at the top, her words underneath
+     it, and the praise beneath them when she has earned it. The totals belong to a
+     grown-up and are on the grown-ups screen; a screen reader still hears where she is
+     up to, because that is announced. */
   el('#screen').innerHTML =
-      '<h2 class="headline' + (saying ? ' cheer' : '') + '">' + esc(head) + '</h2>'
+      '<h2 class="headline">' + esc(line) + '</h2>'
     + (net ? '<div class="donenet">' + renderNetwork(net, true) + '</div>'
            : '<div class="tick" aria-hidden="true">✓</div>')
-    /* Two lines, not one. Tonight is what she wants to know and the total is what
-       tells her it is going somewhere — dropping the total left the bar underneath it
-       with no number to mean anything. When nothing moved, tonight's line is the
-       total and there is no point saying it twice. */
-    + '<div class="doneend"><div class="note">' + esc(line) + '</div>'
-    + (canPractise
-        ? (line === count ? ''
-             : '<div class="tally">' + esc(count) + '</div>')
-          + '<div class="pbar" role="img" aria-label="' + pct + ' per cent of her words known well">'
-          + '<i style="width:' + pct + '%"></i></div>'
-        : '')
+    + '<div class="doneend">'
+    + (saying && line !== head ? '<div class="note cheer">' + esc(head) + '</div>' : '')
     + '</div>';
   el('#act').innerHTML = canPractise
     ? '<button class="quiet" id="again">Practise a bit more</button>' : '';

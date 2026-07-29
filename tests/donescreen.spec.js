@@ -52,7 +52,7 @@ test.describe('the screen at the end of a sitting', () => {
         a.state.words.sessions = [{date:'2026-08-01', list:a.activeList().id, asked:k, words:k,
                                    firstTime:k, fresh:all.slice(0, k), grew:[], slipped:[]}];
         a.save(); a.go('parent'); a.go('day');
-        return (document.querySelector('.note') || {}).textContent;
+        return (document.querySelector('.headline') || {}).textContent;
       }, n);
       // Past nine the digit reads more easily, and it must never fall off the end of
       // the list — a long evening once told her "undefined more took root tonight".
@@ -60,17 +60,46 @@ test.describe('the screen at the end of a sitting', () => {
     }
   });
 
-  test('a sitting that moved nothing says where she is up to instead', async ({page}) => {
+  test('a sitting that moved nothing just says she is done', async ({page}) => {
     await open(page, '2026-08-01');
-    const line = await page.evaluate(() => {
+    const out = await page.evaluate(() => {
       const a = window.__acorn;
       a.reset(); a.setToday('2026-08-01');
       a.state.words.sessions = [{date:'2026-08-01', list:a.activeList().id, asked:8, words:8,
                                  firstTime:8, fresh:[], grew:[], slipped:[]}];
       a.save(); a.go('parent'); a.go('day');
-      return (document.querySelector('.note') || {}).textContent;
+      return {head: (document.querySelector('.headline') || {}).textContent,
+              screen: document.querySelector('#screen').innerText,
+              said: document.querySelector('#say').textContent};
     });
-    expect(line).toMatch(/of \d+ words known well/);
+    // No invented growth, and no number she has to parse.
+    expect(out.head).toMatch(/All done for today|first go/);
+    expect(out.screen).not.toMatch(/took root/);
+    expect(out.screen).not.toMatch(/known well/);
+    // Where she is up to is still there for a screen reader.
+    expect(out.said).toMatch(/of \d+ words known well/);
+  });
+
+  /* Met tonight and climbed tonight are the same event for a brand-new word, and it
+     is recorded in both lists — so counting them separately told her "10 more took
+     root" when five shapes had changed. */
+  test('the number matches the shapes that changed', async ({page}) => {
+    await open(page, '2026-08-01');
+    await sit(page, ['rain', 'boat', 'said', 'went']);
+    const out = await page.evaluate(() => {
+      const n = document.querySelectorAll('#screen .net-cell.arriving').length;
+      const head = (document.querySelector('.headline') || {}).textContent || '';
+      const t = window.__acorn.tonight();
+      return {marked: n, head: head, fresh: t.fresh.length, grew: t.grew.length};
+    });
+    const said = out.head.match(/^(\w+) more took root/);
+    expect(said, 'unexpected wording: ' + out.head).not.toBeNull();
+    const WORDS = {One:1, Two:2, Three:3, Four:4, Five:5, Six:6, Seven:7, Eight:8, Nine:9};
+    const n = WORDS[said[1]] || Number(said[1]);
+    expect(n, 'the number is not the number of shapes that changed').toBe(out.marked);
+    // And a brand-new word is in both lists, which is where the double count came from.
+    expect(out.fresh + out.grew, 'this case should exercise the overlap')
+      .toBeGreaterThan(out.marked);
   });
 
   test('the flourish plays once, not on every render', async ({page}) => {

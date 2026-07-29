@@ -312,15 +312,15 @@ test.describe('progress on screen', () => {
     await open(page, '2026-07-28');
     await startOn(page, ['because','rain','boat','light']);
     const dots = await page.locator('.dots i').count();
-    const width = () => page.locator('.daybar i').evaluate(n => parseFloat(n.style.width));
-    const before = await width();
+    const filled = () => page.locator('.dots i.on').count();
+    const before = await filled();
     // miss the first word: it comes back later, so W.words grows
     await page.locator('#cover').click();
     await page.locator('#type').fill('zzzz');
     await page.locator('#check').click();
     await page.locator('#next').click();
     expect(await page.locator('.dots i').count()).toBe(dots);   // row did not grow
-    expect(await width()).toBeGreaterThanOrEqual(before);       // bar did not retreat
+    expect(await filled()).toBeGreaterThanOrEqual(before);      // and did not empty
   });
 
   test('progress counts words finished, not attempts made', async ({page}) => {
@@ -345,9 +345,10 @@ test.describe('progress on screen', () => {
       if(await page.locator('#cover').count()) await page.locator('#cover').click();
       await page.locator('#type').fill(w);
       await page.locator('#check').click();
-      const bar = await page.locator('.daybar i').count()
-        ? await page.locator('.daybar i').evaluate(n => parseFloat(n.style.width)) : 0;
-      expect(bar).toBeLessThanOrEqual(100);
+      const filled = await page.locator('.dots i.on').count();
+      const all = await page.locator('.dots i').count();
+      expect(filled).toBeLessThanOrEqual(all);
+
       await page.locator('#next').click();
     }
     expect(errorsOf(page)).toEqual([]);
@@ -364,9 +365,12 @@ test.describe('finishing', () => {
     // Three words, each shown once and then asked again from memory.
     expect(asked.length).toBe(6);
     expect([...new Set(asked)].sort()).toEqual(['boat','light','rain']);
-    // Her words rather than a tick: the picture is what says the sitting happened.
+    // Her words rather than a tick: the picture is what says the sitting happened,
+    // and the praise is the quiet line under it.
     await expect(page.locator('#screen .net')).toBeVisible();
-    await expect(page.locator('.headline')).toHaveText(/first go|All done/);
+    await expect(page.locator('#screen')).toContainText(/first go|All done/);
+    // The headline is what tonight did; the praise is the quiet line beneath her words.
+    await expect(page.locator('#screen')).toContainText(/first go|All done/);
     const s = await page.evaluate(() => window.__acorn.state.words.sessions);
     expect(s.length).toBe(1);
     expect(s[0]).toMatchObject({words:3, firstTime:3});
@@ -377,8 +381,12 @@ test.describe('finishing', () => {
     await open(page, '2026-07-28');
     await startOn(page, ['rain','boat']);
     await finishSession(page);
-    await expect(page.locator('.doneend')).toContainText(/of \d+ words known well/);
-    await expect(page.locator('.pbar')).toBeVisible();
+    /* The totals are a grown-up's business and live on the grown-ups screen. Hers says
+       what tonight did and shows her the words; a screen reader is still told where she
+       is up to, because that is announced. */
+    await expect(page.locator('#screen .net')).toBeVisible();
+    expect(await page.locator('#screen').innerText()).not.toMatch(/known well/);
+    expect(await page.locator('#say').textContent()).toMatch(/of \d+ words known well/);
   });
 
   test('she can choose to practise more', async ({page}) => {
@@ -999,7 +1007,7 @@ test.describe('the grown-ups area', () => {
     expect(await page.evaluate(() => window.__acorn.state.profile.name)).toBe('Harriet');
     await startOn(page, ['rain']);
     await finishSession(page);
-    await expect(page.locator('.headline')).toHaveText(/Harriet/);
+    await expect(page.locator('#screen')).toContainText(/Harriet/);
   });
 
   test('changing the list changes what she practises', async ({page}) => {
@@ -1105,7 +1113,9 @@ test.describe('how her screens use the room they have', () => {
   test('the word sits in the middle of the room, not clinging to the top', async ({page}) => {
     await open(page, '2026-08-01');
     await page.setViewportSize({width:393, height:750});     // a tall phone
-    for(const stage of STAGES){
+    // Her finished screen is deliberately not centred — it is three fixed rows, so
+    // that nothing moves as her map fills up. It gets its own check below.
+    for(const stage of STAGES.filter(x => x !== 'done')){
       await put(page, 1, stage);
       const m = await room(page);
       expect(m.overflows, stage).toBe(false);
@@ -1113,6 +1123,32 @@ test.describe('how her screens use the room they have', () => {
       expect(Math.abs(m.above - m.below), `${stage}: ${m.above} above, ${m.below} below`)
         .toBeLessThanOrEqual(12);
     }
+  });
+
+  /* And the finished screen uses the room instead of ending two thirds up the phone.
+     It did exactly that on hers: the keyboard's space stayed reserved on a screen with
+     no keyboard, so her picture was squeezed into the middle of a short app and the way
+     on was stranded above an inch of nothing. */
+  test('the finished screen uses the whole phone', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.setViewportSize({width:393, height:750});
+    // A sitting behind her, so the keyboard's height has been measured and stored.
+    await page.evaluate(() => {
+      window.__acorn.state.settings.kbInset = 336; window.__acorn.save();
+    });
+    await put(page, 1, 'done');
+    const m = await page.evaluate(() => {
+      const app = document.querySelector('#app').getBoundingClientRect();
+      const act = document.querySelector('#act').getBoundingClientRect();
+      const net = document.querySelector('#screen .net');
+      return {app: Math.round(app.height), inner: window.innerHeight,
+              actBottom: Math.round(app.bottom - act.bottom),
+              pic: net ? Math.round(net.getBoundingClientRect().height) : 0};
+    });
+    expect(m.app, 'the app stopped short of the screen').toBeGreaterThan(m.inner - 40);
+    expect(m.actBottom, 'the way on is not at the bottom').toBeLessThan(30);
+    // And the picture is worth looking at rather than a thumbnail.
+    expect(m.pic, 'her picture is ' + m.pic + 'px tall').toBeGreaterThan(220);
   });
 
   test('centring never hides the first line when there is too much', async ({page}) => {
@@ -1342,9 +1378,13 @@ test.describe('the header at every text size', () => {
       window.__acorn.save(); window.__acorn.go('day'); window.__acorn.start();
     });
     expect(await lineBoxes(page, '.wordmark')).toBe(1);
-    const bar = await page.locator('.daybar').boundingBox();
+    // One line, and the mark is the whole of it: the thin progress bar that used to
+    // sit beside it is gone, because the row of shapes above her word says the same
+    // thing where she is actually looking.
     const mark = await page.locator('.wordmark').boundingBox();
-    expect(bar.y).toBeLessThan(mark.y + mark.height);      // side by side, not stacked
+    const bar = await page.locator('.bar').boundingBox();
+    expect(mark.height).toBeLessThanOrEqual(bar.height);
+    expect(await page.locator('.bar .daybar').count()).toBe(0);
   });
 });
 
@@ -1433,16 +1473,19 @@ test.describe('the mark on her screens', () => {
         const r = s => { const q = document.querySelector(s).getBoundingClientRect();
                          return [Math.round(q.x), Math.round(q.y), Math.round(q.width),
                                  Math.round(q.height)].join(','); };
-        return {bar:r('.bar'), day:r('.daybar'), dots:r('.dots'), main:r('main')};
+        return {bar:r('.bar'), mark:r('.wordmark'), dots:r('.dots'), main:r('main')};
       }));
     }
-    // The bar's own box, and the progress bar's, are decided by the text size and
-    // by nothing the mark does: a mark wider than the word it replaced would push
-    // the progress bar along, and a taller one would push her word down.
+    // The header's own box is decided by the text size and by nothing the mark does:
+    // a taller mark would push her word down the screen.
     expect(seen.map(s => s.bar)).toEqual(['15,17,344,46', '17,17,341,51', '20,17,336,59',
                                           '22,17,331,66', '26,17,324,77']);
-    expect(seen.map(s => s.day)).toEqual(['276,38,84,4', '265,40,94,4', '248,44,108,5',
-                                          '231,47,122,6', '209,52,140,6']);
+    // And the mark sits at the top left of it at every size, square.
+    seen.forEach(function(x, i){
+      const m = x.mark.split(',').map(Number);
+      expect(m[0], 'mark x at ' + SCALES[i] + 'x').toBe(Number(x.bar.split(',')[0]));
+      expect(m[2], 'mark is square at ' + SCALES[i] + 'x').toBe(m[3]);
+    });
   });
 
   test('the same shape every render and every reload', async ({page}) => {
@@ -1918,7 +1961,9 @@ test.describe('the words she reads', () => {
     await startOn(page, ['rain']);
     await finishSession(page);
     // No name set: the greeting must still read as a sentence.
-    const bare = await page.locator('.headline').textContent();
+    const bare = (await page.locator('.cheer').count())
+      ? await page.locator('.cheer').textContent()
+      : await page.locator('.headline').textContent();
     expect(bare).not.toContain('{n}');
     expect(bare).toMatch(/^(Every one, first go|All done)\.$/);
   });
@@ -1951,7 +1996,9 @@ test.describe('what a screen reader is told', () => {
     await startOn(page, ['because','rain','boat']);
     // A second live region competes with the one that matters. This is a
     // progress indicator, not a status message.
-    await expect(page.locator('.daybar')).toHaveAttribute('role', 'img');
+    // The row of shapes is the only gauge now, and it is decoration to a screen
+    // reader: the verdict is what matters and it must not be competed with.
+    await expect(page.locator('.dots')).toHaveAttribute('aria-hidden', 'true');
     const live = await page.evaluate(() =>
       [...document.querySelectorAll('#app [aria-live], #app [role=status], #app [role=alert]')]
         .map(n => n.id || n.className));
@@ -1974,7 +2021,7 @@ test.describe('what a screen reader is told', () => {
     await open(page, '2026-08-01');
     await startOn(page, ['rain']);
     await finishSession(page);
-    const note = await page.locator('.doneend').innerText();
+    const note = await page.locator('#say').textContent();
     const m = note.match(/(\d+) of (\d+) (word|words) known well/);
     expect(m, 'unexpected wording: ' + note).not.toBeNull();
     expect(m[3]).toBe(Number(m[2]) === 1 ? 'word' : 'words');
@@ -2104,8 +2151,9 @@ test.describe('reachable without a touchscreen', () => {
     await open(page, '2026-07-28');
     await startOn(page, ['rain','boat']);
     await finishSession(page);
+    // Announced, not printed: her screen shows the words themselves.
     expect(await page.locator('#say').textContent()).toMatch(/words known well/);
-    await expect(page.locator('.pbar')).toHaveAttribute('aria-label', /per cent of her words/);
+    await expect(page.locator('#screen .net')).toBeVisible();
   });
 });
 
