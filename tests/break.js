@@ -92,15 +92,27 @@ async function main(){
       await page.locator('#type').fill(v);
       await page.locator('#check').click();
       if(!await alive(page)){ bad('answer ' + JSON.stringify(v.slice(0, 20)), 'blank screen'); break; }
+      /* Either she gets a verdict and moves on, or the answer had no letters in it at
+         all and is treated as the fumble it is: the toast asks her to have a go, the
+         box keeps what she typed so she can fix it, and the word costs her nothing.
+         Emoji land here, which is right — three smileys are not a spelling attempt,
+         and marking them a miss would drop her box for playing. */
+      const letters = /[a-zA-Z]/.test(v);
       if(await page.locator('#next').count()){
+        if(!letters) bad('answer ' + JSON.stringify(v.slice(0, 20)),
+                         'no letters in it, but it was marked as an attempt');
         await page.locator('#next').click();
         if(await page.locator('#cover').count()) await page.locator('#cover').click();
-      }else if(v.trim()){
+      }else if(letters){
         bad('answer ' + JSON.stringify(v.slice(0, 20)), 'was accepted but offered no way on');
       }else{
-        // blank: she should still be on the same word, untouched
+        // No letters: same word, untouched, and told what to do.
         const after = await page.evaluate(() => window.__acorn.session().i);
-        if(after !== before) bad('blank answer', 'moved her on anyway');
+        if(after !== before) bad('answer ' + JSON.stringify(v.slice(0, 20)), 'moved her on anyway');
+        const said = await page.evaluate(() => (document.querySelector('#toast')||{}).textContent || '');
+        if(!/Have a go/.test(said))
+          bad('answer ' + JSON.stringify(v.slice(0, 20)), 'nothing told her to try again');
+        await page.locator('#type').fill('');
       }
     }
     if(await page.evaluate(() => window.__pwned)) bad('script in the answer box', 'executed');

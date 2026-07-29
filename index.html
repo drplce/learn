@@ -454,7 +454,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '10.9';
+var VERSION = '11.0';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1027,6 +1027,16 @@ function tidyPunct(text){
 // phone puts an em dash in the box. Reading a pasted list, an em dash is a
 // separator between words, so it is not folded there.
 function tidyTyped(text){ return tidyPunct(text).replace(/[\u2014\u2015]/g, '-'); }
+/* Her answer, with the phone's punctuation taken off the ends. Typed for real on an
+   iPhone, "said." was marked wrong and her box for the word dropped from 2 to 1 — a
+   double-tapped space inserts ". " on iOS and the comma key sits against the space bar,
+   so she was penalised for a keystroke she did not mean on a word she had spelled
+   correctly. Only the ends, so "sa id" stays wrong, and apostrophes and hyphens survive
+   because a target word can contain them: parseWordList keeps both. */
+function typedLetters(text){
+  return tidyTyped(text).trim().toLowerCase()
+    .replace(/^[^a-z'-]+/, '').replace(/[^a-z'-]+$/, '');
+}
 // Whatever the school sends: commas, new lines, numbering, stray bullets.
 function parseWordList(text){
   return tidyPunct(text)
@@ -1468,7 +1478,9 @@ function buildSession(list, today){
 function matched(attempt, target){
   // Tidied on both sides, so the marking lines up on what she meant to type
   // rather than on which apostrophe her phone chose.
-  var a = tidyTyped(attempt).toLowerCase(), b = tidyTyped(target).toLowerCase();
+  // The same letters sameWord judged, so the marking lines up with the verdict rather
+  // than counting a stray full stop as a letter she added.
+  var a = typedLetters(attempt), b = typedLetters(target);
   var n = a.length, m = b.length, dp = [], i, j;
   for(i = 0; i <= n; i++){ dp.push(new Array(m+1).fill(0)); }
   for(i = 1; i <= n; i++)
@@ -1484,7 +1496,7 @@ function matched(attempt, target){
   return {hit:hit, count:count};
 }
 function sameWord(a, b){
-  return tidyTyped(a).trim().toLowerCase() === tidyTyped(b).trim().toLowerCase();
+  return typedLetters(a) === typedLetters(b);
 }
 
 /* =========================================================
@@ -1543,8 +1555,10 @@ function word(){ return W && W.words[W.i]; }
 function check(){
   var w = word();
   W.attempt = (el('#type') ? el('#type').value : W.attempt) || '';
-  // An empty box isn't an attempt — a fumbled tap must not cost her a word.
-  if(!W.attempt.trim()){ toast('Have a go — type the word.'); return; }
+  /* An empty box isn't an attempt — a fumbled tap must not cost her a word. Nor is a
+     box with no letters in it: typed for real, a single "." next to the space bar was
+     recorded as a miss and requeued the word. Same fumble, same answer. */
+  if(!/[a-z]/.test(typedLetters(W.attempt))){ toast('Have a go — type the word.'); return; }
   W.tries++;
   var ok = sameWord(W.attempt, w);
   var firstAsk = W.asked.indexOf(w) < 0;
@@ -3167,7 +3181,7 @@ window.__acorn = {
   setToday: function(d){ _today = d; _renderedDay = todayISO();
 loadClips(); render(); },
   todayISO: todayISO, dayDiff: dayDiff,
-  syllables: syllables, splitOf: splitOf, offerVoices: offerVoices,
+  syllables: syllables, splitOf: splitOf, offerVoices: offerVoices, sameWord: sameWord,
   clearVoiceCache: function(){ _voice = null; _voiceKey = null; }, parseWordList: parseWordList, COMPOUNDS: COMPOUNDS,
   matched: function(a, b){ var m = matched(a, b); return {count:m.count, hit:Object.keys(m.hit).map(Number).sort(function(x,y){return x-y;})}; },
   mastery: mastery, recordWord: recordWord, isDue: isDue, overdueRatio: overdueRatio,
