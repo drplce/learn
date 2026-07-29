@@ -389,7 +389,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '8.5';
+var VERSION = '8.6';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -415,6 +415,36 @@ function fresh(){
                speechRate:.95, kbInset:0}
   };
 }
+/* Every setting is chosen by tapping a button that offers a fixed handful of
+   values, so anything else in storage is not a preference — it is corruption: a
+   hand-edited backup, a truncated write, a stale key from an older shape. Most of
+   it would degrade harmlessly. Two of them brick the app. A stored textScale of 99
+   makes the root font 1683px and the screen scrolls sideways; a stored -4 makes it
+   0px and nothing is visible at all. Neither is recoverable, because the way back
+   is a long press on a mark that is now somewhere off the side of the screen — and
+   nobody is going to guess at clearing the site's data. So each one is coerced to
+   something the app actually offers. */
+var TINTS = ['cream', 'peach', 'mint', 'blue', 'grey'];
+// A band rather than the exact handful the buttons offer: a value from between the
+// steps is harmless, and if the offered sizes ever change, a size she really did
+// choose on an older build should not be thrown away.
+function inBand(v, lo, hi, fallback){
+  v = Number(v);
+  return (isFinite(v) && v >= lo && v <= hi) ? v : fallback;
+}
+function saneSettings(t){
+  if(!t || typeof t !== 'object' || Array.isArray(t)) t = fresh().settings;
+  t.textScale  = inBand(t.textScale, .8, 1.6, 1);
+  t.speechRate = inBand(t.speechRate, .5, 1.5, .95);
+  t.tint       = TINTS.indexOf(String(t.tint)) >= 0 ? String(t.tint) : 'cream';
+  t.readAloud  = t.readAloud !== false;
+  t.sound      = t.sound !== false;
+  if(typeof t.voice !== 'string') t.voice = null;
+  // Remembered from a real measurement, so a plausible band and nothing else.
+  var kb = Number(t.kbInset);
+  t.kbInset = (isFinite(kb) && kb > 40 && kb < 600) ? kb : 0;
+  return t;
+}
 function load(){
   try{
     var raw = localStorage.getItem(KEY);
@@ -429,6 +459,7 @@ function load(){
       if(!Array.isArray(S.words.lists)) S.words.lists = [];
       if(!Array.isArray(S.words.sessions)) S.words.sessions = [];
       if(!S.words.mastery || typeof S.words.mastery !== 'object') S.words.mastery = {};
+      S.settings = saneSettings(S.settings);
       return;
     }
   }catch(e){}

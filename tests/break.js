@@ -612,6 +612,88 @@ async function main(){
     await ctx.close();
   }
 
+  // ---- 19. settings that no button could have produced
+  {
+    console.log('\n19. impossible settings in storage');
+    const {page, ctx, errs} = await fresh(browser, '2026-08-01');
+    // A hand-edited backup, a truncated write, another app's key. Every setting is
+    // chosen by tapping a button that offers a fixed handful of values, so anything
+    // else is corruption — and two of them brick the app rather than degrading it:
+    // a stored textScale of 99 makes the root font 1683px, and the way back is a
+    // long press on a mark that is now off the side of the screen.
+    const CASES = {
+      'textScale 99':      s => { s.settings.textScale = 99; },
+      'textScale -4':      s => { s.settings.textScale = -4; },
+      'textScale "big"':   s => { s.settings.textScale = 'big'; },
+      'textScale 1.0001':  s => { s.settings.textScale = 1.0001; },
+      'speechRate 100':    s => { s.settings.speechRate = 100; },
+      'speechRate -1':     s => { s.settings.speechRate = -1; },
+      'tint is markup':    s => { s.settings.tint = '"><script>window.__pwned=1</script>'; },
+      'kbInset 100000':    s => { s.settings.kbInset = 100000; },
+      'voice is rubbish':  s => { s.settings.voice = {nope:1}; },
+      'settings is array': s => { s.settings = [1, 2, 3]; },
+      'profile is null':   s => { s.profile = null; },
+      'name is markup':    s => { s.profile.name = '<img src=x onerror="window.__pwned=1">'; },
+      'name 300 chars':    s => { s.profile.name = 'A'.repeat(300); },
+      'activeId nowhere':  s => { s.words.activeId = 'does-not-exist'; },
+      'two lists one id':  s => { s.words.lists = [{id:'w1', name:'A', words:['said']},
+                                                   {id:'w1', name:'B', words:['they']}];
+                                  s.words.activeId = 'w1'; },
+      'a list of dupes':   s => { s.words.lists = [{id:'w1', name:'A',
+                                    words:['said','said','said','they']}];
+                                  s.words.activeId = 'w1'; },
+      'box 999':           s => { s.words.mastery = {said:{right:3, wrong:0, box:999,
+                                                           lastSeen:'2026-07-01'}}; },
+      'box -5':            s => { s.words.mastery = {said:{right:3, wrong:0, box:-5,
+                                                           lastSeen:'2026-07-01'}}; },
+      '5000 sessions':     s => { s.words.sessions = Array.from({length:5000}, () =>
+                                    ({date:'2026-07-01', list:'easy', asked:9, words:8,
+                                      firstTime:6})); },
+      '400 lists':         s => { s.words.lists = Array.from({length:400}, (_, i) =>
+                                    ({id:'w' + i, name:'L' + i, words:['said','they','went']}));
+                                  s.words.activeId = 'w0'; },
+    };
+    let broke = 0;
+    for(const name in CASES){
+      await page.evaluate(() => { localStorage.clear(); });
+      await page.reload();
+      await page.waitForFunction(() => !!window.__acorn);
+      await page.evaluate(src => {
+        window.__acorn.save();
+        const o = JSON.parse(localStorage.getItem('acorn.v1'));
+        eval('(' + src + ')')(o);
+        localStorage.setItem('acorn.v1', JSON.stringify(o));
+      }, CASES[name].toString());
+      await page.reload();
+      let r = null;
+      try{
+        await page.waitForFunction(() => !!window.__acorn, null, {timeout:4000});
+        r = await page.evaluate(() => {
+          const a = window.__acorn;
+          a.setToday('2026-08-01'); a.go('day'); a.go('parent'); a.go('day');
+          const root = getComputedStyle(document.documentElement);
+          const vw = document.documentElement.clientWidth;
+          return {font: Math.round(parseFloat(root.fontSize)),
+                  wide: document.documentElement.scrollWidth > vw + 1,
+                  pwned: !!window.__pwned,
+                  // Can a grown-up still get in and put it right?
+                  wayIn: !!document.querySelector('#wordmark, .wordmark')};
+        });
+      }catch(e){ r = {threw: e.message}; }
+      const why = !r ? 'nothing came back'
+        : r.threw ? 'threw: ' + r.threw
+        : r.pwned ? 'markup from storage ran'
+        : (r.font > 40 || r.font < 10) ? 'root font became ' + r.font + 'px'
+        : r.wide ? 'the screen scrolls sideways'
+        : !r.wayIn ? 'the way in to the grown-ups screen is gone'
+        : null;
+      if(why){ bad('settings: ' + name, why); broke++; }
+    }
+    if(!broke) ok(Object.keys(CASES).length + ' impossible stored states all survived, readable and usable');
+    if(errs.length) bad('impossible settings', errs.slice(0, 3).join(' | '));
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));
