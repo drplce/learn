@@ -409,7 +409,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '9.1';
+var VERSION = '9.2';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1091,6 +1091,7 @@ function overdueRatio(word, today){
   return gap / Math.max(1, BOX_DAYS[m.box || 1] || 1);
 }
 function recordWord(word, outcome){          // 'first' | 'later' | 'wrong'
+  var wasMet = !!S.words.mastery[word];
   var m = Object.assign({right:0, wrong:0, box:1, lastSeen:null}, S.words.mastery[word]);
   var box = m.box || 1, sameDay = m.lastSeen === todayISO();
   if(outcome === 'first'){
@@ -1109,7 +1110,38 @@ function recordWord(word, outcome){          // 'first' | 'later' | 'wrong'
   m.lastSeen = todayISO();
   S.words.mastery[word] = m;
   save();
+  /* What changed, so the finished screen can show tonight rather than describe it.
+     Nothing recorded this before: the sitting knew how many words she got right and
+     not which of them moved, and W is thrown away at the end of it. "First met
+     tonight" and "climbed a box tonight" are the two things a picture of her words
+     can honestly light up. */
+  if(W){
+    if(!wasMet && W.fresh.indexOf(word) < 0) W.fresh.push(word);
+    if(m.box > box && W.grew.indexOf(word) < 0) W.grew.push(word);
+    // A word can climb and later slip in the same sitting; the slip is the truth.
+    if(m.box < box){
+      var at = W.grew.indexOf(word);
+      if(at >= 0) W.grew.splice(at, 1);
+      if(W.slipped.indexOf(word) < 0) W.slipped.push(word);
+    }
+  }
   return m;
+}
+/* Everything tonight changed, across every sitting she has done today and the one
+   she may be in the middle of. */
+function tonight(){
+  var out = {fresh:[], grew:[], slipped:[]}, t = todayISO();
+  function take(src){
+    if(!src) return;
+    ['fresh', 'grew', 'slipped'].forEach(function(k){
+      (src[k] || []).forEach(function(w){ if(out[k].indexOf(w) < 0) out[k].push(w); });
+    });
+  }
+  (S.words.sessions || []).forEach(function(x){ if(x.date === t) take(x); });
+  take(W);
+  // A word that slipped at any point in the evening is not also growth.
+  out.grew = out.grew.filter(function(w){ return out.slipped.indexOf(w) < 0; });
+  return out;
 }
 function knownCount(list){
   return wordsOf(list).filter(function(w){ return (mastery(w).box || 1) >= KNOWN_BOX; }).length;
@@ -1326,6 +1358,8 @@ function start(){
        // words lengthen W.words but not the plan, so progress only ever moves
        // forward — a row of dots that grew would read as losing ground.
        plan:words.length, right:0, firstTime:0,
+       // What tonight actually did, for the screen at the end of it.
+       fresh:[], grew:[], slipped:[],
        requeue:[], failed:[], shown:[], asked:[], done:[]};
   W.stage = beginStage(words[0]);
   screen = 'day';
@@ -1398,7 +1432,11 @@ function finish(){
   var distinct = W.words.filter(function(w, i, a){ return a.indexOf(w) === i; }).length;
   S.words.sessions.push({date:todayISO(), list:(activeList() || {}).id,
                          asked:W.words.length, words:distinct,
-                         right:W.right, firstTime:W.firstTime});
+                         right:W.right, firstTime:W.firstTime,
+                         // Kept so the finished screen still knows what tonight did
+                         // after a reload, and so a grown-up can see it later.
+                         fresh:W.fresh.slice(), grew:W.grew.slice(),
+                         slipped:W.slipped.slice()});
   if(S.words.sessions.length > 60) S.words.sessions = S.words.sessions.slice(-60);
   save();
   var every = W.firstTime === distinct;
@@ -2758,6 +2796,13 @@ loadClips(); render(); },
   matched: function(a, b){ var m = matched(a, b); return {count:m.count, hit:Object.keys(m.hit).map(Number).sort(function(x,y){return x-y;})}; },
   mastery: mastery, recordWord: recordWord, isDue: isDue, overdueRatio: overdueRatio,
   acquiring: acquiring, knownCount: knownCount,
+  // What the last finished sitting changed: met for the first time, climbed a box,
+  // slipped back. The screen at the end of a sitting is built from these.
+  /* The whole evening, not the last sitting of it: she may practise twice, and a
+     reload starts a fresh sitting whose lists are empty, which would otherwise hide
+     what she had already done. A word that slipped at any point in the evening is
+     counted as slipped and nowhere else — the slip is the truth about it. */
+  tonight: tonight,
   buildSession: buildSession, recentAccuracy: recentAccuracy,
   newWordsToday: newWordsToday, poolCap: poolCap, stageFor: stageFor,
   allLists: allLists, activeList: activeList, wordsOf: wordsOf,
