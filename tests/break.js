@@ -761,6 +761,87 @@ async function main(){
     await ctx.close();
   }
 
+  /* ---------------------------------------------------------------
+     21. the smallest screen at the biggest text, with the longest words
+     --------------------------------------------------------------- */
+  {
+    console.log('\n21. squeezed to the limit');
+    // The corners of the space she can actually get into: the narrowest phone still
+    // sold, every text size the buttons offer plus the smallest a restored backup can
+    // carry, and words long enough to fill any line. The action that moves her on has
+    // to stay on screen, stay tappable, and stay the thing Enter presses — this is
+    // where --tap fell to 41px and a syllable chunk to 43px.
+    const LONG = ['jewellery', 'television', 'experiment', 'straight', 'a'];
+    let broke = 0;
+    for(const width of [320, 360]){
+      for(const scale of [0.8, 0.9, 1, 1.15, 1.3, 1.5, 1.6]){
+        const ctx = await browser.newContext({viewport: {width, height: 480},
+                                              deviceScaleFactor: 1});
+        const page = await ctx.newPage();
+        const errs = [];
+        page.on('pageerror', e => errs.push(String(e)));
+        let r = null;
+        try{
+          await page.goto('file://' + require('path').resolve(__dirname, '..', 'index.html'));
+          await page.waitForFunction(() => !!window.__acorn);
+          r = await page.evaluate(({s, ws}) => {
+            const a = window.__acorn;
+            a.setToday('2026-08-01');
+            a.state.settings.textScale = s;
+            a.state.words.lists = [{id: 'q', name: 'T', words: ws}];
+            a.state.words.activeId = 'q';
+            a.save(); a.go('parent'); a.go('day');
+            if(!a.session()) a.start();
+            const out = [];
+            // Every stage of one word, at this size.
+            for(let step = 0; step < 4; step++){
+              const W = a.session();
+              if(!W) break;
+              const de = document.documentElement;
+              const vh = de.clientHeight, vw = de.clientWidth;
+              const act = document.querySelector('#act .primary')
+                       || document.querySelector('#act button');
+              const box = act && act.getBoundingClientRect();
+              out.push({
+                stage: W.stage,
+                // Off the bottom, or off the side, and she cannot go on.
+                offscreen: !box || box.bottom > vh + 1 || box.top < -1
+                                || box.right > vw + 1 || box.left < -1,
+                small: !box || box.width < 44 || box.height < 44,
+                sideways: de.scrollWidth > vw + 1,
+                // Anything tappable that has ended up under 44px.
+                tiny: [...document.querySelectorAll('button')].filter(e => {
+                  if(e.id === 'kbhold') return false;
+                  const b = e.getBoundingClientRect();
+                  return b.width && (b.width < 44 || b.height < 44);
+                }).map(e => (e.id || e.className) + ' '
+                          + Math.round(e.getBoundingClientRect().width) + 'x'
+                          + Math.round(e.getBoundingClientRect().height)),
+              });
+              if(W.stage === 'look'){ a.cover(); continue; }
+              if(W.stage === 'write'){ a.type('zz'); a.check(); continue; }
+              a.next();
+            }
+            return out;
+          }, {s: scale, ws: LONG});
+        }catch(e){ r = [{threw: e.message}]; }
+        const why = !r || !r.length ? 'no stage rendered at all'
+          : r.find(x => x.threw) ? 'threw: ' + r.find(x => x.threw).threw
+          : r.find(x => x.offscreen) ? 'the button that moves her on is off the screen at '
+                                       + r.find(x => x.offscreen).stage
+          : r.find(x => x.small) ? 'that button is under 44px at ' + r.find(x => x.small).stage
+          : r.find(x => x.sideways) ? 'the screen scrolls sideways at ' + r.find(x => x.sideways).stage
+          : r.find(x => x.tiny.length) ? 'too small to tap: '
+                                         + r.find(x => x.tiny.length).tiny.join(', ')
+          : null;
+        if(why){ bad(`squeezed ${width}px at ${scale}x`, why); broke++; }
+        if(errs.length){ bad(`squeezed ${width}px at ${scale}x`, errs[0]); broke++; }
+        await ctx.close();
+      }
+    }
+    if(!broke) ok('14 corners of screen size and text size all stayed usable');
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));

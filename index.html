@@ -47,8 +47,13 @@
   --s1:.25rem; --s2:.5rem; --s3:.75rem; --s4:1rem; --s5:1.5rem; --s6:2rem; --s7:2.5rem;
   /* radius — three, plus a pill for the thin bars */
   --r-sm:.75rem; --r-md:1rem; --r-lg:1.25rem; --r-pill:999px;
-  /* tap targets — 3rem is 51px at the default root, comfortably over the 44px floor */
-  --tap:3rem; --tap-lg:3.5rem; --tap-xl:4rem;
+  /* Tap targets. 3rem is 51px at the default root, comfortably over the 44px floor —
+     but rem follows her text-size setting, and at the smallest stored value (.8, which
+     saneSettings accepts from a restored backup even though the buttons only offer .9
+     and up) 3rem measured 41px and every button in the app was under the floor. The
+     max() is a physical floor under a scale that otherwise still grows with her text.
+     --tap-lg and --tap-xl are 48px and 54px even at .8, so they need none. */
+  --tap:max(44px, 3rem); --tap-lg:3.5rem; --tap-xl:4rem;
 
   --scale:1;
   --shadow:0 1px 2px rgba(59,65,73,.05), 0 6px 18px rgba(59,65,73,.06);
@@ -180,7 +185,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
    handful of the things she is collecting. The box is the same size for every
    dot and the differences in size and spacing are drawn inside it, so the row
    cannot reflow and the current one is still only ever scaled. */
-.dots i{flex:none; width:calc(.875rem * var(--ornament)); height:calc(.875rem * var(--ornament));
+.dots i{flex:none; width:calc(var(--t-sm) * var(--ornament)); height:calc(var(--t-sm) * var(--ornament));
         transition:transform .3s var(--ease);}
 .dots i svg{display:block; width:100%; height:100%; overflow:visible;}
 .dots i path{fill:var(--line-2);}
@@ -203,14 +208,19 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
   text-align:center; font-weight:700; line-height:1.35;
   letter-spacing:.06em; word-spacing:.1em; margin:var(--s2) 0 var(--s1);
   padding-bottom:.08em; overflow-wrap:anywhere;
-  font-size:clamp(.75rem, calc((min(100vw, 34rem) - 2 * var(--s4)) / (var(--wl,6) * .8)), var(--t-3xl));}
+  font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (var(--wl,6) * .8)), var(--t-3xl));}
 .marked b{color:var(--ink); font-weight:700;}
 .marked u{color:var(--retry); text-decoration:none; border-bottom:3px solid var(--retry);}
 
 .syls{display:flex; flex-wrap:wrap; justify-content:center; gap:var(--s2); margin-top:var(--s3);}
+/* The only tappable thing in the app that was not held to --tap. A two-letter chunk
+   is as narrow as its letters: measured, the "ti" of "beau·ti·ful" came out 43px wide
+   at her smallest text setting, a pixel under the target every other button in here
+   clears. Both dimensions, because a chunk can be short in either. */
 .syl{padding:var(--s2) var(--s3); border-radius:var(--r-sm); background:var(--acc-soft);
      color:var(--acc); font-size:var(--t-xl); font-weight:700; letter-spacing:.03em;
-     border:1px solid transparent;}
+     border:1px solid transparent;
+     min-width:var(--tap); min-height:var(--tap);}
 @media (prefers-color-scheme:dark){ .syl{color:var(--ink);} }
 .syl:active{border-color:var(--acc);}
 
@@ -232,7 +242,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
       margin:0 auto; min-height:var(--tap-lg); padding:0 var(--s4);
       border-radius:var(--r-md); background:var(--surface-2); border:1px solid var(--line-2);
       font-weight:700; font-size:var(--t-md);}
-.hear svg{width:calc(1.375rem * var(--ornament)); height:calc(1.375rem * var(--ornament)); flex:none;}
+.hear svg{width:calc(var(--t-xl) * var(--ornament)); height:calc(var(--t-xl) * var(--ornament)); flex:none;}
 .hear:active{background:var(--acc-soft);}
 
 .spellin{width:100%; text-align:center; font-size:var(--t-2xl); font-weight:700;
@@ -407,7 +417,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
    a bigger one cut off at the edge of the panel. */
 :root[data-cramped]:not([data-stage=parent]):not([data-stage=done]) .word,
 :root[data-cramped]:not([data-stage=parent]):not([data-stage=done]) .marked{
-  font-size:clamp(.75rem, calc((min(100vw, 34rem) - 2 * var(--s4)) / (var(--wl,6) * .8)),
+  font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (var(--wl,6) * .8)),
                   var(--t-lg));}
 
 /* Delays as well as durations. Killing only the duration left the finished
@@ -445,7 +455,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '10.2';
+var VERSION = '10.3';
 var KEY = 'acorn.v1';
 
 /* =========================================================

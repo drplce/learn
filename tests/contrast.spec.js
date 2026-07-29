@@ -62,11 +62,33 @@ async function seed(page, tint, screen, stage){
     a.state.words.mastery = {said:{right:1, wrong:4, box:1, lastSeen:'2026-07-31'}};
     a.state.words.sessions = [{date:'2026-07-31', asked:8, right:6}];
     a.save();
+    /* The finished screen was never measured here at all, and neither was a word
+       carrying a meaning cue — .cue is the one thing on the writing screen she
+       cannot work out for herself, so it is the last thing that should be hard to
+       read. Nothing failed when they were added; they are here so nothing can. */
+    if(o.stage === 'cued'){
+      a.state.words.lists = [{id:'h', name:'T', words:['licence', 'week', 'practise']}];
+      a.state.words.activeId = 'h'; a.save();
+    }
     if(o.screen === 'parent'){ a.go('parent'); return; }
+    if(o.stage === 'deadend'){
+      a.state.words.lists = [{id:'e', name:'Empty', words:[]}];
+      a.state.words.activeId = 'e'; a.state.words.mastery = {}; a.save();
+      a.go('day'); return;                       // the one grown-up sentence she sees
+    }
     a.go('day'); a.start();
-    if(o.stage === 'write') a.cover();
+    if(o.stage === 'write' || o.stage === 'cued') a.cover();
     if(o.stage === 'nearly'){ a.cover(); a.type('becuase'); a.check(); }
     if(o.stage === 'right'){ a.cover(); a.type('because'); a.check(); }
+    if(o.stage === 'lost'){ a.cover(); a.type('zzz'); a.check(); }
+    if(o.stage === 'done'){
+      for(let g = 0; g < 90 && a.session(); g++){
+        const W = a.session();
+        if(W.stage === 'look'){ a.cover(); continue; }
+        if(W.stage === 'write'){ a.type(W.words[W.i]); a.check(); a.next(); continue; }
+        a.next();
+      }
+    }
   }, {tint, screen, stage});
 }
 
@@ -79,10 +101,14 @@ for (const scheme of ['light', 'dark']) {
         await open(page, '2026-08-01');
         const fails = [];
         for (const [screen, stage] of [['day','look'], ['day','write'], ['day','nearly'],
-                                       ['day','right'], ['parent','-']]) {
+                                       ['day','right'], ['day','lost'], ['day','cued'],
+                                       ['day','done'], ['day','deadend'], ['parent','-']]) {
           await seed(page, tint, screen, stage);
           const rows = await page.evaluate(AUDIT);
-          expect(rows.length, `${screen}/${stage} rendered nothing`).toBeGreaterThan(2);
+          // A guard against the seed silently doing nothing, not a content check: the
+          // dead end really is two lines, the mark and the sentence asking for words.
+          expect(rows.length, `${screen}/${stage} rendered nothing`)
+            .toBeGreaterThanOrEqual(stage === 'deadend' ? 2 : 3);
           rows.filter(r => r.ratio < r.need)
               .forEach(r => fails.push(`${screen}/${stage} ${r.ratio}:1 (need ${r.need}) ${r.px}px — ${r.what}`));
         }
