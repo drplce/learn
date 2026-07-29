@@ -216,6 +216,14 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 
 .note{text-align:center; color:var(--ink-soft); margin:var(--s4) 0 0; font-size:var(--t-md);
       max-width:32ch; margin-left:auto; margin-right:auto;}
+/* Quieter than the instruction above it but not soft-grey: this is the only
+   thing telling her which of two real words is wanted, so it stays on --ink at
+   full contrast and the meaning itself is the bold part. */
+/* 32ch, the same as .note above it: at 28ch the longest cue broke after "drive"
+   and left "with" alone on a second line at her ordinary text size. */
+.cue{text-align:center; font-size:var(--t-sm); color:var(--ink); margin:var(--s2) auto 0;
+     max-width:32ch;}
+.cue b{font-weight:700;}
 .verdict{text-align:center; font-size:var(--t-md); font-weight:700; margin:0 0 var(--s2);}
 .verdict.ok{color:var(--good);}
 .verdict.again{color:var(--retry);}
@@ -430,7 +438,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '9.9';
+var VERSION = '10.0';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -451,7 +459,7 @@ var S;
 function fresh(){
   return {
     profile:  {name:'', createdAt:todayISO()},
-    words:    {lists:[], mastery:{}, activeId:'easy', sessions:[]},
+    words:    {lists:[], mastery:bare(null), activeId:'easy', sessions:[]},
     settings: {textScale:1, tint:'cream', readAloud:true, sound:true, voice:null,
                speechRate:.95, kbInset:0}
   };
@@ -472,6 +480,23 @@ var TINTS = ['cream', 'peach', 'mint', 'blue', 'grey'];
 function inBand(v, lo, hi, fallback){
   v = Number(v);
   return (isFinite(v) && v >= lo && v <= hi) ? v : fallback;
+}
+/* Every object in JavaScript already answers to "constructor", "toString",
+   "valueOf", "hasOwnProperty", "isPrototypeOf", "toLocaleString" and
+   "propertyIsEnumerable" — so a map keyed by her words answered truthy for those
+   seven before she had ever met them. Measured: put "constructor" on her list and
+   the engine filed it as already known, dropped it from every sitting, and never
+   asked her once. The clip store had the same hole and would have handed a native
+   function to an <audio> src.
+
+   Assigning "__proto__" on an ordinary object is worse again: it moves the
+   prototype instead of storing a value. A map with no prototype has neither
+   problem and needs no guard at any of the twenty-odd places these are read, so
+   every word-keyed map in the app is built here. */
+function bare(o){
+  var n = Object.create(null);
+  if(o) for(var k in o) if(Object.prototype.hasOwnProperty.call(o, k)) n[k] = o[k];
+  return n;
 }
 function saneSettings(t){
   if(!t || typeof t !== 'object' || Array.isArray(t)) t = fresh().settings;
@@ -500,6 +525,12 @@ function load(){
       if(!Array.isArray(S.words.lists)) S.words.lists = [];
       if(!Array.isArray(S.words.sessions)) S.words.sessions = [];
       if(!S.words.mastery || typeof S.words.mastery !== 'object') S.words.mastery = {};
+      S.words.mastery = bare(S.words.mastery);
+      // A restored backup can carry a list whose words are an object, so those
+      // are rebased too. A list a grown-up pastes in is stored as an array.
+      S.words.lists.forEach(function(l){
+        if(l && l.words && typeof l.words === 'object' && !Array.isArray(l.words)) l.words = bare(l.words);
+      });
       S.settings = saneSettings(S.settings);
       return;
     }
@@ -608,8 +639,8 @@ var _clipEl = null, _clipSeq = 0;
    element never waits. Where Cache is unavailable (an insecure origin, a
    private window) the blobs alone still spare her the wait within a sitting. */
 var CLIP_CACHE = 'acorn-audio-v1';
-var _blob = {};                 // phrase -> blob: URL, ready to play instantly
-var _warming = {};              // phrase -> promise, so nothing is fetched twice
+var _blob = bare(null);         // phrase -> blob: URL, ready to play instantly
+var _warming = bare(null);      // phrase -> promise, so nothing is fetched twice
 var _cacheReady = null;
 
 // Fetching only works over http; opened from a file it is refused, noisily, and
@@ -714,7 +745,7 @@ function clipPlayable(){
 // Must match slug() in tools/voice.mjs.
 function clipSlug(text){ return String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-'); }
 function loadClips(){
-  _clips = {};
+  _clips = bare(null);
   for(var i = 0; i < CLIPS.length; i++) _clips[CLIPS[i]] = clipSlug(CLIPS[i]) + CLIP_EXT;
 }
 function clipUrl(text){
@@ -890,6 +921,61 @@ var LISTS = [
     practise:'prac·tise', jewellery:'jew·el·lery'}}
 ];
 
+/* She hears the word and nothing else, so a word that sounds exactly like
+   another word is a question she cannot answer: told /wiːk/, "weak" is a
+   correctly spelled English word and she is marked wrong for spelling it. 14 of
+   the 100 built-in words have a homophone; these are the ones where the other
+   spelling is a word she plausibly knows and would plausibly reach for. Three
+   of them ("metre", "licence", "practise") are the noun/verb pairs that adults
+   get wrong, and no amount of listening will separate them.
+
+   A spoken sentence is how a teacher does this, but the clips are one file per
+   word and haveClips() refuses to mix recorded with synthesised, so the cue is
+   on screen instead. Rules it has to keep: never contain the word or its
+   letters, never name the other spelling (a wrong spelling on screen is the one
+   thing this app never shows her), and stay short enough to be read at a glance
+   — she is dyslexic and every extra word is work. Left out on purpose: "time"
+   (thyme), "knee" (nee) and "rain" (rein) — nobody writes those, and a cue
+   there is noise. */
+var MEANING = bare({
+  some:     'not all of it',
+  made:     'make, but yesterday',
+  week:     'seven days',
+  through:  'in one end, out the other',
+  might:    'maybe',
+  know:     'have the answer',
+  write:    'with a pen',
+  morning:  'before lunch',
+  // Not "a hundred centimetres": that hands her m-e-t-r-e inside the last word
+  // of its own cue. One big step is the classroom picture of a metre anyway.
+  metre:    'about one big step',
+  licence:  'the card you drive with',
+  practise: 'to get better at it',
+
+  /* And the other half of each pair, because homophones are a spelling topic in
+     their own right: the list a grown-up pastes in this week could easily hold
+     both. Cue only one of a pair and the uncued one becomes the unanswerable
+     question instead. None of these are on a built-in list — they are here for
+     the lists she is actually set at school. Not paired: license, practice and
+     meter, whose difference from licence, practise and metre is noun-against-verb
+     and cannot be put to a nine-year-old without a grammar lesson. */
+  weak:     'not strong',
+  sum:      'add them up',
+  maid:     'she cleans the rooms',
+  threw:    'throw, but yesterday',
+  right:    'not wrong',
+  no:       'the opposite of yes',
+  mite:     'a tiny bug',
+  mourning: 'sad, missing someone'
+});
+function meaningOf(w){ return MEANING[String(w || '').toLowerCase()] || ''; }
+// The pairs the cues exist for. Nothing in the app reads this — it is here so a
+// test can hold every cue to not naming the word it is meant to be told apart
+// from, and so the two halves cannot drift apart unnoticed.
+var TWINS = [['some','sum'], ['made','maid'], ['week','weak'], ['through','threw'],
+             ['might','mite'], ['know','no'], ['write','right'], ['morning','mourning'],
+             ['metre','meter'], ['licence','license'], ['practise','practice']];
+
 function allLists(){
   return LISTS.map(function(l){ return {id:l.id, name:l.name, words:l.words, builtIn:true}; })
     .concat((S.words.lists || []).map(function(l){ return {id:l.id, name:l.name, words:l.words, builtIn:false}; }));
@@ -974,7 +1060,10 @@ var COMPOUNDS = ('any·thing any·one any·where any·body every·thing every·o
   + 'grand·mother grand·father grand·parents news·paper hand·writing some·body '
   + 'class·room bed·room bath·room black·board white·board day·light sun·light '
   + 'to·day to·night to·mor·row').split(' ')
-  .reduce(function(m, x){ m[x.replace(/·/g, '')] = x.split('·'); return m; }, {});
+  // Keyed by her words, so no prototype: COMPOUNDS["constructor"] otherwise
+  // answered with Object itself and syllables() crashed the whole render on
+  // .slice() — the app died on the word rather than mis-splitting it.
+  .reduce(function(m, x){ m[x.replace(/·/g, '')] = x.split('·'); return m; }, bare(null));
 
 function suffixSplit(s){
   for(var i = 0; i < SUFFIXES.length; i++){
@@ -1170,7 +1259,7 @@ function knownCount(list){
 /* Every word on her lists, counted once. Her lists overlap — "said" and "they" are on
    half of them — so this is the honest size of what she is working through. */
 function allWords(){
-  var out = [], seen = {};
+  var out = [], seen = bare(null);
   allLists().forEach(function(l){
     wordsOf(l).forEach(function(w){ if(seen[w]) return; seen[w] = 1; out.push(w); });
   });
@@ -1241,7 +1330,7 @@ function paceLabel(){
    app said anything was wrong: she practised, she got everything right, and it told
    her so. */
 function newPool(list){
-  var out = [], seen = {}, ls = allLists(), at = 0, i, j;
+  var out = [], seen = bare(null), ls = allLists(), at = 0, i, j;
   for(i = 0; i < ls.length; i++) if(ls[i].id === (list || {}).id){ at = i; break; }
   for(i = at; i < ls.length; i++){
     var ws = wordsOf(ls[i]);
@@ -1256,7 +1345,7 @@ function newPool(list){
    then never asking for the old list again would let a whole term's work go quietly
    while the map showed it dimming. */
 function metWords(){
-  var out = [], seen = {};
+  var out = [], seen = bare(null);
   allLists().forEach(function(l){
     wordsOf(l).forEach(function(w){
       if(seen[w] || !S.words.mastery[w]) return;
@@ -1826,9 +1915,19 @@ function renderWord(){
   }
   else if(W.stage === 'write'){
     var fresh = W.shown.indexOf(w) < 0 && W.failed.indexOf(w) < 0;
+    var told = fresh ? 'Listen, then write it.' : 'Now write it from memory.';
+    // The cue is the one thing on this screen she cannot work out for herself,
+    // so it is announced with the instruction and it is not in fitScreen()'s
+    // shed list — on a cramped screen the instruction goes and the cue stays.
+    var cue = meaningOf(w);
     // Never the word itself here — announcing it would give the spelling away.
-    announce(fresh ? 'Listen, then write it.' : 'Now write it from memory.');
-    body = '<div class="note">' + (fresh ? 'Listen, then write it.' : 'Now write it from memory.') + '</div>'
+    announce(told + (cue ? ' The one that means: ' + cue + '.' : ''));
+    body = '<div class="note">' + told + '</div>'
+         // "the one that means" cost 18 characters on every cue and pushed the
+         // longest of them to three lines at 320px and her largest text. Spoken
+         // it is worth having, so the announcement keeps it; read, "means:" does
+         // the same job in five.
+         + (cue ? '<p class="cue">means: <b>' + esc(cue) + '</b></p>' : '')
          + '<input class="spellin" id="type" type="text" inputmode="text" autocomplete="off" '
          +   'autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" '
          +   'value="' + esc(W.attempt) + '" aria-label="Type the word">';
@@ -1954,9 +2053,9 @@ function said(n){ return NUMBER[n] || String(n); }
    something she had already been shown. Kept in memory rather than in storage: the
    flourish is about this viewing of the screen, so coming back after a reload showing
    the evening's arrivals once more is right. */
-var _arrived = {day:'', words:{}};
+var _arrived = {day:'', words:bare(null)};
 function growTonight(all){
-  if(_arrived.day !== todayISO()) _arrived = {day:todayISO(), words:{}};
+  if(_arrived.day !== todayISO()) _arrived = {day:todayISO(), words:bare(null)};
   var words = all.filter(function(w){ return !_arrived.words[w]; });
   if(!words.length) return;
   words.forEach(function(w){ _arrived.words[w] = 1; });
@@ -2302,7 +2401,7 @@ function ghostAhead(){
    one state where it comes back empty is the right one: everything met, nothing
    left to come, and the caption then says nothing about outlines. */
 function ghostWords(){
-  var want = ghostAhead(), out = {}, n = 0, all = allLists();
+  var want = ghostAhead(), out = bare(null), n = 0, all = allLists();
   var here = (activeList() || {}).id, from = 0;
   all.forEach(function(l, i){ if(l.id === here) from = i; });
   // The same walk newPool() takes, and deliberately so: the outlines are then the
@@ -2444,7 +2543,7 @@ function networkData(){
      and drew the same word as two unconnected cells, one of which got none of
      the filaments. A word belongs to the earliest list that has it, which is
      also the pattern it was first taught as, since lists run easiest first. */
-  var claimed = {};
+  var claimed = bare(null);
   var lists = allLists().map(function(l){
     var mine = wordsOf(l).filter(function(w){
       if(claimed[w]) return false;
@@ -2459,7 +2558,7 @@ function networkData(){
   // part of it that is drawn today. It is the honest answer to how many there are,
   // and the hint under the picture says which of the two it is.
   var total = lists.reduce(function(n, g){ return n + g.words.length; }, 0);
-  var laid = [], byWord = {};
+  var laid = [], byWord = bare(null);
   // The whole colony is a disc with NET_ROOM of room in it for every word she has.
   var R = Math.sqrt(total * NET_ROOM / Math.PI);
   var TURN = Math.PI * 2;
@@ -2584,7 +2683,7 @@ function networkData(){
      nineteen with everything met. That is why the caption below only mentions them
      when there are some — a caption describing something that is not on the screen is
      worse than none. */
-  var byPiece = {};
+  var byPiece = bare(null);
   cells.forEach(function(c){
     splitOf(c.w).forEach(function(p){
       if(p.length < 2) return;
@@ -2957,7 +3056,7 @@ loadClips(); render(); },
     stopClips(); _clipEl = null;
     Object.keys(_blob).forEach(function(k){
       try{ URL.revokeObjectURL(_blob[k]); }catch(e){} delete _blob[k]; });
-    _warming = {};
+    _warming = bare(null);
     CLIPS = list || []; if(ext) CLIP_EXT = ext; loadClips();
   },
   warmClips: warmClips, sittingPhrases: sittingPhrases,
@@ -2974,6 +3073,8 @@ loadClips(); render(); },
                                      requeue:W.requeue.slice()}; },
   go: go, screen: function(){ return screen; },
   BOX_DAYS: BOX_DAYS, MAX_BOX: MAX_BOX, KNOWN_BOX: KNOWN_BOX,
+  meanings: function(){ return Object.assign({}, MEANING); },
+  twins: function(){ return TWINS.map(function(p){ return p.slice(); }); },
   ACQUIRING_CAP: ACQUIRING_CAP, SEED_NEW: SEED_NEW, sessionWords: sessionWords,
   // The map: how far the outlines reach, and the one outline every word carries
   // — the dots on her word screen are the same shapes from the same function.

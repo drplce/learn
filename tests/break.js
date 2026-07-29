@@ -694,6 +694,73 @@ async function main(){
     await ctx.close();
   }
 
+  /* ---------------------------------------------------------------
+     20. words that are also the names of things every object has
+     --------------------------------------------------------------- */
+  {
+    console.log('\n20. words that are also property names');
+    const {page, ctx, errs} = await fresh(browser, '2026-08-01');
+    // Every object in JavaScript already answers to these, so a map keyed by her
+    // words said "already met" for all of them before she had seen one. The word
+    // was then dropped from every sitting and never asked. "__proto__" is worse:
+    // assigning it moves an object's prototype instead of storing a value.
+    const NAMES = ['constructor', 'toString', 'valueOf', 'hasOwnProperty', 'isPrototypeOf',
+                   'toLocaleString', 'propertyIsEnumerable', '__proto__', 'prototype'];
+    let broke = 0;
+    for(const name of NAMES){
+      let r = null;
+      try{
+        // Through storage and a reload, which is the path a word really takes:
+        // reaching in and replacing the map with a plain {} would be the test
+        // creating the hole it then reports.
+        await page.evaluate(w => {
+          localStorage.setItem('acorn.v1', JSON.stringify({
+            profile: {name:'', createdAt:'2026-07-01'},
+            words: {lists:[{id:'p', name:'T', words:[w, 'rain']}], mastery:{},
+                    activeId:'p', sessions:[]},
+            settings: {textScale:1, tint:'cream', readAloud:true, sound:true, voice:null}
+          }));
+        }, name);
+        await page.reload();
+        await page.waitForFunction(() => !!window.__acorn);
+        await page.evaluate(() => window.__acorn.setToday('2026-08-01'));
+        r = await page.evaluate(w => {
+          const a = window.__acorn;
+          a.go('parent'); a.go('day');
+          a.start();
+          const W = a.session();
+          if(!W) return {no: 'no sitting at all'};
+          if(W.words.indexOf(w) < 0) return {no: 'the word was never asked: ' + JSON.stringify(W.words)};
+          // Walk it right through to the end, and make sure it is recorded.
+          for(let g = 0; g < 40 && a.session(); g++){
+            const s = a.session();
+            if(s.stage === 'look'){ a.cover(); continue; }
+            if(s.stage === 'write'){ a.type(s.words[s.i]); a.check(); a.next(); continue; }
+            a.next();
+          }
+          // And the cue, the syllable row and the progress numbers all survived it.
+          const txt = document.querySelector('#screen').innerText;
+          return {
+            met: Object.prototype.hasOwnProperty.call(a.state.words.mastery, w),
+            native: /native code|\[object /.test(txt),
+            proto: Object.getPrototypeOf(a.state.words.mastery) !== null
+          };
+        }, name);
+      }catch(e){ r = {threw: e.message}; }
+      const why = !r ? 'nothing came back'
+        : r.threw ? 'threw: ' + r.threw
+        : r.no ? r.no
+        : !r.met ? 'she answered it but it was never recorded'
+        : r.native ? 'a native function was printed on her screen'
+        : r.proto ? 'storing the word moved the prototype of what she knows'
+        : null;
+      if(why){ bad('property name: ' + name, why); broke++; }
+    }
+    if(!broke) ok(NAMES.length + ' words that collide with object internals were all asked and recorded');
+    if(errs.length) bad('property names', errs.slice(0, 3).join(' | '));
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));
