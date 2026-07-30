@@ -1,0 +1,174 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mic check</title>
+<!--
+  A throwaway diagnostic, not part of the app. It answers one question that cannot be
+  answered from a desktop: what does *this* phone's keyboard actually send when the word is
+  dictated rather than typed?
+
+  Acorn tells dictation from typing by the size of the jump — typing puts in one character
+  per input event, and a phone that hands over the whole word at once is not her writing it.
+  Deliberately not by counting keystrokes, because if a software keyboard turned out not to
+  fire keydown for its letters then every word she wrote by hand would be refused, and that
+  failure would be invisible from a desktop and total on the phone.
+
+  The gap in that trade is a phone that dictates a letter at a time. This measures whether
+  that is what happens.
+
+  Type one word into the first box. Dictate the same word into the second. Then read off the
+  two summaries, or tap Copy and paste them.
+-->
+<style>
+  :root{ --ink:#3B4149; --soft:#686E76; --line:#E3DED2; --bg:#FBF6EC; --card:#FFFDF7;
+         --acc:#35705A; --warn:#A2542B; }
+  @media (prefers-color-scheme:dark){
+    :root{ --ink:#E8E3D9; --soft:#A9A49B; --line:#3A3D45; --bg:#22242A; --card:#2A2D34;
+           --acc:#7FB8A0; --warn:#D89A6A; }
+  }
+  *{ box-sizing:border-box; }
+  body{ margin:0; padding:1rem; background:var(--bg); color:var(--ink);
+        font:1rem/1.5 system-ui, -apple-system, sans-serif; }
+  h1{ font-size:1.125rem; margin:0 0 .25rem; }
+  p.lede{ color:var(--soft); margin:0 0 1.25rem; }
+  section{ background:var(--card); border:1px solid var(--line); border-radius:.75rem;
+           padding:1rem; margin-bottom:1rem; }
+  h2{ font-size:1rem; margin:0 0 .5rem; }
+  label{ display:block; color:var(--soft); font-size:.875rem; margin-bottom:.35rem; }
+  input{ width:100%; font-size:1.375rem; padding:.6rem .7rem; border-radius:.5rem;
+         border:2px solid var(--acc); background:var(--card); color:var(--ink); }
+  .verdict{ font-weight:700; margin:.75rem 0 .25rem; }
+  .verdict.typed{ color:var(--acc); }
+  .verdict.handed{ color:var(--warn); }
+  dl{ display:grid; grid-template-columns:auto 1fr; gap:.15rem .6rem; margin:.5rem 0 0;
+      font-size:.9375rem; }
+  dt{ color:var(--soft); }
+  dd{ margin:0; font-variant-numeric:tabular-nums; }
+  pre{ background:var(--bg); border:1px solid var(--line); border-radius:.5rem;
+       padding:.6rem; font-size:.75rem; overflow-x:auto; max-height:11rem; margin:.6rem 0 0; }
+  button{ font:inherit; font-weight:600; padding:.6rem 1rem; border-radius:.5rem;
+          border:1px solid var(--line); background:var(--card); color:var(--ink);
+          min-height:44px; }
+  .row{ display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.75rem; }
+</style>
+
+<h1>Mic check</h1>
+<p class="lede">Type a word in the first box. Say the same word into the second, using the
+microphone key on the keyboard. Then tap Copy.</p>
+
+<section data-box>
+  <h2>1 · Typed</h2>
+  <label for="a">Type a word here — “beautiful” is a good one</label>
+  <input id="a" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+  <p class="verdict" data-verdict>waiting…</p>
+  <dl data-stats></dl>
+  <pre data-log></pre>
+</section>
+
+<section data-box>
+  <h2>2 · Dictated</h2>
+  <label for="b">Tap the microphone on the keyboard and say the same word</label>
+  <input id="b" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+  <p class="verdict" data-verdict>waiting…</p>
+  <dl data-stats></dl>
+  <pre data-log></pre>
+</section>
+
+<div class="row">
+  <button id="copy">Copy both summaries</button>
+  <button id="clear">Start again</button>
+</div>
+<p class="lede" id="said"></p>
+
+<script>
+// One recorder per box. Nothing here is shared with the app; it only watches.
+function watch(section){
+  var input = section.querySelector('input');
+  var out   = section.querySelector('[data-log]');
+  var stats = section.querySelector('[data-stats]');
+  var says  = section.querySelector('[data-verdict]');
+  var log = [], keys = 0, comps = 0, maxJump = 0, types = {}, last = '';
+  var chars = function(s){ return s ? Array.from(String(s)).length : 0; };
+
+  function draw(){
+    var typedLike = maxJump <= 1;
+    says.textContent = !log.length ? 'waiting…'
+      : typedLike ? 'Acorn would take this as her writing it.'
+                  : 'Acorn would hand this back and ask her to write it.';
+    says.className = 'verdict ' + (!log.length ? '' : typedLike ? 'typed' : 'handed');
+    stats.innerHTML =
+        '<dt>keydowns</dt><dd>' + keys + '</dd>'
+      + '<dt>letters in the box</dt><dd>' + chars(input.value) + '</dd>'
+      + '<dt>biggest jump</dt><dd>' + maxJump + '</dd>'
+      + '<dt>composition events</dt><dd>' + comps + '</dd>'
+      + '<dt>inputTypes</dt><dd>' + (Object.keys(types).join(', ') || '—') + '</dd>';
+    out.textContent = log.slice(-40).join('\n');
+  }
+
+  ['keydown', 'keyup', 'beforeinput', 'input',
+   'compositionstart', 'compositionupdate', 'compositionend'].forEach(function(t){
+    input.addEventListener(t, function(e){
+      var line = t;
+      if(t === 'keydown' || t === 'keyup'){
+        line += '  key=' + JSON.stringify(e.key) + ' code=' + e.keyCode;
+        if(t === 'keydown') keys++;
+      }
+      if(t.indexOf('composition') === 0){
+        line += '  data=' + JSON.stringify(e.data || '');
+        comps++;
+      }
+      if(t === 'input' || t === 'beforeinput'){
+        line += '  inputType=' + e.inputType + ' data=' + JSON.stringify(e.data === null ? null : e.data);
+        if(t === 'input'){
+          types[e.inputType] = 1;
+          var jump = chars(input.value) - chars(last);
+          if(jump > maxJump) maxJump = jump;
+          line += ' len=' + chars(input.value) + ' jump=' + jump;
+          last = input.value;
+        }
+      }
+      log.push(line);
+      draw();
+    });
+  });
+
+  section.__summary = function(){
+    return {
+      box: input.id, value: input.value,
+      keydowns: keys, letters: chars(input.value), biggestJump: maxJump,
+      composition: comps, inputTypes: Object.keys(types),
+      firstTwenty: log.slice(0, 20),
+    };
+  };
+  section.__reset = function(){
+    log = []; keys = 0; comps = 0; maxJump = 0; types = {}; last = '';
+    input.value = ''; draw();
+  };
+  draw();
+}
+var boxes = [].slice.call(document.querySelectorAll('[data-box]'));
+boxes.forEach(watch);
+
+document.getElementById('copy').addEventListener('click', function(){
+  var text = 'mic-check\n'
+    + 'userAgent: ' + navigator.userAgent + '\n\n'
+    + boxes.map(function(s){ return JSON.stringify(s.__summary(), null, 1); }).join('\n\n');
+  var done = function(ok){
+    document.getElementById('said').textContent = ok
+      ? 'Copied. Paste it back into the chat.'
+      : 'Could not copy — select the text below and copy it by hand.';
+    if(!ok){
+      var pre = document.createElement('pre');
+      pre.textContent = text;
+      document.body.appendChild(pre);
+    }
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText)
+    navigator.clipboard.writeText(text).then(function(){ done(true); }, function(){ done(false); });
+  else done(false);
+});
+document.getElementById('clear').addEventListener('click', function(){
+  boxes.forEach(function(s){ s.__reset(); });
+  document.getElementById('said').textContent = '';
+});
+</script>
