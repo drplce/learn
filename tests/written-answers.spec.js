@@ -43,15 +43,21 @@ const HANDED_TO_HER = {
     b.dispatchEvent(new InputEvent('input',
       {bubbles: true, inputType: 'insertText', data: 'beautiful'}));
   }),
-  'dictation, streaming partial results': async page => page.evaluate(async () => {
+  /* Captured on her phone — iOS 18.7, Safari — rather than guessed at. This was modelled as
+     insertReplacementText with two partials, and the real thing is insertText carrying the
+     whole recognised string each time while the field is replaced with it: "Be", "Beaut",
+     "Beautifu", "Beautiful", "Beautiful". Jumps of 2, 3, 3, 1, 0, no composition events, no
+     keydowns at all, and a capital B nobody asked for. A guessed fixture that happens to be
+     caught is not evidence that the real one is. */
+  'dictation, as iOS 18.7 really sends it': async page => page.evaluate(async () => {
     const b = document.querySelector('#type');
-    for(const p of ['beauty', 'beautiful']){
+    for(const data of ['Be', 'Beaut', 'Beautifu', 'Beautiful', 'Beautiful']){
       b.dispatchEvent(new InputEvent('beforeinput',
-        {bubbles: true, inputType: 'insertReplacementText', data: p}));
-      b.value = p;
+        {bubbles: true, cancelable: true, inputType: 'insertText', data: data}));
+      b.value = data;
       b.dispatchEvent(new InputEvent('input',
-        {bubbles: true, inputType: 'insertReplacementText', data: p}));
-      await new Promise(r => setTimeout(r, 20));
+        {bubbles: true, inputType: 'insertText', data: data}));
+      await new Promise(r => setTimeout(r, 15));
     }
   }),
   'a glide across the keys': async page => page.evaluate(() => {
@@ -71,6 +77,20 @@ const HANDED_TO_HER = {
       {bubbles: true, inputType: 'insertReplacementText', data: 'beautiful'}));
   }),
 };
+
+/* The case the jump test cannot see: dictation handed over one letter at a time, so no jump
+   is ever bigger than one. Only "no keystroke behind any of it" catches it, and only once
+   the device has been seen to report keystrokes — so it is kept apart from the always-caught
+   cases above, which need no such history. */
+const LETTER_AT_A_TIME = async page => page.evaluate(async () => {
+  const b = document.querySelector('#type');
+  for(const ch of 'beautiful'){
+    b.value += ch;
+    b.dispatchEvent(new InputEvent('input',
+      {bubbles: true, inputType: 'insertText', data: ch}));
+    await new Promise(r => setTimeout(r, 5));
+  }
+});
 
 // The ways she really writes it, which must all go straight through.
 const HER_OWN_HAND = {
@@ -106,7 +126,80 @@ const state = page => page.evaluate(() => {
           mastery: window.__acorn.state.words.mastery};
 });
 
+// A device that has typed at least once, which is what turns the keystroke signal on.
+async function hasTyped(page){
+  await page.evaluate(() => { window.__acorn.state.settings.sawKeys = true;
+                              window.__acorn.save(); });
+}
+
 test.describe('the word has to be written, not said', () => {
+
+  test('the keystroke signal only counts once the device has shown it reports keystrokes',
+    async ({page}) => {
+    /* Measured on her phone: typing gives one keydown per letter on iOS 18.7, dictating gives
+       none. That is what makes "no keystroke behind any of it" a real signal, and it is what
+       could not be checked from a desktop when the check first went in — if a keyboard
+       reported no keystrokes, this would have refused every word she ever wrote. So it stays
+       out of the way until the device proves it reports them, and at worst one word slips
+       through before she has ever typed anything. */
+    await open(page, '2026-08-01');
+    // A keyboard that reports nothing but letters, on a device that has never seen a key.
+    await onAWord(page);
+    await page.evaluate(() => { window.__acorn.state.settings.sawKeys = false;
+                                window.__acorn.save(); });
+    await LETTER_AT_A_TIME(page);
+    await page.locator('#check').click();
+    expect((await state(page)).stage,
+      'a keyboard that reports no keystrokes was locked out').toBe('check');
+
+    // And once it has, the same input is caught.
+    await onAWord(page);
+    await hasTyped(page);
+    await LETTER_AT_A_TIME(page);
+    await page.locator('#check').click();
+    const r = await state(page);
+    expect(r.stage, 'a letter at a time slipped through on a device that reports keys')
+      .toBe('write');
+    expect(Object.keys(r.mastery)).toEqual([]);
+  });
+
+  test('typing sets the flag, on the first letter she ever writes', async ({page}) => {
+    await open(page, '2026-08-01');
+    await onAWord(page);
+    await page.evaluate(() => { window.__acorn.state.settings.sawKeys = false;
+                                window.__acorn.save(); });
+    await page.locator('#type').click();
+    await page.keyboard.type('b');
+    expect(await page.evaluate(() => window.__acorn.state.settings.sawKeys),
+      'a real keystroke did not teach the app that this keyboard reports them').toBe(true);
+    // Backspace and Enter are not letters and must not count as her writing.
+    expect(await page.evaluate(() => window.__acorn.session().keys)).toBe(1);
+    await page.keyboard.press('Backspace');
+    expect(await page.evaluate(() => window.__acorn.session().keys)).toBe(1);
+  });
+
+  test('the count is per word, not per sitting', async ({page}) => {
+    // Or the keystrokes from one word would vouch for the next word being dictated.
+    await open(page, '2026-08-01');
+    await onAWord(page);
+    await hasTyped(page);
+    const word = await page.evaluate(() =>
+      window.__acorn.session().words[window.__acorn.session().i]);
+    await page.locator('#type').click();
+    await page.keyboard.type(word, {delay: 10});
+    await page.locator('#check').click();
+    expect((await state(page)).stage).toBe('check');
+    await page.locator('#next').click();
+    await page.evaluate(() => {
+      if(window.__acorn.session().stage === 'look') window.__acorn.cover();
+    });
+    expect(await page.evaluate(() => window.__acorn.session().keys),
+      'the keystrokes from the last word carried over to this one').toBe(0);
+    await HANDED_TO_HER['dictation, in one block'](page);
+    await page.locator('#check').click();
+    expect((await state(page)).stage,
+      'a dictated word was vouched for by the keystrokes of the one before it').toBe('write');
+  });
 
   test('a word the phone spelled for her is not taken as her spelling it', async ({page}) => {
     await open(page, '2026-08-01');

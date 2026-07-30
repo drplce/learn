@@ -500,7 +500,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '12.2';
+var VERSION = '12.3';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -523,7 +523,7 @@ function fresh(){
     profile:  {name:'', createdAt:todayISO()},
     words:    {lists:[], mastery:bare(null), activeId:'easy', sessions:[]},
     settings: {textScale:1, tint:'cream', readAloud:true, sound:true, voice:null,
-               speechRate:.95, kbInset:0, written:true}
+               speechRate:.95, kbInset:0, written:true, sawKeys:false}
   };
 }
 /* Every setting is chosen by tapping a button that offers a fixed handful of
@@ -568,6 +568,9 @@ function saneSettings(t){
   t.readAloud  = t.readAloud !== false;
   t.sound      = t.sound !== false;
   t.written    = t.written !== false;
+  // Remembered from a real observation, like kbInset: has this device ever reported a
+  // keystroke? Only ever set by seeing one, so a false in storage is simply "not yet".
+  t.sawKeys    = t.sawKeys === true;
   if(typeof t.voice !== 'string') t.voice = null;
   // Remembered from a real measurement, so a plausible band and nothing else.
   var kb = Number(t.kbInset);
@@ -1767,7 +1770,7 @@ function start(){
        plan:words.length, right:0, firstTime:0,
        // What tonight actually did, for the screen at the end of it.
        fresh:[], grew:[], slipped:[],
-       requeue:[], failed:[], shown:[], asked:[], done:[]};
+       requeue:[], failed:[], shown:[], asked:[], done:[], keys:0};
   W.stage = beginStage(words[0]);
   screen = 'day';
   render();
@@ -1824,6 +1827,11 @@ function check(){
      is not her getting a word wrong. A grown-up can turn the whole check off, both because
      dictation is a real accommodation in other places and because if this ever misfires on
      her phone it must not be the thing that stops her practising. */
+  /* Letters in the box with no keystroke behind any of them, on a device that has been seen
+     to report keystrokes. See the keydown handler for why this is trusted only once the
+     device has proved it reports them. */
+  if(S.settings.sawKeys && !(W.keys > 0) && typedLetters(W.attempt).length > 0)
+    W.notWritten = true;
   if(W.notWritten && S.settings.written !== false){
     W.notWritten = false;
     W.attempt = '';
@@ -1881,7 +1889,7 @@ function next(){
   if(W.i + 1 < W.words.length) W.i++;
   else if(W.requeue.length){ W.words.push(W.requeue.shift()); W.i++; }
   else { finish(); return; }
-  W.stage = beginStage(word()); W.attempt = ''; W.tries = 0;
+  W.stage = beginStage(word()); W.attempt = ''; W.tries = 0; W.keys = 0;
   render();
   say(word());
 }
@@ -3599,6 +3607,32 @@ document.addEventListener('beforeinput', function(ev){
   if(ev.inputType === 'insertFromPaste'){ ev.preventDefault(); toast(SPOKEN_NOTE); return; }
   if(chars(ev.data) > 1) W.notWritten = true;
 });
+/* Every letter she types is a keystroke first, and a dictated one is not.
+   This was left out when the check went in, because its safety rested on a software keyboard
+   firing keydown for its letters and that could not be checked from a desktop — if it did
+   not, every word she wrote by hand would have been refused, invisibly here and totally on
+   her phone. Measured on the phone since: typing "beautiful" on iOS 18.7 gives nine
+   keydowns, and dictating it gives none at all. So the signal is real, and it catches what
+   the jump test cannot — a recogniser that hands over one letter at a time, or a one-letter
+   word where there is no jump to see.
+   Still not trusted blindly. It only counts against her once this device has been seen to
+   produce a keystroke, so a keyboard that reports none can never lock her out: at worst the
+   very first word, before she has ever typed anything, goes through. Remembered the same way
+   the keyboard inset is, from a real observation rather than an assumption. */
+addEventListener('keydown', function(ev){
+  if(!W || !ev.target || ev.target.id !== 'type') return;
+  /* Anything that could be a letter going in — not navigation, editing or a lone modifier.
+     Deliberately generous: a single character is the plain case, but an IME hands over
+     key "Unidentified" or keyCode 229 and that is still her pressing a key, so it counts
+     too. Backspace, Enter and the arrows do not — deleting and moving about are not writing.
+     Measured on her phone, typing on iOS 18.7 fires one of these per letter and dictation
+     fires none, which is the whole basis for trusting the count. */
+  var k = String(ev.key || '');
+  if(/^(Backspace|Delete|Enter|Tab|Escape|Arrow|Home|End|Page|Shift|Control|Alt|Meta|CapsLock|F\d)/.test(k))
+    return;
+  W.keys = (W.keys || 0) + 1;
+  if(S && S.settings && !S.settings.sawKeys){ S.settings.sawKeys = true; save(); }
+}, true);
 document.addEventListener('input', function(ev){
   if(ev.target.id === 'pname'){ S.profile.name = ev.target.value; save(); }
   if(ev.target.id !== 'type' || !W) return;
@@ -3724,7 +3758,9 @@ loadClips(); render(); },
                                      right:W.right, firstTime:W.firstTime, failed:W.failed.slice(),
                                      requeue:W.requeue.slice(), plan:W.plan, day:W.day,
                                      listId:W.listId, shown:W.shown.slice(),
-                                     done:(W.done || []).slice()}; },
+                                     done:(W.done || []).slice(),
+                                     keys:W.keys || 0,
+                                     notWritten:!!W.notWritten}; },
   go: go, screen: function(){ return screen; },
   BOX_DAYS: BOX_DAYS, MAX_BOX: MAX_BOX, KNOWN_BOX: KNOWN_BOX,
   meanings: function(){ return Object.assign({}, MEANING); },

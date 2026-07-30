@@ -1498,18 +1498,6 @@ async function main(){
             }
           }, word);
         },
-        'a letter at a time, no keydown at all': async () => {
-          // A keyboard that reports nothing but the letters. Still one at a time, so still
-          // her writing — this is the case the jump test is built to let through.
-          await page.evaluate(w => {
-            const b = document.querySelector('#type');
-            for(const ch of w){
-              b.value += ch;
-              b.dispatchEvent(new InputEvent('input',
-                {bubbles: true, inputType: 'insertText', data: ch}));
-            }
-          }, word);
-        },
       };
       for(const [why, fill] of Object.entries(WAYS)){
         await onWord(word, true);
@@ -1540,11 +1528,57 @@ async function main(){
         bad('check turned off, "' + word + '"', 'still refused with the setting off'); broke++;
       }
     }
+
+    /* D. The safety property behind the keystroke signal, and the exact place it must not
+       overreach. A keyboard that hands over letters with no keydown at all is the dictation
+       signature — but only a device that has proved it reports keydowns is allowed to draw
+       that conclusion. A device that has never fired one (some assistive or third-party
+       keyboards) must never be locked out, whatever it does. Measured on her phone that iOS
+       fires keydowns, so this is the fallback for keyboards we cannot see, tested on its own
+       fresh context where no real key has ever been pressed. */
+    {
+      const c2 = await browser.newContext({viewport: {width: 390, height: 844}});
+      const pg = await c2.newPage();
+      const e2 = [];
+      pg.on('pageerror', ev => e2.push(String(ev)));
+      await pg.goto('file://' + require('path').resolve(__dirname, '..', 'index.html'));
+      await pg.waitForFunction(() => !!window.__acorn);
+      for(const word of WORDS){
+        const got = await pg.evaluate(w => {
+          const a = window.__acorn;
+          const id = 'nk' + (++window.__n || (window.__n = 1));
+          a.state.settings.written = true;
+          a.state.words.lists = [{id: id, name: 'T', words: [w, 'went']}];
+          a.state.words.activeId = id;
+          a.state.words.mastery = {}; a.state.words.sessions = [];
+          a.save(); a.go('day'); if(!a.session()) a.start();
+          if(a.session().stage === 'look') a.cover();
+          const b = document.querySelector('#type');
+          for(const ch of w){                      // letters only, never a keydown
+            b.value += ch;
+            b.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: ch}));
+          }
+          a.check();
+          const W = a.session();
+          return {stage: W ? W.stage : null, sawKeys: a.state.settings.sawKeys};
+        }, word);
+        if(got.sawKeys){
+          bad('keyless keyboard "' + word + '"', 'the device was marked as reporting keystrokes'
+              + ' when no key was ever pressed'); broke++;
+        } else if(got.stage !== 'check'){
+          bad('keyless keyboard "' + word + '"', 'a keyboard that never reports a keystroke was'
+              + ' locked out of writing'); broke++;
+        } else allowed++;
+      }
+      if(e2.length){ bad('keyless keyboard', e2[0]); broke++; }
+      await c2.close();
+    }
+
     if(errs.length){ bad('written answers', errs[0]); broke++; }
     await ctx.close();
     if(!broke) ok(refused + ' words the phone spelled were all handed back without costing her'
-                  + ' anything, and ' + allowed + ' words she wrote — every way a keyboard can'
-                  + ' hand over a letter — all went straight through');
+                  + ' anything, ' + allowed + ' words she wrote went straight through — every way'
+                  + ' a keyboard reports a keystroke, plus one that never does and so is trusted');
   }
 
   /* ---------------------------------------------------------------
