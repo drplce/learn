@@ -1256,6 +1256,119 @@ async function main(){
                   + ' that still lost the caption had both shrink rungs used on them first');
   }
 
+  /* ---------------------------------------------------------------
+     26. a backup that has been round the houses
+     --------------------------------------------------------------- */
+  {
+    console.log('\n26. restoring a backup that has been somewhere and come back');
+    /* Scenario 18 pastes rubbish into Restore and checks the app survives it. This is the
+       other half: text that IS hers, after a mail client has had it. The button beside
+       Restore tells a grown-up to email it to themselves, so that journey is part of the
+       feature, and it is the only route by which a year of her work comes home from a lost
+       phone.
+
+       The invariant is all-or-nothing. Whatever is pasted, exactly one of two things may
+       happen: her state comes back byte for byte, or nothing on the device changes and she
+       is told it could not be read. A third outcome — "Restored" over the top of her
+       history with most of the history missing — is the worst of the three and is what a
+       soft hyphen inside the text actually did, because a soft hyphen is legal inside a
+       JSON string and turns "mastery" into a key nothing looks for. */
+    const ROUNDS = {
+      'untouched':            t => t,
+      'quoted reply':         t => t.split('\n').map(l => '> ' + l).join('\n'),
+      'quoted twice':         t => t.split('\n').map(l => '>> ' + l).join('\n'),
+      'signature after it':   t => t + '\n\n--\nSent from my phone\n',
+      'preamble before it':   t => 'here you go\n\n' + t,
+      'smart quotes':         t => t.replace(/"/g, '“'),
+      'non-breaking spaces':  t => t.replace(/ /g, ' '),
+      'soft hyphens':         t => t.replace(/a/g, 'a­'),
+      'zero-width spaces':    t => t.replace(/,/g, ',​'),
+      'byte-order marks':     t => '﻿' + t.replace(/:/g, ':﻿'),
+      'a whole forward':      t => 'Hi!\n\n' + t.replace(/"/g, '“').replace(/ /g, ' ')
+                                     .split('\n').map(l => '> ' + l).join('\n')
+                                     + '\n\n--\nSent from my iPhone\n',
+      'wrapped tight':        t => t.replace(/(.{20})/g, '$1\n'),
+      'truncated halfway':    t => t.slice(0, Math.floor(t.length / 2)),
+      'doubled':              t => t + t,
+      'an array of it':       t => '[' + t + ']',
+      'array, smart-quoted':  t => ('[' + t + ']').replace(/"/g, '“'),
+      'the closing brace off': t => t.replace(/\}\s*$/, ''),
+      'nothing but braces':   () => '{ }',
+      'someone else’s json':  () => '{"user":{"id":7},"items":[1,2,3]}',
+      'a css file':           () => 'body { margin: 0 } .a { color: red }',
+    };
+    let broke = 0, cameBack = 0, refused = 0;
+    const ctx = await browser.newContext({viewport: {width: 390, height: 844},
+      permissions: ['clipboard-read', 'clipboard-write']});
+    const page = await ctx.newPage();
+    const errs = [];
+    page.on('pageerror', e => errs.push(String(e)));
+    await page.goto('file://' + require('path').resolve(__dirname, '..', 'index.html'));
+    await page.waitForFunction(() => !!window.__acorn);
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.profile.name = 'Ivy';
+      a.state.words.lists = [{id: 'r9', name: 'Week 9', words: ['said', 'they', 'beautiful']},
+                             {id: 'r8', name: 'Week 8', words: ['rain', 'plain']}];
+      a.state.words.activeId = 'r9';
+      a.state.words.mastery = {said: {box: 5, right: 6, wrong: 1, last: '2026-07-30'},
+                               they: {box: 3, right: 3, wrong: 2, last: '2026-07-30'},
+                               rain: {box: 7, right: 9, wrong: 0, last: '2026-07-28'}};
+      a.state.words.sessions = [{date: '2026-07-30', asked: 9, right: 8, words: 5,
+                                 firstTime: 7, fresh: ['they'], grew: ['said'], slipped: []}];
+      a.state.settings.textScale = 1.2;
+      a.state.settings.tint = 'mint';
+      a.save(); a.go('parent');
+    });
+    await page.click('#copy');
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    const mine = await page.evaluate(() => JSON.stringify(window.__acorn.state));
+    if(!copied){
+      bad('backup round trip', 'the Copy button put nothing on the clipboard'); broke++;
+    }
+    for(const [why, fn] of Object.entries(ROUNDS)){
+      if(!copied) break;
+      const text = fn(copied);
+      // Something of hers on the device already, so a partial restore is visible.
+      const held = await page.evaluate(m => {
+        localStorage.setItem('acorn.v1', m);
+        location.reload();
+        return m;
+      }, mine).catch(() => mine);
+      await page.waitForFunction(() => !!window.__acorn);
+      await page.evaluate(() => window.__acorn.go('parent'));
+      const was = await page.evaluate(() => JSON.stringify(window.__acorn.state));
+      await page.fill('#restore', text);
+      await page.click('#restoreGo');
+      if(await page.evaluate(() => !!document.querySelector('#restoreGo').dataset.armed))
+        await page.click('#restoreGo');
+      const r = await page.evaluate(() => ({
+        state: JSON.stringify(window.__acorn.state),
+        toast: (document.querySelector('#toast') || {}).textContent || '',
+        alive: !!document.querySelector('#screen')
+               && document.querySelector('#screen').children.length > 0,
+      }));
+      const said = /Restored/.test(r.toast);
+      const why2 = !r.alive ? 'left an empty screen'
+        : said && r.state !== mine
+            ? 'said "Restored" but put back something else — '
+              + Object.keys(JSON.parse(r.state).words.mastery).length + ' words instead of 3'
+        : !said && r.state !== was
+            ? 'refused it and changed the device anyway'
+        : !said && !/does not look like|could not be restored|Paste the backup/.test(r.toast)
+            ? 'neither restored nor said why not: ' + JSON.stringify(r.toast.slice(0, 60))
+        : null;
+      if(why2){ bad('backup, ' + why, why2); broke++; }
+      if(said) cameBack++; else refused++;
+      void held;
+    }
+    if(errs.length){ bad('backup round trip', errs[0]); broke++; }
+    await ctx.close();
+    if(!broke) ok(Object.keys(ROUNDS).length + ' journeys home: ' + cameBack + ' came back byte'
+                  + ' for byte and ' + refused + ' were refused without touching the device —'
+                  + ' none of them reported success over the top of her history');
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));

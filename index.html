@@ -489,7 +489,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '11.4';
+var VERSION = '11.5';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2465,9 +2465,77 @@ function renderParent(){
    goes through load() so a hand-edited or truncated file meets exactly the same
    hardening as anything already in storage. Nothing is written until the text has
    been read and found to be hers, and the old state is put back if it is not. */
+/* A backup that has been through an email cannot be put back — and an email to yourself
+   is what the button next to this one tells a grown-up to do with it, so this is the only
+   route by which a year of her work comes home after a lost phone. Driven for real, out
+   of the app's own Copy button and back in as a paste, five of the eleven things a mail
+   client routinely does to plain text made the restore refuse it outright: a quoted reply
+   puts "> " on every line, a phone appends a signature after the closing brace, smart
+   quotes turn " into a curly pair, a copy through a web page hands over non-breaking
+   spaces, and the same copy can carry zero-width characters. Not one of them changes a
+   character of her data — they are all packaging. So the packaging comes off, and the
+   shape check further down is still the only thing that decides whether what is inside is
+   hers.
+
+   The two halves of that are deliberately separate, because they carry different risks.
+   This one takes out characters that cannot belong in a backup at all, and it runs on
+   every text whether it parses or not. A soft hyphen is legal inside a JSON string, so a
+   backup that Word has hyphenated parses perfectly well — into an object whose keys are
+   "na-me" and "ma-stery" with an invisible character in the middle of each. That passes
+   the shape check on the strength of the one key that happened to survive intact, restores
+   an empty mastery and a list she is not on, and says "Restored" while a year of her work
+   goes quietly missing. A refusal would have been much better than that; scrubbing is
+   better than either. */
+function scrubBackup(text){
+  return String(text)
+    // Invisibles a copy through a web page picks up, and Word's soft hyphen.
+    .replace(/[​-‍⁠﻿­]/g, '')
+    // Every space a mail client substitutes, back to the one JSON knows.
+    .replace(/[  -   　]/g, ' ')
+    .replace(/\r\n?/g, '\n');
+}
+/* And the structural repairs, which only ever run on text that would not parse at all —
+   see parseBackup for why the two are kept apart. */
+function unwrapBackup(t){
+  /* A signature after the object, or a client's preamble before it — taken off first, so
+     that a "Hi Mum!" above and a "Sent from my phone" below are not counted as unquoted
+     lines by the test below and do not stop the reply prefixes coming off with them. Each
+     of those two arrived on its own and was handled; all of them together was not, which
+     is the arrangement a real forwarded email actually turns up in.
+
+     Not done when a bracket comes first: the outermost thing is then an array, and slicing
+     to the braces would be unwrapping her data rather than its packaging. */
+  var a = t.indexOf('{'), b = t.lastIndexOf('}'), sq = t.indexOf('[');
+  if(a >= 0 && b > a && !(sq >= 0 && sq < a)) t = t.slice(a, b + 1);
+  /* A quoted reply prefixes every line. Only taken off when it is on essentially every
+     line with anything on it — one stray ">" is a character, not a wrapper. A backup
+     cannot contain one anyway: every line of it starts with a brace, a bracket, a quote
+     or a space, and a saved word has had everything that is not a letter taken out. */
+  var lines = t.split('\n');
+  var body = lines.filter(function(l){ return l.trim(); });
+  var quoted = body.filter(function(l){ return /^\s*>+\s?/.test(l); }).length;
+  if(body.length && quoted >= body.length - 1)
+    t = lines.map(function(l){ return l.replace(/^\s*>+\s?/, ''); }).join('\n');
+  /* Smart quotes. Only the double ones, which are the only ones autocorrect substitutes
+     for the plain quote JSON needs — the curly single quote is left alone, because it is
+     the apostrophe in "don't" and folding it here would be folding her data. */
+  return t.replace(/[“”„‟]/g, '"');
+}
+/* Scrub always, unwrap only as a last resort. Taking the packaging off text that already
+   parses would change its meaning rather than reveal it: the slice down to the outermost
+   braces turns [{"words":{...}}] into {"words":{...}}, which walks straight past the array
+   check below — and restoring that array as though it were the object inside it wiped the
+   device and reported "Restored: 0 words". So anything that reads as JSON on its own is
+   judged exactly as it always was, and the repairs only ever run on text that could not
+   be read at all. */
+function parseBackup(text){
+  var t = scrubBackup(text);
+  try{ return JSON.parse(t); }catch(e){}
+  try{ return JSON.parse(unwrapBackup(t)); }catch(e){}
+  return null;
+}
 function looksLikeBackup(text){
-  var o;
-  try{ o = JSON.parse(text); }catch(e){ return null; }
+  var o = parseBackup(text);
   if(!o || typeof o !== 'object' || Array.isArray(o)) return null;
   var w = o.words;
   if(!w || typeof w !== 'object') return null;
