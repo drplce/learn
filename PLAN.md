@@ -11,6 +11,26 @@ name it.
 
 ---
 
+## Who this is for
+
+One child. Not a product, not general usage. The owner set this out explicitly, and
+it decides what counts as a defect:
+
+- **Assistive-technology support is out of scope.** No screen-reader work, no
+  keyboard-only navigation. She uses a phone, by touch, and can see the screen.
+  `announce()` and the `#say` live region are inert for her — `say()` is the one
+  that makes a sound, and that is central.
+- **Legibility is not the same thing and is firmly in scope.** Contrast, her five
+  text sizes, what a long word does at the largest of them, 44px tap targets: those
+  are about whether a nine-year-old with dyslexia can read and hit the thing, not
+  about compliance. Keep measuring them.
+- The existing aria attributes and live-region wiring stay where they are. They
+  work, they cost nothing to run, and pulling them out would touch every render
+  path in the file for no gain to her. What changes is that no further effort goes
+  in — this note exists so a later pass does not rediscover the same ground and
+  spend another evening on it. Roughly a hundred assertions across seventeen test
+  files sit in that territory; they are left green rather than deleted.
+
 ## Where it actually landed
 
 This document is the original plan and is kept as the record of it. What shipped

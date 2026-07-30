@@ -192,17 +192,26 @@ test.describe('getting it wrong', () => {
     expect(await page.locator('.marked u').count()).toBeGreaterThan(1);
   });
 
-  test('adding letters is named, not marked with nothing marked', async ({page}) => {
+  test('adding letters is pointed at, not just named', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['together','rain','boat']);
     await page.locator('#cover').click();
     await write(page, 'togeather');       // every letter present, plus an a
     await page.locator('#check').click();
-    // Every target letter matched, so there is nothing to underline — saying
-    // "look at these letters" over an unmarked word would be nonsense.
-    await expect(page.locator('.verdict.again')).toHaveText('So close — there’s an extra bit in there.');
-    await expect(page.locator('.marked')).toHaveCount(0);
-    await expect(page.locator('.word')).toHaveText('together');
+    /* This used to require the opposite — no marking at all — on the reasoning that every
+       target letter matched, so there was nothing to underline, and "look at these letters"
+       over an unmarked word would be nonsense. The second half of that is right and the
+       first half was too quick: the surplus is in her answer, which is never shown, but the
+       place it went is a position in the word, and the word is right there. So the letter
+       her extra one was added after is marked, and the sentence points at it rather than
+       waving at the whole word. Tested against the slips a dyslexic nine-year-old actually
+       makes, this was the one verdict of six that pointed at nothing, and two of the three
+       ways to reach it are doubled letters. */
+    await expect(page.locator('.verdict.again'))
+      .toHaveText('So close — there’s an extra bit here.');
+    await expect(page.locator('.marked')).toHaveCount(1);
+    await expect(page.locator('.marked')).toHaveText('together');
+    await expect(page.locator('.marked u')).toHaveText('e');   // the a went in after it
     const body = await page.locator('#screen').innerText();
     expect(body).not.toContain('togeather');
   });

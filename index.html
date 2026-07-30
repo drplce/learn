@@ -489,7 +489,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '11.9';
+var VERSION = '12.0';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2212,17 +2212,36 @@ function renderWord(){
     var m = matched(W.attempt, w);
     var missing = w.length - m.count;
     // Marking every letter says only "all of this is wrong", which helps nobody
-    // — so below half matched, show the word plainly instead. And with nothing
-    // missing there is nothing to mark: every letter of the word was there, so
-    // she has added something ("togeather"). Naming that is more use than a row
-    // of unmarked letters under "look at these letters".
+    // — so below half matched, show the word plainly instead.
     var close = w.length ? m.count / w.length >= .5 && missing > 0 : false;
     var extra = !ok && missing === 0;
+    /* With nothing missing there is nothing for the usual marking to catch: every letter
+       of the word was in her answer, so what she has done is add something — "togeather",
+       "saidd", "happenned". Naming that used to be the whole of the reply, and it left her
+       reading "there's an extra bit in there" over a word with no mark on it anywhere.
+       Tested against the shapes a dyslexic nine-year-old actually produces, this was the
+       one verdict of six that pointed at nothing, and two of the three cases that reach it
+       are doubled letters — about the commonest slip there is.
+       The surplus is in her answer and her answer is never put back in front of her, so
+       what gets marked is the letter of the word it was added next to: walk the two
+       together and the first character of hers that the word does not account for sits
+       just after the letter to look at. "happenned" marks the n, "saidd" the last d,
+       "togeather" the e that the extra a came after. */
+    var extraAt = -1;
+    if(extra){
+      var ai = 0, wj = 0, at = tidyTyped(String(W.attempt || '')).trim().toLowerCase();
+      while(ai < at.length && wj < w.length){
+        if(at[ai] === w[wj]){ ai++; wj++; continue; }
+        break;                                   // hers, unaccounted for, right here
+      }
+      extraAt = Math.max(0, wj - 1);
+    }
     var marks = w.split('').map(function(c, i){
-      return m.hit[i] ? '<b>' + esc(c) + '</b>' : '<u>' + esc(c) + '</u>'; }).join('');
+      var miss = extra ? i === extraAt : !m.hit[i];
+      return miss ? '<u>' + esc(c) + '</u>' : '<b>' + esc(c) + '</b>'; }).join('');
     var more = (W.i + 1 < W.words.length) || W.requeue.length;
     var verdict = ok ? (W.failed.indexOf(w) >= 0 ? 'You got there.' : 'Yes — that’s it.')
-                : extra ? 'So close — there’s an extra bit in there.'
+                : extra ? 'So close — there’s an extra bit here.'
                 : close ? (missing === 1 ? 'So close. Look at this letter.'
                                          : 'So close. Look at these letters.')
                         : 'Here it is. Have a good look.';
@@ -2241,8 +2260,12 @@ function renderWord(){
     body = '<div class="verdict ' + (ok ? 'ok' : 'again') + '">' + verdict + '</div>'
          // Only ever the correct spelling on screen. Seeing her own misspelling
          // is the one thing that measurably sets spelling back.
-         + (ok || !close ? wordBlock('word', esc(w), w, wl)
-                         : wordBlock('marked', marks, w, wl))
+         /* The extra-letter case belongs on the marked side. It is not "close" by the
+            half-matched test — close requires something missing, and here nothing is —
+            so it fell through to the plain word, and the one letter its verdict now
+            points at had nowhere to appear. */
+         + (ok || (!close && !extra) ? wordBlock('word', esc(w), w, wl)
+                                     : wordBlock('marked', marks, w, wl))
          + sylRow
          // Words first, then what happens next, then the buttons — so what she
          // reads runs top to bottom without a button interrupting it.

@@ -1782,6 +1782,93 @@ async function main(){
                   + ' that is not on the screen');
   }
 
+  /* ---------------------------------------------------------------
+     30. every verdict points at something, or deliberately does not
+     --------------------------------------------------------------- */
+  {
+    console.log('\n30. the shapes her spelling actually takes');
+    /* Generated slips rather than a hand-written table: for every word in the corpus, make
+       the mistakes a dyslexic nine-year-old makes — swap two letters, reverse a b or a p,
+       drop a letter, double one, un-double one — and check the reply is usable.
+
+       The rule is that a "so close" verdict has to point at something. One of the six did
+       not: with nothing missing from the word there was nothing for the marking to catch,
+       because the surplus is in her answer and her answer is never shown, so she read
+       "there's an extra bit in there" over a word with no mark on it anywhere. Below half
+       matched is the deliberate exception — marking every letter says only "all of this is
+       wrong" — and that one shows the word plainly and says so. */
+    const CORPUS = ['because', 'friend', 'thought', 'beautiful', 'different', 'tomorrow',
+                    'together', 'remember', 'probably', 'happened', 'really', 'said',
+                    'their', 'through', 'people', 'water', 'light', 'plain'];
+    const SWAP = w => w.length > 3 ? w.slice(0, 2) + w[3] + w[2] + w.slice(4) : w;
+    const REV  = w => w.replace(/b/, 'd').replace(/p/, 'q');
+    const DROP = w => w.slice(0, Math.floor(w.length / 2)) + w.slice(Math.floor(w.length / 2) + 1);
+    const DBL  = w => { const i = Math.floor(w.length / 2); return w.slice(0, i) + w[i] + w.slice(i); };
+    const UNDBL= w => w.replace(/([a-z])\1/, '$1');
+    const SLIPS = {swap: SWAP, reversal: REV, dropped: DROP, doubled: DBL, undoubled: UNDBL};
+    let broke = 0, pointed = 0, plain = 0;
+    const ctx = await browser.newContext({viewport: {width: 390, height: 844}});
+    const page = await ctx.newPage();
+    const errs = [];
+    page.on('pageerror', e => errs.push(String(e)));
+    await page.goto('file://' + require('path').resolve(__dirname, '..', 'index.html'));
+    await page.waitForFunction(() => !!window.__acorn);
+    let nth = 0;
+    for(const word of CORPUS){
+      for(const [kind, fn] of Object.entries(SLIPS)){
+        const typed = fn(word);
+        if(typed === word) continue;                       // that slip does not apply here
+        let r;
+        try{
+          r = await page.evaluate(({t, ty, id}) => {
+            const a = window.__acorn;
+            a.state.words.lists = [{id: id, name: 'T', words: [t, 'went']}];
+            a.state.words.activeId = id;
+            a.state.words.mastery = {}; a.state.words.sessions = [];
+            a.save(); a.go('day'); if(!a.session()) a.start();
+            if(a.session().stage === 'look') a.cover();
+            a.type(ty); a.check();
+            const scr = document.querySelector('#screen');
+            const marked = scr.querySelector('.marked');
+            const v = scr.querySelector('.verdict');
+            return {
+              verdict: v ? v.textContent.replace(/\s+/g, ' ').trim() : '',
+              look: marked ? [...marked.querySelectorAll('u')].map(u => u.textContent).join('') : '',
+              shown: ((marked || scr.querySelector('.word') || {}).textContent || '').trim(),
+              screen: (scr.innerText || '').replace(/\s+/g, ' '),
+              box: (a.state.words.mastery[t] || {}).box,
+              alive: scr.children.length > 0,
+            };
+          }, {t: word, ty: typed, id: 'v30' + (++nth)});
+        }catch(e){
+          bad('slip ' + kind + ' "' + typed + '"', 'threw: ' + e.message); broke++; continue;
+        }
+        const at = kind + ' "' + typed + '" for "' + word + '"';
+        const soClose = /So close/.test(r.verdict);
+        const why = !r.alive ? 'left an empty screen'
+          : !r.verdict ? 'gave no verdict at all'
+          : r.shown !== word ? 'showed "' + r.shown + '" instead of the word'
+          : r.screen.includes(typed) ? 'put her own spelling on the screen'
+          : soClose && !r.look ? 'says "so close" and marks nothing, so there is nothing'
+                                 + ' on the screen to look at'
+          : soClose && r.look.length > Math.ceil(word.length / 2)
+              ? 'marks ' + r.look.length + ' of ' + word.length + ' letters, which says only'
+                + ' that all of it is wrong'
+          : !soClose && r.look ? 'shows the word plainly and marks it up at the same time'
+          : r.box !== 1 ? 'moved the word to box ' + r.box + ' on a miss'
+          : null;
+        if(why){ bad('slip, ' + at, why); broke++; }
+        else if(soClose) pointed++; else plain++;
+      }
+    }
+    if(errs.length){ bad('slips', errs[0]); broke++; }
+    await ctx.close();
+    if(!broke) ok((pointed + plain) + ' slips across ' + CORPUS.length + ' words: ' + pointed
+                  + ' got a "so close" that points at a letter she can see, ' + plain
+                  + ' were far enough out to be shown the word plainly instead, and none put'
+                  + ' her own spelling in front of her');
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));
