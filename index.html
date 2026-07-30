@@ -515,7 +515,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '12.6';
+var VERSION = '12.7';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2399,20 +2399,36 @@ function renderWord(){
       var miss = extra ? i === extraAt : !m.hit[i];
       return miss ? '<u>' + esc(c) + '</u>' : '<b>' + esc(c) + '</b>'; }).join('');
     var more = (W.i + 1 < W.words.length) || W.requeue.length;
+    /* What she is missing, in order. Computed before the verdict because the message
+       depends on what kind of thing it is. */
+    var look = w.split('').filter(function(c, i){ return !m.hit[i]; });
+    /* Dropping the apostrophe is the commonest slip on a contraction — "dont", "its",
+       "theyre" — and the marking would underline the apostrophe and the verdict would
+       say "Look at this letter", which points a nine-year-old at a mark that is not a
+       letter, and read aloud came out "Look at the letter '." When the only thing
+       missing is punctuation, name it: an apostrophe or a hyphen is a thing she is
+       taught, and the marked word still shows her where it goes. */
+    var isLetter = function(c){ return /[a-z]/i.test(c); };
+    var onlyMarks = look.length > 0 && look.every(function(c){ return !isLetter(c); });
+    var markPhrase = (look.indexOf("'") >= 0 && look.indexOf('-') >= 0) ? 'an apostrophe and a hyphen'
+                   : look.indexOf("'") >= 0 ? 'an apostrophe'
+                   : look.indexOf('-') >= 0 ? 'a hyphen'
+                   : 'a little mark';
     var verdict = ok ? (W.failed.indexOf(w) >= 0 ? 'You got there.' : 'Yes — that’s it.')
                 : extra ? 'So close — there’s an extra bit here.'
-                : close ? (missing === 1 ? 'So close. Look at this letter.'
-                                         : 'So close. Look at these letters.')
+                : close ? (onlyMarks ? 'So close — it needs ' + markPhrase + '.'
+                           : missing === 1 ? 'So close. Look at this letter.'
+                                           : 'So close. Look at these letters.')
                         : 'Here it is. Have a good look.';
     /* "Look at this letter" points at something a screen reader cannot see: the
        marked-up word reads out as "s a i d" with no hint which letter is the one,
        because <u> against <b> carries no meaning to read. So the announcement
        names them instead of pointing. Same information, each in the medium that
-       can carry it. */
-    var look = w.split('').filter(function(c, i){ return !m.hit[i]; });
-    var said_ = close ? 'So close. Look at the letter' + (look.length > 1 ? 's ' : ' ')
-                        + listOf(look) + '.'
-                      : verdict;
+       can carry it. The apostrophe case already names what is missing, so it reads
+       aloud as it stands rather than listing "the letter '". */
+    var said_ = !close || onlyMarks ? verdict
+              : 'So close. Look at the letter' + (look.length > 1 ? 's ' : ' ')
+                + listOf(look.filter(isLetter)) + '.';
     // Spelt out letter by letter: a screen reader would otherwise read the word
     // as a word and never convey the spelling, which is the whole point here.
     announce(said_ + ' ' + w + '. ' + spellOut(w) + '.');

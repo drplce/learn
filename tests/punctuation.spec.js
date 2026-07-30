@@ -25,7 +25,8 @@ async function answer(page, target, typed){
     a.save(); a.go('day'); a.start(); a.cover(); a.type(o.typed); a.check();
     const m = a.state.words.mastery[o.target] || {};
     const v = document.querySelector('.verdict, .headline');
-    return {right: m.right || 0, wrong: m.wrong || 0, verdict: (v ? v.textContent : '').trim()};
+    return {right: m.right || 0, wrong: m.wrong || 0, verdict: (v ? v.textContent : '').trim(),
+            said: ((document.querySelector('#say') || {}).textContent || '').trim()};
   }, {target, typed});
 }
 
@@ -66,6 +67,40 @@ test.describe('the apostrophe her phone types', () => {
     expect(miss.wrong).toBe(1);
     const other = await answer(page, "don't", "doesn't");
     expect(other.wrong).toBe(1);
+  });
+
+  test('dropping the apostrophe is named as one, not marked as a letter', async ({page}) => {
+    /* When the only thing she left out is the apostrophe — the commonest slip on a
+       contraction — the verdict used to say "So close. Look at this letter." and read
+       aloud as "Look at the letter '.", pointing a nine-year-old at a mark that is not a
+       letter and cannot be spoken as one. It has to be named: an apostrophe is a thing
+       she is taught. */
+    await open(page, '2026-08-01');
+    for(const [target, typed] of [["don't", 'dont'], ["it's", 'its'],
+                                  ["they're", 'theyre'], ["o'clock", 'oclock']]){
+      const r = await answer(page, target, typed);
+      expect(r.verdict, `${typed} for ${target}`).toBe('So close — it needs an apostrophe.');
+      // Never "the letter '", on screen or read aloud. The spelt-out word at the end of
+      // the announcement still names every character of the correct spelling, which is
+      // right — that is the spelling, not a list of what she missed.
+      expect(r.said, `${typed} read aloud as "${r.said}"`).not.toMatch(/letter '|letter ’/);
+      expect(r.said).toMatch(/needs an apostrophe/);
+    }
+    // The hyphen gets its own name for the same reason.
+    const h = await answer(page, 'well-known', 'wellknown');
+    expect(h.verdict).toBe('So close — it needs a hyphen.');
+    expect(h.said).not.toMatch(/letter -/);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
+  test('a missing letter still says "letter", not a mark', async ({page}) => {
+    // The named-mark wording must not swallow the ordinary case: a real dropped letter
+    // is still pointed at as a letter.
+    await open(page, '2026-08-01');
+    const r = await answer(page, "don't", "dnt");        // dropped the o as well
+    expect(r.verdict, 'a dropped letter was called a mark').not.toMatch(/apostrophe|hyphen/);
+    const s = await answer(page, 'friend', 'frend');     // plain word, dropped an i
+    expect(s.verdict).toMatch(/Look at this letter/);
   });
 });
 

@@ -2002,6 +2002,70 @@ async function main(){
                   + ' neither her list nor a finished sitting was lost');
   }
 
+  /* ---------------------------------------------------------------
+     32. the mark she left out is named, never called a letter
+     --------------------------------------------------------------- */
+  {
+    console.log('\n32. dropping the apostrophe, or the hyphen');
+    /* The commonest slip on a contraction is dropping the apostrophe — "dont", "its",
+       "theyre" — and the same on a compound is dropping the hyphen. The word marks up fine
+       either way, but the verdict used to say "So close. Look at this letter." and read
+       aloud as "Look at the letter '.", which points a nine-year-old at a mark that is not
+       a letter and cannot be spoken as one. When the only thing missing is punctuation it
+       has to be named. Every word with a mark in it, stripped of exactly that mark. */
+    const MARKED = ["don't", "it's", "they're", "o'clock", "isn't", "can't", "shouldn't",
+                    "we've", "let's", "that's", 'well-known', 'mother-in-law', 'up-to-date',
+                    'self-esteem', 'twenty-one'];
+    let broke = 0, named = 0;
+    const ctx = await browser.newContext({viewport: {width: 390, height: 844}});
+    const page = await ctx.newPage();
+    const errs = [];
+    page.on('pageerror', e => errs.push(String(e)));
+    await page.goto('file://' + require('path').resolve(__dirname, '..', 'index.html'));
+    await page.waitForFunction(() => !!window.__acorn);
+    let nth = 0;
+    for(const word of MARKED){
+      const mark = word.indexOf("'") >= 0 && word.indexOf('-') >= 0 ? 'both'
+                 : word.indexOf("'") >= 0 ? 'apostrophe' : 'hyphen';
+      const typed = word.replace(/['-]/g, '');           // drop every mark, nothing else
+      let r;
+      try{
+        r = await page.evaluate(({t, ty, id}) => {
+          const a = window.__acorn;
+          a.state.words.lists = [{id: id, name: 'T', words: [t, 'went']}];
+          a.state.words.activeId = id;
+          a.state.words.mastery = {}; a.state.words.sessions = [];
+          a.save(); a.go('day'); if(!a.session()) a.start();
+          if(a.session().stage === 'look') a.cover();
+          a.type(ty); a.check();
+          const scr = document.querySelector('#screen');
+          return {
+            verdict: ((scr.querySelector('.verdict') || {}).textContent || '').replace(/\s+/g, ' ').trim(),
+            said: ((document.querySelector('#say') || {}).textContent || '').replace(/\s+/g, ' ').trim(),
+            wrong: (a.state.words.mastery[t] || {}).wrong,
+          };
+        }, {t: word, ty: typed, id: 'v32' + (++nth)});
+      }catch(e){
+        bad('mark-drop "' + typed + '" for "' + word + '"', 'threw: ' + e.message); broke++; continue;
+      }
+      const at = '"' + typed + '" for "' + word + '"';
+      /* The spelt-out word at the end of the announcement names every character of the
+         correct spelling, mark included — that is right. What must never appear is the
+         word "letter" next to a mark: "the letter '" or "the letter -". */
+      const why = r.wrong !== 1 ? 'was not marked as a miss (wrong=' + r.wrong + ')'
+        : !/needs a/.test(r.verdict) ? 'did not name what is missing: "' + r.verdict + '"'
+        : /letter ['’\-]/.test(r.said) ? 'read a mark aloud as a letter: "' + r.said + '"'
+        : mark === 'apostrophe' && !/apostrophe/.test(r.verdict) ? 'a dropped apostrophe went unnamed'
+        : mark === 'hyphen' && !/hyphen/.test(r.verdict) ? 'a dropped hyphen went unnamed'
+        : null;
+      if(why){ bad('mark-drop, ' + at, why); broke++; } else named++;
+    }
+    if(errs.length){ bad('mark-drop', errs[0]); broke++; }
+    await ctx.close();
+    if(!broke) ok(named + ' words with a mark dropped: each verdict named the apostrophe or'
+                  + ' hyphen and none read a mark aloud as a letter');
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));
