@@ -176,7 +176,10 @@ test.describe('what gets dropped when it will not fit', () => {
       const every = {};
       a.allLists().forEach(l => a.wordsOf(l).forEach(w => {
         every[w] = (l.words && !Array.isArray(l.words) && l.words[w]) || w; }));
-      a.state.words.lists = [{id: 'all', name: 'T', words: every}];
+      // A populated playlist too, so its rows (.playlist/.pw-word/.pw-btn/.rm) render and
+      // are not read as styled-but-dead — two words, so both button ends show.
+      a.state.words.lists = [{id: 'all', name: 'T', words: every},
+                             {id: 'own', name: 'My list', words: ['banana', 'orchard']}];
       a.state.words.activeId = 'all';
       a.state.words.mastery = {};
       Object.keys(every).forEach((w, i) => {

@@ -41,6 +41,10 @@ const AUDIT = () => {
   document.querySelectorAll('#app *').forEach(el => {
     const cs = getComputedStyle(el);
     if (cs.visibility === 'hidden' || cs.display === 'none') return;
+    /* A disabled control is exempt — WCAG carves them out, and dimming one is exactly how a
+       greyed-out button says "not available". The only ones here are the playlist's move
+       arrows at the top and bottom of the list, which cannot go further that way. */
+    if (el.disabled || el.closest('[disabled]')) return;
     /* Faded text used to be skipped here, and that is where every failure in the app was.
        Dimming by opacity moves the text towards whatever is behind it, so the same rule
        measured 2.26:1 on blue and passed on cream — and this audit excluded exactly those

@@ -341,6 +341,21 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 .chip{display:inline-flex; align-items:center; min-height:var(--tap);
       padding:var(--s1) var(--s3); border-radius:var(--r-sm); background:var(--surface-2);
       border:1px solid var(--line); font-size:var(--t-sm); font-weight:600;}
+/* The playlist. One row per word: the word, then move-sooner, move-later and remove. Every
+   control is a real 44px target, and the word takes the space that is left. */
+.playlist{list-style:none; margin:var(--s3) 0 0; padding:0; display:flex;
+          flex-direction:column; gap:var(--s2);}
+.playlist li{display:flex; align-items:center; gap:var(--s2);
+             padding:var(--s2) var(--s2) var(--s2) var(--s3); border-radius:var(--r-md);
+             background:var(--surface-2); border:1px solid var(--line);}
+.pw-word{flex:1 1 auto; min-width:0; overflow-wrap:anywhere; font-weight:600;
+         font-size:var(--t-md); color:var(--ink);}
+.pw-btn{flex:0 0 auto; min-width:var(--tap); min-height:var(--tap); border-radius:var(--r-sm);
+        border:1px solid var(--line); background:var(--surface); color:var(--ink);
+        font-size:var(--t-lg); font-weight:700; line-height:1;}
+.pw-btn:disabled{opacity:.35;}
+.pw-btn.rm{color:var(--retry);}
+.pw-btn:active{border-color:var(--acc);}
 /* Quieter by colour and weight, never by opacity. Opacity dims the text towards whatever
    happens to be behind it, so the same rule measured 2.26:1 on the blue tint and passed on
    cream — and the three places using it for this were the only contrast failures in 1220
@@ -500,7 +515,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '12.5';
+var VERSION = '12.6';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1217,6 +1232,13 @@ function activeList(){
 function wordsOf(list){
   if(!list) return [];
   return Array.isArray(list.words) ? list.words.slice() : Object.keys(list.words);
+}
+/* The one editable pool a grown-up curates — the playlist. A single custom list with a
+   fixed id, found here and created on first add. Its word order is the queue of words she
+   has not met yet, so moving a word to the top makes it the next she meets. */
+var OWN_ID = 'own';
+function ownList(){
+  return (S.words.lists || []).filter(function(l){ return l.id === OWN_ID; })[0] || null;
 }
 /* iOS Smart Punctuation is on by default and a web page cannot turn it off —
    autocorrect="off" does not touch it — so the box she types in gets a curly ’
@@ -2577,6 +2599,7 @@ function growTonight(all){
 function renderParent(){
   el('#act').innerHTML = '';
   var list = activeList(), all = wordsOf(list), net = networkData();
+  var own = ownList(), ownWords = own ? wordsOf(own) : [];
   var voices = offerVoices(), chosen = pickVoice();
   var tricky = Object.keys(S.words.mastery)
     .filter(function(w){ return mastery(w).wrong > 0 && (mastery(w).box || 1) < KNOWN_BOX; })
@@ -2634,6 +2657,40 @@ function renderParent(){
           return '<button data-list="' + esc(l.id) + '" aria-pressed="' + (l.id === list.id) + '">'
                + esc(l.name) + ' <span class="aside">' + wordsOf(l).length + '</span></button>'; }).join('')
     + '</div><div class="hint">Lists are ordered easiest first. She works through one list at a time.</div></div>'
+
+    /* The playlist. One editable pool a grown-up curates as they go — add a word she is
+       working on, drop one she no longer needs, and move one up to be the next she meets.
+       The order is the queue of words she has not met yet; the top is next up, and the
+       pacing still drips them in a couple at a time rather than all at once. Words she has
+       already learned come back on their own schedule wherever they sit here — reordering
+       is about what is coming, not what she knows. */
+    + '<div class="sect"><h2 id="l-own">Words to work on</h2>'
+    +   '<div class="field"><label for="addword">Add a word, or a few</label>'
+    +     '<input type="text" id="addword" placeholder="banana, orchard" '
+    +       'autocomplete="off" autocapitalize="off" spellcheck="false" '
+    +       'aria-describedby="h-own" enterkeyhint="done"></div>'
+    +   '<button class="quiet" id="addwordGo">Add</button>'
+    +   (ownWords.length
+        ? '<ol class="playlist" aria-label="Words to work on, top comes next">'
+          + ownWords.map(function(w, i){
+              var last = i === ownWords.length - 1;
+              return '<li><span class="pw-word">' + esc(w) + '</span>'
+                + '<button class="pw-btn" data-wordup="' + i + '" aria-label="Move ' + esc(w)
+                + ' sooner"' + (i === 0 ? ' disabled' : '') + '>↑</button>'
+                + '<button class="pw-btn" data-worddown="' + i + '" aria-label="Move ' + esc(w)
+                + ' later"' + (last ? ' disabled' : '') + '>↓</button>'
+                + '<button class="pw-btn rm" data-wordrm="' + i + '" aria-label="Remove ' + esc(w)
+                + '">×</button></li>'; }).join('')
+          + '</ol>'
+        : '')
+    +   '<div class="hint" id="h-own">'
+    +     (ownWords.length
+          ? 'The one at the top is the next new word she will meet. Move a word up to bring it '
+            + 'forward, or tap × to take it out. She keeps her progress on anything you '
+            + 'remove, so adding it back later picks up where she left off.'
+          : 'Type a word — or a few, separated by commas — and it joins her rotation, a couple '
+            + 'at a time. Good for something you notice her working on.')
+    +   '</div></div>'
 
     + '<div class="sect"><h2>Her own list</h2>'
     +   '<div class="field"><label for="paste">Paste this week’s words</label>'
@@ -3507,6 +3564,42 @@ document.addEventListener('click', function(ev){
     return;
   }
   if((hit = t.closest('[data-list]'))){ S.words.activeId = hit.dataset.list; save(); render(); return; }
+  // ---- the playlist: add, reorder, remove
+  if(t.closest('#addwordGo')){
+    var box = el('#addword');
+    var add = parseWordList(box ? box.value : '');
+    if(!add.length){ toast('Type a word to add.'); return; }
+    var pool = ownList();
+    if(!pool){ pool = {id:OWN_ID, name:'My list', words:[]}; S.words.lists.push(pool); }
+    if(!Array.isArray(pool.words)) pool.words = wordsOf(pool);
+    var added = 0;
+    add.forEach(function(w){ if(pool.words.indexOf(w) < 0){ pool.words.push(w); added++; } });
+    // Her new words come from the pool she is curating, so make it the one she is on.
+    S.words.activeId = OWN_ID;
+    if(box) box.value = '';
+    save(); render();
+    toast(added ? (added === 1 ? 'Added.' : added + ' added.')
+                : 'Already on her list.');
+    return;
+  }
+  if((hit = t.closest('[data-wordup], [data-worddown], [data-wordrm]'))){
+    var pool2 = ownList();
+    if(!pool2 || !Array.isArray(pool2.words)) return;
+    var ws = pool2.words;
+    if(hit.dataset.wordup !== undefined){ var i = +hit.dataset.wordup;
+      if(i > 0){ var a = ws[i-1]; ws[i-1] = ws[i]; ws[i] = a; } }
+    else if(hit.dataset.worddown !== undefined){ var j = +hit.dataset.worddown;
+      if(j < ws.length - 1){ var b2 = ws[j+1]; ws[j+1] = ws[j]; ws[j] = b2; } }
+    else { ws.splice(+hit.dataset.wordrm, 1);
+      // An empty pool is not a list — drop it, and move her off it if she was on it.
+      if(!ws.length){
+        S.words.lists = S.words.lists.filter(function(l){ return l.id !== OWN_ID; });
+        if(S.words.activeId === OWN_ID) S.words.activeId = (allLists()[0] || {}).id;
+      }
+    }
+    save(); render();
+    return;
+  }
   if((hit = t.closest('[data-del]'))){
     var b = hit;
     if(b.dataset.armed){
@@ -3650,6 +3743,11 @@ document.addEventListener('input', function(ev){
 document.addEventListener('keydown', function(ev){
   if(ev.key === 'Enter' && ev.target.id === 'type' && W && W.stage === 'write'){
     ev.preventDefault(); unlock(); check();
+  }
+  // Enter in the add-a-word box adds it, so a grown-up can rattle a few in.
+  if(ev.key === 'Enter' && ev.target.id === 'addword'){
+    ev.preventDefault();
+    var go = el('#addwordGo'); if(go) go.click();
   }
 });
 
