@@ -500,7 +500,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '12.3';
+var VERSION = '12.4';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1791,12 +1791,6 @@ function word(){ return W && W.words[W.i]; }
 function sessionId(){
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
-/* What she reads when the letters arrived without her writing them. Not an accusation and
-   not the word "no": it says which part of this is the practice. Every other message in
-   this app is careful the same way, and this one has more reason to be than most — she
-   worked out something clever about her phone, and being told off for that is a bad trade
-   for a spelling. */
-var SPOKEN_NOTE = 'This one is for writing. Have a go with the letters.';
 /* Counted the way a person counts them, not the way the string is stored. An emoji is one
    press of one key and two UTF-16 units, so measuring .length made three smileys look like
    six characters arriving from nowhere and flagged her own typing — and because the check
@@ -1822,11 +1816,14 @@ function check(){
      out of her own head. Same for a tap on the predictive bar, a glide across the keys and
      a paste: all of them hand her the letters.
 
-     She keeps the word rather than losing it. Nothing is recorded, the box is emptied and
-     she is asked again — no miss, no requeue, nothing to notice on the map, because this
-     is not her getting a word wrong. A grown-up can turn the whole check off, both because
-     dictation is a real accommodation in other places and because if this ever misfires on
-     her phone it must not be the thing that stops her practising. */
+     She keeps the word rather than losing it. Nothing is recorded, the box is emptied, the
+     word is spoken again and she is asked to have another go — no miss, no requeue, nothing
+     to notice on the map, because this is not her getting a word wrong. The delivery is the
+     box clearing and the word being read out again, and nothing else: no toast, no telling
+     off. She worked out something clever about her phone, and the quiet reset says "have
+     another go" without making a moment of it. A grown-up can turn the whole check off,
+     both because dictation is a real accommodation in other places and because if this ever
+     misfires on her phone it must not be the thing that stops her practising. */
   /* Letters in the box with no keystroke behind any of them, on a device that has been seen
      to report keystrokes. See the keydown handler for why this is trusted only once the
      device has proved it reports them. */
@@ -1836,14 +1833,11 @@ function check(){
     W.notWritten = false;
     W.attempt = '';
     if(el('#type')) el('#type').value = '';
-    toast(SPOKEN_NOTE);
-    announce(SPOKEN_NOTE);
-    say(w);
-    /* Being asked to write it should leave her able to write it. On her phone this is
+    say(w);                                  // the word again — the whole of the cue
+    /* Being handed the word back should leave her able to write it. On her phone this is
        already so — the button's own pointerdown keeps the box focused, which is the whole
        point of that trick — but a mouse click moves focus to the button, and this branch
-       returns before the render that would normally put it back. So the screen said "have a
-       go with the letters" to someone whose next click had to be the box. */
+       returns before the render that would normally put it back. */
     restoreFocus();
     return;
   }
@@ -3603,8 +3597,9 @@ document.addEventListener('click', function(ev){
    is nothing to do with any of this. */
 document.addEventListener('beforeinput', function(ev){
   if(ev.target.id !== 'type' || !W) return;
-  // A pasted answer is never her writing the word, and there is nothing to weigh up.
-  if(ev.inputType === 'insertFromPaste'){ ev.preventDefault(); toast(SPOKEN_NOTE); return; }
+  // A pasted answer is never her writing the word: it never lands, and the word is read out
+  // again so the cue is the same as any other hand-back — the box unchanged, the word spoken.
+  if(ev.inputType === 'insertFromPaste'){ ev.preventDefault(); say(word()); return; }
   if(chars(ev.data) > 1) W.notWritten = true;
 });
 /* Every letter she types is a keystroke first, and a dictated one is not.

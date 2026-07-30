@@ -260,20 +260,51 @@ test.describe('the word has to be written, not said', () => {
       'writing it after being asked to did not count as her first go').toBe(1);
   });
 
-  test('what she is told is not an accusation, and never her own attempt', async ({page}) => {
-    // Every other message in this app is careful; this one has more reason to be.
+  test('the hand-back is the box clearing and the word read out, nothing else', async ({page}) => {
+    /* The whole delivery, by choice. It used to raise a toast — "This one is for writing" —
+       and that was dropped: a fading pill at the bottom, behind the buttons, is a poor place
+       for a message a nine-year-old needs, and a message at all makes a moment of something
+       that should pass without one. She worked out something clever about her phone; the
+       quiet reset says "have another go" without a word of telling-off. So the cue is the
+       box emptying and the word spoken again — and nothing on the screen. */
     await open(page, '2026-08-01');
-    await onAWord(page);
+    // Watch the phone voice, so "the word is read out again" can be asserted.
+    await page.evaluate(() => {
+      window.__spoken = [];
+      const def = (n, v) => Object.defineProperty(window, n, {value: v, configurable: true, writable: true});
+      def('SpeechSynthesisUtterance', function(t){ this.text = t; this.rate = 1; this.pitch = 1; });
+      def('speechSynthesis', {getVoices: () => [], cancel(){},
+        speak(u){ window.__spoken.push(u.text); }, onvoiceschanged: null});
+    });
+    /* A word with no recorded clip, so "say it again" goes through the phone voice the stub
+       is watching — "beautiful" has a clip and would be played as audio the stub cannot see. */
+    const word = 'pinecone';
+    await page.evaluate(w => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id: 'nc', name: 'T', words: [w, 'said']}];
+      a.state.words.activeId = 'nc';
+      a.state.words.mastery = {}; a.state.words.sessions = [];
+      a.save(); a.go('day'); if(!a.session()) a.start();
+      if(a.session().stage === 'look') a.cover();
+    }, word);
+    await page.evaluate(() => { window.__spoken = []; });
     await page.locator('#type').click();
     await HANDED_TO_HER['dictation, in one block'](page);
     await page.locator('#check').click();
     const r = await state(page);
-    for(const nasty of ['wrong', 'cheat', 'not allowed', 'no ', 'stop', 'must', "don't",
-                        'fail', 'invalid', 'error', 'microphone', 'dictat', 'voice'])
-      expect(r.toast.toLowerCase(), `she was told "${r.toast}"`).not.toContain(nasty);
-    expect(r.toast).toMatch(/writing/i);
-    // A screen reader hears it too, or the message only exists for a child who can read it.
-    expect(r.said, 'the note was never announced').toMatch(/writing/i);
+    const spoken = await page.evaluate(() => window.__spoken.slice());
+    // The word again, and no visible message anywhere on her screen.
+    expect(spoken.join(' '), 'the word was not read out again').toContain(word);
+    expect(r.toast, 'a toast was still shown').toBe('');
+    const onScreen = await page.evaluate(() =>
+      (document.querySelector('#screen').innerText || '').toLowerCase());
+    for(const nasty of ['wrong', 'cheat', 'not allowed', 'stop', 'must',
+                        'fail', 'invalid', 'error', 'microphone', 'dictat'])
+      expect(onScreen, `her screen read "${onScreen}"`).not.toContain(nasty);
+    // And she is handed straight back to writing it, having lost nothing.
+    expect(r.stage).toBe('write');
+    expect(r.box, 'the box was not cleared').toBe('');
+    expect(Object.keys(r.mastery), 'something went on her record').toEqual([]);
   });
 
   test('typing it wrong is still just typing it wrong', async ({page}) => {
