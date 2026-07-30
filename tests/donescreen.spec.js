@@ -75,8 +75,13 @@ test.describe('the screen at the end of a sitting', () => {
     expect(out.head).toMatch(/All done for today|first go/);
     expect(out.screen).not.toMatch(/took root/);
     expect(out.screen).not.toMatch(/known well/);
-    // Where she is up to is still there for a screen reader.
-    expect(out.said).toMatch(/of \d+ words known well/);
+    /* And not read out either, since 11.9. This line used to require the count in the
+       announcement on the reasoning that a screen reader is the one place she can still hear
+       it — but it is not: the picture carries the same numbers as its own label, so she finds
+       them where the sighted child finds the picture instead of having a nought pushed at her
+       as the screen arrives. */
+    expect(out.said, 'a count she cannot see is read out to her').not.toMatch(/known well/);
+    expect(out.said.length, 'nothing was announced at all').toBeGreaterThan(4);
   });
 
   /* Met tonight and climbed tonight are the same event for a brand-new word, and it

@@ -105,9 +105,18 @@ test.describe('what a screen reader is told', () => {
       const headline = await page.locator('#screen .headline').textContent();
       // It used to announce the cheer and a total and never this.
       expect(heard, `the headline "${headline}" was never announced`).toContain(headline.trim());
-      // The total is still announced though it is no longer drawn — it belongs to a
-      // grown-up, and a screen reader is the one place she can still hear it.
-      expect(heard).toMatch(/known well/);
+      /* The total is no longer announced, and this line used to insist that it was.
+         Read back, the reasoning did not survive contact with the sentence it produced:
+         "Three took root tonight. Every one, first go, Ivy. 0 of 100 words known well."
+         A perfect evening, and then a nought. The bar and the total came off this screen in
+         9.7 exactly because they read as a target she has not reached rather than as work
+         she has done, and appending the same number here handed it to the one child who
+         cannot see that it was removed.
+         Nothing is lost by taking it out: the picture carries those numbers as its own
+         label — "3 met, 0 known well, 100 in all" — so a screen reader still finds them, in
+         the same place the sighted child finds the picture, rather than having them pushed
+         at her the moment the screen arrives. Checked in the real accessibility tree. */
+      expect(heard, 'a count she cannot see is being read out again').not.toMatch(/known well/);
       // And in the order the screen is in.
       expect(heard.indexOf(headline.trim())).toBe(0);
       expect(errorsOf(page)).toEqual([]);

@@ -1634,6 +1634,154 @@ async function main(){
                   + ' all finished, never focusing something that was not on the screen');
   }
 
+  /* ---------------------------------------------------------------
+     29. every string she can be shown, collected rather than sampled
+     --------------------------------------------------------------- */
+  {
+    console.log('\n29. every word she can be shown');
+    /* Aspect 2 is normally reviewed by reading the source and spot-checking. This drives
+       every state a child-facing screen can be in, across three shapes of list, and audits
+       whatever comes back — so a string added later is audited by having been rendered
+       rather than by somebody remembering to look at it.
+
+       The check that found something was not "is there a rude word in here" but "is what
+       she hears the same as what is there": the finished screen was appending a running
+       total to the announcement that had been deliberately taken off the screen, so the
+       child who listens got "Every one, first go. 0 of 100 words known well" and the child
+       who looks did not. Anything announced and not shown is a second, invisible version
+       of the screen that nobody reviews. */
+    const STATES = {
+      look:        `if(!a.session()) a.start();`,
+      write:       `if(!a.session()) a.start(); if(W().stage==='look') a.cover();`,
+      right:       `if(!a.session()) a.start(); if(W().stage==='look') a.cover();
+                    a.type(W().words[W().i]); a.check();`,
+      close:       `if(!a.session()) a.start(); if(W().stage==='look') a.cover();
+                    const w=W().words[W().i]; a.type(w.slice(0,-1)+'z'); a.check();`,
+      wrong:       `if(!a.session()) a.start(); if(W().stage==='look') a.cover();
+                    a.type('zqx'); a.check();`,
+      letterless:  `if(!a.session()) a.start(); if(W().stage==='look') a.cover();
+                    a.type('...'); a.check();`,
+      'all right': `if(!a.session()) a.start();
+                    for(let g=0;g<80&&a.session();g++){const x=W();
+                      if(x.stage==='look'){a.cover();continue;}
+                      if(x.stage==='write'){a.type(x.words[x.i]);a.check();a.next();continue;}
+                      a.next();}`,
+      'none right':`if(!a.session()) a.start();
+                    for(let g=0;g<80&&a.session();g++){const x=W();
+                      if(x.stage==='look'){a.cover();continue;}
+                      if(x.stage==='write'){a.type('zqx');a.check();a.next();continue;}
+                      a.next();}`,
+      'some right':`if(!a.session()) a.start(); let i=0;
+                    for(let g=0;g<80&&a.session();g++){const x=W();
+                      if(x.stage==='look'){a.cover();continue;}
+                      if(x.stage==='write'){a.type((i++%2)?'zqx':x.words[x.i]);a.check();a.next();continue;}
+                      a.next();}`,
+      'dead end':  `a.state.words.lists=[{id:'e29',name:'E',words:[]}];
+                    a.state.words.activeId='e29'; a.state.words.mastery={}; a.save(); a.go('day');`,
+      dictated:    `if(!a.session()) a.start(); if(W().stage==='look') a.cover();
+                    const b=document.querySelector('#type'); b.value=W().words[W().i];
+                    b.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:b.value}));
+                    a.check();`,
+    };
+    const LISTS = {plain: ['said', 'beautiful', 'rain'], single: ['said'],
+                   homophone: ['their'], contraction: ["they're"]};
+    const BLAME = /\b(wrong|failed|fail|incorrect|error|bad|mistake|nope|cannot|must|try harder)\b/i;
+    let broke = 0, strings = new Set();
+    let nth = 0;
+    const ctx = await browser.newContext({viewport: {width: 390, height: 844}});
+    const page = await ctx.newPage();
+    const errs = [];
+    page.on('pageerror', e => errs.push(String(e)));
+    await page.goto('file://' + require('path').resolve(__dirname, '..', 'index.html'));
+    await page.waitForFunction(() => !!window.__acorn);
+    for(const [listName, words] of Object.entries(LISTS)){
+      for(const [stateName, src] of Object.entries(STATES)){
+        let r;
+        try{
+          r = await page.evaluate(({ws, s, id}) => {
+            const a = window.__acorn;
+            const W = () => a.session();
+            a.state.profile.name = 'Ivy';
+            a.state.settings.textScale = 1;
+            a.state.words.lists = [{id: id, name: 'Week 9', words: ws}];
+            a.state.words.activeId = id;
+            a.state.words.mastery = {}; a.state.words.sessions = [];
+            a.save(); a.go('day');
+            new Function('a', 'W', s)(a, W);
+            const seen = [];
+            document.querySelectorAll('#screen, #act').forEach(root => {
+              const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+              let t;
+              while((t = walk.nextNode())){
+                const v = t.textContent.replace(/\s+/g, ' ').trim();
+                if(v && getComputedStyle(t.parentElement).display !== 'none') seen.push(v);
+              }
+            });
+            const say = document.querySelector('#say');
+            return {seen: seen, screen: (document.querySelector('#screen').innerText || '')
+                                        .replace(/\s+/g, ' ').trim(),
+                    said: say ? say.textContent.replace(/\s+/g, ' ').trim() : '',
+                    attempt: (W() || {}).attempt || ''};
+          }, {ws: words, s: src, id: 'b29' + (++nth)});
+        }catch(e){
+          bad('strings, ' + stateName + ' / ' + listName, 'threw: ' + e.message); broke++;
+          continue;
+        }
+        const at = stateName + ' / ' + listName;
+        const all = r.seen.concat([r.said]);
+        all.forEach(s => s && strings.add(s));
+        for(const s of all){
+          if(!s) continue;
+          if(BLAME.test(s)){
+            bad('strings, ' + at, 'reads as blame: ' + JSON.stringify(s.slice(0, 70)));
+            broke++;
+          }
+          // A number that disagrees with the noun after it.
+          let g, NUM = /(^|[^\d])(\d+) ([a-z]+)/g;
+          while((g = NUM.exec(s))){
+            const num = Number(g[2]), noun = g[3], plural = /s$/.test(noun);
+            if(num === 1 && plural){
+              bad('strings, ' + at, '"1 ' + noun + '" is plural in ' + JSON.stringify(s.slice(0, 60)));
+              broke++;
+            }
+            if(num !== 1 && !plural && !/^(of|first|more|and|in|a|the|to|left|right|go)$/.test(noun)){
+              bad('strings, ' + at, '"' + num + ' ' + noun + '" is singular in '
+                  + JSON.stringify(s.slice(0, 60)));
+              broke++;
+            }
+          }
+          if(/undefined|NaN|\[object|null/.test(s)){
+            bad('strings, ' + at, 'printed rubbish: ' + JSON.stringify(s.slice(0, 60)));
+            broke++;
+          }
+        }
+        /* No number announced that is not on the screen.
+           The first version of this insisted every announced sentence appear on the screen,
+           and that is false by design in five places: the announcement names the letter to
+           look at where the screen marks it in colour, it wraps the meaning cue in "The one
+           that means", it spells the word out letter by letter, and a toast is not part of
+           #screen at all. Each of those differences is deliberate and each was reported as
+           a fault. What was actually wrong was narrower and worth keeping: a count read out
+           that is nowhere to be seen. The totals were taken off this screen because they
+           read as a target she has not reached, and announcing them anyway handed them to
+           the one child who cannot see that they are gone. */
+        for(const m of r.said.matchAll(/\d+\s+of\s+\d+|\b\d+\s+words?\b|\b\d+\s+sittings?\b/g)){
+          if(!r.screen.includes(m[0])){
+            bad('strings, ' + at, 'a count she cannot see was read out to her: '
+                + JSON.stringify(m[0]) + ' in ' + JSON.stringify(r.said.slice(0, 70)));
+            broke++;
+          }
+        }
+      }
+    }
+    if(errs.length){ bad('strings', errs[0]); broke++; }
+    await ctx.close();
+    if(!broke) ok(strings.size + ' distinct strings across ' + Object.keys(STATES).length
+                  + ' states and ' + Object.keys(LISTS).length + ' shapes of list: none reads'
+                  + ' as blame, every number agrees with its noun, and nothing is announced'
+                  + ' that is not on the screen');
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));

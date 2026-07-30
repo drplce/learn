@@ -66,18 +66,31 @@ test.describe('words that sound like other words', () => {
     const {cues, twins} = await page.evaluate(() => ({
       cues: window.__acorn.meanings(), twins: window.__acorn.twins()
     }));
-    const other = {};
-    for(const [a, b] of twins){ other[a] = b; other[b] = a; }
+    /* Sets, not pairs. "their" is one of three, and while this held a single twin per word
+       a third member could only be recorded as somebody's twin — so the check tested one of
+       the two words the cue must not name and skipped the other without saying so.
+       Apostrophes stripped on both sides for the same reason: splitting a cue on
+       non-letters can never produce the string "it's", so a cue that named it would have
+       passed silently. */
+    const flat = w => w.toLowerCase().replace(/[^a-z]/g, '');
+    const others = {};
+    for(const set of twins)
+      for(const w of set) others[w] = set.filter(x => x !== w);
     for(const [word, cue] of Object.entries(cues)){
       const c = cue.toLowerCase();
       // Not the word, and not a longer word containing it — "metre" was being
       // handed over inside "a hundred centimetres" the first time round.
       expect(c, `the cue for "${word}" contains the word`).not.toContain(word.toLowerCase());
-      // And not the other spelling either. A wrong spelling on screen is the one
-      // thing this app never shows her, in her own writing or anyone else's.
-      const twin = other[word];
-      expect(twin, `"${word}" has a cue but no recorded twin`).toBeTruthy();
-      expect(c.split(/[^a-z]+/), `the cue for "${word}" names "${twin}"`).not.toContain(twin);
+      expect(c.split(/[^a-z]+/).map(flat),
+        `the cue for "${word}" spells it out`).not.toContain(flat(word));
+      // And not any other spelling in its set either. A wrong spelling on screen is the
+      // one thing this app never shows her, in her own writing or anyone else's.
+      const set = others[word];
+      expect(set, `"${word}" has a cue but is in no recorded set`).toBeTruthy();
+      expect(set.length, `"${word}" is in a set on its own`).toBeGreaterThan(0);
+      for(const twin of set)
+        expect(c.split(/[^a-z]+/).map(flat), `the cue for "${word}" names "${twin}"`)
+          .not.toContain(flat(twin));
     }
   });
 

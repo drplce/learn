@@ -489,7 +489,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '11.8';
+var VERSION = '11.9';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1025,7 +1025,38 @@ var MEANING = bare({
   right:    'not wrong',
   no:       'the opposite of yes',
   mite:     'a tiny bug',
-  mourning: 'sad, missing someone'
+  mourning: 'sad, missing someone',
+
+  /* The ones a school list actually holds. The set above came out of auditing the
+     built-in corpus, and it covers that corpus — but the comment above says these
+     exist for the lists she is set at school, and the commonest homophone in a
+     British Year 4 spelling list was not in it at all. Heard aloud, "their" is
+     three different words and she had no way to know which. Same for your, its,
+     hear, one, new, see, where and blue.
+     Left out on purpose: to, too and two, and for and four. Two and four can be
+     cued and to and for cannot — they are function words with no meaning to give a
+     nine-year-old — and cueing half of a set is worse than cueing none of it,
+     because the uncued one becomes the unanswerable question. The same reasoning
+     that left license, practice and meter alone. */
+  their:    'belonging to them',
+  there:    'in that place',
+  "they're":'they are',
+  your:     'belonging to you',
+  "you're": 'you are',
+  its:      'belonging to it',
+  "it's":   'it is',
+  hear:     'with your ears',
+  here:     'in this place',
+  one:      'the number after zero',
+  won:      'win, but yesterday',
+  "new":    'not old',
+  knew:     'know, but yesterday',
+  see:      'with your eyes',
+  sea:      'salty water with waves',
+  where:    'which place',
+  wear:     'put clothes on',
+  blue:     'the colour of sky',
+  blew:     'blow, but yesterday'
 });
 function meaningOf(w){ return MEANING[String(w || '').toLowerCase()] || ''; }
 // "a", "a and i", "a, i and d" — read aloud, a bare comma list runs together.
@@ -1033,12 +1064,18 @@ function listOf(xs){
   if(xs.length < 2) return xs.join('');
   return xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1];
 }
-// The pairs the cues exist for. Nothing in the app reads this — it is here so a
-// test can hold every cue to not naming the word it is meant to be told apart
-// from, and so the two halves cannot drift apart unnoticed.
+/* The sets the cues exist for. Nothing in the app reads this — it is here so a test can
+   hold every cue to not naming any word it is meant to be told apart from, and so the two
+   halves cannot drift apart unnoticed.
+   Sets rather than pairs, because "their" is one of three. Held as pairs, a third member
+   could only be recorded as somebody's twin and the leak check then tested one of the two
+   words a cue must not name and silently skipped the other. */
 var TWINS = [['some','sum'], ['made','maid'], ['week','weak'], ['through','threw'],
              ['might','mite'], ['know','no'], ['write','right'], ['morning','mourning'],
-             ['metre','meter'], ['licence','license'], ['practise','practice']];
+             ['metre','meter'], ['licence','license'], ['practise','practice'],
+             ['their','there',"they're"], ['your',"you're"], ['its',"it's"],
+             ['hear','here'], ['one','won'], ['new','knew'], ['see','sea'],
+             ['where','wear'], ['blue','blew']];
 
 function allLists(){
   return LISTS.map(function(l){ return {id:l.id, name:l.name, words:l.words, builtIn:true}; })
@@ -1253,7 +1290,22 @@ function syllables(word){
   var out = [], from = 0;
   cuts.forEach(function(c){ if(c > from && c < s.length){ out.push(s.slice(from, c)); from = c; } });
   out.push(s.slice(from));
-  return out.filter(Boolean);
+  out = out.filter(Boolean);
+  /* No chunk may end on an apostrophe. The vowel rule knows nothing about one, so it put
+     the boundary straight after it and left "they're" as they' + re — two chips, both
+     tappable, both of which speak, and neither of which is a piece of the word. Same for
+     you're, we're and o'clock. An apostrophe belongs to whatever follows it, so a chunk
+     that would end on one is joined to the next.
+
+     This was always here; contractions have been paste-able since the beginning. What
+     changed is that the cues now cover they're and you're, so it is no longer a word she
+     would have to be unlucky to meet. haven't, children's and everybody's split correctly
+     already and are untouched — their apostrophes fall inside a chunk, not at its edge. */
+  for(var q = 0; q < out.length - 1; ){
+    if(out[q].slice(-1) === "'"){ out[q] += out[q + 1]; out.splice(q + 1, 1); }
+    else q++;
+  }
+  return out;
 }
 function splitOf(word){
   var list = activeList();
@@ -2215,7 +2267,10 @@ function renderWord(){
    words known well" one evening and "0 of 16" the next, with sixteen words of work
    apparently gone. The number she is shown has to be one that cannot go backwards. */
 function renderDone(){
-  var all = allWords(), known = knownEverywhere();
+  /* No totals are worked out here any more. all/known/pct went with the count: pct had been
+     dead since the progress bar came off this screen in 9.7 and nothing noticed, because it
+     was still being computed from two live functions and so read like working code. The
+     numbers this screen shows are the ones renderNetwork puts on the picture. */
   /* Whether she has anything to practise is a different question from how many words
      exist: the built-in lists are always there, so the count is never zero, but a
      grown-up who has left her on an empty list has given her a dead end and should be
@@ -2223,17 +2278,22 @@ function renderDone(){
      of it, or there is something of hers to come back to. */
   var canPractise = wordsOf(activeList()).length || newPool(activeList()).length
                     || metWords().length;
-  var pct = all.length ? Math.round(100 * known / all.length) : 0;
   var head = saying || 'All done for today';
-  var count = canPractise
-    ? known + ' of ' + all.length + (all.length === 1 ? ' word' : ' words') + ' known well'
-    : 'No words yet. Ask a grown-up to add some.';
+  /* Only the dead end left. This was a ternary whose other branch built "N of M words known
+     well" for the announcement, and with that gone the branch had nothing left to reach —
+     computed on every finished screen, used on none of them, and carrying the only
+     singular-plural rule in this function along with it. Exactly the shape the shed list
+     was in for four versions: correct code describing a screen that no longer exists.
+     The numbers themselves are not gone. They are on the picture, in its own label, which
+     is where a screen reader now finds them. */
+  var deadEnd = 'No words yet. Ask a grown-up to add some.';
   /* Her words, at the end of the sitting that changed them. A tick says only that
      she stopped; the picture says what tonight did, and it is the same drawing a
      grown-up sees, so it means the same thing in both places. The screen is three
      fixed rows — the line at the top, the picture in a window that is the same size
-     whatever she knows, the count at the bottom — so nothing moves as her map grows
-     over the months. */
+     whatever she knows, and the praise at the bottom when she has earned it — so nothing
+     moves as her map grows over the months. (That last row was described here as the
+     count for four versions after the count came off the screen.) */
   /* Met tonight and climbed tonight are the same event for a brand-new word — it is
      recorded in both lists — so counting them separately told her "10 more took root"
      when five shapes had changed. What she is being told is how many words moved, and
@@ -2254,7 +2314,7 @@ function renderDone(){
   /* A grown-up who has left her on an empty list has given her a dead end, and that
      is the one thing this screen has to say instead of anything else — stripping the
      totals off it took that message with them the first time. */
-  var line = !canPractise ? count
+  var line = !canPractise ? deadEnd
     /* "Three more took root tonight" was two lines at her ordinary text size and three
        at the largest, on a 375px phone — a headline taller than the picture it is
        introducing. "More" was doing no work either: the picture already shows what she
@@ -2266,13 +2326,21 @@ function renderDone(){
   // cannot say different things.
   var cheer = (saying && line !== head) ? head : '';
   header();
-  /* What is on the screen, in the order it is on the screen, and then where she is
-     up to — announced but not drawn, because the totals belong to a grown-up. The
-     line at the top was missing from this altogether: measured on the finished
-     screen, a screen reader was told "Every one, first go. 0 of 100 words known
-     well" and never "Three took root tonight." — the one thing the screen leads
-     with. On a dead end the line already is the count, so it is not said twice. */
-  announce([line, cheer, line === count ? '' : count].filter(Boolean).join(' '));
+  /* What is on the screen, in the order it is on the screen — and nothing else.
+
+     The running total used to be appended here, on the reasoning that a screen reader
+     should still hear where she is up to. Read back, that came out as "Three took root
+     tonight. Every one, first go, Ivy. 0 of 100 words known well." — a perfect evening,
+     and then a nought. The bar and the total were taken off this screen in 9.7 precisely
+     because they read as a target she has not reached rather than as work she has done,
+     and appending the same number to the announcement handed it to the one child who
+     cannot see that it was removed. Reserving the totals for a grown-up has to mean the
+     same thing by ear as it does by eye; a grown-up who wants them has a screen of their
+     own, and it reads them out properly.
+
+     The dead end keeps its count, because there the count is the whole message — "No
+     words yet. Ask a grown-up to add some." is already the line. */
+  announce([line, cheer].filter(Boolean).join(' '));
   /* The picture does the talking. What was here — a heading, the picture, tonight's
      line, a running total and a progress bar — was five things saying versions of the
      same thing, and the bar in particular reads as a target she has not reached rather

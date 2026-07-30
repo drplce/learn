@@ -382,11 +382,17 @@ test.describe('finishing', () => {
     await startOn(page, ['rain','boat']);
     await finishSession(page);
     /* The totals are a grown-up's business and live on the grown-ups screen. Hers says
-       what tonight did and shows her the words; a screen reader is still told where she
-       is up to, because that is announced. */
+       what tonight did and shows her the words.
+       They are not announced either, since 11.9: "Every one, first go. 0 of 100 words known
+       well" is the sentence that reasoning produced, and reserving the totals for a grown-up
+       has to mean the same thing by ear as it does by eye. The numbers are still reachable —
+       the picture's own label carries them — so this checks they are on the picture rather
+       than pushed at her. */
     await expect(page.locator('#screen .net')).toBeVisible();
     expect(await page.locator('#screen').innerText()).not.toMatch(/known well/);
-    expect(await page.locator('#say').textContent()).toMatch(/of \d+ words known well/);
+    expect(await page.locator('#say').textContent()).not.toMatch(/known well/);
+    expect(await page.locator('#screen .net').getAttribute('aria-label'))
+      .toMatch(/\d+ known well/);
   });
 
   test('she can choose to practise more', async ({page}) => {
@@ -2025,20 +2031,23 @@ test.describe('what a screen reader is told', () => {
     await expect(page.locator('h2.headline')).toBeVisible();
   });
 
-  /* The count is across all her words now rather than the open list, because moving
-     her on when she had mastered one used to empty her bar overnight. Her lists always
-     include the built-in ones, so the total is never one — but the line still has to
-     agree with whatever number it is showing. */
-  test('the finished line agrees with its own numbers', async ({page}) => {
+  /* The count is across all her words rather than the open list, because moving her on
+     when she had mastered one used to empty her bar overnight. It moved off the
+     announcement in 11.9 and onto the picture, which is where a screen reader finds it
+     now — so the numbers this checks are the picture's, and the singular-plural rule that
+     used to live in the announcement went with the sentence that needed it. */
+  test('the finished picture agrees with its own numbers', async ({page}) => {
     await open(page, '2026-08-01');
     await startOn(page, ['rain']);
     await finishSession(page);
-    const note = await page.locator('#say').textContent();
-    const m = note.match(/(\d+) of (\d+) (word|words) known well/);
-    expect(m, 'unexpected wording: ' + note).not.toBeNull();
-    expect(m[3]).toBe(Number(m[2]) === 1 ? 'word' : 'words');
-    expect(Number(m[1]), 'she cannot know more than she has')
-      .toBeLessThanOrEqual(Number(m[2]));
+    const label = await page.locator('#screen .net').getAttribute('aria-label');
+    const m = label.match(/(\d+) met, (\d+) known well, (\d+) in all/);
+    expect(m, 'unexpected wording: ' + label).not.toBeNull();
+    const [, met, known, total] = m.map(Number);
+    expect(known, 'she cannot know more than she has met').toBeLessThanOrEqual(met);
+    expect(met, 'she cannot have met more than there are').toBeLessThanOrEqual(total);
+    // And it is not announced on top of that.
+    expect(await page.locator('#say').textContent()).not.toMatch(/known well/);
   });
 });
 
@@ -2163,9 +2172,15 @@ test.describe('reachable without a touchscreen', () => {
     await open(page, '2026-07-28');
     await startOn(page, ['rain','boat']);
     await finishSession(page);
-    // Announced, not printed: her screen shows the words themselves.
-    expect(await page.locator('#say').textContent()).toMatch(/words known well/);
+    /* On the picture, not shouted on arrival. This used to require the count in the live
+       region, and the sentence that produced was "Every one, first go. 0 of 100 words known
+       well" — the nought the progress bar was removed for, handed to the one child who
+       cannot see that it went. She is still told where she is up to; she finds it on the
+       picture, in the place the sighted child finds the picture. */
     await expect(page.locator('#screen .net')).toBeVisible();
+    expect(await page.locator('#screen .net').getAttribute('aria-label'))
+      .toMatch(/\d+ met, \d+ known well, \d+ in all/);
+    expect(await page.locator('#say').textContent()).not.toMatch(/known well/);
   });
 });
 
