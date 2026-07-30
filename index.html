@@ -217,6 +217,28 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 .marked b{color:var(--ink); font-weight:700;}
 .marked u{color:var(--retry); text-decoration:none; border-bottom:3px solid var(--retry);}
 
+/* The trace, on a never-met word. The letters carry the state and a transparent input
+   over the top takes the keyboard: tapping anywhere on the word focuses it, and only
+   the correctly-copied prefix is ever drawn (the input is filled from code, its own text
+   kept invisible so there is no double image). Colour is never the only signal — the lit
+   letter also carries the highlight box, and the whole word is spelled out to a screen
+   reader in the announcement. All three letter colours are the app's AA-safe inks, none
+   faded by opacity, so every tint clears contrast. */
+.trace{position:relative; min-height:var(--tap); margin:var(--s2) 0 var(--s1);
+       display:flex; align-items:center; justify-content:center;}
+.tracew{width:100%; text-align:center; font-weight:700; line-height:1.35;
+        letter-spacing:.06em; word-spacing:.1em; padding-bottom:.08em; overflow-wrap:anywhere;
+        font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (var(--wl,6) * .8)), var(--t-3xl));}
+.tracew .on{color:var(--ink);}                        /* copied — solid */
+.tracew .off{color:var(--ink-soft);}                  /* not reached — the app's soft ink, still AA */
+.tracew .now{color:var(--ink); background:var(--acc-soft);   /* next — lit, box not colour alone */
+             border-radius:var(--r-sm); box-decoration-break:clone;
+             -webkit-box-decoration-break:clone;}
+.tracein{position:absolute; inset:0; width:100%; min-height:var(--tap); border:0; padding:0;
+         background:transparent; color:transparent; -webkit-text-fill-color:transparent;
+         caret-color:transparent; text-align:center; font:inherit;}
+.tracein:focus{outline:none;}
+
 .syls{display:flex; flex-wrap:wrap; justify-content:center; gap:var(--s2); margin-top:var(--s3);}
 /* The only tappable thing in the app that was not held to --tap. A two-letter chunk
    is as narrow as its letters: measured, the "ti" of "beau·ti·ful" came out 43px wide
@@ -267,6 +289,13 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
          font-size:var(--t-lg); font-weight:700; box-shadow:var(--shadow);
          transition:transform var(--m-press) var(--ease);}
 .primary:active{transform:scale(.985);}
+/* The wordless carry-on / finish button: a chevron or tick, no label. Sized off the tap
+   scale like every .primary, the icon centred in it. */
+.iconbtn svg{width:calc(var(--t-xl) * var(--ornament)); height:calc(var(--t-xl) * var(--ornament)); flex:none;}
+/* The win verdict is the tap target that skips the auto-advance wait, so give it room to
+   be tapped even when the line of text is short. */
+.verdict#advance{min-height:var(--tap); display:flex; align-items:center; justify-content:center;
+                 padding:0 var(--s3); cursor:pointer;}
 .quiet{display:block; width:100%; margin-top:var(--s3); min-height:var(--tap);
        border-radius:var(--r-md); color:var(--ink-soft); font-size:var(--t-md);
        font-weight:600; border:1px solid var(--line); background:var(--surface-2);}
@@ -520,7 +549,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '12.8';
+var VERSION = '13.0';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1814,6 +1843,10 @@ function matched(attempt, target){
 function sameWord(a, b){
   return typedLetters(a) === typedLetters(b);
 }
+// One typed character, folded the way a whole answer is, so the trace accepts a curly
+// apostrophe, a smart dash or an accented letter as the plain one it stands for, and
+// matching is case-insensitive.
+function foldKey(c){ return tidyPunct(String(c == null ? '' : c)).toLowerCase(); }
 
 /* =========================================================
    8. A practice session.
@@ -1851,7 +1884,7 @@ function start(){
        // What tonight actually did, for the screen at the end of it.
        fresh:[], grew:[], slipped:[],
        requeue:[], failed:[], shown:[], asked:[], done:[], keys:0};
-  W.stage = beginStage(words[0]);
+  W.stage = beginStage(words[0]); W.traced = 0;
   screen = 'day';
   render();
   // Speaking never waits on the network: it says the word now, and the rest of
@@ -1949,9 +1982,25 @@ function check(){
   }
   W.stage = 'check';
   render();
-  if(!ok) sayParts(w, splitOf(w));
+  if(ok){
+    /* A win carries her on by itself, once she has had a moment to read "Yes — that's
+       it" and hear the chime. A tap on the verdict or a return skips the wait. next()
+       clears this timer at its start, so a tap, a return, or a driver calling next()
+       straight after check() — as the sim and the harnesses do — can never advance
+       twice, which is what keeps that loop timing-independent. */
+    clearAuto();
+    W.autoTimer = setTimeout(next, 1400);
+  }else{
+    // A miss holds — no timer. She dwells on the corrected word and moves on when she
+    // is ready. The parts are still spoken.
+    sayParts(w, splitOf(w));
+  }
 }
+// Cancel a pending auto-advance (win) or trace-settle timer. Called at the head of
+// every path that moves her — next(), go(), finish() — so nothing double-fires.
+function clearAuto(){ if(W && W.autoTimer){ clearTimeout(W.autoTimer); W.autoTimer = null; } }
 function next(){
+  clearAuto();
   // Keep just ahead of her: the next word and its pieces, if they are not
   // already on the device.
   if(W){
@@ -1963,11 +2012,12 @@ function next(){
   if(W.i + 1 < W.words.length) W.i++;
   else if(W.requeue.length){ W.words.push(W.requeue.shift()); W.i++; }
   else { finish(); return; }
-  W.stage = beginStage(word()); W.attempt = ''; W.tries = 0; W.keys = 0;
+  W.stage = beginStage(word()); W.attempt = ''; W.tries = 0; W.keys = 0; W.traced = 0;
   render();
   say(word());
 }
 function finish(){
+  clearAuto();
   var distinct = W.words.filter(function(w, i, a){ return a.indexOf(w) === i; }).length;
   /* An identity of its own, so a sitting can be told from another sitting rather than from
      its date. Two on the same day for the same list is an ordinary evening — that is what
@@ -2013,6 +2063,13 @@ function withName(s){
 }
 var SPK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         + '<path d="M11 5 6.5 9H3.5v6h3L11 19V5Z"/><path d="M15.5 9.2a4 4 0 0 1 0 5.6"/><path d="M18.4 6.6a8 8 0 0 1 0 10.8"/></svg>';
+// Wordless "carry on" and "finish": a forward chevron after a miss (she moves on
+// when she has looked long enough), a tick at the end of the sitting. No labels —
+// the icons carry it and the aria-label on the button says the rest.
+var CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+         + '<path d="M9 6l6 6-6 6"/></svg>';
+var TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+         + '<path d="M5 12.5l4.5 4.5L19 7"/></svg>';
 
 // The one live region in the app. It exists in the document from the start,
 // because a region created inside fresh innerHTML is not reliably announced.
@@ -2380,20 +2437,42 @@ function renderWord(){
         return '<button class="syl" data-syl="' + esc(p) + '" aria-label="Hear ' + esc(p)
              + '">' + esc(p) + '</button>'; }).join('') + '</div>'
     : '';
-  var hear = '<button class="hear" id="hear" aria-label="Hear it">' + SPK + '<span>Hear it</span></button>';
+  // Icon only now — the speaker shape carries it, and its spoken name stays on the
+  // aria-label. Dropping the word takes the last read-aloud label off her word screens.
+  var hear = '<button class="hear" id="hear" aria-label="Hear it">' + SPK + '</button>';
   var body, act;
 
   var wl = ' style="--wl:' + w.length + '"';
 
   if(W.stage === 'look'){
-    announce('Look at this word: ' + w + '. ' + spellOut(w) + '.');
-    body = wordBlock('word', esc(w), w, wl) + sylRow
-         // Saying it aloud is a free win and nothing checks it, so there is no
-         // way for it to go wrong. Tracing used to be suggested here too, but a
-         // finger dragged across the word scrolls the panel instead, so the app
-         // was asking her to do something it then fought.
-         + '<div class="note">Say it out loud.</div>';
-    act = hear + '<button class="primary" id="cover">Cover it up</button>';
+    /* A never-met word arrives to be TRACED, not just looked at. She copies it into a
+       focused box letter by letter: the letters she has landed are solid, the next one
+       is lit, the rest are faint. A key is taken only when it is the next letter of the
+       word (folded the way an answer is, so a curly apostrophe still lands); anything
+       else is dropped by the keydown handler before it can be drawn — so the trace on
+       screen and the box behind it are always exactly the correctly-copied prefix, and
+       her error is never put in front of her (§5). Nothing is recorded here: copying is
+       not a retrieval. The completed trace is the cover — a short pause, then she writes
+       the same word blind, and that write is the real first retrieval (§8). The finger
+       drag that used to fight the panel is gone; the keyboard does the tracing now. */
+    var t = W.traced || 0;
+    announce('Trace this word: ' + w + '. ' + spellOut(w) + '.');
+    var traced = w.split('').map(function(c, i){
+      var cls = i < t ? 'on' : i === t ? 'now' : 'off';
+      return '<span class="' + cls + '">' + esc(c) + '</span>';
+    }).join('');
+    body = '<div class="trace"' + wl + '>'
+         // role=img with the word spelled out, exactly as the shown word carries it
+         // elsewhere: a screen reader gets the spelling, not the letters read as a word,
+         // and the per-letter state colours are hidden behind the one label.
+         +   '<div class="tracew" role="img" aria-label="' + esc(spellOut(w)) + '">' + traced + '</div>'
+         +   '<input class="tracein" id="type" type="text" inputmode="text" autocomplete="off" '
+         +     'autocorrect="off" autocapitalize="off" spellcheck="false" '
+         +     'value="' + esc(w.slice(0, t)) + '" aria-label="Trace the word">'
+         + '</div>' + sylRow
+         + '<div class="note">Type it to trace it.</div>';
+    // No cover button any more — the trace completing is the cover.
+    act = hear;
   }
   else if(W.stage === 'write'){
     var fresh = W.shown.indexOf(w) < 0 && W.failed.indexOf(w) < 0;
@@ -2413,7 +2492,9 @@ function renderWord(){
          + '<input class="spellin" id="type" type="text" inputmode="text" autocomplete="off" '
          +   'autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" '
          +   'value="' + esc(W.attempt) + '" aria-label="Type the word">';
-    act = hear + '<button class="primary" id="check">Check</button>';
+    // No Check button — she is on touch and the keyboard's return key submits.
+    // enterkeyhint="done" labels it, and the Enter handler calls check().
+    act = hear;
   }
   else {
     var ok = sameWord(W.attempt, w);
@@ -2481,7 +2562,10 @@ function renderWord(){
     // Spelt out letter by letter: a screen reader would otherwise read the word
     // as a word and never convey the spelling, which is the whole point here.
     announce(said_ + ' ' + w + '. ' + spellOut(w) + '.');
-    body = '<div class="verdict ' + (ok ? 'ok' : 'again') + '">' + verdict + '</div>'
+    body = '<div class="verdict ' + (ok ? 'ok' : 'again') + '"'
+         // On a win the app carries her on by itself; tapping the verdict skips the
+         // wait, so the whole line is the tap target for that.
+         + (ok ? ' id="advance"' : '') + '>' + verdict + '</div>'
          // Only ever the correct spelling on screen. Seeing her own misspelling
          // is the one thing that measurably sets spelling back.
          /* The extra-letter case belongs on the marked side. It is not "close" by the
@@ -2501,7 +2585,14 @@ function renderWord(){
             same reassurance. */
          + (!ok ? '<div class="note">You’ll see this one again '
                 + (W.requeue.indexOf(w) >= 0 ? 'in a moment' : 'soon') + '.</div>' : '');
-    act = hear + '<button class="primary" id="next">' + (more ? 'Next word' : 'Finish') + '</button>';
+    /* A win advances on its own (a timer set in check(), skippable by a tap or a
+       return), so it needs no button. A miss HOLDS: no timer, and a wordless forward
+       chevron she taps when she has looked at the corrected word long enough. The last
+       word ends the sitting the same way — a tick rather than a chevron. The control
+       keeps id="next" and a spoken label so tests and a screen reader still find it. */
+    act = ok ? hear
+             : hear + '<button class="primary iconbtn" id="next" aria-label="'
+                    + (more ? 'Next word' : 'Finish') + '">' + (more ? CHEV : TICK) + '</button>';
   }
 
   el('#screen').innerHTML = dots + body;
@@ -3616,6 +3707,7 @@ function go(s){
      a grown-up glancing at Progress mid-word silently turned the one exercise that
      works into a copying exercise. The sitting is kept now and validated on the way
      back instead. */
+  clearAuto();
   if(s !== 'day'){ screen = s; saying = ''; window.scrollTo(0, 0); render(); return; }
   // Landing on her screen with no session used to render "All done for today",
   // so a grown-up who pasted the week's list and tapped Back handed her a
@@ -3636,8 +3728,10 @@ document.addEventListener('click', function(ev){
 
   if((hit = t.closest('[data-go]'))){ go(hit.dataset.go); return; }
   if(t.closest('#again')){ if(!start()) toast('Nothing to practise just now.'); return; }
-  if(t.closest('#cover')){ W.stage = 'write'; render(); return; }
-  if(t.closest('#check')){ check(); return; }
+  // The verdict on a win is the tap target that skips the auto-advance wait; the
+  // wordless chevron/tick after a miss (or at the end) carries her on. There is no
+  // Cover button (the trace is the cover) and no Check button (return submits).
+  if(t.closest('#advance')){ next(); return; }
   if(t.closest('#next')) { next(); return; }
   if(t.closest('#hear')) { var w = word(); if(w) say(w, {force:true}); return; }
   if((hit = t.closest('[data-syl]'))){ say(hit.dataset.syl, {force:true, rate:sylRate()}); return; }
@@ -3835,6 +3929,39 @@ addEventListener('keydown', function(ev){
   W.keys = (W.keys || 0) + 1;
   if(S && S.settings && !S.settings.sawKeys){ S.settings.sawKeys = true; save(); }
 }, true);
+/* The trace. On a never-met word she copies it letter by letter into the focused box.
+   A key is taken only when it is the next letter of the word — folded so a curly
+   apostrophe or an accented letter matches the plain one — and every keystroke is
+   preventDefault'd so the box is never written to by the browser: it is set here to the
+   correctly-copied prefix and nothing else. A wrong key is simply dropped, so her error
+   is never drawn (§5) and no input event fires to record anything (copying is not a
+   test). When the whole word is traced the box IS the cover: a short settle, then the
+   same word is asked blind, with keys and attempt reset so the write-stage guard counts
+   only what she types from memory. Capture phase, ahead of the key counter, and it does
+   not touch W.keys — the reset on the way to write is what keeps that guard clean. */
+addEventListener('keydown', function(ev){
+  if(!W || W.stage !== 'look' || !ev.target || ev.target.id !== 'type') return;
+  var k = String(ev.key || '');
+  if(k === 'Tab') return;                               // focus must still be able to leave the box
+  ev.preventDefault();                                  // the box is ours to fill; nothing else edits it
+  if(k.length !== 1) return;                            // Enter, Backspace, arrows, modifiers: swallowed
+  var w = word(), t = W.traced || 0;
+  if(t >= w.length) return;
+  if(foldKey(k) !== foldKey(w.charAt(t))) return;       // not the next letter — discard it
+  W.traced = t + 1;
+  if(W.traced >= w.length){
+    /* The whole word is copied. A short settle so the finished trace registers, then the
+       blind write of the same word — the first real retrieval. Cancellable like the win
+       timer, so a programmatic cover() or next() never races it. */
+    clearAuto();
+    W.autoTimer = setTimeout(function(){
+      if(!W || W.stage !== 'look') return;
+      W.stage = 'write'; W.attempt = ''; W.keys = 0; W.traced = 0;
+      render();
+    }, 500);
+  }
+  render();
+}, true);
 document.addEventListener('input', function(ev){
   if(ev.target.id === 'pname'){ S.profile.name = ev.target.value; save(); }
   if(ev.target.id !== 'type' || !W) return;
@@ -3847,7 +3974,14 @@ document.addEventListener('input', function(ev){
 // Enter checks the word — she shouldn't have to find a button.
 document.addEventListener('keydown', function(ev){
   if(ev.key === 'Enter' && ev.target.id === 'type' && W && W.stage === 'write'){
-    ev.preventDefault(); unlock(); check();
+    ev.preventDefault(); unlock(); check(); return;
+  }
+  /* On the verdict, return carries her on — the win's wait skipped, or the miss's
+     hold released — without her having to find the chevron. Gated to her own screen
+     and placed after the write branch so the same keypress that checks a word cannot
+     also advance past its verdict. */
+  if(ev.key === 'Enter' && W && W.stage === 'check' && screen === 'day'){
+    ev.preventDefault(); unlock(); next(); return;
   }
   // Enter in the add-a-word box adds it, so a grown-up can rattle a few in.
   if(ev.key === 'Enter' && ev.target.id === 'addword'){
@@ -3956,7 +4090,11 @@ loadClips(); render(); },
   // Enough of a handle to drive a whole session from a script — the
   // simulations in tests/sim.js run the real flow, not a copy of it.
   reset: function(){ localStorage.removeItem(KEY); load(); },
-  cover: function(){ if(W){ W.stage = 'write'; render(); } },
+  // Jumps 'look' -> 'write' the way completing the trace does, resetting attempt, keys
+  // and the trace so a programmatic driver (and the sim) skips the trace exactly as the
+  // old cover step did. At the look stage these are already clear, so this stays a no-op
+  // for the sim and leaves its numbers byte-identical.
+  cover: function(){ if(W){ clearAuto(); W.stage = 'write'; W.attempt = ''; W.keys = 0; W.traced = 0; render(); } },
   type: function(v){ if(W){ W.attempt = v; if(el('#type')) el('#type').value = v; } },
   /* plan, day, listId and shown are here so a test can tell the sitting she was
      handed back apart from a fresh one that happens to look like it. Without them,

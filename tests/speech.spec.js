@@ -118,10 +118,10 @@ test.describe('the pre-recorded voice', () => {
     await watchAudio(page);
     await setClips(page);
     await startOn(page, ['because','rain','boat']);
-    await page.locator('#cover').click();
+    await page.evaluate(() => window.__acorn.cover());
     await write(page, 'becuase');
     await page.evaluate(() => { window.__played = []; window.__spoken = []; });
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     // Each clip starts the next when it ends, so the sequence arrives over time.
     await page.waitForFunction(() => window.__played.filter(p => p.src).length >= 3,
                                null, {timeout:3000});
@@ -139,10 +139,10 @@ test.describe('the pre-recorded voice', () => {
     // synthetic one in a single breath sounds worse than either.
     await setClips(page, ['because','be']);
     await startOn(page, ['because','rain','boat']);
-    await page.locator('#cover').click();
+    await page.evaluate(() => window.__acorn.cover());
     await write(page, 'becuase');
     await page.evaluate(() => { window.__played = []; window.__spoken = []; });
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     expect(await played(page)).toEqual([]);
     expect((await spoken(page)).map(u => u.text.trim())).toEqual(['because','be','cause']);
   });
@@ -374,10 +374,10 @@ test.describe('what she hears', () => {
   test('a miss plays the whole word first, then its pieces', async ({page}) => {
     await listen(page, AU);
     await startOn(page, ['because','rain','boat']);
-    await page.locator('#cover').click();
+    await page.evaluate(() => window.__acorn.cover());
     await write(page, 'becuase');
     await clear(page);
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     const said = await spoken(page);
     // "be" and "cause" with no "because" first leaves nothing to attach them to.
     expect(said.map(u => u.text.trim())).toEqual(['because','be','cause']);
@@ -387,20 +387,20 @@ test.describe('what she hears', () => {
   test('a one-syllable miss plays the word once, not a lone fragment', async ({page}) => {
     await listen(page, AU);
     await startOn(page, ['said','rain','boat']);
-    await page.locator('#cover').click();
+    await page.evaluate(() => window.__acorn.cover());
     await write(page, 'sed');
     await clear(page);
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     expect((await spoken(page)).map(u => u.text.trim())).toEqual(['said']);
   });
 
   test('getting it right does not lecture her with the syllables', async ({page}) => {
     await listen(page, AU);
     await startOn(page, ['because','rain','boat']);
-    await page.locator('#cover').click();
+    await page.evaluate(() => window.__acorn.cover());
     await write(page, 'because');
     await clear(page);
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     expect(await spoken(page)).toEqual([]);
   });
 
@@ -469,10 +469,10 @@ test.describe('what she hears', () => {
     await page.locator('#hear').click();
     expect((await spoken(page)).map(u => u.text)).toEqual(['because']);
     // and a miss stays silent too
-    await page.locator('#cover').click();
+    await page.evaluate(() => window.__acorn.cover());
     await write(page, 'becuase');
     await clear(page);
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     expect(await spoken(page)).toEqual([]);
   });
 
@@ -483,7 +483,7 @@ test.describe('what she hears', () => {
     expect(said.length).toBe(1);
     expect(said[0].voice).toBeFalsy();
     expect(said[0].lang).toBe('en-AU');
-    await expect(page.locator('.word')).toBeVisible();
+    await expect(page.locator('.tracew')).toBeVisible();
   });
 
   test('each new utterance cancels the last, so taps do not pile up', async ({page}) => {

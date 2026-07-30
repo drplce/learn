@@ -158,7 +158,7 @@ test.describe('the words a school list really holds', () => {
           if(a.session().stage === 'look') a.cover();
         }, w);
         await write(page, w);
-        await page.locator('#check').click();
+        await page.keyboard.press('Enter');            // return submits — no Check button
         const r = await page.evaluate(() => ({
           right: window.__acorn.session().right,
           stage: window.__acorn.session().stage,

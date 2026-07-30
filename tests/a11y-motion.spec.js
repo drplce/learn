@@ -179,12 +179,10 @@ test.describe('what a screen reader is told', () => {
       expect(heard).toMatch(/Look at the letter /);
   });
 
-  test('arriving at a screen puts her on the button that moves her on', async ({page}) => {
-    // Every stage lays out "Hear it" first and the action second, and the focus
-    // rule took the first button — so a keyboard-only sitting needed an extra Tab
-    // on every look and every verdict, and Enter on arrival replayed the word
-    // instead of going forward. Measured: 49 key presses for a six-word sitting
-    // against 41 once the primary action gets the focus.
+  test('arriving at a screen puts her on the box or button that moves her on', async ({page}) => {
+    // Since 13.0 the trace and write stages are boxes she types into, focused on arrival;
+    // the verdict carries her on with a return. A keyboard-only sitting needs no Tabbing:
+    // typing the word finishes the trace, typing and return submits, return advances.
     await open(page, '2026-08-01');
     await page.evaluate(() => {
       const a = window.__acorn;
@@ -197,7 +195,7 @@ test.describe('what a screen reader is told', () => {
     await page.keyboard.press('Tab');
     await page.evaluate(() => window.__acorn.go('day'));
     const seen = [];
-    for(let step = 0; step < 40; step++){
+    for(let step = 0; step < 60; step++){
       const st = await page.evaluate(() => {
         const a = window.__acorn, W = a.session();
         return {stage: W ? W.stage : 'done', focus: (document.activeElement || {}).id || '',
@@ -205,19 +203,25 @@ test.describe('what a screen reader is told', () => {
       });
       if(st.stage === 'done') break;
       seen.push([st.stage, st.focus]);
-      if(st.stage === 'write'){
+      if(st.stage === 'look'){                    // the trace box: copying the word advances it
+        await page.evaluate(() => { const t = document.querySelector('#type'); if(t) t.focus(); });
+        await page.keyboard.type(st.word);
+        await page.waitForFunction(() => window.__acorn.session()
+          && window.__acorn.session().stage !== 'look', null, {timeout: 2000});
+      }else if(st.stage === 'write'){
         await page.keyboard.type(st.word);
         await page.keyboard.press('Enter');
-      } else {
-        await page.keyboard.press('Enter');       // must be the action, not Hear it
+      }else{
+        await page.keyboard.press('Enter');       // return carries her on from the verdict
       }
     }
-    const want = {look: 'cover', write: 'type', check: 'next'};
+    // The two boxes she types into are focused the moment she arrives — no hunt.
     for(const [stage, focus] of seen)
-      expect(focus, `arriving at ${stage}, focus was on "${focus}"`).toBe(want[stage]);
-    // And Enter alone got her all the way through, with no Tabbing.
+      if(stage === 'look' || stage === 'write')
+        expect(focus, `arriving at ${stage}, focus was on "${focus}"`).toBe('type');
+    // And keys alone got her all the way through, with no Tabbing.
     expect(await page.evaluate(() => !window.__acorn.session()),
-           'Enter on the focused button did not move her on').toBe(true);
+           'keys did not move her all the way through').toBe(true);
     expect(errorsOf(page)).toEqual([]);
   });
 

@@ -21,7 +21,7 @@ async function midWord(page, word){
     a.save(); a.go('day');
     if(!a.session()) a.start();
   }, word || 'beautiful');
-  if(await page.locator('#cover').count()) await page.locator('#cover').click();
+  await page.evaluate(() => { const a = window.__acorn; if(a.session() && a.session().stage === "look") a.cover(); });
   await page.locator('#type').click();
   await page.keyboard.type('beauti');
 }
@@ -65,7 +65,7 @@ test.describe('a tap that hits nothing', () => {
     await page.locator('#hear').tap();
     expect((await focusNow(page)).typed).toBe('beauti');
     expect((await page.evaluate(() => window.__acorn.session().stage))).toBe('write');
-    await page.locator('#check').tap();
+    await page.evaluate(() => window.__acorn.check());
     expect(await page.evaluate(() => window.__acorn.session().stage)).toBe('check');
   });
 

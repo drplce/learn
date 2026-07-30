@@ -45,8 +45,10 @@ async function fakeKeyboard(page){
   });
 }
 const kb = (page, n) => page.evaluate(v => window.__kb(v), n);
+// The speaker is the one control on the word screen at every stage since 13.0 (the
+// Check button and the cover button are gone), so it is what must not jump.
 const actionTop = page => page.evaluate(() =>
-  Math.round(document.querySelector('#act .primary').getBoundingClientRect().top));
+  Math.round(document.querySelector('#act .hear').getBoundingClientRect().top));
 
 test.describe('the buttons hold still', () => {
 
@@ -60,9 +62,9 @@ test.describe('the buttons hold still', () => {
       window.__acorn.save();
     });
     await startOn(page, ['because','friend','thought']);
+    await page.evaluate(() => window.__acorn.cover());   // the writing box + speaker
     const seen = [];
-    seen.push(await actionTop(page));                    // look, keyboard not up
-    await page.locator('#cover').click();
+    seen.push(await actionTop(page));                    // keyboard space reserved
     await kb(page, 320);                                 // it opens
     seen.push(await actionTop(page));
     await page.locator('#hear').click();
@@ -71,13 +73,11 @@ test.describe('the buttons hold still', () => {
     await kb(page, 320);
     seen.push(await actionTop(page));
     await write(page, 'becuase');
-    await page.locator('#check').click();
-    seen.push(await actionTop(page));
-    await page.locator('#next').click();
+    await kb(page, 0);
     seen.push(await actionTop(page));
     // The whole point: she should never have to look for the button again.
     expect(Math.max(...seen) - Math.min(...seen),
-           'the action button moved: ' + seen.join(', ')).toBe(0);
+           'the speaker moved as the keyboard came and went: ' + seen.join(', ')).toBe(0);
   });
 
   /* The header is the last thing that was allowed to move. It is the first item
@@ -136,7 +136,7 @@ test.describe('the buttons hold still', () => {
       await pretendTouch(page, true);
       await fakeKeyboard(page);
       await startOn(page, ['because','friend']);
-      await page.locator('#cover').click();
+      await page.evaluate(() => window.__acorn.cover());
       await kb(page, 300);                               // measured for the first time
       await page.waitForFunction(() => window.__acorn.state.settings.kbInset > 0,
                                  null, {timeout:3000});
@@ -152,7 +152,7 @@ test.describe('the buttons hold still', () => {
     await open(page, '2026-08-01');
     await pretendTouch(page, true);
     await startOn(page, ['because','friend']);
-    await page.locator('#cover').click();
+    await page.evaluate(() => window.__acorn.cover());
     expect(await focused(page)).toBe('type');
     // Cancelling mousedown is what stops iOS beginning to close the keyboard;
     // refocusing after the tap is too late.
@@ -202,18 +202,20 @@ test.describe('keeping the keyboard open', () => {
     await open(page, '2026-08-01');
     await pretendTouch(page, true);
     await startOn(page, ['because','friend','thought']);
-    await page.evaluate(() => window.__acorn.holdKeyboard());
-    expect(await focused(page), 'look stage').toBe('kbhold');
+    // Since 13.0 the look stage is a trace box she types into, so the real input
+    // takes focus from the very first screen — the held placeholder is only needed on
+    // the verdict, where there is no box.
+    expect(await focused(page), 'trace stage').toBe('type');
 
-    await page.locator('#cover').click();
-    expect(await focused(page), 'write stage').toBe('type');   // the real box takes over
+    await page.evaluate(() => window.__acorn.cover());
+    expect(await focused(page), 'write stage').toBe('type');
 
     await write(page, 'becuase');
-    await page.locator('#check').click();
+    await page.keyboard.press('Enter');                        // return submits
     expect(await focused(page), 'check stage').toBe('kbhold');
 
-    await page.locator('#next').click();
-    expect(await focused(page), 'next word').toBe('kbhold');
+    await page.locator('#next').click();                       // the wordless continue after a miss
+    expect(await focused(page), 'next word').toBe('type');     // the next word traces, box focused
     expect(errorsOf(page)).toEqual([]);
   });
 
@@ -221,9 +223,10 @@ test.describe('keeping the keyboard open', () => {
     await open(page, '2026-08-01');
     await pretendTouch(page, true);
     await startOn(page, ['because','friend']);
+    expect(await focused(page)).toBe('type');                 // the trace box holds focus
     await page.locator('#hear').click();
-    // The tap moved focus to the button; it must come back.
-    expect(await focused(page)).toBe('kbhold');
+    // The tap must not pull focus off the box she is typing into.
+    expect(await focused(page)).toBe('type');
   });
 
   test('it lets go when the sitting ends', async ({page}) => {
@@ -233,13 +236,12 @@ test.describe('keeping the keyboard open', () => {
     // A word she has never met is asked twice, so the sitting is not over after
     // one answer — walk it to the end rather than assuming.
     for(let i = 0; i < 12; i++){
-      if(!await page.evaluate(() => !!window.__acorn.session())) break;
-      if(await page.locator('#cover').count()) await page.locator('#cover').click();
-      else if(await page.locator('#type').count()){
-        await write(page, 'rain');
-        await page.locator('#check').click();
-      }
-      else if(await page.locator('#next').count()) await page.locator('#next').click();
+      const stage = await page.evaluate(() => {
+        const W = window.__acorn.session(); return W ? W.stage : 'done'; });
+      if(stage === 'done') break;
+      if(stage === 'look'){ await page.evaluate(() => window.__acorn.cover()); continue; }
+      if(stage === 'write'){ await write(page, 'rain'); await page.keyboard.press('Enter'); continue; }
+      await page.evaluate(() => window.__acorn.next());
     }
     expect(await page.evaluate(() => !!window.__acorn.session())).toBe(false);
     expect(await focused(page)).not.toBe('kbhold');
@@ -294,11 +296,11 @@ test.describe('keeping the keyboard open', () => {
     await startOn(page, ['because','friend']);
     await page.evaluate(() => window.__acorn.holdKeyboard());
     await page.keyboard.type('zzz');                  // taps a key on the look screen
-    await page.locator('#cover').click();
+    await page.evaluate(() => window.__acorn.cover());
     // The box she actually types into starts empty whatever she pressed before.
     expect(await page.locator('#type').inputValue()).toBe('');
     await write(page, 'because');
-    await page.locator('#check').click();
+    await page.keyboard.press("Enter");
     await expect(page.locator('.verdict.ok')).toBeVisible();
   });
 });

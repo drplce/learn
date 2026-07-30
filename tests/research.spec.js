@@ -125,7 +125,7 @@ test.describe('the reasons behind the design, not just the behaviour', () => {
       if(a.session().stage === 'look') a.cover();
     });
     await write(page, 'bewtiful');
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     const r = await page.evaluate(() => ({
       text: (document.querySelector('#screen').innerText || ''),
       said: (document.querySelector('#say') || {}).textContent || '',

@@ -148,7 +148,7 @@ test.describe('the word has to be written, not said', () => {
     await page.evaluate(() => { window.__acorn.state.settings.sawKeys = false;
                                 window.__acorn.save(); });
     await LETTER_AT_A_TIME(page);
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     expect((await state(page)).stage,
       'a keyboard that reports no keystrokes was locked out').toBe('check');
 
@@ -156,7 +156,7 @@ test.describe('the word has to be written, not said', () => {
     await onAWord(page);
     await hasTyped(page);
     await LETTER_AT_A_TIME(page);
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     const r = await state(page);
     expect(r.stage, 'a letter at a time slipped through on a device that reports keys')
       .toBe('write');
@@ -187,16 +187,16 @@ test.describe('the word has to be written, not said', () => {
       window.__acorn.session().words[window.__acorn.session().i]);
     await page.locator('#type').click();
     await page.keyboard.type(word, {delay: 10});
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     expect((await state(page)).stage).toBe('check');
-    await page.locator('#next').click();
+    await page.evaluate(() => window.__acorn.next());
     await page.evaluate(() => {
       if(window.__acorn.session().stage === 'look') window.__acorn.cover();
     });
     expect(await page.evaluate(() => window.__acorn.session().keys),
       'the keystrokes from the last word carried over to this one').toBe(0);
     await HANDED_TO_HER['dictation, in one block'](page);
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     expect((await state(page)).stage,
       'a dictated word was vouched for by the keystrokes of the one before it').toBe('write');
   });
@@ -207,7 +207,7 @@ test.describe('the word has to be written, not said', () => {
       await onAWord(page);
       await page.locator('#type').click();
       await fill(page);
-      await page.locator('#check').click();
+      await page.evaluate(() => window.__acorn.check());
       const r = await state(page);
       expect(r.stage, `${why}: was marked as her answer`).toBe('write');
       expect(Object.keys(r.mastery), `${why}: went on her record`).toEqual([]);
@@ -225,7 +225,7 @@ test.describe('the word has to be written, not said', () => {
       await onAWord(page);
       await page.locator('#type').click();
       await fill(page);
-      await page.locator('#check').click();
+      await page.evaluate(() => window.__acorn.check());
       const r = await state(page);
       expect(r.stage, `${why}: her own writing was refused`).toBe('check');
       expect(r.right, `${why}: written correctly and not counted`).toBe(1);
@@ -243,7 +243,7 @@ test.describe('the word has to be written, not said', () => {
     const word = await page.evaluate(() => window.__acorn.session().words[window.__acorn.session().i]);
     await page.locator('#type').click();
     await HANDED_TO_HER['dictation, in one block'](page);
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     const held = await state(page);
     expect(held.tries, 'it was counted as a go at the word').toBe(0);
     expect(await page.evaluate(() => window.__acorn.session().requeue)).toEqual([]);
@@ -253,7 +253,7 @@ test.describe('the word has to be written, not said', () => {
     // Now she writes it.
     await page.locator('#type').click();
     await page.keyboard.type(word, {delay: 20});
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     const done = await state(page);
     expect(done.stage).toBe('check');
     expect(await page.evaluate(() => window.__acorn.session().firstTime),
@@ -290,7 +290,7 @@ test.describe('the word has to be written, not said', () => {
     await page.evaluate(() => { window.__spoken = []; });
     await page.locator('#type').click();
     await HANDED_TO_HER['dictation, in one block'](page);
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     const r = await state(page);
     const spoken = await page.evaluate(() => window.__spoken.slice());
     // The word again, and no visible message anywhere on her screen.
@@ -313,7 +313,7 @@ test.describe('the word has to be written, not said', () => {
     await onAWord(page);
     await page.locator('#type').click();
     await page.keyboard.type('beutiful', {delay: 20});
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     const r = await state(page);
     expect(r.stage, 'a real miss was treated as though the phone had spelled it').toBe('check');
     expect(r.tries).toBe(1);
@@ -345,13 +345,13 @@ test.describe('the word has to be written, not said', () => {
       window.__acorn.session().words[window.__acorn.session().i]);
     await page.locator('#type').click();
     await page.keyboard.type('😀😀😀');
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     expect((await state(page)).toast).toMatch(/Have a go/);
     // Now write the word properly. It has to count.
     await page.locator('#type').click();
     await page.keyboard.press('ControlOrMeta+a');
     await page.keyboard.type(word, {delay: 15});
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     const r = await state(page);
     expect(r.stage, 'the fumble was still hanging over her next answer').toBe('check');
     expect(r.right).toBe(1);
@@ -377,7 +377,7 @@ test.describe('the word has to be written, not said', () => {
     });
     expect(landed.allowed, 'the paste was not stopped').toBe(false);
     expect(landed.value, 'the word arrived in the box anyway').toBe('');
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     expect((await state(page)).stage).toBe('write');
     expect(Object.keys((await state(page)).mastery)).toEqual([]);
   });
@@ -390,7 +390,7 @@ test.describe('the word has to be written, not said', () => {
     await onAWord(page, {written: false});
     await page.locator('#type').click();
     await HANDED_TO_HER['dictation, in one block'](page);
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     const r = await state(page);
     expect(r.stage, 'the check ran with the setting off').toBe('check');
     expect(r.right).toBe(1);

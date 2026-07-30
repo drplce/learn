@@ -187,8 +187,10 @@ test.describe('the three scales', () => {
         if (!txt) return;
         const px = parseFloat(s.fontSize);
         // The word itself is deliberately fluid between two steps of the scale, so
-        // it is bounded by them rather than equal to one.
-        if (el.classList.contains('word') || el.classList.contains('marked')) return;
+        // it is bounded by them rather than equal to one. The traced word (and its
+        // per-letter spans) carries the same fluid clamp, for the same reason.
+        if (el.classList.contains('word') || el.classList.contains('marked')
+            || el.closest('.trace')) return;
         if (!steps.some(v => Math.abs(v - px) < 0.6))
           odd.push(`${el.className || el.tagName}: ${px.toFixed(1)}px`);
       });

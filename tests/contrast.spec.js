@@ -90,8 +90,13 @@ async function seed(page, tint, screen, stage){
        cannot work out for herself, so it is the last thing that should be hard to
        read. Nothing failed when they were added; they are here so nothing can. */
     if(o.stage === 'cued'){
-      a.state.words.lists = [{id:'h', name:'T', words:['licence', 'week', 'practise']}];
-      a.state.words.activeId = 'h'; a.save();
+      // Both carry a meaning cue, so whichever the session shows first puts .cue on the
+      // screen — since 13.0 the write screen has no button text to pad it out otherwise.
+      // Clear the review word too, or "said" (due, no cue) takes the first slot and the
+      // cue never renders.
+      a.state.words.lists = [{id:'h', name:'T', words:['licence', 'practise']}];
+      a.state.words.activeId = 'h'; a.state.words.mastery = {}; a.state.words.sessions = [];
+      a.save();
     }
     if(o.screen === 'parent'){ a.go('parent'); return; }
     if(o.stage === 'deadend'){
@@ -141,9 +146,12 @@ for (const scheme of ['light', 'dark']) {
           expect(took, `the "${tint}" tint did not take: ${took}`).toBeNull();
           const rows = await page.evaluate(AUDIT);
           // A guard against the seed silently doing nothing, not a content check: the
-          // dead end really is two lines, the mark and the sentence asking for words.
+          // dead end really is two lines, the mark and the sentence asking for words, and
+          // since 13.0 the plain write screen is just the "write it from memory" line —
+          // the Check button and the Hear-it label that used to sit beside it lost their
+          // words. The ratio filter below still measures every text node that is there.
           expect(rows.length, `${screen}/${stage} rendered nothing`)
-            .toBeGreaterThanOrEqual(stage === 'deadend' ? 2 : 3);
+            .toBeGreaterThanOrEqual(stage === 'deadend' ? 2 : stage === 'write' ? 1 : 3);
           rows.filter(r => r.ratio < r.need)
               .forEach(r => fails.push(`${screen}/${stage} ${r.ratio}:1 (need ${r.need}) ${r.px}px — ${r.what}`));
         }

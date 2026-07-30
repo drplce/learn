@@ -151,20 +151,23 @@ test.describe('the list a grown-up pastes in', () => {
     await page.locator('#pname2').fill('Week 5');
     await page.locator('#pasteSave').click();
     await page.locator('.back').click();
-    // She types what her phone types, all the way through.
-    for(let i = 0; i < 12; i++){
-      if(!(await page.locator('#cover, #type, #next').count())) break;
-      if(await page.locator('#cover').count()){ await page.locator('#cover').click(); continue; }
-      if(await page.locator('#type').count()){
+    // She types what her phone types, all the way through. Driven by stage — the trace
+    // box and the write box are both #type, so the stage is what tells them apart; the
+    // trace itself is skipped with cover() since this is about the apostrophe, not the copy.
+    for(let i = 0; i < 20; i++){
+      const stage = await page.evaluate(() => {
+        const W = window.__acorn.session(); return W ? W.stage : 'done'; });
+      if(stage === 'done') break;
+      if(stage === 'look'){ await page.evaluate(() => window.__acorn.cover()); continue; }
+      if(stage === 'write'){
         const w = await page.evaluate(() => {
-          const W = window.__acorn.session(); return W ? W.words[W.i] : null;
-        });
+          const W = window.__acorn.session(); return W ? W.words[W.i] : null; });
         if(!w) break;
         await write(page, w.replace(/'/g, CURLY));
-        await page.locator('#check').click();
+        await page.evaluate(() => window.__acorn.check());
         continue;
       }
-      await page.locator('#next').click();
+      await page.evaluate(() => window.__acorn.next());
     }
     const m = await page.evaluate(() => window.__acorn.state.words.mastery);
     const wrong = Object.keys(m).filter(w => m[w].wrong > 0);

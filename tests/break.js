@@ -51,6 +51,27 @@ async function write(page, text){
   return true;
 }
 
+/* Walk a sitting to its end the way the 13.0 flow works: a never-met word is a trace
+   (skipped with cover(), since these scenarios are about robustness, not the copy), a met
+   word is written and submitted with the return key, and a verdict is carried on with
+   next() — a win would otherwise advance on its own timer, but calling next() straight
+   after is timing-independent. Stage-driven, because the trace box and the write box are
+   both #type and only the stage tells them apart. */
+async function walk(page, steps = 12){
+  for(let i = 0; i < steps; i++){
+    const stage = await page.evaluate(() => { const s = window.__acorn.session(); return s ? s.stage : 'done'; });
+    if(stage === 'done') break;
+    if(stage === 'look'){ await page.evaluate(() => window.__acorn.cover()); continue; }
+    if(stage === 'write'){
+      const w = await page.evaluate(() => { const s = window.__acorn.session(); return s && s.words[s.i]; });
+      await write(page, w || 'x');
+      await page.keyboard.press('Enter');                 // return submits — no Check button
+      continue;
+    }
+    await page.evaluate(() => window.__acorn.next());      // the verdict: carry on
+  }
+}
+
 async function main(){
   const browser = await chromium.launch({executablePath: findChromium()});
 
@@ -79,19 +100,19 @@ async function main(){
 
   // ---- 2. double-tap check (the classic double-submit)
   {
-    console.log('\n2. double-tapping Check');
+    console.log('\n2. double-tapping the return key (double-submit)');
     const {page, ctx, errs} = await fresh(browser, '2026-07-28');
-    await page.locator('#cover').click();
+    await page.evaluate(() => window.__acorn.cover());
     const w = await page.evaluate(() => window.__acorn.session().words[0]);
     await write(page, w);
     const before = await page.evaluate(w => window.__acorn.mastery(w).right, w);
-    await Promise.all([
-      page.locator('#check').click({force:true}),
-      page.locator('#check').click({force:true}).catch(() => {})
-    ]);
+    // The submit is the return key now (no Check button). A fast double-press must count
+    // the answer once — the second press lands on the verdict and only carries her on.
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
     const after = await page.evaluate(w => window.__acorn.mastery(w), w);
-    if(after.right > before + 1) bad('double-tap Check', 'counted ' + (after.right - before) + ' rights for one answer');
-    else ok('double-tap Check counts once (' + JSON.stringify(after) + ')');
+    if(after.right > before + 1) bad('double-submit', 'counted ' + (after.right - before) + ' rights for one answer');
+    else ok('double-submit counts once (' + JSON.stringify(after) + ')');
     if(errs.length) bad('double-tap Check', errs.join(' | '));
     await ctx.close();
   }
@@ -100,17 +121,16 @@ async function main(){
   {
     console.log('\n3. empty, whitespace and giant answers');
     const {page, ctx, errs} = await fresh(browser, '2026-07-28');
-    await page.locator('#cover').click();
+    // Skip any trace and land on a write box (these are junk-answer scenarios, not tracing).
+    const toWrite = () => page.evaluate(() => { const a = window.__acorn, s = a.session();
+      if(s && s.stage === 'look') a.cover(); });
+    await toWrite();
     for(const v of ['', '   ', 'x'.repeat(500), '😀😀😀', '<script>window.__pwned=1</script>', '\t\n ']){
-      if(!await page.locator('#type').count()){
-        // a check screen — move on first
-        if(await page.locator('#next').count()) await page.locator('#next').click();
-        if(await page.locator('#cover').count()) await page.locator('#cover').click();
-      }
+      await toWrite();
       if(!await page.locator('#type').count()) continue;
       const before = await page.evaluate(() => window.__acorn.session().i);
       await write(page, v);
-      await page.locator('#check').click();
+      await page.keyboard.press('Enter');                 // return submits
       if(!await alive(page)){ bad('answer ' + JSON.stringify(v.slice(0, 20)), 'blank screen'); break; }
       /* Either she gets a verdict and moves on, or the answer had no letters in it at
          all and is treated as the fumble it is: the toast asks her to have a go, the
@@ -121,8 +141,8 @@ async function main(){
       if(await page.locator('#next').count()){
         if(!letters) bad('answer ' + JSON.stringify(v.slice(0, 20)),
                          'no letters in it, but it was marked as an attempt');
-        await page.locator('#next').click();
-        if(await page.locator('#cover').count()) await page.locator('#cover').click();
+        await page.evaluate(() => window.__acorn.next());
+        await toWrite();
       }else if(letters){
         bad('answer ' + JSON.stringify(v.slice(0, 20)), 'was accepted but offered no way on');
       }else{
@@ -174,16 +194,7 @@ async function main(){
       }, words);
       if(!await alive(page)) bad('list ' + JSON.stringify(words), 'blank screen');
       // walk it to the end
-      for(let i = 0; i < 12; i++){
-        if(await page.locator('#cover').count()) await page.locator('#cover').click();
-        else if(await page.locator('#type').count()){
-          const cur = await page.evaluate(() => { const s = window.__acorn.session(); return s && s.words[s.i]; });
-          await write(page, cur || 'x');
-          await page.locator('#check').click();
-        }
-        else if(await page.locator('#next').count()) await page.locator('#next').click();
-        else break;
-      }
+      await walk(page, 12);
       if(!await alive(page)) bad('list ' + JSON.stringify(words) + ' walked', 'blank screen');
       if(errs.length) bad('list ' + JSON.stringify(words), errs.join(' | '));
       await ctx.close();
@@ -196,10 +207,10 @@ async function main(){
     console.log('\n6. offline and reload mid-session');
     const {page, ctx, errs} = await fresh(browser, '2026-07-28');
     await ctx.setOffline(true);
-    await page.locator('#cover').click();
+    await page.evaluate(() => window.__acorn.cover());
     const w = await page.evaluate(() => window.__acorn.session().words[0]);
     await write(page, w);
-    await page.locator('#check').click();
+    await page.keyboard.press("Enter");
     await page.reload();
     await page.waitForFunction(() => !!window.__acorn);
     const kept = await page.evaluate(w => window.__acorn.mastery(w), w);
@@ -214,16 +225,16 @@ async function main(){
   {
     console.log('\n7. midnight rolls over mid-session');
     const {page, ctx, errs} = await fresh(browser, '2026-07-28');
-    await page.locator('#cover').click();
+    await page.evaluate(() => window.__acorn.cover());
     await page.evaluate(() => window.__acorn.setToday('2026-07-29'));
     if(!await alive(page)) bad('midnight mid-session', 'blank screen');
     const cur = await page.evaluate(() => window.__acorn.session());
     // whatever it decides, it must be coherent: either a live session or the done screen
     if(cur){
       const w = cur.words[cur.i];
-      if(await page.locator('#cover').count()) await page.locator('#cover').click();
+      await page.evaluate(() => { const a = window.__acorn; if(a.session() && a.session().stage === "look") a.cover(); });
       await write(page, w);
-      await page.locator('#check').click();
+      await page.keyboard.press("Enter");
       if(!await alive(page)) bad('midnight then answer', 'blank screen');
       const m = await page.evaluate(w => window.__acorn.mastery(w), w);
       if(m.lastSeen !== '2026-07-29') bad('midnight then answer', 'recorded against ' + m.lastSeen);
@@ -237,7 +248,7 @@ async function main(){
   {
     console.log('\n8. wandering off mid-word');
     const {page, ctx, errs} = await fresh(browser, '2026-07-28');
-    await page.locator('#cover').click();
+    await page.evaluate(() => window.__acorn.cover());
     await write(page, 'half-typed');
     await page.evaluate(() => window.__acorn.go('parent'));
     if(!await alive(page)) bad('into the grown-ups area', 'blank screen');
@@ -377,16 +388,7 @@ async function main(){
     console.log('\n12. storage refuses every write');
     const {page, ctx, errs} = await fresh(browser, '2026-08-01');
     await page.evaluate(() => { Storage.prototype.setItem = function(){ throw new Error('quota'); }; });
-    for(let i = 0; i < 6; i++){
-      if(await page.locator('#cover').count()) await page.locator('#cover').click();
-      else if(await page.locator('#type').count()){
-        const w = await page.evaluate(() => { const s = window.__acorn.session(); return s && s.words[s.i]; });
-        await write(page, w || 'x');
-        await page.locator('#check').click();
-      }
-      else if(await page.locator('#next').count()) await page.locator('#next').click();
-      else break;
-    }
+    await walk(page, 6);
     if(!await alive(page)) bad('storage refuses writes', 'blank screen');
     else ok('she can still practise with no storage at all');
     await page.evaluate(() => window.__acorn.go('parent'));
@@ -413,16 +415,7 @@ async function main(){
     else ok('every word from a messy paste splits back to itself');
     // and it is practisable end to end
     await page.evaluate(() => { window.__acorn.go('day'); window.__acorn.start(); });
-    for(let i = 0; i < 30; i++){
-      if(await page.locator('#cover').count()) await page.locator('#cover').click();
-      else if(await page.locator('#type').count()){
-        const w = await page.evaluate(() => { const s = window.__acorn.session(); return s && s.words[s.i]; });
-        await write(page, w || 'x');
-        await page.locator('#check').click();
-      }
-      else if(await page.locator('#next').count()) await page.locator('#next').click();
-      else break;
-    }
+    await walk(page, 30);
     if(!await alive(page)) bad('messy pasted list walked', 'blank screen');
     else ok('and the whole sitting walks through cleanly');
     if(errs.length) bad('messy pasted list', errs.join(' | '));
@@ -470,6 +463,12 @@ async function main(){
       a.state.words.activeId = 'w1'; a.state.words.mastery = {}; a.state.words.sessions = [];
       a.save(); a.go('day'); a.start();
     });
+    // She is on a keyboard: one Tab tells the app so, then a re-render puts focus back on
+    // the box. Since 13.0 the trace and write stages are boxes she types into; typing the
+    // word finishes the trace, typing and return submits, and return carries her on from
+    // the verdict — no Tabbing to hunt for a button.
+    await page.keyboard.press('Tab');
+    await page.evaluate(() => window.__acorn.go('day'));
     let stuck = null, steps = 0;
     for(; steps < 40; steps++){
       const st = await page.evaluate(() => {
@@ -477,22 +476,18 @@ async function main(){
         return {stage: s && s.stage, focus: document.activeElement.id || document.activeElement.className};
       });
       if(!st.stage) break;
-      if(st.stage === 'write'){
-        if(!await page.evaluate(() => document.activeElement.id === 'type')){
-          stuck = 'the spelling box does not take focus (focus was ' + st.focus + ')'; break;
+      if(st.stage === 'look' || st.stage === 'write'){
+        if(st.focus !== 'type'){
+          stuck = 'the box does not take focus at the ' + st.stage + ' stage (focus was ' + st.focus + ')'; break;
         }
         const w = await page.evaluate(() => { const s = window.__acorn.session(); return s.words[s.i]; });
         await page.keyboard.type(w);
-        await page.keyboard.press('Enter');
+        if(st.stage === 'write') await page.keyboard.press('Enter');    // return submits
+        else await page.waitForFunction(() => { const s = window.__acorn.session();
+          return s && s.stage !== 'look'; }, null, {timeout: 2000});     // the trace advances itself
         continue;
       }
-      let reached = false;
-      for(let t = 0; t < 8 && !reached; t++){
-        if(/primary/.test(await page.evaluate(() => document.activeElement.className || ''))) reached = true;
-        else await page.keyboard.press('Tab');
-      }
-      if(!reached){ stuck = 'could not reach the action by Tab at the ' + st.stage + ' stage'; break; }
-      await page.keyboard.press('Enter');
+      await page.keyboard.press('Enter');                                // the verdict: carry on
     }
     if(stuck) bad('keyboard only', stuck);
     else ok('a whole session finishes with no taps at all (' + steps + ' steps)');
@@ -599,7 +594,7 @@ async function main(){
     else ok('the box and the action survive the keyboard sliding up and down');
     // and she can still finish the word
     await write(page, 'because');
-    await page.locator('#check').click();
+    await page.keyboard.press("Enter");
     if(!await page.locator('.verdict.ok').count()) bad('keyboard', 'could not finish the word');
     else ok('and she can still finish it');
     if(errs.length) bad('keyboard', errs.join(' | '));
@@ -1480,7 +1475,7 @@ async function main(){
             {bubbles: true, inputType: t, data: d}));
           new Function('b', 'fire', s)(b, fire);
         }, src(word));
-        await page.click('#check');
+        await page.evaluate(() => window.__acorn.check());
         const r = await outcome();
         const why2 = r.stage !== 'write' ? 'was taken as her answer'
           : r.recorded ? 'went on her record anyway'
@@ -1529,7 +1524,7 @@ async function main(){
       for(const [why, fill] of Object.entries(WAYS)){
         await onWord(word, true);
         await fill();
-        await page.click('#check');
+        await page.evaluate(() => window.__acorn.check());
         const r = await outcome();
         const why2 = r.stage !== 'check'
             ? 'her own writing was refused — she cannot get past this word'
@@ -1549,7 +1544,7 @@ async function main(){
         b.value = w;
         b.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: w}));
       }, word);
-      await page.click('#check');
+      await page.evaluate(() => window.__acorn.check());
       const r = await outcome();
       if(r.stage !== 'check'){
         bad('check turned off, "' + word + '"', 'still refused with the setting off'); broke++;
@@ -1663,11 +1658,18 @@ async function main(){
                   'focus sat on "' + st.focus + '", which is not on the screen');
               broke++; break;
             }
+            if(st.stage === 'look'){                 // the trace: type the word, it advances itself
+              if(st.focus !== 'type'){ await page.keyboard.press('Tab'); keys++; continue; }
+              await page.keyboard.type(st.word); keys += st.word.length;
+              await page.waitForFunction(() => { const s = window.__acorn.session();
+                return s && s.stage !== 'look'; }, null, {timeout: 2000}).catch(() => {});
+              continue;
+            }
             if(st.stage === 'write'){
               if(st.focus !== 'type'){ await page.keyboard.press('Tab'); keys++; continue; }
               await page.keyboard.type(st.word); keys += st.word.length;
             }
-            await page.keyboard.press('Enter'); keys++;
+            await page.keyboard.press('Enter'); keys++;   // write submits, verdict carries on
           }
           if(!finished){
             bad('keys only at ' + width + 'x' + height + ' @' + scale,
@@ -1675,9 +1677,12 @@ async function main(){
             broke++;
           }else{
             done++;
-            // A three-word sitting is 3 look + 3 write + 3 verdict plus the letters. Well
-            // over sixty presses means she is tabbing in circles to get anywhere.
-            if(keys > 60){
+            // A three-word sitting is 3 traces + 3 writes + the same-day second looks + a
+            // verdict each, plus the letters. Since 13.0 a new word is copied at the trace
+            // as well as written from memory, so each new word costs its letters twice — the
+            // honest count is in the sixties. Well over ninety means she is tabbing in
+            // circles to get anywhere.
+            if(keys > 90){
               bad('keys only at ' + width + 'x' + height + ' @' + scale,
                   keys + ' presses to finish three words');
               broke++;

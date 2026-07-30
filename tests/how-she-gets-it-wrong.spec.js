@@ -41,7 +41,7 @@ async function ask(page, target, typed){
     if(a.session().stage === 'look') a.cover();
   }, target);
   await write(page, typed);
-  await page.locator('#check').click();
+  await page.evaluate(() => window.__acorn.check());
   return page.evaluate(() => {
     const scr = document.querySelector('#screen');
     const marked = scr.querySelector('.marked');
@@ -157,7 +157,7 @@ test.describe('the mistakes she actually makes', () => {
        assumed, typed "because" at the word "went", and read the resulting verdict as a
        failure of the thing it was testing. */
     for(let g = 0; g < 12; g++){
-      await page.locator('#next').click();
+      await page.evaluate(() => window.__acorn.next());
       const at = await page.evaluate(() => {
         const a = window.__acorn, W = a.session();
         if(!W) return null;
@@ -167,12 +167,12 @@ test.describe('the mistakes she actually makes', () => {
       if(at === 'because') break;
       if(at === null) throw new Error('the sitting ended before it came back');
       await write(page, at);                    // get the filler words right
-      await page.locator('#check').click();
+      await page.evaluate(() => window.__acorn.check());
     }
     expect(await page.evaluate(() =>
       window.__acorn.session().words[window.__acorn.session().i])).toBe('because');
     await write(page, 'because');
-    await page.locator('#check').click();
+    await page.evaluate(() => window.__acorn.check());
     const after = await page.evaluate(() => ({
       verdict: document.querySelector('#screen .verdict').textContent.trim(),
       // Her record for this word, not the sitting's running total — which counts the

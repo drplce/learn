@@ -49,24 +49,26 @@ const here = page => page.evaluate(() => {
 
 test.describe('arriving on a screen with a keyboard', () => {
 
-  test('the very first Tab lands on the action that moves her on', async ({page}) => {
+  test('she arrives on the trace box, ready to type', async ({page}) => {
+    /* Since 13.0 the first screen is a trace she copies into a box, not a "Cover it up"
+       button. The box is focused on arrival, so a keyboard user starts typing straight
+       away — no hunt for a button, no first Tab landing on the speaker dead-end. */
     await open(page, '2026-08-01');
     await sittingOf(page, ['said', 'rain']);
     expect((await here(page)).stage).toBe('look');
-    await page.keyboard.press('Tab');
-    const r = await here(page);
-    expect(r.isPrimary, `the first Tab landed on "${r.label}" instead of the action`).toBe(true);
-    expect(r.focus).toBe('cover');
+    expect((await here(page)).focus, 'she did not arrive on the box').toBe('type');
   });
 
-  test('and Enter there moves her on, rather than reading the word again', async ({page}) => {
-    /* The consequence, which is what made it worth fixing rather than a blemish: pressing
-       Enter on arrival did nothing she could see, and nothing said to press Tab again. */
+  test('typing the word on arrival traces it and moves her to writing', async ({page}) => {
+    /* The obvious action moves her forward: copying the word finishes the trace and takes
+       her to writing it from memory, rather than leaving her on a screen that only reads
+       the word out again. */
     await open(page, '2026-08-01');
     await sittingOf(page, ['said', 'rain']);
-    await page.keyboard.press('Tab');
-    await page.keyboard.press('Enter');
-    expect((await here(page)).stage, 'Enter on arrival did not move her on').toBe('write');
+    await page.keyboard.type('said');
+    await page.waitForFunction(() => window.__acorn.session()
+      && window.__acorn.session().stage !== 'look', null, {timeout: 2000});
+    expect((await here(page)).stage, 'the trace did not move her on').toBe('write');
   });
 
   test('a whole sitting is possible with keys alone', async ({page}) => {
@@ -74,20 +76,26 @@ test.describe('arriving on a screen with a keyboard', () => {
        in and still on the first word with the word being read out each time. */
     await open(page, '2026-08-01');
     await sittingOf(page, ['said', 'rain']);
-    await page.keyboard.press('Tab');
-    let keys = 1, guard = 0;
+    let keys = 0, guard = 0;
     const seen = [];
     while(guard++ < 40){
       const st = await here(page);
       if(st.stage === 'done'){ seen.push('done'); break; }
       seen.push(st.stage + '/' + st.focus);
-      if(st.stage === 'write'){
+      const w = await page.evaluate(() =>
+        window.__acorn.session().words[window.__acorn.session().i]);
+      if(st.stage === 'look'){                             // the trace box, focused on arrival
+        expect(st.focus, 'she had to hunt for the trace box').toBe('type');
+        await page.keyboard.type(w); keys += w.length;     // copying it finishes the trace
+        await page.waitForFunction(() => window.__acorn.session()
+          && window.__acorn.session().stage !== 'look', null, {timeout: 2000});
+      }else if(st.stage === 'write'){
         expect(st.focus, 'she had to hunt for the box to type in').toBe('type');
-        const w = await page.evaluate(() =>
-          window.__acorn.session().words[window.__acorn.session().i]);
         await page.keyboard.type(w); keys += w.length;
+        await page.keyboard.press('Enter'); keys++;        // return submits
+      }else{                                               // the verdict: return carries her on
+        await page.keyboard.press('Enter'); keys++;
       }
-      await page.keyboard.press('Enter'); keys++;
     }
     expect(seen[seen.length - 1], 'the sitting never finished').toBe('done');
     expect(keys, `${keys} presses for a two-word sitting`).toBeLessThan(40);
@@ -129,9 +137,12 @@ test.describe('arriving on a screen with a keyboard', () => {
   });
 
   test('and plain Tab really is the app taking over, once', async ({page}) => {
-    // The other side of the same guard: it fires on the first Tab and never again.
+    // The other side of the same guard: it fires on the first Tab and never again. The
+    // redirect is for a screen with no box — since 13.0 that is the verdict, not the
+    // first screen (which is a trace box), so drive to a miss verdict to test it.
     await open(page, '2026-08-01');
     await sittingOf(page, ['said', 'rain']);
+    await page.evaluate(() => { const a = window.__acorn; a.cover(); a.type('zzz'); a.check(); });
     await watchKeys(page);
     await page.keyboard.press('Tab');
     expect((await lastKey(page)).prevented, 'the first Tab was not redirected').toBe(true);
@@ -140,19 +151,23 @@ test.describe('arriving on a screen with a keyboard', () => {
       'Tab is still being taken over after the first one').toBe(false);
   });
 
-  test('a touch user gets no focus ring out of nowhere', async ({page}) => {
-    /* The whole reason this is gated on a key press. Nothing may focus itself on a
-       touchscreen before she has touched anything. */
+  test('a touch user gets no focus ring on a button out of nowhere', async ({page}) => {
+    /* The trace box may hold focus — she types into it, as on the write screen, and the
+       keyboard opening there is wanted. What must never happen on a touchscreen is a focus
+       ring landing on an action button she has not tapped. */
     await open(page, '2026-08-01');
     await sittingOf(page, ['said', 'rain']);
     const r = await here(page);
-    expect(['BODY', 'HTML', 'kbhold'], `focus jumped to ${r.focus} with no key pressed`)
+    expect(r.isPrimary, `focus jumped to the primary "${r.focus}" with no key pressed`).toBe(false);
+    expect(['BODY', 'HTML', 'kbhold', 'type'], `focus jumped to ${r.focus} with no key pressed`)
       .toContain(r.focus);
   });
 
   test('and a pointer press afterwards puts it back to touch behaviour', async ({page}) => {
     await open(page, '2026-08-01');
     await sittingOf(page, ['said', 'rain']);
+    // A miss verdict — the screen with the continue button a keyboard user's ring lands on.
+    await page.evaluate(() => { const a = window.__acorn; a.cover(); a.type('zzz'); a.check(); });
     await page.keyboard.press('Tab');
     expect((await here(page)).isPrimary).toBe(true);
     await page.mouse.click(5, 5);                 // she touched the screen

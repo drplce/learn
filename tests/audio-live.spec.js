@@ -240,10 +240,10 @@ test.describe('the audio path for real', () => {
   test('the pieces follow the word, in order, without a gap in the chain',
     async ({page}) => {
       await boot(page, ['because','be','cause','said']);
-      await page.locator('#cover').click();
+      await page.evaluate(() => window.__acorn.cover());
       await write(page, 'becuase');
       await page.evaluate(() => { window.__ev = []; });
-      await page.locator('#check').click();
+      await page.evaluate(() => window.__acorn.check());
       await page.waitForFunction(() => window.__ev.filter(e => e.play).length >= 3,
                                  null, {timeout:5000});
       const played = (await events(page)).filter(e => e.play).map(e => e.play);
@@ -269,7 +269,7 @@ test.describe('the audio path for real', () => {
       await page.waitForFunction(() => window.__spoken.length > 0, null, {timeout:5000});
       expect(await page.evaluate(() => window.__spoken)).toEqual(['rain']);
       expect(asked.some(u => u.endsWith('/learn/audio/rain.wav'))).toBe(true);
-      await expect(page.locator('.word')).toBeVisible();
+      await expect(page.locator('.tracew')).toBeVisible();
     });
 
   test('her speed setting reaches the real element', async ({page}) => {

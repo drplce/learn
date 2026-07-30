@@ -25,10 +25,10 @@ async function typeReal(page, word, typed){
     a.save(); a.go('day');
     if(!a.session()) a.start();
   }, word);
-  if(await page.locator('#cover').count()) await page.locator('#cover').click();
+  await page.evaluate(() => { const a = window.__acorn; if(a.session() && a.session().stage === "look") a.cover(); });
   await page.locator('#type').click();
   await page.keyboard.type(typed);                 // one keystroke at a time
-  await page.locator('#check').click();
+  await page.keyboard.press("Enter");             // return submits — no Check button
   return page.evaluate(w => {
     const a = window.__acorn, m = a.mastery(w), s = a.session();
     const v = (document.querySelector('.verdict') || {}).textContent || '';
@@ -127,7 +127,7 @@ test.describe('typing it on a phone', () => {
       a.save(); a.go('day');
       if(!a.session()) a.start();
     });
-    if(await page.locator('#cover').count()) await page.locator('#cover').click();
+    await page.evaluate(() => { const a = window.__acorn; if(a.session() && a.session().stage === "look") a.cover(); });
     await page.locator('#type').click();
     await page.keyboard.type('said');
     await page.keyboard.press('Enter');
@@ -153,7 +153,7 @@ test.describe('typing it on a phone', () => {
       a.save(); a.go('day');
       if(!a.session()) a.start();
     });
-    if(await page.locator('#cover').count()) await page.locator('#cover').click();
+    await page.evaluate(() => { const a = window.__acorn; if(a.session() && a.session().stage === "look") a.cover(); });
     await page.locator('#type').click();
     await page.keyboard.type('antidisestablishment');
     const r = await page.evaluate(() => {
