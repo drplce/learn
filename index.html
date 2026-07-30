@@ -220,10 +220,12 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* The trace, on a never-met word. The letters carry the state and a transparent input
    over the top takes the keyboard: tapping anywhere on the word focuses it, and only
    the correctly-copied prefix is ever drawn (the input is filled from code, its own text
-   kept invisible so there is no double image). Colour is never the only signal — the lit
-   letter also carries the highlight box, and the whole word is spelled out to a screen
-   reader in the announcement. All three letter colours are the app's AA-safe inks, none
-   faded by opacity, so every tint clears contrast. */
+   kept invisible so there is no double image). Colour is not the only signal: everything
+   left of the lit letter is solid and everything right of it is faint, so the boundary
+   between them marks her place, and the whole word is spelled out to a screen reader in
+   the announcement. The lit letter is the accent green — measured AA on cream (5.5:1) and
+   in dark (7.4:1), like the other two inks — and none is faded by opacity, so every tint
+   clears contrast. */
 .trace{position:relative; min-height:var(--tap); margin:var(--s2) 0 var(--s1);
        display:flex; align-items:center; justify-content:center;}
 .tracew{width:100%; text-align:center; font-weight:700; line-height:1.35;
@@ -231,9 +233,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
         font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (var(--wl,6) * .8)), var(--t-3xl));}
 .tracew .on{color:var(--ink);}                        /* copied — solid */
 .tracew .off{color:var(--ink-soft);}                  /* not reached — the app's soft ink, still AA */
-.tracew .now{color:var(--ink); background:var(--acc-soft);   /* next — lit, box not colour alone */
-             border-radius:var(--r-sm); box-decoration-break:clone;
-             -webkit-box-decoration-break:clone;}
+.tracew .now{color:var(--acc);}                       /* next — the letter she is on, lit green */
 .tracein{position:absolute; inset:0; width:100%; min-height:var(--tap); border:0; padding:0;
          background:transparent; color:transparent; -webkit-text-fill-color:transparent;
          caret-color:transparent; text-align:center; font:inherit;}
@@ -549,7 +549,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.0';
+var VERSION = '13.1';
 var KEY = 'acorn.v1';
 
 /* =========================================================
