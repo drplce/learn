@@ -489,7 +489,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '11.6';
+var VERSION = '11.8';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1658,6 +1658,12 @@ function check(){
     toast(SPOKEN_NOTE);
     announce(SPOKEN_NOTE);
     say(w);
+    /* Being asked to write it should leave her able to write it. On her phone this is
+       already so — the button's own pointerdown keeps the box focused, which is the whole
+       point of that trick — but a mouse click moves focus to the button, and this branch
+       returns before the render that would normally put it back. So the screen said "have a
+       go with the letters" to someone whose next click had to be the box. */
+    restoreFocus();
     return;
   }
   W.notWritten = false;
@@ -1794,7 +1800,28 @@ function holdKeyboard(){
 // Only move focus for someone driving by keyboard; on a touchscreen a focus
 // ring appearing out of nowhere is just noise.
 var _kbd = false;
-addEventListener('keydown', function(e){ if(e.key === 'Tab') _kbd = true; }, true);
+addEventListener('keydown', function(e){
+  if(e.key !== 'Tab') return;
+  if(_kbd) return;                       // already known; ordinary Tab from here on
+  _kbd = true;
+  /* This is the press that tells us she is on a keyboard, and it is also the one press
+     restoreFocus() cannot help with: the flag goes up during the keydown, and the browser
+     is about to move focus by document order regardless. Document order puts her on "Hear
+     it", where Enter replays the word instead of moving her on — the same dead end that
+     was fixed for every later screen when the focus rule learned to prefer .primary, still
+     sitting there on the first screen of every sitting. Measured, a keyboard-only sitting
+     began by pressing Enter and getting the word read out again, with nothing to say that
+     Tab was needed a second time.
+
+     Only where there is no box to type in. On the writing stage focus is already in the
+     box and Tab moving out of it is exactly what Tab should do; anywhere else it is the
+     action that moves her on, which is where restoreFocus would have put her. */
+  if(e.shiftKey || el('#type')) return;
+  var go = el('#act .primary') || el('#screen .primary');
+  if(!go) return;
+  e.preventDefault();
+  go.focus({preventScroll:true});
+}, true);
 addEventListener('pointerdown', function(){ _kbd = false; }, true);
 
 /* The visual viewport is what the software keyboard changes; on iOS the layout
@@ -2417,11 +2444,17 @@ function renderParent(){
     +     '<div class="seg" role="group" aria-labelledby="l-sn">'
     +     '<button data-sn="1" aria-pressed="' + (S.settings.sound !== false) + '">On</button>'
     +     '<button data-sn="0" aria-pressed="' + (S.settings.sound === false) + '">Off</button></div></div>'
+    /* The explanation is tied to the buttons, not merely sitting under them. A hint that
+       follows a control and describes what the control does is part of the control: reading
+       the grown-ups screen by ear, this pair announced itself as "Written answers only, On,
+       pressed" and nothing else, so the one setting in here whose behaviour is not obvious
+       from its name was the one setting with no explanation. Same for Copy and Restore
+       further down, where the hint is what warns that Restore replaces everything. */
     +   '<div class="field"><div class="lbl" id="l-wr">Written answers only</div>'
-    +     '<div class="seg" role="group" aria-labelledby="l-wr">'
+    +     '<div class="seg" role="group" aria-labelledby="l-wr" aria-describedby="h-wr">'
     +     '<button data-wr="1" aria-pressed="' + (S.settings.written !== false) + '">On</button>'
     +     '<button data-wr="0" aria-pressed="' + (S.settings.written === false) + '">Off</button></div></div>'
-    +   '<div class="hint">The microphone key on the keyboard will spell a word for her, and '
+    +   '<div class="hint" id="h-wr">The microphone key on the keyboard will spell a word for her, and '
     +     'so will the suggestion bar, a glide across the keys and a paste. With this on she '
     +     'is asked to write it instead — she keeps the word and nothing is recorded against '
     +     'her. Turn it off if she needs to dictate, or if it ever gets in her way.</div>'
@@ -2493,15 +2526,15 @@ function renderParent(){
     + '</div>'
 
     + '<div class="sect"><h2>Backup</h2>'
-    +   '<button class="quiet" id="copy">Copy her progress</button>'
-    +   '<div class="hint">Copies everything as text you can paste somewhere safe — '
+    +   '<button class="quiet" id="copy" aria-describedby="h-copy">Copy her progress</button>'
+    +   '<div class="hint" id="h-copy">Copies everything as text you can paste somewhere safe — '
     +     'an email to yourself does the job.</div>'
     +   '<div class="field" style="margin-top:var(--s4)">'
     +     '<label for="restore">Put a backup back</label>'
     +     '<textarea id="restore" placeholder="Paste the text you copied" '
     +       'autocapitalize="off" spellcheck="false"></textarea></div>'
-    +   '<button class="quiet" id="restoreGo">Restore</button>'
-    +   '<div class="hint">Replaces everything on this device with the backup. '
+    +   '<button class="quiet" id="restoreGo" aria-describedby="h-restore">Restore</button>'
+    +   '<div class="hint" id="h-restore">Replaces everything on this device with the backup. '
     +     'It will tell you what is in it and ask again before it does.</div>'
     +   '<button class="quiet danger" id="reset" style="margin-top:var(--s3)">Erase everything</button>'
     + '</div>'

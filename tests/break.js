@@ -1547,6 +1547,93 @@ async function main(){
                   + ' hand over a letter — all went straight through');
   }
 
+  /* ---------------------------------------------------------------
+     28. a whole sitting with nothing but keys
+     --------------------------------------------------------------- */
+  {
+    console.log('\n28. a sitting driven by keyboard alone');
+    /* Not a blemish but a dead end. restoreFocus() learned to prefer the action that moves
+       her on rather than "Hear it", and that fixed every screen except the first: the flag
+       saying "she is on a keyboard" goes up during the Tab keydown, and the browser then
+       moves focus by document order regardless. Document order is "Hear it" first, so a
+       keyboard sitting opened by pressing Enter and hearing the word read out, again, with
+       nothing on the screen to say that Tab was needed a second time.
+
+       So this drives real keys and insists the sitting finishes. Across the screen shapes
+       too, because data-tight and data-cramped move which controls exist at all — and the
+       shed list can now take the syllable chips, each of which is a tab stop. */
+    let broke = 0, done = 0;
+    for(const [width, height] of [[390, 844], [320, 568], [568, 320], [412, 915]]){
+      for(const scale of [1, 1.5]){
+        const ctx = await browser.newContext({viewport: {width, height}, deviceScaleFactor: 1});
+        const page = await ctx.newPage();
+        const errs = [];
+        page.on('pageerror', e => errs.push(String(e)));
+        try{
+          await page.goto('file://' + require('path').resolve(__dirname, '..', 'index.html'));
+          await page.waitForFunction(() => !!window.__acorn);
+          await page.evaluate(s => {
+            const a = window.__acorn;
+            a.state.settings.textScale = s;
+            a.state.words.lists = [{id: 'kb', name: 'T', words: ['said', 'beautiful', 'rain']}];
+            a.state.words.activeId = 'kb';
+            a.state.words.mastery = {}; a.state.words.sessions = [];
+            a.save(); a.go('day'); if(!a.session()) a.start();
+          }, scale);
+          await page.keyboard.press('Tab');            // she announces herself
+          let keys = 1, guard = 0, finished = false, stuck = 0, last = '';
+          while(guard++ < 60){
+            const st = await page.evaluate(() => {
+              const a = window.__acorn, W = a.session(), e = document.activeElement || {};
+              return {stage: W ? W.stage : 'done',
+                      focus: e.id || e.className || e.tagName,
+                      word: W ? W.words[W.i] : null,
+                      // Is what she is focused on actually visible? A shed control that
+                      // keeps its tab stop is a focus ring on nothing.
+                      seen: !!e.getClientRects && e.getClientRects().length > 0};
+            });
+            if(st.stage === 'done'){ finished = true; break; }
+            const key = st.stage + '/' + st.focus;
+            stuck = key === last ? stuck + 1 : 0;
+            last = key;
+            if(stuck >= 3) break;
+            if(!st.seen && st.focus !== 'BODY' && st.focus !== 'HTML'){
+              bad('keys only at ' + width + 'x' + height + ' @' + scale,
+                  'focus sat on "' + st.focus + '", which is not on the screen');
+              broke++; break;
+            }
+            if(st.stage === 'write'){
+              if(st.focus !== 'type'){ await page.keyboard.press('Tab'); keys++; continue; }
+              await page.keyboard.type(st.word); keys += st.word.length;
+            }
+            await page.keyboard.press('Enter'); keys++;
+          }
+          if(!finished){
+            bad('keys only at ' + width + 'x' + height + ' @' + scale,
+                'the sitting never finished — stuck on ' + last + ' after ' + keys + ' presses');
+            broke++;
+          }else{
+            done++;
+            // A three-word sitting is 3 look + 3 write + 3 verdict plus the letters. Well
+            // over sixty presses means she is tabbing in circles to get anywhere.
+            if(keys > 60){
+              bad('keys only at ' + width + 'x' + height + ' @' + scale,
+                  keys + ' presses to finish three words');
+              broke++;
+            }
+          }
+        }catch(e){
+          bad('keys only at ' + width + 'x' + height + ' @' + scale, 'threw: ' + e.message);
+          broke++;
+        }
+        if(errs.length){ bad('keys only at ' + width + 'x' + height, errs[0]); broke++; }
+        await ctx.close();
+      }
+    }
+    if(!broke) ok(done + ' keyboard-only sittings across four screen shapes and two text sizes'
+                  + ' all finished, never focusing something that was not on the screen');
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));
