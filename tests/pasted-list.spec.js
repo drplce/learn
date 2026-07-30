@@ -110,6 +110,46 @@ test.describe('pasting this week’s list', () => {
     }
   });
 
+  test('a word repeated in the paste is saved once', async ({page}) => {
+    /* A real school list can repeat a word, or a grown-up types one twice by accident. Kept
+       once, so she is never asked the same word twice in a sitting, and the count she is told
+       is the count of distinct words — "3 words saved" for "said, said, they, said, went",
+       not five. Case-insensitively, because "A" and "a" are the same word to spell. */
+    await open(page, '2026-08-01');
+    for(const [text, want] of [
+      ['said, said, they, said, went', ['said', 'they', 'went']],
+      ['rain rain rain',               ['rain']],
+      ['they; THEY; They',             ['they']],
+      ['beau, beau, beautiful',        ['beau', 'beautiful']],
+    ]){
+      const r = await pasteList(page, text);
+      expect(r.words, `${JSON.stringify(text)} kept repeats`).toEqual(want);
+      const m = r.toast.match(/(\d+) words? saved/);
+      expect(Number(m[1]), `counted ${m[1]}, saved ${r.words.length}`).toBe(want.length);
+    }
+    expect(errorsOf(page)).toEqual([]);
+  });
+
+  test('and a list that already holds duplicates never asks the same word twice',
+    async ({page}) => {
+    /* The parser dedupes on the way in, but a hand-edited backup could still carry a list
+       with repeats. Session building is the last line: it must not put the same word in a
+       sitting more than once, whatever the source list looks like. */
+    await open(page, '2026-08-01');
+    const r = await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id: 'dup', name: 'D', words: ['said', 'said', 'they', 'said', 'went']}];
+      a.state.words.activeId = 'dup';
+      a.state.words.mastery = {}; a.state.words.sessions = [];
+      a.save(); a.go('day'); if(!a.session()) a.start();
+      const w = a.session().words;
+      return {words: w, unique: new Set(w).size, plan: a.session().plan};
+    });
+    expect(r.unique, `the sitting was ${JSON.stringify(r.words)}`).toBe(r.words.length);
+    expect(r.words).not.toContain(undefined);
+    expect(r.plan, 'the plan counted the duplicates').toBe(r.words.length);
+  });
+
   test('nothing usable in the paste is refused rather than saved empty', async ({page}) => {
     await open(page, '2026-08-01');
     for(const text of ['​​​', '   ', '1. 2. 3.', '• •', '...']){
