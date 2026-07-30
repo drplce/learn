@@ -1,19 +1,22 @@
-// Which of the three new-word ceilings actually decides anything.
+// Which of the new-word ceilings actually decides anything, at the shipped defaults.
 //
-// poolCap() is min(ACQUIRING_CAP, floor(sessionWords() * NEW_SHARE)), and
-// newWordsToday() has its own literal ceiling on top of that. Three numbers, and at
-// her real session sizes only one of them ever moves the outcome — measured over 60
-// simulated days on the easy list:
+// The live intake ceiling is now a grown-up setting — settings.newMax, default 3, with
+// ACQUIRING_CAP as only its default. poolCap() is
+// min(newMax, max(newWordsToday(), floor(sessionWords() * NEW_SHARE))), so at the default
+// newMax of 3 it reduces to the old min(3, floor(sessionWords() * NEW_SHARE)) in every
+// band and nothing below has moved — measured over 60 simulated days on the easy list:
 //
-//   ACQUIRING_CAP 3 -> 87.0% first go, 56.3 of 100 known well
-//   ACQUIRING_CAP 4 -> 87.0%, 56.3      byte-identical
-//   ACQUIRING_CAP 5 -> 87.0%, 56.3      byte-identical
-//   ACQUIRING_CAP 2 -> 91.2%, 44.9      slower and easier
+//   newMax 3 -> 87.0% first go, 56.3 of 100 known well   (the default)
+//   newMax 4 -> 87.0%, 56.3      byte-identical            at these session sizes
+//   newMax 5 -> 87.0%, 56.3      byte-identical
+//   newMax 2 -> 91.2%, 44.9      slower and easier
 //
-// Because sessionWords() is 9 when she is flying, floor(9/3) is exactly 3, so the cap
-// ties with the share term and can never bind above it. It is a one-way lever: it can
-// only ever slow her down. Anyone reaching for ACQUIRING_CAP to speed her up will
-// change nothing and conclude the engine ignores them, so this pins the arithmetic.
+// Because sessionWords() is 9 when she is flying, floor(9/3) is exactly 3, so at the
+// default the share term ties with the ceiling and raising newMax to 4 or 5 changes
+// nothing at her real session sizes — the effect of lifting it is proven in
+// tests/pace-settings.spec.js, which drives buildSession rather than the arithmetic. This
+// file pins the DEFAULT arithmetic: that newMax at 3 leaves the old mechanic exactly where
+// it was, so a change to the wiring that moved the defaults would fail here.
 const {test, expect} = require('@playwright/test');
 const {open} = require('./helpers');
 
@@ -30,7 +33,9 @@ async function atAccuracy(page, right, asked){
     a.save();
     return {acc: a.recentAccuracy(), words: a.sessionWords(),
             pool: a.poolCap(), today: a.newWordsToday(),
-            cap: a.ACQUIRING_CAP};
+            // The live ceiling is the grown-up setting now; ACQUIRING_CAP is only its
+            // default, and at the default they are the same 3.
+            cap: a.state.settings.newMax};
   }, {r: right, n: asked});
 }
 

@@ -356,6 +356,11 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 .pw-btn:disabled{opacity:.35;}
 .pw-btn.rm{color:var(--retry);}
 .pw-btn:active{border-color:var(--acc);}
+/* The two pace steppers: a −, the number, a +. The buttons are .pw-btn, so they are
+   already real 44px targets; the value between them is ink at full weight, never a faded
+   grey, so it clears contrast on every tint. */
+.stepper{display:flex; align-items:center; gap:var(--s3);}
+.stepval{min-width:2ch; text-align:center; font-size:var(--t-lg); font-weight:800; color:var(--ink);}
 /* Quieter by colour and weight, never by opacity. Opacity dims the text towards whatever
    happens to be behind it, so the same rule measured 2.26:1 on the blue tint and passed on
    cream — and the three places using it for this were the only contrast failures in 1220
@@ -515,7 +520,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '12.7';
+var VERSION = '12.8';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -538,7 +543,8 @@ function fresh(){
     profile:  {name:'', createdAt:todayISO()},
     words:    {lists:[], mastery:bare(null), activeId:'easy', sessions:[]},
     settings: {textScale:1, tint:'cream', readAloud:true, sound:true, voice:null,
-               speechRate:.95, kbInset:0, written:true, sawKeys:false}
+               speechRate:.95, kbInset:0, written:true, sawKeys:false,
+               newMax:3, newMin:0}
   };
 }
 /* Every setting is chosen by tapping a button that offers a fixed handful of
@@ -557,6 +563,18 @@ var TINTS = ['cream', 'peach', 'mint', 'blue', 'grey'];
 function inBand(v, lo, hi, fallback){
   v = Number(v);
   return (isFinite(v) && v >= lo && v <= hi) ? v : fallback;
+}
+// A whole number the app actually offers, clamped into a band. Unlike inBand a value
+// outside the band is pulled to the nearest edge rather than thrown away, because the
+// pace steppers are bounded and a stored 9 means "as many as I can", not "corruption".
+// Junk — a string, NaN, a negative, a fraction — falls back to the default.
+function intBand(v, lo, hi, fallback){
+  // Only a real, finite number is a value here; a string, null, an object, NaN are
+  // corruption and take the default. A number outside the band is pulled to the nearest
+  // edge rather than dropped, because the pace steppers are bounded and a stored 9 means
+  // "as many as it goes to", not "throw this away". A fraction rounds to a whole step.
+  if(typeof v !== 'number' || !isFinite(v)) return fallback;
+  return Math.max(lo, Math.min(hi, Math.round(v)));
 }
 /* Every object in JavaScript already answers to "constructor", "toString",
    "valueOf", "hasOwnProperty", "isPrototypeOf", "toLocaleString" and
@@ -586,6 +604,16 @@ function saneSettings(t){
   // Remembered from a real observation, like kbInset: has this device ever reported a
   // keystroke? Only ever set by seeing one, so a false in storage is simply "not yet".
   t.sawKeys    = t.sawKeys === true;
+  /* The two pace levers a grown-up can move. Every other setting here is chosen by
+     tapping a button, so anything off the offered values is corruption; these are
+     stepped by hand, so junk in storage — a string, NaN, a negative, a huge number —
+     is coerced to a whole number inside the band the steppers allow, and never
+     throws. newMax is new words on a flying day, newMin on a hard one, and newMin can
+     never sit above newMax: a stored or typed newMin past the ceiling is dragged down
+     to it, so the pair always reads mn ≤ mx however it arrived. */
+  t.newMax = intBand(t.newMax, 0, 5, 3);
+  t.newMin = intBand(t.newMin, 0, 3, 0);
+  if(t.newMin > t.newMax) t.newMin = t.newMax;
   if(typeof t.voice !== 'string') t.voice = null;
   // Remembered from a real measurement, so a plausible band and nothing else.
   var kb = Number(t.kbInset);
@@ -1570,15 +1598,15 @@ function knownEverywhere(){
 /* Pace. Practice works best around 80-85% success: below that she is being
    overloaded, above it she is coasting. So the number of new words follows her
    accuracy rather than a fixed setting. */
-/* Of the three ceilings below, only NEW_SHARE ever decides anything, because
-   poolCap() takes the smaller of ACQUIRING_CAP and floor(sessionWords() *
-   NEW_SHARE) and sessionWords() is 9 at its largest — so the share term tops out at
-   exactly 3 and the cap can only ever tie with it. Measured over 60 simulated days
-   on the easy list: ACQUIRING_CAP at 3, 4 and 5 all give 87.0% first go and 56.3 of
-   100 words known well, byte for byte. At 2 it binds and gives 91.2% and 44.9 — so
-   it is a one-way lever that can only slow her down. Reach for NEW_SHARE, not this,
-   and see tests/pace-levers.spec.js. */
-var ACQUIRING_CAP = 3;      // words still being learned, at once — never more
+/* The intake ceiling is now a grown-up setting — settings.newMax, which poolCap()
+   and newWordsToday() read directly — and ACQUIRING_CAP below is only its default.
+   At that default of 3 nothing has moved: poolCap() holds at least newMax and the old
+   floor(sessionWords() * NEW_SHARE) term tops out at floor(9/3) = 3, so the two tie
+   exactly as they always did and the simulations are byte-for-byte unchanged. A
+   grown-up who lifts newMax pushes the pool past NEW_SHARE's third-of-a-sitting guard
+   deliberately (RESEARCH §3/§4); one who lowers it slows the intake. See
+   tests/pace-levers.spec.js and tests/pace-settings.spec.js. */
+var ACQUIRING_CAP = 3;      // the default of settings.newMax — the live ceiling is the setting
 var SEED_NEW = 3;           // her very first session
 var PACE_WINDOW = 5;        // sessions to judge on
 var PACE_MIN_WORDS = 12;    // ...over at least this many words
@@ -1608,20 +1636,41 @@ function sessionWords(){
   if(acc <  PACE_LOW)  return 6;
   return 8;
 }
+// The tiers that used to be hard-wired at 3 / 1 / 0 now read the two grown-up levers:
+// newMax is the intake on a flying day, newMin on a hard one, and the middle band and
+// the too-early case sit at one, but never outside [newMin, newMax]. At the defaults
+// (mn=0, mx=3) these yield 3 / 1 / 3 / 1 / 0 — exactly what they were before the levers
+// existed, which is what keeps the simulations byte-for-byte unchanged.
+function clampN(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
 function newWordsToday(){
-  if(!(S.words.sessions || []).length) return SEED_NEW;
+  var mn = S.settings.newMin, mx = S.settings.newMax;
+  if(!(S.words.sessions || []).length) return Math.min(SEED_NEW, mx);
   var acc = recentAccuracy();
-  if(acc === null) return 1;
-  if(acc >= PACE_HIGH) return 3;      // flying — up to the three-a-day ceiling
-  if(acc >= PACE_LOW)  return 1;      // in the sweet spot
-  return 0;                           // struggling — consolidate, add nothing
+  if(acc === null)     return clampN(1, mn, mx);   // too early to judge — a gentle one
+  if(acc >= PACE_HIGH) return mx;                  // flying — the grown-up's ceiling
+  if(acc >= PACE_LOW)  return clampN(1, mn, mx);   // in the sweet spot
+  return mn;                                       // struggling — down to the floor
 }
 // The rest of the sitting is words she can already spell. Keeping new material
 // to a third is what holds the success rate where practice actually sticks.
 function poolCap(){
   // Her first night is all new by definition, so the share doesn't apply.
   if(!(S.words.sessions || []).length) return SEED_NEW;
-  return Math.max(1, Math.min(ACQUIRING_CAP, Math.floor(sessionWords() * NEW_SHARE)));
+  /* The pool holds at least what today actually asks for — newWordsToday(), which the
+     grown-up's newMax bounds — so lifting the intake past NEW_SHARE's third-of-a-sitting
+     guard actually gets through it. That guard is the default for a reason (RESEARCH §4),
+     but the lever is theirs to push (RESEARCH §3).
+
+     The floor is newWordsToday(), not newMax itself: on a flying day the two are equal, but
+     in the middle band and on a hard day newWordsToday() is one or nought while newMax is
+     still three, so using newMax as the floor would widen the pool from two to three there
+     and quietly carry an extra acquiring word every non-flying sitting — which is precisely
+     what moved every number in tests/sim.js when it was tried. Bounded by what the day
+     asks for, the default (newMax 3) reproduces the old max(1, min(3, floor(9/3))) in every
+     band and the simulations are byte-for-byte unchanged; raise newMax and the pool follows,
+     lower it and it shrinks. See tests/pace-settings.spec.js. */
+  var mx = S.settings.newMax;
+  return Math.max(1, Math.min(mx, Math.max(newWordsToday(), Math.floor(sessionWords() * NEW_SHARE))));
 }
 function paceLabel(){
   var acc = recentAccuracy(), n = newWordsToday();
@@ -2655,6 +2704,33 @@ function renderParent(){
     + 'hard week slows the intake instead of piling up. New words never take more than a third '
     + 'of a sitting; the rest is words she can already spell.</div></div>'
 
+    /* The two pace levers a grown-up can move: how many new words she meets on a flying
+       day and on a hard one. Each is a stepper — a −, the current number, a +. newMin can
+       never sit above newMax, so lowering the ceiling drags the floor down with it and the
+       + on the floor is disabled once it reaches the ceiling. Every change persists at once.
+       The defaults (3 and 0) are the behaviour the app shipped with; "Suggested 0–3" and the
+       reset button are the way back. */
+    + '<div class="sect"><h2>New words a day</h2>'
+    +   '<div class="field"><div class="lbl" id="l-newmax">New words on a good day</div>'
+    +     '<div class="stepper" role="group" aria-labelledby="l-newmax">'
+    +     '<button class="pw-btn" data-newmax="-1" aria-label="Fewer new words on a good day"'
+    +       (S.settings.newMax <= 0 ? ' disabled' : '') + '>−</button>'
+    +     '<span class="stepval" aria-live="polite">' + S.settings.newMax + '</span>'
+    +     '<button class="pw-btn" data-newmax="1" aria-label="More new words on a good day"'
+    +       (S.settings.newMax >= 5 ? ' disabled' : '') + '>+</button>'
+    +   '</div></div>'
+    +   '<div class="field"><div class="lbl" id="l-newmin">New words on a hard day</div>'
+    +     '<div class="stepper" role="group" aria-labelledby="l-newmin">'
+    +     '<button class="pw-btn" data-newmin="-1" aria-label="Fewer new words on a hard day"'
+    +       (S.settings.newMin <= 0 ? ' disabled' : '') + '>−</button>'
+    +     '<span class="stepval" aria-live="polite">' + S.settings.newMin + '</span>'
+    +     '<button class="pw-btn" data-newmin="1" aria-label="More new words on a hard day"'
+    +       (S.settings.newMin >= Math.min(3, S.settings.newMax) ? ' disabled' : '') + '>+</button>'
+    +   '</div></div>'
+    +   '<div class="hint">Suggested 0–3. On a good week she meets up to the first number; on a '
+    +   'hard one, as few as the second. The floor can never sit above the ceiling.</div>'
+    +   '<button class="quiet" id="paceReset">Back to recommended</button></div>'
+
     + (tricky.length
       ? '<div class="sect"><h2>Still tricky</h2><div class="chips">'
         + tricky.map(function(w){ return '<button class="chip" data-hear="' + esc(w)
@@ -3580,6 +3656,19 @@ document.addEventListener('click', function(ev){
     return;
   }
   if((hit = t.closest('[data-list]'))){ S.words.activeId = hit.dataset.list; save(); render(); return; }
+  // The two pace steppers. newMax lives in 0–5; newMin in 0–3 and never above newMax, so
+  // lowering the ceiling drags the floor down and raising the floor is bounded by the
+  // ceiling. Every tap persists at once, like every other setting on this screen.
+  if((hit = t.closest('[data-newmax]'))){
+    S.settings.newMax = intBand(S.settings.newMax + (+hit.dataset.newmax), 0, 5, 3);
+    if(S.settings.newMin > S.settings.newMax) S.settings.newMin = S.settings.newMax;
+    save(); render(); return;
+  }
+  if((hit = t.closest('[data-newmin]'))){
+    S.settings.newMin = intBand(S.settings.newMin + (+hit.dataset.newmin), 0, Math.min(3, S.settings.newMax), 0);
+    save(); render(); return;
+  }
+  if(t.closest('#paceReset')){ S.settings.newMax = 3; S.settings.newMin = 0; save(); render(); return; }
   // ---- the playlist: add, reorder, remove
   if(t.closest('#addwordGo')){
     var box = el('#addword');
@@ -3885,6 +3974,9 @@ loadClips(); render(); },
   shedOrder: function(){ return {word: SHED_ORDER.word.slice(), done: SHED_ORDER.done.slice()}; },
   twins: function(){ return TWINS.map(function(p){ return p.slice(); }); },
   ACQUIRING_CAP: ACQUIRING_CAP, SEED_NEW: SEED_NEW, sessionWords: sessionWords,
+  // The pace-lever sanitiser, exposed so a test can hand it junk directly rather than
+  // only through a reload — same coercion either way.
+  saneSettings: saneSettings,
   // The map: how far the outlines reach, and the one outline every word carries
   // — the dots on her word screen are the same shapes from the same function.
   ghostAhead: ghostAhead, ghostWords: function(){ return Object.keys(ghostWords()); },
