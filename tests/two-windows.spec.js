@@ -249,4 +249,64 @@ test.describe('two windows on the same device', () => {
     expect(r.mastery, 'its own clear was undone by the merge').toEqual([]);
   });
 
+  test('a full disk does not resurrect a list she deleted', async ({context}) => {
+    /* The merge and a failed write, together. save() marks "what we last wrote" so the next
+       save can tell its own writes from another window's. That marker was set before the
+       write, so a write that failed on a full disk left it claiming a value that never
+       landed — and the following save then read the still-stored copy as another window's
+       work and merged it back. Driven: with the disk full she deletes a list and carries on,
+       and when space frees up the deleted list came back. The marker only advances on a
+       write that actually succeeds now, so storage and the marker stay in step through any
+       run of failed writes. */
+    const p = await win(context);
+    const r = await p.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id: 'keep', name: 'Keep', words: ['said']},
+                             {id: 'del', name: 'Delete me', words: ['rain']}];
+      a.state.words.activeId = 'keep';
+      a.state.words.mastery = {}; a.state.words.sessions = [];
+      a.save();                                                  // lands: both lists stored
+      const orig = Storage.prototype.setItem;
+      Storage.prototype.setItem = function(){ throw new DOMException('q', 'QuotaExceededError'); };
+      a.state.words.lists = a.state.words.lists.filter(l => l.id !== 'del');   // she deletes one
+      a.save();                                                  // fails, disk full
+      a.state.words.mastery.said = {box: 2, right: 1, wrong: 0, lastSeen: '2026-08-01'};
+      a.save();                                                  // fails; would trigger the stale merge
+      Storage.prototype.setItem = orig;                          // space frees up
+      a.save();                                                  // lands
+      return {inMemory: a.state.words.lists.map(l => l.name),
+              stored: JSON.parse(localStorage.getItem('acorn.v1')).words.lists.map(l => l.name)};
+    });
+    expect(r.inMemory, 'the deleted list came back in memory').toEqual(['Keep']);
+    expect(r.stored, 'the deleted list was written back to the device').toEqual(['Keep']);
+  });
+
+  test('and a full disk never costs her a word once space frees up', async ({context}) => {
+    // The other half: everything she does while the disk is full is still in memory, so the
+    // first save that lands writes all of it. Her evening is not lost to a full disk.
+    const p = await win(context);
+    await seed(p, ['said', 'rain', 'they', 'went']);
+    const r = await p.evaluate(() => {
+      const a = window.__acorn;
+      const orig = Storage.prototype.setItem;
+      Storage.prototype.setItem = function(){ throw new DOMException('q', 'QuotaExceededError'); };
+      a.go('day'); if(!a.session()) a.start();
+      for(let g = 0; g < 20 && a.session(); g++){
+        const W = a.session();
+        if(W.stage === 'look'){ a.cover(); continue; }
+        if(W.stage === 'write'){ a.type(W.words[W.i]); a.check(); a.next(); continue; }
+        a.next();
+      }
+      const metWhileBroken = Object.keys(a.state.words.mastery).length;
+      Storage.prototype.setItem = orig;
+      a.save();
+      return {metWhileBroken,
+              stored: Object.keys(JSON.parse(localStorage.getItem('acorn.v1')).words.mastery).length};
+    });
+    expect(r.metWhileBroken, 'she practised nothing while the disk was full').toBeGreaterThan(0);
+    expect(r.stored, 'her practice was not written once space came back')
+      .toBe(r.metWhileBroken);
+    expect(p.__errs).toEqual([]);
+  });
+
 });

@@ -500,7 +500,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '12.4';
+var VERSION = '12.5';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -695,8 +695,17 @@ function save(){
     }
   }catch(e){}
   try{
-    _wrote = JSON.stringify(S);
-    localStorage.setItem(KEY, _wrote);
+    /* _wrote is "what we last actually put in storage", and it only becomes true once the
+       write succeeds. It was being set before the write, so a failed write (a full disk)
+       left it claiming a value that never landed — and the next save's merge then read the
+       stale stored copy as another window's work and merged it back in. On a full disk that
+       resurrected a list she had just deleted: the delete's write failed, _wrote diverged
+       from storage, and the following save pulled the still-stored list back. Assigned only
+       after setItem returns, storage and _wrote stay in step through any number of failed
+       writes, so nothing stale is ever merged over her. */
+    var payload = JSON.stringify(S);
+    localStorage.setItem(KEY, payload);
+    _wrote = payload;
     markLists();
     _saveFailed = false;
   }
