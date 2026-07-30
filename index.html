@@ -500,7 +500,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '12.1';
+var VERSION = '12.2';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -602,16 +602,122 @@ function load(){
       if(typeof S.profile.name !== 'string') S.profile.name = '';
       S.profile.name = S.profile.name.trim().slice(0, 32);
       S.settings = saneSettings(S.settings);
+      markLists();
       return;
     }
   }catch(e){}
   S = fresh();
+  markLists();
 }
 var _saveFailed = false;
+// The exact text this window last wrote, so a save can tell another window's work from its
+// own and skip the merge when there is nothing to merge.
+var _wrote = '';
+/* What the lists looked like when this window last read or wrote them, so a save can tell
+   "I changed the lists" from "I am carrying an old copy of them". */
+var _listsSeen = '[]';
+function markLists(){
+  try{ _listsSeen = JSON.stringify(S.words.lists); }catch(e){ _listsSeen = '[]'; }
+}
+/* Two windows on the same phone is not exotic — a bookmark and a home-screen icon are two
+   ways into the same origin, and a grown-up on the settings while she is on a word is the
+   obvious way to have both open. save() wrote the whole of this window's state over
+   whatever was there, so whichever window wrote last erased the other's work. Driven with
+   two real pages: she answered a word and a grown-up changed the tint next door, and her
+   answer was gone; a grown-up pasted this week's list and she answered next door, and the
+   list was gone. Silently, both times.
+
+   So a save reads what is actually in storage first and merges instead of replacing. Only
+   the parts that need it, and each by a rule that cannot lose work:
+
+   - mastery, per word: whichever record has been through more answers wins, later
+     lastSeen breaking a tie. Evidence only ever accumulates, so this cannot go backwards.
+   - sessions, per day and list: the fuller record of the two, then the same 60 kept.
+   - lists, per id: ids this window has never heard of are always kept. If this window has
+     not touched the lists since it read them, storage's copy wins outright — that is a
+     grown-up's edit next door and this window has nothing to contribute.
+   - settings, profile, activeId: last write wins, which is right. Each is a deliberate
+     tap, and the person doing the tapping is the one holding the phone. */
+function mergeSaved(mine, theirs){
+  if(!theirs || typeof theirs !== 'object' || !theirs.words) return mine;
+  var t = theirs.words, m = mine.words;
+
+  var tries = function(r){ return (Number(r && r.right) || 0) + (Number(r && r.wrong) || 0); };
+  var out = bare(m.mastery);
+  Object.keys(t.mastery || {}).forEach(function(w){
+    var a = out[w], b = t.mastery[w];
+    if(!b || typeof b !== 'object') return;
+    if(!a){ out[w] = b; return; }
+    if(tries(b) > tries(a)) out[w] = b;
+    else if(tries(b) === tries(a) && String(b.lastSeen || '') > String(a.lastSeen || '')) out[w] = b;
+  });
+  m.mastery = out;
+
+  /* Its own id where it has one. Records written before sittings had ids fall back to the
+     day, the list and the counts — enough to spot the same sitting arriving twice from two
+     windows, and it stops mattering as those age out of the sixty kept. */
+  var key = function(s){
+    if(s && s.id) return 'id:' + s.id;
+    return [s && s.date, s && s.list, s && s.asked, s && s.right, s && s.firstTime].join('|');
+  };
+  var byDay = bare(null);
+  (m.sessions || []).concat(Array.isArray(t.sessions) ? t.sessions : []).forEach(function(s){
+    if(!s || typeof s !== 'object') return;
+    var k = key(s), was = byDay[k];
+    if(!was || (Number(s.asked) || 0) > (Number(was.asked) || 0)) byDay[k] = s;
+  });
+  m.sessions = Object.keys(byDay).map(function(k){ return byDay[k]; })
+    .sort(function(a, b){ return String(a.date) < String(b.date) ? -1 : 1; }).slice(-60);
+
+  if(Array.isArray(t.lists)){
+    var untouched = false;
+    try{ untouched = JSON.stringify(m.lists) === _listsSeen; }catch(e){}
+    if(untouched && t.lists.length){ m.lists = t.lists; }
+    else {
+      var have = bare(null);
+      (m.lists || []).forEach(function(l){ if(l && l.id) have[l.id] = true; });
+      t.lists.forEach(function(l){ if(l && l.id && !have[l.id]) m.lists.push(l); });
+    }
+  }
+  return mine;
+}
 function save(){
-  try{ localStorage.setItem(KEY, JSON.stringify(S)); _saveFailed = false; }
+  try{
+    var raw = localStorage.getItem(KEY);
+    if(raw){
+      var theirs = null;
+      try{ theirs = JSON.parse(raw); }catch(e){}
+      // Only worth merging if it is not already this window's own last write.
+      if(theirs && raw !== _wrote) mergeSaved(S, theirs);
+    }
+  }catch(e){}
+  try{
+    _wrote = JSON.stringify(S);
+    localStorage.setItem(KEY, _wrote);
+    markLists();
+    _saveFailed = false;
+  }
   catch(e){ _saveFailed = true; }
 }
+/* And the other way round: a window that is sitting there while the work happens next door.
+   The merge above keeps the data safe whichever window writes last, but it does not make a
+   stale window stop showing stale things — a grown-up pastes this week's list in one and she
+   carries on being asked last week's words in the other.
+
+   Handled by re-reading and then handing the day screen back through go(), which is the
+   same path a grown-up already takes when they change the list and tap Back: it keeps the
+   sitting when sessionStillGood() says the day, the list and every word in it are unchanged,
+   and builds a fresh one when they are not. Her half-typed answer lives on W.attempt and is
+   written back into the box by the render, so a word in progress survives.
+
+   My first attempt guarded this with "not while she is on a word", which never ran at all —
+   she is always on a word on that screen, because that is the whole design of the app. */
+addEventListener('storage', function(e){
+  if(e.key !== KEY || e.newValue === null) return;
+  if(e.newValue === _wrote) return;                 // this window's own write coming back
+  load();
+  if(screen === 'day') go('day'); else render();
+});
 
 /* =========================================================
    3. Sound and speech. Both need a real gesture before iOS will
@@ -1678,6 +1784,10 @@ function start(){
   return true;
 }
 function word(){ return W && W.words[W.i]; }
+// Enough to be unique between two windows on the same phone finishing at the same moment.
+function sessionId(){
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
 /* What she reads when the letters arrived without her writing them. Not an accusation and
    not the word "no": it says which part of this is the practice. Every other message in
    this app is careful the same way, and this one has more reason to be than most — she
@@ -1777,7 +1887,12 @@ function next(){
 }
 function finish(){
   var distinct = W.words.filter(function(w, i, a){ return a.indexOf(w) === i; }).length;
-  S.words.sessions.push({date:todayISO(), list:(activeList() || {}).id,
+  /* An identity of its own, so a sitting can be told from another sitting rather than from
+     its date. Two on the same day for the same list is an ordinary evening — that is what
+     "Practise a bit more" does — and the merge in save() keyed on date and list, so the
+     second one collapsed into the first and a grown-up's count of sittings went down. Found
+     by the adversarial pass driving two windows interleaved rather than turn by turn. */
+  S.words.sessions.push({id:sessionId(), date:todayISO(), list:(activeList() || {}).id,
                          asked:W.words.length, words:distinct,
                          right:W.right, firstTime:W.firstTime,
                          // Kept so the finished screen still knows what tonight did

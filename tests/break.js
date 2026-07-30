@@ -1869,6 +1869,105 @@ async function main(){
                   + ' her own spelling in front of her');
   }
 
+  /* ---------------------------------------------------------------
+     31. two windows, interleaved rather than taking turns
+     --------------------------------------------------------------- */
+  {
+    console.log('\n31. two windows on the same device, working at the same time');
+    /* save() used to write one window's whole state over whatever was there, so whichever
+       window wrote last erased the other's work: she answered a word, a grown-up changed the
+       tint next door, and her answer was gone. It reads and merges now, and the rule this
+       checks is the one that makes the merge worth trusting — evidence never goes backwards.
+       Answers accumulate, so the number of words she has met and the number of answers behind
+       each of them can only ever climb, whoever writes and in whatever order. Interleaved
+       rather than turn-taking, because taking turns is the easy case. */
+    let broke = 0, rounds = 0;
+    const ctx = await browser.newContext({viewport: {width: 390, height: 844}});
+    const A = await ctx.newPage(), B = await ctx.newPage();
+    const errs = [];
+    [A, B].forEach(p => p.on('pageerror', e => errs.push(String(e))));
+    const file = 'file://' + require('path').resolve(__dirname, '..', 'index.html');
+    for(const p of [A, B]){
+      await p.goto(file);
+      await p.waitForFunction(() => !!window.__acorn);
+      await p.evaluate(d => window.__acorn.setToday(d), '2026-08-01');
+    }
+    await A.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id: 'tw', name: 'Week 9',
+        words: ['said','rain','beautiful','through','plain','light','night','friend']}];
+      a.state.words.activeId = 'tw';
+      a.state.words.mastery = {}; a.state.words.sessions = [];
+      a.save();
+    });
+    // Answer in one window, fiddle with a setting in the other, over and over.
+    const answer = p => p.evaluate(() => {
+      const a = window.__acorn;
+      a.go('day'); if(!a.session()) a.start();
+      if(a.session().stage === 'look') a.cover();
+      const w = a.session().words[a.session().i];
+      a.type(w); a.check(); a.next();
+      return w;
+    }).catch(() => null);
+    const fiddle = (p, tint) => p.evaluate(t => {
+      const a = window.__acorn;
+      a.go('parent');
+      a.state.settings.tint = t;
+      a.save();
+    }, tint).catch(() => null);
+    const seenOn = p => p.evaluate(() => {
+      const o = JSON.parse(localStorage.getItem('acorn.v1'));
+      const m = o.words.mastery || {};
+      return {words: Object.keys(m).length,
+              answers: Object.keys(m).reduce((n, k) =>
+                n + (Number(m[k].right)||0) + (Number(m[k].wrong)||0), 0),
+              lists: (o.words.lists || []).length,
+              sessions: (o.words.sessions || []).length};
+    });
+    const TINTS31 = ['cream', 'peach', 'mint', 'blue', 'grey'];
+    let prev = await seenOn(A);
+    for(let round = 0; round < 10; round++){
+      const first = round % 2 ? B : A, second = round % 2 ? A : B;
+      await answer(first);
+      await fiddle(second, TINTS31[round % TINTS31.length]);
+      await answer(second);
+      const now = await seenOn(first);
+      rounds++;
+      const why = now.words < prev.words
+          ? 'words she had met went from ' + prev.words + ' down to ' + now.words
+        : now.answers < prev.answers
+          ? 'answers behind her words went from ' + prev.answers + ' down to ' + now.answers
+        : now.lists < 1 ? 'her list disappeared'
+        : now.sessions < prev.sessions
+          ? 'a finished sitting was lost (' + prev.sessions + ' -> ' + now.sessions + ')'
+        : null;
+      if(why){ bad('two windows, round ' + round, why); broke++; break; }
+      prev = now;
+    }
+    // And a stale window that has been sitting there for the whole run must not undo it.
+    const stale = await ctx.newPage();
+    await stale.goto(file);
+    await stale.waitForFunction(() => !!window.__acorn);
+    await stale.evaluate(() => window.__acorn.setToday('2026-08-01'));
+    await A.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.mastery.zzznew = {box: 3, right: 3, wrong: 0, lastSeen: '2026-08-01'};
+      a.save();
+    });
+    await stale.evaluate(() => { window.__acorn.state.settings.textScale = 1.2;
+                                window.__acorn.save(); });
+    const after = await seenOn(A);
+    if(after.words < prev.words + 1){
+      bad('two windows, a window left open', 'a window that had been idle undid the newest work');
+      broke++;
+    }
+    if(errs.length){ bad('two windows', errs[0]); broke++; }
+    await ctx.close();
+    if(!broke) ok(rounds + ' interleaved rounds across two windows, plus a third left idle'
+                  + ' throughout: words met and answers behind them only ever climbed, and'
+                  + ' neither her list nor a finished sitting was lost');
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));
