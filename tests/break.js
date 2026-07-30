@@ -1167,6 +1167,95 @@ async function main(){
     await ctx.close();
   }
 
+  /* ---------------------------------------------------------------
+     25. fitting the screen by emptying it
+     --------------------------------------------------------------- */
+  {
+    console.log('\n25. a screen that fits because nothing is left on it');
+    /* "It fits" and "there is something on it to read" are different claims, and the app
+       only ever checked the first. fitScreen deletes until the panel fits, so a screen
+       with every sentence taken off it passes every measurement in here — no overflow,
+       no clipping, nothing off the edge. That is exactly what happened at 320px and her
+       largest text: three syllable chips wrapped onto a second row, the shed list ran to
+       the end, and she was left looking at a rust-coloured letter in the middle of her
+       word with not one word anywhere telling her why.
+
+       So the invariant is about order rather than outcome. Deleting the caption is
+       allowed when there is genuinely no room for it — a four-chunk word at 320px and
+       1.5x does not fit however it is squeezed. What is not allowed is deleting it
+       before trying to make it smaller. If the verdict is gone, both shrink rungs must
+       have been used first. */
+    const WORDS = ['beautiful', 'because', 'remember', 'different', 'interesting', 'said'];
+    let broke = 0, shedAnyway = 0, cases = 0;
+    for(const [width, height] of [[320, 568], [360, 640], [390, 844], [320, 480],
+                                  [568, 320], [740, 360]]){
+      for(const scale of [0.8, 1, 1.3, 1.5, 1.6]){
+        const ctx = await browser.newContext({viewport: {width, height}, deviceScaleFactor: 1});
+        const page = await ctx.newPage();
+        const errs = [];
+        page.on('pageerror', e => errs.push(String(e)));
+        try{
+          await page.goto('file://' + require('path').resolve(__dirname, '..', 'index.html'));
+          await page.waitForFunction(() => !!window.__acorn);
+          for(const word of WORDS){
+            cases++;
+            const r = await page.evaluate(({s, word}) => {
+              const a = window.__acorn;
+              const id = 'e' + (++window.__nth || (window.__nth = 1));
+              a.state.settings.textScale = s;
+              a.state.words.lists = [{id: id, name: 'T', words: [word, 'said', 'rain']}];
+              a.state.words.activeId = id;
+              a.state.words.mastery = {}; a.state.words.sessions = [];
+              a.save(); a.go('day'); if(!a.session()) a.start();
+              if(a.session().stage === 'look') a.cover();
+              a.type(word.slice(0, -1) + 'z'); a.check();
+              const m = document.querySelector('#screen');
+              const on = sel => {
+                const n = m.querySelector(sel);
+                return !!n && getComputedStyle(n).display !== 'none';
+              };
+              /* Rendered, not merely display:block. In landscape at her largest text
+                 data-cramped hides the whole .syls row, and a chip inside it still
+                 reports display:inline-flex while measuring 0x0 — which read as five
+                 tap targets under 44px until I looked at what they actually were. */
+              const chips = [...m.querySelectorAll('.syl')]
+                .filter(c => c.getClientRects().length > 0)
+                .map(c => { const b = c.getBoundingClientRect();
+                            return {t: c.textContent, w: b.width, h: b.height}; });
+              return {
+                verdict: on('.verdict'),
+                word: on('.marked') || on('.word'),
+                rung: document.documentElement.getAttribute('data-squeezed'),
+                cramped: document.documentElement.hasAttribute('data-cramped'),
+                chips: chips,
+                small: chips.filter(c => c.w < 43.5 || c.h < 43.5).map(c => c.t),
+                clipped: m.scrollHeight > m.clientHeight + 1,
+                // Anything at all she can read, ignoring the buttons.
+                words: (m.innerText || '').replace(/\s+/g, ' ').trim(),
+              };
+            }, {s: scale, word});
+            const at = width + 'x' + height + ' @' + scale + ' "' + word + '"';
+            const why = !r.word ? 'the word itself came off the screen'
+              : r.clipped ? 'the screen is cut off'
+              : r.small.length ? 'chip "' + r.small[0] + '" fell under the 44px target'
+              : (!r.verdict && r.rung !== '2' && !r.cramped)
+                  ? 'the verdict was deleted at rung ' + JSON.stringify(r.rung)
+                    + ' — shrinking was still available and was not tried'
+              : !r.words ? 'nothing readable is left on the screen at all'
+              : null;
+            if(why){ bad('screen emptied, ' + at, why); broke++; }
+            if(!r.verdict) shedAnyway++;
+          }
+        }catch(e){ bad('screen emptied, ' + width + 'x' + height + ' @' + scale, 'threw: ' + e.message); broke++; }
+        if(errs.length){ bad('screen emptied, ' + width + 'x' + height, errs[0]); broke++; }
+        await ctx.close();
+      }
+    }
+    if(!broke) ok(cases + ' verdict screens across six shapes and five text sizes each kept'
+                  + ' her word, her chips and something to read — the ' + shedAnyway
+                  + ' that still lost the caption had both shrink rungs used on them first');
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));

@@ -321,8 +321,18 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 .swatch[aria-pressed=true]{border-color:var(--acc); box-shadow:0 0 0 3px var(--acc-soft); transform:scale(1.07);}
 .swatch[aria-pressed=true]::after{content:"✓"; position:absolute; inset:0; display:flex;
         align-items:center; justify-content:center; color:#35705A; font-size:var(--t-lg); font-weight:800;}
-.stats{display:flex; gap:var(--s2);}
-.stat{flex:1 1 0; min-width:0; padding:var(--s3); border-radius:var(--r-md);
+/* Three across is right until it isn't. These were flex:1 1 0 with no wrap, so at 320px
+   and the largest text the three cards were squeezed to 81px and their contents simply
+   painted over the edges: "215" crossed into the gap and "recorded" was cut to
+   "recorde" by the next card. A basis in rem lets them drop to two-up and then one-up
+   as her text grows, which is the whole reason the number is on the screen — a grown-up
+   came to read it. 5rem is measured, not chosen: three across on a 320px phone have
+   90px each and "215 recorded" wants 88 of them at her middle text size, so the basis
+   has to be under that to keep three across there and over a third of the row once the
+   text grows — 5.5rem is already too wide and wraps a screen that used to fit. */
+.stats{display:flex; flex-wrap:wrap; gap:var(--s2);}
+.stat{flex:1 1 5rem; min-width:0; padding:var(--s3); border-radius:var(--r-md);
+      overflow-wrap:anywhere;
       background:var(--surface-2); border:1px solid var(--line);}
 .stat b{display:block; font-size:var(--t-xl); font-weight:800; line-height:1.2;}
 .stat span{display:block; font-size:var(--t-xs); line-height:1.4; color:var(--ink-soft);}
@@ -417,6 +427,25 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
    The syllable chips are a real aid, so they hold on one step longer. */
 :root[data-tight][data-stage=check] .verdict{ font-size:var(--t-sm); margin:0; }
 :root[data-cramped][data-stage=check] .syls{ display:none; }
+/* Shrinking comes before deleting. Both thresholds above are heights, and the case
+   that needed this most is a width: at 320px and her largest text the three chips of
+   "beau·ti·ful" wrap onto a second row and cost about a hundred pixels of height on a
+   screen that is not short enough to be tight. So fitScreen ran its shed list all the
+   way to the end and the sentence naming the letter to look at came off with it — she
+   was left with a rust-coloured letter and no words anywhere on the screen. A small
+   sentence she can read beats no sentence at all. Two rungs, so she loses only as much
+   as the screen actually needs; both sizes are on the type scale, and the chips keep
+   the 44px target every other tappable thing in here has. Set by measurement in
+   fitScreen(), for the same reason data-tight is: rem in a media query resolves
+   against the initial font size and not the size she chose. */
+:root[data-squeezed]:not([data-stage=parent]) .verdict{ font-size:var(--t-sm); margin:0; }
+:root[data-squeezed]:not([data-stage=parent]) .syl{ font-size:var(--t-lg); }
+/* The second rung takes the padding in rather than the letters down again: measured at
+   320px and her largest text, a three-chunk word fits on one row with --s1 all round
+   and gains nothing from a smaller font on top of that. A four-chunk word does not fit
+   however it is squeezed, and there the shed list is right to take the caption. */
+:root[data-squeezed="2"]:not([data-stage=parent]) .syl{
+  font-size:var(--t-md); padding:var(--s1); }
 /* The word is fitted to the width it has, which says nothing about height. With
    this little of that, its ceiling comes down — a smaller word she can see beats
    a bigger one cut off at the edge of the panel. */
@@ -460,7 +489,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '11.3';
+var VERSION = '11.4';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1867,12 +1896,27 @@ function render(){
    away. */
 /* What gets dropped when the screen runs out of room, least useful first. Named up
    here so it can be checked against what the app actually renders. */
-var SHED_ORDER = {word: ['.note', '.dots', '.verdict'],
+/* The chips hold on one step longer than the caption, not forever. Landscape at her
+   largest text is the one place where dropping the note, the dots and the caption still
+   leaves the panel 16px too tall, and until this last name was here it was simply cut
+   off — which is worse than any of the four things above it being gone, because a
+   cut-off screen hides part of the word she is being shown. data-cramped already drops
+   this row when the keyboard is up, so nothing new is being decided here; the shed list
+   just could not reach the same conclusion by measurement. */
+var SHED_ORDER = {word: ['.note', '.dots', '.verdict', '.syls'],
                   done: ['.tick', '.donenet', '.note']};
 function fitScreen(){
+  var r = document.documentElement;
+  r.removeAttribute('data-squeezed');          // every render starts at full size
   if(screen === 'parent') return;              // a long page there is fine
   var m = el('#screen');
   if(!m) return;
+  /* Make it smaller before taking it away. Reading scrollHeight forces the layout, so
+     each rung is measured against the last rather than guessed at. */
+  if(m.scrollHeight > m.clientHeight + 1){
+    r.setAttribute('data-squeezed', '1');
+    if(m.scrollHeight > m.clientHeight + 1) r.setAttribute('data-squeezed', '2');
+  }
   // Least useful first. The word and its pieces are the lesson and never go. What is
   // dropped is still announced either way.
   /* This named .pbar and .tally first for four versions after the bar and the running

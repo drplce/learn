@@ -16,7 +16,8 @@ const STATES = {
   check: 'if(!a.session()) a.start(); if(a.session().stage==="look") a.cover();' +
          ' a.type("zzz"); a.check();',
   near:  'if(!a.session()) a.start(); if(a.session().stage==="look") a.cover();' +
-         ' a.type("sid"); a.check();',
+         ' const w=a.session().words[a.session().i];' +
+         ' a.type(w.slice(0,-1)+"z"); a.check();',
   done:  'if(!a.session()) a.start();' +
          ' for(let g=0;g<90&&a.session();g++){const W=a.session();' +
          ' if(W.stage==="look"){a.cover();continue;}' +
@@ -27,11 +28,19 @@ const STATES = {
 
 async function classesEverRendered(page){
   const seen = new Set();
+  /* Every word here has more than one syllable, and every state gets its own list id.
+     Both matter. The list used to lead with "said", and since 10.6 keeps a sitting alive
+     across a look at the grown-ups screen, every state re-rendered that same one-syllable
+     word — so the chip row was never on any of these screens and ".syls" read as a
+     selector that could not match anything. A fixture that cannot render the thing it is
+     checking for reports a ghost, and would have reported one for any new name on the
+     list that only appears on a word of more than one piece. */
+  let nth = 0;
   for(const src of Object.values(STATES)){
-    const got = await page.evaluate(s => {
+    const got = await page.evaluate(({s, id}) => {
       const a = window.__acorn;
-      a.state.words.lists = [{id: 'x', name: 'T', words: ['said', 'beautiful', 'rain']}];
-      a.state.words.activeId = 'x';
+      a.state.words.lists = [{id: id, name: 'T', words: ['beautiful', 'remember', 'rain']}];
+      a.state.words.activeId = id;
       a.state.words.mastery = {}; a.state.words.sessions = [];
       a.save(); a.go('parent'); a.go('day');
       new Function('a', s)(a);
@@ -39,7 +48,7 @@ async function classesEverRendered(page){
       document.querySelectorAll('#screen *, #act *').forEach(e =>
         (e.classList || []).forEach(c => out.push(c)));
       return out;
-    }, src);
+    }, {s: src, id: 'sh' + (++nth)});
     got.forEach(c => seen.add(c));
   }
   return seen;
@@ -64,13 +73,26 @@ test.describe('what gets dropped when it will not fit', () => {
       'a screen that no longer exists').toEqual([]);
   });
 
-  test('the word and its pieces are never shed', async ({page}) => {
-    // The lesson itself. Whatever else has to go, not these.
+  test('the word itself is never shed', async ({page}) => {
+    /* The lesson itself. Whatever else has to go, not these.
+
+       .syls used to be on this list, on the reading that the word's pieces are part of
+       the lesson. It came off in 11.4, because the alternative turned out to be worse:
+       turned sideways at her largest text, dropping the note, the dots and the caption
+       still left the panel a few pixels too tall, and a panel that will not fit is cut
+       off — so what got hidden was part of the word, which is the one thing this test
+       exists to protect. data-cramped had already been hiding the chip row for the same
+       reason since long before, so the row was never really unshakeable; the shed list
+       just had no way to reach that conclusion by measurement. The chips are last on the
+       list, so they only go once everything above them has already gone. */
     await open(page, '2026-08-01');
     const order = await page.evaluate(() => window.__acorn.shedOrder());
     const all = [...order.word, ...order.done];
-    for(const keep of ['.word', '.marked', '.syls', '.syl', '.spellin', '.cue'])
+    for(const keep of ['.word', '.marked', '.spellin', '.cue'])
       expect(all, `${keep} is in the shed list`).not.toContain(keep);
+    expect(order.word[order.word.length - 1],
+      '.syls is on the list but not at the end of it, so the chips could go while\n' +
+      'something less useful than them is still on the screen').toBe('.syls');
   });
 
   test('the cue outlives the instruction, and both outlive nothing else', async ({page}) => {

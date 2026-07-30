@@ -52,6 +52,12 @@ const ALLOWED_EXACT = new Set([
   'width:1px', 'height:1px', 'min-height:5.5rem',
   // Flex basis for the settings label column.
   'flex-basis:7rem',
+  /* Flex basis for a stat card on the grown-ups screen. A card width is not a spacing
+     step, and it is measured rather than chosen: three across on a 320px phone get 90px
+     each and "215 recorded" wants 88 of them at her middle text size, so the basis has
+     to sit under that to keep three across there and over a third of the row once her
+     text grows, at which point they wrap instead of clipping their own labels. */
+  'flex-basis:5rem',
   // Underline offset on a marked letter, a share of its own size.
   'padding-bottom:0.08em',
 ]);
