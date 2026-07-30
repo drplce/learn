@@ -2366,12 +2366,48 @@ test.describe('robustness', () => {
     expect(await page.evaluate(() => window.__acorn.state.words.lists.length)).toBe(0);
   });
 
-  test('a very long word does not break the layout', async ({page}) => {
-    await open(page, '2026-07-28');
-    await startOn(page, ['antidisestablishmentarianism']);
-    await expect(page.locator('.word')).toBeVisible();
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
-    expect(overflow).toBe(false);
+  test('a long word fits at the smallest phone and the largest text', async ({page}) => {
+    /* "What a word does at the largest size" is where the word block earns its clamp: the
+       longest words she meets have to stay inside their box, keep the page from scrolling
+       sideways, and not clip the screen — at 320px and her biggest text, which is the
+       corner that bites. This checked one word at the default size and only the page-level
+       scroll; it now checks the real long words at the sizes that matter, and the box and
+       the screen, not just the document. */
+    await open(page, '2026-08-01');
+    const WORDS = ['antidisestablishmentarianism', 'jewellery', 'television', 'temperature',
+                   'extraordinary', 'Wednesday', 'disappear', 'accommodate'];
+    for(const [w, h] of [[320, 568], [390, 844]]){
+      await page.setViewportSize({width: w, height: h});
+      for(const scale of [1.5, 1.6]){
+        for(const word of WORDS){
+          const r = await page.evaluate(({word, scale}) => {
+            const a = window.__acorn;
+            a.state.settings.textScale = scale;
+            const id = 'lw' + (++window.__nth || (window.__nth = 1));
+            a.state.words.lists = [{id, name: 'T', words: [word, 'said']}];
+            a.state.words.activeId = id;
+            a.state.words.mastery = {}; a.state.words.sessions = [];
+            a.save(); a.go('day'); if(!a.session()) a.start();
+            const el = document.querySelector('.word') || document.querySelector('.marked');
+            const de = document.documentElement, scr = document.querySelector('#screen');
+            const rc = el ? el.getBoundingClientRect() : null;
+            return {
+              shown: !!el,
+              overflowsBox: el ? el.scrollWidth > el.clientWidth + 1 : false,
+              sideways: de.scrollWidth > de.clientWidth + 1,
+              offEdge: rc ? (Math.round(rc.right) > de.clientWidth + 1 || Math.round(rc.left) < -1) : false,
+              clipped: scr ? scr.scrollHeight > scr.clientHeight + 1 : false,
+            };
+          }, {word, scale});
+          const at = `${w}x${h} @${scale} "${word}"`;
+          expect(r.shown, `${at}: the word did not render`).toBe(true);
+          expect(r.overflowsBox, `${at}: overflowed its box`).toBe(false);
+          expect(r.sideways, `${at}: the page scrolled sideways`).toBe(false);
+          expect(r.offEdge, `${at}: ran off the edge of the screen`).toBe(false);
+          expect(r.clipped, `${at}: the screen was cut off`).toBe(false);
+        }
+      }
+    }
     expect(errorsOf(page)).toEqual([]);
   });
 
