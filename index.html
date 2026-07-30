@@ -341,8 +341,19 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 .chip{display:inline-flex; align-items:center; min-height:var(--tap);
       padding:var(--s1) var(--s3); border-radius:var(--r-sm); background:var(--surface-2);
       border:1px solid var(--line); font-size:var(--t-sm); font-weight:600;}
+/* Quieter by colour and weight, never by opacity. Opacity dims the text towards whatever
+   happens to be behind it, so the same rule measured 2.26:1 on the blue tint and passed on
+   cream — and the three places using it for this were the only contrast failures in 1220
+   foreground/background pairs across the five tints in light and dark. --ink-soft is what
+   "quiet" means here and it clears 4.5:1 on all ten of them by itself. */
 .stamp{display:block; text-align:center; font-size:var(--t-xs); letter-spacing:.1em;
-       color:var(--ink-soft); opacity:.6; margin-top:var(--s6);}
+       color:var(--ink-soft); margin-top:var(--s6);}
+/* A count or a language code beside a label: secondary because it is lighter in weight,
+   which costs no contrast at all. These sit inside buttons whose own background changes
+   with the tint and with whether the list is the open one, so there is no one colour that
+   would be right on all of them — and dimming towards the background is exactly what must
+   not happen on the green one. */
+.aside{font-weight:400;}
 
 /* Visible to a screen reader, not to the eye. */
 .sr{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
@@ -489,7 +500,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '12.0';
+var VERSION = '12.1';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2495,7 +2506,7 @@ function renderParent(){
     +   '<div class="seg" role="group" aria-labelledby="l-list">'
     +   allLists().map(function(l){
           return '<button data-list="' + esc(l.id) + '" aria-pressed="' + (l.id === list.id) + '">'
-               + esc(l.name) + ' <span style="opacity:.6">' + wordsOf(l).length + '</span></button>'; }).join('')
+               + esc(l.name) + ' <span class="aside">' + wordsOf(l).length + '</span></button>'; }).join('')
     + '</div><div class="hint">Lists are ordered easiest first. She works through one list at a time.</div></div>'
 
     + '<div class="sect"><h2>Her own list</h2>'
@@ -2563,7 +2574,7 @@ function renderParent(){
               return '<button data-voice="' + esc(v.voiceURI) + '" aria-pressed="'
                    + (chosen && chosen.voiceURI === v.voiceURI) + '">'
                    + esc(v.name.replace(/\s*\((?!premium|enhanced)[^)]*\)\s*$/i, ''))
-                   + ' <span style="opacity:.6">' + esc((v.lang||'').replace('_','-')) + '</span></button>'; }).join('')
+                   + ' <span class="aside">' + esc((v.lang||'').replace('_','-')) + '</span></button>'; }).join('')
           : '<span class="hint">Tap anything that speaks once, then come back — the phone only lists '
             + 'its voices after the first bit of speech.</span>')
       // With no voices yet the list above already says why, and "offering 0

@@ -5,7 +5,13 @@
 const {test, expect} = require('@playwright/test');
 const {open} = require('./helpers');
 
-const TINTS = ['cream', 'pink', 'mint', 'sky', 'grey'];
+/* The names the app actually has. This read ['cream','pink','mint','sky','grey'] and two of
+   those are not tints: data-tint="pink" and data-tint="sky" match no rule, so --surface stayed
+   at the cream default and the suite measured cream three times while reporting five. Peach and
+   blue had never been measured at all in light mode, and blue turned out to hold the worst
+   pair in the app. Taken from index.html's own TINTS, and checked below that the one under
+   test really took — a wrong name has to fail loudly rather than quietly become cream. */
+const TINTS = ['cream', 'peach', 'mint', 'blue', 'grey'];
 
 // Runs in the page: walks the DOM, resolves each text node's effective
 // background through transparent ancestors, and returns measured ratios.
@@ -34,17 +40,30 @@ const AUDIT = () => {
   };
   document.querySelectorAll('#app *').forEach(el => {
     const cs = getComputedStyle(el);
-    if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) < .99) return;
+    if (cs.visibility === 'hidden' || cs.display === 'none') return;
+    /* Faded text used to be skipped here, and that is where every failure in the app was.
+       Dimming by opacity moves the text towards whatever is behind it, so the same rule
+       measured 2.26:1 on blue and passed on cream — and this audit excluded exactly those
+       elements from being measured at all. Cumulative opacity from every ancestor is folded
+       into the colour instead, which is what the eye sees. Below 2% is mid-animation rather
+       than faded, and there is nothing to read yet. */
+    let fade = 1, up = el;
+    while (up) { fade *= Number(getComputedStyle(up).opacity); up = up.parentElement; }
+    if (fade < .02) return;
     const r = el.getBoundingClientRect();
     if (!r.width || !r.height) return;
     const px = parseFloat(cs.fontSize), bold = Number(cs.fontWeight) >= 700, bg = bgOf(el);
     const txt = [...el.childNodes].filter(n => n.nodeType === 3 && n.textContent.trim())
                                   .map(n => n.textContent.trim()).join(' ');
-    if (txt) record(el, parse(cs.color), bg, px, bold,
-                    (el.className || el.tagName.toLowerCase()) + ': ' + txt.slice(0, 30));
+    // Opacity multiplies the colour's own alpha, so a faded element composites further
+    // towards its background — the whole reason the three that failed were failing.
+    const faded = c => c && [c[0], c[1], c[2], c[3] * fade];
+    if (txt) record(el, faded(parse(cs.color)), bg, px, bold,
+                    (el.className || el.tagName.toLowerCase()) + ': ' + txt.slice(0, 30)
+                    + (fade < .99 ? ` [opacity ${fade.toFixed(2)}]` : ''));
     if (el.placeholder) {
       const p = getComputedStyle(el, '::placeholder');
-      record(el, parse(p.color), bgOf(el), parseFloat(p.fontSize) || px, false,
+      record(el, faded(parse(p.color)), bgOf(el), parseFloat(p.fontSize) || px, false,
              'placeholder: ' + el.placeholder);
     }
   });
@@ -104,6 +123,18 @@ for (const scheme of ['light', 'dark']) {
                                        ['day','right'], ['day','lost'], ['day','cued'],
                                        ['day','done'], ['day','deadend'], ['parent','-']]) {
           await seed(page, tint, screen, stage);
+          /* That the seed took and nothing sanitised it away — not that the name is real.
+             An unknown name sets the attribute and passes this check while changing no
+             colour at all, which is how two of these were cream in disguise for months;
+             the test at the bottom of this file is what holds the list to the stylesheet. */
+          const took = await page.evaluate(t => {
+            const r = document.documentElement;
+            if(r.getAttribute('data-tint') !== t) return 'attribute is ' + r.getAttribute('data-tint');
+            if(window.__acorn.state.settings.tint !== t) return 'state is '
+              + window.__acorn.state.settings.tint;
+            return null;
+          }, tint);
+          expect(took, `the "${tint}" tint did not take: ${took}`).toBeNull();
           const rows = await page.evaluate(AUDIT);
           // A guard against the seed silently doing nothing, not a content check: the
           // dead end really is two lines, the mark and the sentence asking for words.
@@ -117,3 +148,51 @@ for (const scheme of ['light', 'dark']) {
     }
   });
 }
+
+/* The audit checking itself, because both of the holes it had were invisible from the
+   outside: it reported five tints while measuring three, and it skipped the faded text that
+   turned out to hold every failure in the app. A green run means nothing if the thing doing
+   the measuring cannot see the case. */
+test.describe('the audit can see what it is for', () => {
+
+  test('it reports text dimmed by opacity rather than skipping it', async ({page}) => {
+    await open(page, '2026-08-01');
+    await page.evaluate(() => {
+      const el = document.createElement('p');
+      el.id = 'planted';
+      el.textContent = 'planted';
+      // Ink on its own background, then faded until it cannot be read. Nothing about the
+      // colour is wrong; the opacity is what makes it unreadable.
+      el.style.cssText = 'color:var(--ink); opacity:.15; font-size:16px';
+      document.querySelector('#app').appendChild(el);
+    });
+    const all = await page.evaluate(AUDIT);
+    await page.evaluate(() => document.querySelector('#planted').remove());
+    const rows = all.filter(r => /planted/.test(r.what));
+    expect(rows.length, 'faded text was not measured at all').toBe(1);
+    expect(rows[0].ratio, `planted text measured ${rows[0].ratio}:1, which is not dim`)
+      .toBeLessThan(4.5);
+    expect(rows[0].what, 'the report does not say the text was faded').toMatch(/opacity/);
+  });
+
+  test('and every tint it names is one the app has', async ({page}) => {
+    /* The other hole. An unknown name sets data-tint and changes no colour at all, so the
+       list is taken from the stylesheet — the rules are what decide whether a tint exists,
+       and "cream" is the default with no rule of its own. */
+    await open(page, '2026-08-01');
+    const real = await page.evaluate(() => {
+      const sheet = [...document.styleSheets].find(s => !s.href);
+      const names = new Set(['cream']);
+      const walk = rules => { for(const r of rules){
+        if(r.selectorText)
+          for(const m of r.selectorText.matchAll(/\[data-tint="([a-z]+)"\]/g)) names.add(m[1]);
+        if(r.cssRules && r.cssRules.length) walk(r.cssRules);
+      } };
+      walk(sheet.cssRules);
+      return [...names];
+    });
+    expect(TINTS.slice().sort(), 'the tints measured are not the tints the app has')
+      .toEqual(real.slice().sort());
+  });
+
+});
