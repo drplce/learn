@@ -176,6 +176,69 @@ function quant(xs, q){
 const COHORT = 12;
 function abilityOf(i){ return .75 + .55 * (i / Math.max(1, COHORT - 1)); }
 
+/* The pacing this app is trying to produce, as pass or fail rather than as a number for
+   somebody to read.
+
+   For a long time this file printed its figures and asserted nothing — it only exited
+   non-zero when the browser threw. Every one of these numbers comes from a decision about
+   how hard her evenings should be, and a change to NEW_SHARE or ACQUIRING_CAP or the box
+   intervals could have moved first-go accuracy to 92% or to 74% with all three harnesses
+   still green and nothing but a printout to notice it in. The whole reason the simulation
+   exists is that reading the code did not catch pacing faults; printing numbers nobody has
+   to act on is the same failure one step later.
+
+   These are guard bands, not the target. The target is 80–85% first time, from the
+   desirable-difficulty finding that practice is most productive somewhere short of easy —
+   too high and she is being asked things she already knows, too low and the evening is a
+   slog. Today the app runs 86–89%, one to four points above it, which is a deliberate
+   open question about her difficulty level and not a fault. So the bands are set to catch
+   drift, and the distance from target is printed underneath so it stays visible rather
+   than becoming the new normal by accident. */
+const BANDS = {
+  // Desirable difficulty. Wide enough to hold today's 86–89%, tight enough that a lever
+  // pushed hard in either direction fails here.
+  'first-go':          {get: s => s.firstGo,      lo: .78, hi: .92, pct: true,
+                        why: 'she is being asked things at about the right difficulty'},
+  // The band has to hold for the child having the worst time of it, not just the mean.
+  'worst learner':     {get: s => s.worst,        lo: .75, hi: .95, pct: true,
+                        why: 'the weakest learner in the cohort is not being drowned'},
+  // Spaced retrieval only works if most of a sitting is material she has met before.
+  'known material':    {get: s => s.known,        lo: .70, hi: .90, pct: true,
+                        why: 'most of a sitting is revision, not new words'},
+  // Short enough to finish, long enough to be worth opening. Nine is the modelled ceiling.
+  'words a sitting':   {get: s => s.words,        lo: 6,   hi: 12,
+                        why: 'a sitting she can finish in one go'},
+  // The tail, not the mean: one evening in ten is the one that decides if she comes back.
+  'tenth-pct day':     {get: s => s.tenth,        lo: .60, hi: 1,   pct: true,
+                        why: 'her worst evening in ten is still mostly right'},
+  'hard days each':    {get: s => s.hard,         lo: 0,   hi: 3,
+                        why: 'few evenings below half right'},
+  'short sittings':    {get: s => s.stalls,       lo: 0,   hi: 2,
+                        why: 'she is rarely handed a sitting of two words'},
+  'skipped':           {get: s => s.skipped,      lo: 0,   hi: 0,
+                        why: 'a day never passes with nothing to practise'},
+};
+const TARGET = {lo: .80, hi: .85};
+
+/* The one band that is about learning rather than about how her evening felt, and the only
+   one with any real teeth.
+
+   Mutation-tested, and the difficulty bands above failed the test. Setting every Leitner
+   interval to zero — deleting spaced repetition from the app outright — moves first-go
+   accuracy by one tenth of a point and every difficulty band holds, because when everything
+   is due every day she reviews more and gets more of it right. The evening feels the same.
+   She just learns far less: 33.4 words in sixty days against 56.3. Raising both pool levers
+   at once hides the same way, 47.9 words for an accuracy drop the bands are wide enough to
+   allow.
+
+   Expressed as a share of the words she has met rather than a count, so it means the same
+   thing on a twelve-word list as on a hundred-word one, and so it still applies to a list
+   she has finished. Shipped, it runs 89–100% across all six lists; the two mutations above
+   put it at 60% and 65%. That gap is the spacing schedule doing its job, which is the whole
+   claim the box intervals rest on. */
+const LEARNED = {lo: .80, why: 'the words she has met are actually being learned, which is'
+                             + ' what the expanding intervals are for'};
+
 async function main(){
   const days = Number(process.argv[2]) || 30;
   const only = process.argv[3];
@@ -187,7 +250,7 @@ async function main(){
   const page = await browser.newPage();
   await page.goto('file://' + path.resolve(__dirname, '..', 'index.html'));
   await page.waitForFunction(() => !!window.__acorn);
-  const errors = [];
+  const errors = [], bands = [];
   page.on('pageerror', e => errors.push(String(e)));
 
   for(const listId of lists){
@@ -246,10 +309,77 @@ async function main(){
                 ' | 10th-pct day ' + pct(quant(runs.flatMap(r => r.rows.filter(x => !x.skipped).map(x => x.acc)), .1)) +
                 ' | short sessions ' + avg(S.map(s => s.stalls)).toFixed(1) +
                 ' | skipped ' + avg(S.map(s => s.skipped)).toFixed(1));
+
+    /* Held to the bands — except on a list she has finished. "aussie" is fourteen words
+       long with nothing set to follow it, so she meets all fourteen and from then on every
+       sitting is pure revision and runs at 96%. That is the list running out, not the
+       pacing going wrong, and holding it to a difficulty band would only teach us to widen
+       the band until it meant nothing.
+
+       The test for that is whether new material is still arriving, not a count of words
+       met: "met 14 of 100" looks like she has barely started, because the 100 is the whole
+       corpus and not what this list can reach. My first attempt compared the two and let
+       the outlier straight through the exemption it was written for. */
+    const lastThird = runs.map(r => r.rows.slice(Math.floor(r.rows.length * 2 / 3))
+      .reduce((n, x) => n + (x.skipped ? 0 : x.newWords), 0));
+    const stillArriving = avg(lastThird);
+    const met = avg(S.map(s => s.touched));
+    const measured = {
+      firstGo: avg(accs), worst: Math.min(...accs),
+      known: avg(S.map(s => s.reviewShare)),
+      words: avg(S.map(s => s.wordsPerSession)),
+      tenth: quant(runs.flatMap(r => r.rows.filter(x => !x.skipped).map(x => x.acc)), .1),
+      hard: avg(bad), stalls: avg(S.map(s => s.stalls)), skipped: avg(S.map(s => s.skipped)),
+    };
+    /* Checked on every list, finished or not — a list she has met all of is exactly where
+       "did she learn them" is the only question left worth asking. */
+    const known = avg(S.map(s => s.knownWell));
+    const learned = met ? known / met : 1;
+    if(learned < LEARNED.lo - 1e-9){
+      const o = 'learned ' + pct(learned) + ' of the ' + met.toFixed(0)
+              + ' words she met, under ' + pct(LEARNED.lo) + ' — ' + LEARNED.why;
+      bands.push(listId + ': ' + o);
+      console.log('    ✗ ' + o);
+    }else{
+      console.log('    ✓ learned ' + pct(learned) + ' of the ' + met.toFixed(0)
+                  + ' words she met');
+    }
+    if(stillArriving < 0.5){
+      console.log('    (nothing new arrived in the last third of the run — she has met all '
+                  + met.toFixed(0) + ' words this list can reach, so every sitting is pure'
+                  + ' revision and the difficulty bands do not apply)');
+    }else{
+      const off = [];
+      for(const [name, b] of Object.entries(BANDS)){
+        const v = b.get(measured);
+        if(v < b.lo - 1e-9 || v > b.hi + 1e-9){
+          const f = b.pct ? pct : (x => x.toFixed(1));
+          off.push(name + ' ' + f(v) + ' is outside ' + f(b.lo) + '–' + f(b.hi)
+                   + ' — ' + b.why);
+        }
+      }
+      off.forEach(o => { bands.push(listId + ': ' + o); console.log('    ✗ ' + o); });
+      if(!off.length) console.log('    ✓ all ' + Object.keys(BANDS).length
+                                  + ' pacing bands held');
+      // Printed whether or not it passed, so the gap to the target cannot quietly widen.
+      const d = measured.firstGo > TARGET.hi ? '+' + pct(measured.firstGo - TARGET.hi)
+              : measured.firstGo < TARGET.lo ? '-' + pct(TARGET.lo - measured.firstGo)
+              : 'inside it';
+      console.log('      first-go against the 80–85% target: ' + d);
+    }
   }
   await browser.close();
-  if(errors.length){ console.log('\nPAGE ERRORS:'); errors.forEach(e => console.log('  ' + e)); }
+  if(errors.length){
+    console.log('\nPAGE ERRORS:'); errors.forEach(e => console.log('  ' + e));
+  }
+  if(bands.length){
+    console.log('\nPACING OUT OF BAND (' + bands.length + '):');
+    bands.forEach(b => console.log('  ' + b));
+  }else{
+    console.log('\npacing within every band');
+  }
+  if(bands.length || errors.length) process.exitCode = 1;
 }
 
 if(require.main === module) main().catch(e => { console.error(e); process.exit(1); });
-module.exports = {run, stats, LEARNER};
+module.exports = {run, stats, LEARNER, BANDS};

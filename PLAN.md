@@ -34,6 +34,11 @@ below) and then removed to keep the app to one thing; they are preserved in
   is capped at a third of a sitting.
 - Testing grew a third leg: `tests/sim.js` simulates the real engine against a
   cohort of learners, because simulation caught defects the unit tests did not.
+- The evidence behind these decisions is written down in `RESEARCH.md`, with what
+  the app does about each claim and what fails if it stops. It was only ever in
+  scattered comments and the one line above, which is fine for remembering why
+  something was built and useless for noticing when it quietly stops being true.
+  `tests/research.spec.js` and the bands in `tests/sim.js` are the half that fails.
 
 **Still open:** §3a private-repo sync, §5B maths.
 
