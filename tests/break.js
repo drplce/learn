@@ -341,6 +341,33 @@ async function main(){
     if(!out.fwd[1]) bad('clock moved forward a year', 'no session');
     else if(out.fwd[0] > 12) bad('clock moved forward a year', out.fwd[0] + ' words in one sitting');
     else ok('a year forward is still a normal sitting (' + out.fwd[0] + ' words)');
+    /* Building a session was only half of it. When the clock is behind a word's last-seen,
+       answering it drives the gap<0 branch in isDue/overdueRatio and, in recordWord, a
+       sameDay test against a date in the future. The record has to come out sane: the box
+       advances one and no more, the future last-seen is pulled back to today rather than
+       left ahead (where the word would never come due again), and no word is lost. */
+    const ans = await page.evaluate(() => {
+      const a = window.__acorn;
+      a.setToday('2026-08-01');
+      a.start();
+      let W = a.session();
+      if(W && W.stage === 'look'){ a.cover(); W = a.session(); }
+      const word = W.words[W.i];
+      a.type(word); a.check();                          // right first go, clock behind last-seen
+      const m = a.state.words.mastery;
+      const boxes = Object.keys(m).map(k => m[k].box);
+      return {word, box: m[word].box, lastSeen: m[word].lastSeen,
+              count: Object.keys(m).length, inRange: boxes.every(b => b >= 1 && b <= 7)};
+    });
+    if(ans.box !== 7) bad('answered after the clock moved back',
+      'box went to ' + ans.box + ', not 6→7');
+    else if(ans.lastSeen !== '2026-08-01') bad('answered after the clock moved back',
+      'last-seen left at ' + ans.lastSeen + ', still ahead of the clock');
+    else if(ans.count !== 5) bad('answered after the clock moved back',
+      ans.count + ' words in the record, not 5');
+    else if(!ans.inRange) bad('answered after the clock moved back', 'a box fell outside 1–7');
+    else ok('a right answer with the clock behind last-seen advances one box and pulls the'
+            + ' date back to today');
     if(errs.length) bad('clock moved', errs.join(' | '));
     await ctx.close();
   }
