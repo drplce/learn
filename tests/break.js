@@ -32,6 +32,25 @@ async function fresh(browser, today){
 const alive = page => page.evaluate(() =>
   !!document.querySelector('#screen') && document.querySelector('#screen').children.length > 0);
 
+/* She writes with the keys, so every fixture in here does too.
+   Playwright's fill() puts the whole value in with one input event, which is exactly the
+   signature of a phone dictating the word — so since 11.6 the app hands it straight back
+   and asks her to write it instead, and six scenarios in here started failing at once
+   because their fixtures were filling the box rather than typing into it. Each of them was
+   testing something else entirely: a reload mid-word, midnight arriving, storage refusing
+   writes, the keyboard sliding up. They were only ever passing because fill() was standing
+   in for a child, which is the same shortcut that hid a whole class of defect until 11.0.
+   Nothing about the app needed changing here. */
+async function write(page, text){
+  const box = page.locator('#type');
+  if(!await box.count()) return false;
+  await box.click();
+  await page.keyboard.press('ControlOrMeta+a');
+  if(!String(text || '').length){ await page.keyboard.press('Backspace'); return true; }
+  await page.keyboard.type(String(text), {delay: 0});
+  return true;
+}
+
 async function main(){
   const browser = await chromium.launch({executablePath: findChromium()});
 
@@ -64,7 +83,7 @@ async function main(){
     const {page, ctx, errs} = await fresh(browser, '2026-07-28');
     await page.locator('#cover').click();
     const w = await page.evaluate(() => window.__acorn.session().words[0]);
-    await page.locator('#type').fill(w);
+    await write(page, w);
     const before = await page.evaluate(w => window.__acorn.mastery(w).right, w);
     await Promise.all([
       page.locator('#check').click({force:true}),
@@ -90,7 +109,7 @@ async function main(){
       }
       if(!await page.locator('#type').count()) continue;
       const before = await page.evaluate(() => window.__acorn.session().i);
-      await page.locator('#type').fill(v);
+      await write(page, v);
       await page.locator('#check').click();
       if(!await alive(page)){ bad('answer ' + JSON.stringify(v.slice(0, 20)), 'blank screen'); break; }
       /* Either she gets a verdict and moves on, or the answer had no letters in it at
@@ -113,7 +132,7 @@ async function main(){
         const said = await page.evaluate(() => (document.querySelector('#toast')||{}).textContent || '');
         if(!/Have a go/.test(said))
           bad('answer ' + JSON.stringify(v.slice(0, 20)), 'nothing told her to try again');
-        await page.locator('#type').fill('');
+        await write(page, '');
       }
     }
     if(await page.evaluate(() => window.__pwned)) bad('script in the answer box', 'executed');
@@ -159,7 +178,7 @@ async function main(){
         if(await page.locator('#cover').count()) await page.locator('#cover').click();
         else if(await page.locator('#type').count()){
           const cur = await page.evaluate(() => { const s = window.__acorn.session(); return s && s.words[s.i]; });
-          await page.locator('#type').fill(cur || 'x');
+          await write(page, cur || 'x');
           await page.locator('#check').click();
         }
         else if(await page.locator('#next').count()) await page.locator('#next').click();
@@ -179,7 +198,7 @@ async function main(){
     await ctx.setOffline(true);
     await page.locator('#cover').click();
     const w = await page.evaluate(() => window.__acorn.session().words[0]);
-    await page.locator('#type').fill(w);
+    await write(page, w);
     await page.locator('#check').click();
     await page.reload();
     await page.waitForFunction(() => !!window.__acorn);
@@ -203,7 +222,7 @@ async function main(){
     if(cur){
       const w = cur.words[cur.i];
       if(await page.locator('#cover').count()) await page.locator('#cover').click();
-      await page.locator('#type').fill(w);
+      await write(page, w);
       await page.locator('#check').click();
       if(!await alive(page)) bad('midnight then answer', 'blank screen');
       const m = await page.evaluate(w => window.__acorn.mastery(w), w);
@@ -219,7 +238,7 @@ async function main(){
     console.log('\n8. wandering off mid-word');
     const {page, ctx, errs} = await fresh(browser, '2026-07-28');
     await page.locator('#cover').click();
-    await page.locator('#type').fill('half-typed');
+    await write(page, 'half-typed');
     await page.evaluate(() => window.__acorn.go('parent'));
     if(!await alive(page)) bad('into the grown-ups area', 'blank screen');
     await page.evaluate(() => window.__acorn.go('day'));
@@ -335,7 +354,7 @@ async function main(){
       if(await page.locator('#cover').count()) await page.locator('#cover').click();
       else if(await page.locator('#type').count()){
         const w = await page.evaluate(() => { const s = window.__acorn.session(); return s && s.words[s.i]; });
-        await page.locator('#type').fill(w || 'x');
+        await write(page, w || 'x');
         await page.locator('#check').click();
       }
       else if(await page.locator('#next').count()) await page.locator('#next').click();
@@ -371,7 +390,7 @@ async function main(){
       if(await page.locator('#cover').count()) await page.locator('#cover').click();
       else if(await page.locator('#type').count()){
         const w = await page.evaluate(() => { const s = window.__acorn.session(); return s && s.words[s.i]; });
-        await page.locator('#type').fill(w || 'x');
+        await write(page, w || 'x');
         await page.locator('#check').click();
       }
       else if(await page.locator('#next').count()) await page.locator('#next').click();
@@ -532,7 +551,7 @@ async function main(){
     for(const h of [360, 300, 240, 200, 300, 667, 240, 667]){
       await page.setViewportSize({width:375, height:h});
       await page.waitForTimeout(60);
-      await page.locator('#type').fill('becau');
+      await write(page, 'becau');
       const m = await page.evaluate(() => {
         const vh = window.innerHeight, main = document.querySelector('main');
         const acts = [...document.querySelectorAll('#act button')];
@@ -552,7 +571,7 @@ async function main(){
     if(worst) bad('the keyboard eating the screen', worst);
     else ok('the box and the action survive the keyboard sliding up and down');
     // and she can still finish the word
-    await page.locator('#type').fill('because');
+    await write(page, 'because');
     await page.locator('#check').click();
     if(!await page.locator('.verdict.ok').count()) bad('keyboard', 'could not finish the word');
     else ok('and she can still finish it');
@@ -1020,7 +1039,7 @@ async function main(){
           if(!a.session()) a.start();
           if(a.session().stage === 'look') a.cover();      // covered up, writing from memory
         });
-        await page.locator('#type').fill('sai');
+        await write(page, 'sai');
         const before = await page.evaluate(() => {
           const s = window.__acorn.session();
           return {stage:s.stage, word:s.words[s.i], i:s.i, plan:s.plan};
@@ -1367,6 +1386,165 @@ async function main(){
     if(!broke) ok(Object.keys(ROUNDS).length + ' journeys home: ' + cameBack + ' came back byte'
                   + ' for byte and ' + refused + ' were refused without touching the device —'
                   + ' none of them reported success over the top of her history');
+  }
+
+  /* ---------------------------------------------------------------
+     27. the microphone key, and the far worse risk of the cure
+     --------------------------------------------------------------- */
+  {
+    console.log('\n27. words the phone spelled, and words she wrote');
+    /* She found the microphone on the phone's keyboard and said the word. A web page cannot
+       reach a software keyboard, so this is not about blocking the key — it is about not
+       taking what the phone typed as what she knows.
+
+       The asymmetry is the whole scenario. Letting a dictated word through costs one word's
+       worth of practice. Refusing a word she wrote costs her the app: she writes it
+       correctly, is told to write it, writes it again, and there is no way out of that
+       loop. So the second half of this is much longer than the first, and it goes through
+       every way a keyboard can hand over a letter that this thing has to survive. */
+    const WORDS = ['said', 'beautiful', 'because', "don't", 'rain'];
+    let broke = 0, refused = 0, allowed = 0;
+    const ctx = await browser.newContext({viewport: {width: 390, height: 844},
+                                          hasTouch: true, isMobile: false});
+    const page = await ctx.newPage();
+    const errs = [];
+    page.on('pageerror', e => errs.push(String(e)));
+    await page.goto('file://' + require('path').resolve(__dirname, '..', 'index.html'));
+    await page.waitForFunction(() => !!window.__acorn);
+
+    // Put her on a word, with the box focused and nothing carried over.
+    const onWord = async (word, written) => {
+      await page.evaluate(({w, on}) => {
+        const a = window.__acorn;
+        const id = 'b' + (++window.__n || (window.__n = 1));
+        a.state.settings.written = on;
+        a.state.words.lists = [{id: id, name: 'T', words: [w, 'went']}];
+        a.state.words.activeId = id;
+        a.state.words.mastery = {}; a.state.words.sessions = [];
+        a.save(); a.go('day'); if(!a.session()) a.start();
+        if(a.session().stage === 'look') a.cover();
+        const t = document.querySelector('#toast'); if(t) t.textContent = '';
+      }, {w: word, on: written});
+      await page.click('#type');
+    };
+    const outcome = () => page.evaluate(() => {
+      const W = window.__acorn.session();
+      return {stage: W ? W.stage : null, right: W ? W.right : null, tries: W ? W.tries : null,
+              recorded: Object.keys(window.__acorn.state.words.mastery).length,
+              box: (document.querySelector('#type') || {}).value,
+              toast: (document.querySelector('#toast') || {}).textContent || ''};
+    });
+
+    // A. Handed to her by the phone. None of these may count.
+    const HANDED = {
+      'dictated whole':      w => `b.value=${JSON.stringify(w)};fire('insertText',${JSON.stringify(w)})`,
+      'dictated in two':     w => `b.value=${JSON.stringify(w.slice(0, 2))};fire('insertText',${JSON.stringify(w.slice(0, 2))});`
+                                  + `b.value=${JSON.stringify(w)};fire('insertReplacementText',${JSON.stringify(w)})`,
+      'glide typed':         w => `b.value=${JSON.stringify(w)};fire('insertCompositionText',${JSON.stringify(w)})`,
+      'suggestion tapped':   w => `b.value='x';fire('insertText','x');b.value=${JSON.stringify(w)};`
+                                  + `fire('insertReplacementText',${JSON.stringify(w)})`,
+    };
+    for(const word of WORDS){
+      for(const [why, src] of Object.entries(HANDED)){
+        await onWord(word, true);
+        await page.evaluate(s => {
+          const b = document.querySelector('#type');
+          const fire = (t, d) => b.dispatchEvent(new InputEvent('input',
+            {bubbles: true, inputType: t, data: d}));
+          new Function('b', 'fire', s)(b, fire);
+        }, src(word));
+        await page.click('#check');
+        const r = await outcome();
+        const why2 = r.stage !== 'write' ? 'was taken as her answer'
+          : r.recorded ? 'went on her record anyway'
+          : r.tries ? 'was counted as a go at the word'
+          : r.box ? 'was left in the box, so pressing Check again would do it'
+          : null;
+        if(why2){ bad('phone spelled "' + word + '" (' + why + ')', why2); broke++; }
+        else refused++;
+      }
+    }
+
+    // B. Her, writing. Every one of these must go through.
+    for(const word of WORDS){
+      const WAYS = {
+        'straight through':   async () => { await page.keyboard.type(word, {delay: 15}); },
+        'very slowly':        async () => { await page.keyboard.type(word, {delay: 120}); },
+        'as fast as it goes': async () => { await page.keyboard.type(word, {delay: 0}); },
+        'with a rub out':     async () => {
+          await page.keyboard.type(word + 'zz', {delay: 10});
+          await page.keyboard.press('Backspace');
+          await page.keyboard.press('Backspace');
+        },
+        'starting over':      async () => {
+          await page.keyboard.type('zzzz', {delay: 10});
+          await page.keyboard.press('Control+a');
+          await page.keyboard.type(word, {delay: 10});
+        },
+        'holding shift':      async () => {
+          await page.keyboard.down('Shift');
+          await page.keyboard.type(word, {delay: 10});
+          await page.keyboard.up('Shift');
+        },
+        'an ime with no key name': async () => {
+          await page.evaluate(w => {
+            const b = document.querySelector('#type');
+            for(const ch of w){
+              b.dispatchEvent(new KeyboardEvent('keydown',
+                {bubbles: true, key: 'Unidentified', keyCode: 229}));
+              b.value += ch;
+              b.dispatchEvent(new InputEvent('input',
+                {bubbles: true, inputType: 'insertText', data: ch}));
+            }
+          }, word);
+        },
+        'a letter at a time, no keydown at all': async () => {
+          // A keyboard that reports nothing but the letters. Still one at a time, so still
+          // her writing — this is the case the jump test is built to let through.
+          await page.evaluate(w => {
+            const b = document.querySelector('#type');
+            for(const ch of w){
+              b.value += ch;
+              b.dispatchEvent(new InputEvent('input',
+                {bubbles: true, inputType: 'insertText', data: ch}));
+            }
+          }, word);
+        },
+      };
+      for(const [why, fill] of Object.entries(WAYS)){
+        await onWord(word, true);
+        await fill();
+        await page.click('#check');
+        const r = await outcome();
+        const why2 = r.stage !== 'check'
+            ? 'her own writing was refused — she cannot get past this word'
+          : r.right !== 1 ? 'written correctly and not counted right'
+          : !r.recorded ? 'nothing went on her record'
+          : null;
+        if(why2){ bad('she wrote "' + word + '" (' + why + ')', why2); broke++; }
+        else allowed++;
+      }
+    }
+
+    // C. With the check off, the phone's answer counts — that is what the switch is for.
+    for(const word of WORDS.slice(0, 2)){
+      await onWord(word, false);
+      await page.evaluate(w => {
+        const b = document.querySelector('#type');
+        b.value = w;
+        b.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: w}));
+      }, word);
+      await page.click('#check');
+      const r = await outcome();
+      if(r.stage !== 'check'){
+        bad('check turned off, "' + word + '"', 'still refused with the setting off'); broke++;
+      }
+    }
+    if(errs.length){ bad('written answers', errs[0]); broke++; }
+    await ctx.close();
+    if(!broke) ok(refused + ' words the phone spelled were all handed back without costing her'
+                  + ' anything, and ' + allowed + ' words she wrote — every way a keyboard can'
+                  + ' hand over a letter — all went straight through');
   }
 
   await browser.close();

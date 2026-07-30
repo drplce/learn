@@ -11,7 +11,7 @@
 // storing "dont", "oclock" and "motherinlaw" as the spellings she then had to
 // reproduce.
 const {test, expect} = require('@playwright/test');
-const {open, errorsOf} = require('./helpers');
+const {open, errorsOf, write} = require('./helpers');
 
 // Everything a phone or a word processor puts in place of ' and -.
 const CURLY = '’', OPEN = '‘', PRIME = '′';
@@ -125,7 +125,7 @@ test.describe('the list a grown-up pastes in', () => {
           const W = window.__acorn.session(); return W ? W.words[W.i] : null;
         });
         if(!w) break;
-        await page.locator('#type').fill(w.replace(/'/g, CURLY));
+        await write(page, w.replace(/'/g, CURLY));
         await page.locator('#check').click();
         continue;
       }

@@ -489,7 +489,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '11.5';
+var VERSION = '11.6';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -512,7 +512,7 @@ function fresh(){
     profile:  {name:'', createdAt:todayISO()},
     words:    {lists:[], mastery:bare(null), activeId:'easy', sessions:[]},
     settings: {textScale:1, tint:'cream', readAloud:true, sound:true, voice:null,
-               speechRate:.95, kbInset:0}
+               speechRate:.95, kbInset:0, written:true}
   };
 }
 /* Every setting is chosen by tapping a button that offers a fixed handful of
@@ -556,6 +556,7 @@ function saneSettings(t){
   t.tint       = TINTS.indexOf(String(t.tint)) >= 0 ? String(t.tint) : 'cream';
   t.readAloud  = t.readAloud !== false;
   t.sound      = t.sound !== false;
+  t.written    = t.written !== false;
   if(typeof t.voice !== 'string') t.voice = null;
   // Remembered from a real measurement, so a plausible band and nothing else.
   var kb = Number(t.kbInset);
@@ -1614,6 +1615,19 @@ function start(){
   return true;
 }
 function word(){ return W && W.words[W.i]; }
+/* What she reads when the letters arrived without her writing them. Not an accusation and
+   not the word "no": it says which part of this is the practice. Every other message in
+   this app is careful the same way, and this one has more reason to be than most — she
+   worked out something clever about her phone, and being told off for that is a bad trade
+   for a spelling. */
+var SPOKEN_NOTE = 'This one is for writing. Have a go with the letters.';
+/* Counted the way a person counts them, not the way the string is stored. An emoji is one
+   press of one key and two UTF-16 units, so measuring .length made three smileys look like
+   six characters arriving from nowhere and flagged her own typing — and because the check
+   for an answer with no letters in it returns before anything clears the flag, that verdict
+   then sat there waiting for the next word she wrote properly. Both halves found by the
+   adversarial pass, which types emoji at the box on purpose. */
+function chars(s){ return s ? [].concat(Array.from(String(s))).length : 0; }
 
 function check(){
   var w = word();
@@ -1621,7 +1635,32 @@ function check(){
   /* An empty box isn't an attempt — a fumbled tap must not cost her a word. Nor is a
      box with no letters in it: typed for real, a single "." next to the space bar was
      recorded as a miss and requeued the word. Same fumble, same answer. */
-  if(!/[a-z]/.test(typedLetters(W.attempt))){ toast('Have a go — type the word.'); return; }
+  if(!/[a-z]/.test(typedLetters(W.attempt))){
+    // Cleared here too, or a fumble ends the moment she next writes something properly.
+    W.notWritten = false;
+    toast('Have a go — type the word.'); return;
+  }
+  /* The answer has to have been written. She found the microphone key and said the word,
+     and the phone spelled it — which is a good thing to have worked out and no use at all
+     for learning to spell, because the one thing that makes a spelling stick is pulling it
+     out of her own head. Same for a tap on the predictive bar, a glide across the keys and
+     a paste: all of them hand her the letters.
+
+     She keeps the word rather than losing it. Nothing is recorded, the box is emptied and
+     she is asked again — no miss, no requeue, nothing to notice on the map, because this
+     is not her getting a word wrong. A grown-up can turn the whole check off, both because
+     dictation is a real accommodation in other places and because if this ever misfires on
+     her phone it must not be the thing that stops her practising. */
+  if(W.notWritten && S.settings.written !== false){
+    W.notWritten = false;
+    W.attempt = '';
+    if(el('#type')) el('#type').value = '';
+    toast(SPOKEN_NOTE);
+    announce(SPOKEN_NOTE);
+    say(w);
+    return;
+  }
+  W.notWritten = false;
   W.tries++;
   var ok = sameWord(W.attempt, w);
   var firstAsk = W.asked.indexOf(w) < 0;
@@ -2378,6 +2417,14 @@ function renderParent(){
     +     '<div class="seg" role="group" aria-labelledby="l-sn">'
     +     '<button data-sn="1" aria-pressed="' + (S.settings.sound !== false) + '">On</button>'
     +     '<button data-sn="0" aria-pressed="' + (S.settings.sound === false) + '">Off</button></div></div>'
+    +   '<div class="field"><div class="lbl" id="l-wr">Written answers only</div>'
+    +     '<div class="seg" role="group" aria-labelledby="l-wr">'
+    +     '<button data-wr="1" aria-pressed="' + (S.settings.written !== false) + '">On</button>'
+    +     '<button data-wr="0" aria-pressed="' + (S.settings.written === false) + '">Off</button></div></div>'
+    +   '<div class="hint">The microphone key on the keyboard will spell a word for her, and '
+    +     'so will the suggestion bar, a glide across the keys and a paste. With this on she '
+    +     'is asked to write it instead — she keeps the word and nothing is recorded against '
+    +     'her. Turn it off if she needs to dictate, or if it ever gets in her way.</div>'
     +   '<div class="field"><div class="lbl" id="l-rate">Speaking speed</div>'
     +     '<div class="seg" role="group" aria-labelledby="l-rate">'
     +     [['Slow',.7],['Steady',.85],['Normal',.95],['Quick',1.1]].map(function(r){
@@ -3189,6 +3236,7 @@ document.addEventListener('click', function(ev){
   // ---- grown-ups
   if((hit = t.closest('[data-ra]'))){ S.settings.readAloud = hit.dataset.ra === '1'; save(); render(); return; }
   if((hit = t.closest('[data-sn]'))){ S.settings.sound = hit.dataset.sn === '1'; save(); render(); if(S.settings.sound) chime('right'); return; }
+  if((hit = t.closest('[data-wr]'))){ S.settings.written = hit.dataset.wr === '1'; save(); render(); return; }
   if((hit = t.closest('[data-sc]'))){ S.settings.textScale = Number(hit.dataset.sc); save(); render(); return; }
   if((hit = t.closest('[data-tn]'))){ S.settings.tint = hit.dataset.tn; save(); render(); return; }
   if((hit = t.closest('[data-rate]'))){ S.settings.speechRate = Number(hit.dataset.rate); save(); render(); say('Every word counts.', {force:true}); return; }
@@ -3271,9 +3319,44 @@ document.addEventListener('click', function(ev){
   }
 });
 
+/* How the letters got into the box.
+
+   She found the microphone key on the phone's keyboard and said the word, and it spelled
+   it for her. A web page cannot reach the software keyboard — there is no API for hiding
+   one of its keys — so the mic itself cannot be taken away. What it can do is notice that
+   the letters did not come from her writing them.
+
+   Measured across six ways of filling the box, the signature is unambiguous. Typing puts
+   in one character per input event; dictation, glide typing, a tap on the predictive bar
+   and a paste all put in the whole word in a single event. Keystroke counts separate them
+   just as cleanly — nine against nought — but the jump size is the signal this leans on,
+   because it does not depend on what a particular keyboard does about keydown, and an iOS
+   keyboard's keydown behaviour is the one thing that cannot be checked from here.
+
+   Counting keystrokes and comparing them against the letters in the box would catch one
+   more case — a phone that dictates a letter at a time — and it is deliberately not done,
+   because its safety rests entirely on that same unverifiable behaviour. If an iOS software
+   keyboard turned out not to fire keydown for its letters, every word she wrote by hand
+   would be refused, and the failure would be invisible from here and total on her phone.
+   The jump test cannot fail that way: if it is wrong about something, it is wrong in the
+   direction of letting an answer through.
+
+   Deleting is not counted: a select-all-and-delete removes several characters at once and
+   is nothing to do with any of this. */
+document.addEventListener('beforeinput', function(ev){
+  if(ev.target.id !== 'type' || !W) return;
+  // A pasted answer is never her writing the word, and there is nothing to weigh up.
+  if(ev.inputType === 'insertFromPaste'){ ev.preventDefault(); toast(SPOKEN_NOTE); return; }
+  if(chars(ev.data) > 1) W.notWritten = true;
+});
 document.addEventListener('input', function(ev){
   if(ev.target.id === 'pname'){ S.profile.name = ev.target.value; save(); }
-  if(ev.target.id === 'type' && W) W.attempt = ev.target.value;
+  if(ev.target.id !== 'type' || !W) return;
+  var was = String(W.attempt || ''), now = ev.target.value;
+  // More than one letter appearing between two events is not something a hand does.
+  if(chars(now) - chars(was) > 1) W.notWritten = true;
+  if(chars(ev.data) > 1) W.notWritten = true;
+  W.attempt = now;
 });
 // Enter checks the word — she shouldn't have to find a button.
 document.addEventListener('keydown', function(ev){

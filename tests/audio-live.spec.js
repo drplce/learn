@@ -2,6 +2,7 @@
 // browser's own Audio element. Every other audio test stubs Audio, which proves
 // the app asks for the right thing but not that a sound ever comes out.
 const {test, expect} = require('@playwright/test');
+const {write} = require('./helpers');
 const http = require('node:http');
 const {readFileSync, writeFileSync, mkdirSync, rmSync} = require('node:fs');
 const path = require('node:path');
@@ -240,7 +241,7 @@ test.describe('the audio path for real', () => {
     async ({page}) => {
       await boot(page, ['because','be','cause','said']);
       await page.locator('#cover').click();
-      await page.locator('#type').fill('becuase');
+      await write(page, 'becuase');
       await page.evaluate(() => { window.__ev = []; });
       await page.locator('#check').click();
       await page.waitForFunction(() => window.__ev.filter(e => e.play).length >= 3,

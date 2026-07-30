@@ -2,7 +2,7 @@
 // bottom of the screen and jump back up on the next word — twice per word. A
 // focused input is kept on the page so the keyboard never closes mid-session.
 const {test, expect} = require('@playwright/test');
-const {open, errorsOf} = require('./helpers');
+const {open, errorsOf, write} = require('./helpers');
 
 // Chromium's pointer media depends on device emulation, so the touch case is
 // made explicit rather than inferred.
@@ -70,7 +70,7 @@ test.describe('the buttons hold still', () => {
     seen.push(await actionTop(page));
     await kb(page, 320);
     seen.push(await actionTop(page));
-    await page.locator('#type').fill('becuase');
+    await write(page, 'becuase');
     await page.locator('#check').click();
     seen.push(await actionTop(page));
     await page.locator('#next').click();
@@ -208,7 +208,7 @@ test.describe('keeping the keyboard open', () => {
     await page.locator('#cover').click();
     expect(await focused(page), 'write stage').toBe('type');   // the real box takes over
 
-    await page.locator('#type').fill('becuase');
+    await write(page, 'becuase');
     await page.locator('#check').click();
     expect(await focused(page), 'check stage').toBe('kbhold');
 
@@ -236,7 +236,7 @@ test.describe('keeping the keyboard open', () => {
       if(!await page.evaluate(() => !!window.__acorn.session())) break;
       if(await page.locator('#cover').count()) await page.locator('#cover').click();
       else if(await page.locator('#type').count()){
-        await page.locator('#type').fill('rain');
+        await write(page, 'rain');
         await page.locator('#check').click();
       }
       else if(await page.locator('#next').count()) await page.locator('#next').click();
@@ -297,7 +297,7 @@ test.describe('keeping the keyboard open', () => {
     await page.locator('#cover').click();
     // The box she actually types into starts empty whatever she pressed before.
     expect(await page.locator('#type').inputValue()).toBe('');
-    await page.locator('#type').fill('because');
+    await write(page, 'because');
     await page.locator('#check').click();
     await expect(page.locator('.verdict.ok')).toBeVisible();
   });

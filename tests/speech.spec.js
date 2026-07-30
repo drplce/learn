@@ -2,7 +2,7 @@
 // reads by ear, and none of it was covered. A recording stub stands in for the
 // synthesiser so every utterance, its rate and its voice can be asserted.
 const {test, expect} = require('@playwright/test');
-const {open} = require('./helpers');
+const {open, write} = require('./helpers');
 
 // Replace speechSynthesis before the app picks a voice, and record everything.
 async function listen(page, voices){
@@ -119,7 +119,7 @@ test.describe('the pre-recorded voice', () => {
     await setClips(page);
     await startOn(page, ['because','rain','boat']);
     await page.locator('#cover').click();
-    await page.locator('#type').fill('becuase');
+    await write(page, 'becuase');
     await page.evaluate(() => { window.__played = []; window.__spoken = []; });
     await page.locator('#check').click();
     // Each clip starts the next when it ends, so the sequence arrives over time.
@@ -140,7 +140,7 @@ test.describe('the pre-recorded voice', () => {
     await setClips(page, ['because','be']);
     await startOn(page, ['because','rain','boat']);
     await page.locator('#cover').click();
-    await page.locator('#type').fill('becuase');
+    await write(page, 'becuase');
     await page.evaluate(() => { window.__played = []; window.__spoken = []; });
     await page.locator('#check').click();
     expect(await played(page)).toEqual([]);
@@ -375,7 +375,7 @@ test.describe('what she hears', () => {
     await listen(page, AU);
     await startOn(page, ['because','rain','boat']);
     await page.locator('#cover').click();
-    await page.locator('#type').fill('becuase');
+    await write(page, 'becuase');
     await clear(page);
     await page.locator('#check').click();
     const said = await spoken(page);
@@ -388,7 +388,7 @@ test.describe('what she hears', () => {
     await listen(page, AU);
     await startOn(page, ['said','rain','boat']);
     await page.locator('#cover').click();
-    await page.locator('#type').fill('sed');
+    await write(page, 'sed');
     await clear(page);
     await page.locator('#check').click();
     expect((await spoken(page)).map(u => u.text.trim())).toEqual(['said']);
@@ -398,7 +398,7 @@ test.describe('what she hears', () => {
     await listen(page, AU);
     await startOn(page, ['because','rain','boat']);
     await page.locator('#cover').click();
-    await page.locator('#type').fill('because');
+    await write(page, 'because');
     await clear(page);
     await page.locator('#check').click();
     expect(await spoken(page)).toEqual([]);
@@ -470,7 +470,7 @@ test.describe('what she hears', () => {
     expect((await spoken(page)).map(u => u.text)).toEqual(['because']);
     // and a miss stays silent too
     await page.locator('#cover').click();
-    await page.locator('#type').fill('becuase');
+    await write(page, 'becuase');
     await clear(page);
     await page.locator('#check').click();
     expect(await spoken(page)).toEqual([]);

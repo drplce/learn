@@ -1,6 +1,6 @@
 // Acorn — spelling practice. The whole app, as a child and a parent use it.
 const {test, expect} = require('@playwright/test');
-const {open, errorsOf} = require('./helpers');
+const {open, errorsOf, write} = require('./helpers');
 
 // Put a specific list in front of her, unseen, and start a session.
 async function startOn(page, words, mastery){
@@ -18,7 +18,7 @@ async function startOn(page, words, mastery){
 async function correct(page){
   const w = await page.evaluate(() => window.__acorn.session().words[window.__acorn.session().i]);
   if(await page.locator('#cover').count()) await page.locator('#cover').click();
-  await page.locator('#type').fill(w);
+  await write(page, w);
   await page.locator('#check').click();
   await page.locator('#next').click();
   return w;
@@ -111,7 +111,7 @@ test.describe('a word she has never met', () => {
     await page.locator('#cover').click();
     await expect(page.locator('#type')).toBeVisible();
     await expect(page.locator('.word')).toHaveCount(0);        // genuinely hidden
-    await page.locator('#type').fill('friend');
+    await write(page, 'friend');
     await page.locator('#check').click();
     await expect(page.locator('.verdict.ok')).toHaveText(/that’s it/);
     expect(await page.evaluate(() => window.__acorn.mastery('friend').box)).toBe(2);
@@ -159,7 +159,7 @@ test.describe('a word she already knows', () => {
     await open(page, '2026-07-28');
     await startOn(page, ['rain']);
     await page.locator('#cover').click();
-    await page.locator('#type').fill('rain');
+    await write(page, 'rain');
     await page.locator('#type').press('Enter');
     await expect(page.locator('.verdict.ok')).toBeVisible();
   });
@@ -171,7 +171,7 @@ test.describe('getting it wrong', () => {
     await open(page, '2026-07-28');
     await startOn(page, ['because','rain','boat']);
     await page.locator('#cover').click();
-    await page.locator('#type').fill('becuase');
+    await write(page, 'becuase');
     await page.locator('#check').click();
     // one letter out of place, so the wording is singular
     await expect(page.locator('.verdict.again')).toHaveText('So close. Look at this letter.');
@@ -186,7 +186,7 @@ test.describe('getting it wrong', () => {
     await open(page, '2026-07-28');
     await startOn(page, ['together','rain','boat']);
     await page.locator('#cover').click();
-    await page.locator('#type').fill('togthr');        // drops the e and an e, so two unmatched
+    await write(page, 'togthr');        // drops the e and an e, so two unmatched
     await page.locator('#check').click();
     await expect(page.locator('.verdict.again')).toHaveText(/Look at these letters/);
     expect(await page.locator('.marked u').count()).toBeGreaterThan(1);
@@ -196,7 +196,7 @@ test.describe('getting it wrong', () => {
     await open(page, '2026-07-28');
     await startOn(page, ['together','rain','boat']);
     await page.locator('#cover').click();
-    await page.locator('#type').fill('togeather');       // every letter present, plus an a
+    await write(page, 'togeather');       // every letter present, plus an a
     await page.locator('#check').click();
     // Every target letter matched, so there is nothing to underline — saying
     // "look at these letters" over an unmarked word would be nonsense.
@@ -219,7 +219,7 @@ test.describe('getting it wrong', () => {
     for(const [word, attempt] of attempts){
       await startOn(page, [word, 'rain', 'boat']);
       await page.locator('#cover').click();
-      await page.locator('#type').fill(attempt);
+      await write(page, attempt);
       await page.locator('#check').click();
       const verdict = await page.locator('.verdict').innerText();
       const marked = await page.locator('.marked u').count();
@@ -257,7 +257,7 @@ test.describe('getting it wrong', () => {
     await open(page, '2026-07-28');
     await startOn(page, ['rain']);
     await page.locator('#cover').click();
-    await page.locator('#type').fill('   ');
+    await write(page, '   ');
     await page.locator('#check').click();
     await expect(page.locator('.verdict')).toHaveCount(0);
     expect(await page.evaluate(() => window.__acorn.mastery('rain').wrong)).toBe(0);
@@ -267,7 +267,7 @@ test.describe('getting it wrong', () => {
     await open(page, '2026-07-28');
     await startOn(page, ['because','rain','boat']);
     await page.locator('#cover').click();
-    await page.locator('#type').fill('zzqq');
+    await write(page, 'zzqq');
     await page.locator('#check').click();
     await expect(page.locator('.verdict.again')).toHaveText(/Here it is/);
     await expect(page.locator('.marked')).toHaveCount(0);
@@ -278,7 +278,7 @@ test.describe('getting it wrong', () => {
     await open(page, '2026-07-28');
     await startOn(page, ['because','rain','boat']);
     await page.locator('#cover').click();
-    await page.locator('#type').fill('becuase');
+    await write(page, 'becuase');
     await page.locator('#check').click();
     await page.locator('#next').click();
     await correct(page);
@@ -287,7 +287,7 @@ test.describe('getting it wrong', () => {
     expect(await page.evaluate(() => window.__acorn.session().words[window.__acorn.session().i])).toBe('because');
     await expect(page.locator('#cover')).toHaveCount(0);
     await expect(page.locator('#type')).toBeVisible();
-    await page.locator('#type').fill('because');
+    await write(page, 'because');
     await page.locator('#check').click();
     await expect(page.locator('.verdict.ok')).toHaveText(/got there/);
     const m = await page.evaluate(() => window.__acorn.mastery('because'));
@@ -316,7 +316,7 @@ test.describe('progress on screen', () => {
     const before = await filled();
     // miss the first word: it comes back later, so W.words grows
     await page.locator('#cover').click();
-    await page.locator('#type').fill('zzzz');
+    await write(page, 'zzzz');
     await page.locator('#check').click();
     await page.locator('#next').click();
     expect(await page.locator('.dots i').count()).toBe(dots);   // row did not grow
@@ -343,7 +343,7 @@ test.describe('progress on screen', () => {
       if(!await page.evaluate(() => !!window.__acorn.session())) break;
       const w = await page.evaluate(() => { const s = window.__acorn.session(); return s.words[s.i]; });
       if(await page.locator('#cover').count()) await page.locator('#cover').click();
-      await page.locator('#type').fill(w);
+      await write(page, w);
       await page.locator('#check').click();
       const filled = await page.locator('.dots i.on').count();
       const all = await page.locator('.dots i').count();
@@ -401,7 +401,7 @@ test.describe('finishing', () => {
     await open(page, '2026-07-28');
     await startOn(page, ['rain','boat']);
     await page.locator('#cover').click();
-    await page.locator('#type').fill('rain');
+    await write(page, 'rain');
     await page.locator('#check').click();
     await page.evaluate(() => window.__acorn.go('parent'));
     expect(await page.evaluate(() => window.__acorn.mastery('rain').box)).toBe(2);
@@ -1338,7 +1338,7 @@ test.describe('the progress dots', () => {
     const look = await width();
     await page.locator('#cover').click();
     expect(await width(), 'covering the word moved the row').toEqual(look);
-    await page.locator('#type').fill('because');
+    await write(page, 'because');
     await page.locator('#check').click();
     expect(await width(), 'checking it moved the row').toEqual(look);
     await page.locator('#next').click();
@@ -1927,10 +1927,10 @@ test.describe('the words she reads', () => {
     };
     await startOn(page, ['because','rain','boat']);
     await uncover();  await grab();                        // look, then write
-    await page.locator('#type').fill('becuase');
+    await write(page, 'becuase');
     await page.locator('#check').click();  await grab();   // nearly
     await page.locator('#next').click();    await uncover();
-    await page.locator('#type').fill('zzz');
+    await write(page, 'zzz');
     await page.locator('#check').click();  await grab();   // nowhere near
     await page.locator('#next').click();
     await finishSession(page);             await grab();   // done
@@ -1997,7 +1997,7 @@ test.describe('what a screen reader is told', () => {
     await open(page, '2026-08-01');
     await startOn(page, ['because','rain','boat']);
     await page.locator('#cover').click();
-    await page.locator('#type').fill('becuase');
+    await write(page, 'becuase');
     await page.locator('#check').click();
     await expect(page.locator('.marked')).toHaveAttribute('aria-label', 'b e c a u s e');
     expect(await page.locator('.marked').textContent()).toBe('because');
@@ -2078,7 +2078,7 @@ test.describe('reachable without a touchscreen', () => {
     await open(page, '2026-07-28');
     await startOn(page, ['because','rain','boat']);
     await page.locator('#cover').click();
-    await page.locator('#type').fill('becuase');
+    await write(page, 'becuase');
     await page.locator('#check').click();
     const said = await page.locator('#say').textContent();
     expect(said).toContain('So close');
@@ -2294,7 +2294,7 @@ test.describe('robustness', () => {
     await startOn(page, ['rain','boat']).catch(() => {});
     // She can still practise; nothing crashes.
     await page.locator('#cover').click();
-    await page.locator('#type').fill('rain');
+    await write(page, 'rain');
     await page.locator('#check').click();
     await expect(page.locator('.verdict')).toBeVisible();
     // And a grown-up is told, on the grown-ups screen only.

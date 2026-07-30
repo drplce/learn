@@ -10,7 +10,7 @@
 // The sitting is kept now and checked on the way back. It survives a look; it does not
 // survive anything that makes it wrong.
 const {test, expect} = require('@playwright/test');
-const {open, errorsOf} = require('./helpers');
+const {open, errorsOf, write} = require('./helpers');
 
 async function midWord(page, words){
   await page.evaluate(ws => {
@@ -52,7 +52,7 @@ test.describe('handing the phone back', () => {
   test('and does not lose what she had typed', async ({page}) => {
     await open(page, '2026-08-01');
     await midWord(page);
-    await page.locator('#type').fill('sai');
+    await write(page, 'sai');
     await page.evaluate(() => { window.__acorn.go('parent'); window.__acorn.go('day'); });
     expect(await page.locator('#type').inputValue()).toBe('sai');
   });
