@@ -594,7 +594,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.8';
+var VERSION = '13.9';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2246,6 +2246,23 @@ if(window.visualViewport){
 }
 addEventListener('resize', fitViewport);
 addEventListener('orientationchange', fitViewport);
+
+/* The keyboard-up drag, killed at the gesture (LAY-2b). With the keyboard up iOS pans
+   the VISUAL viewport when you drag the page — that is not a DOM scroll, so neither
+   overflow:hidden on main (13.8) nor position:fixed on the body (13.6) could stop it;
+   both were verified failing on her phone for exactly this reason, and tellingly the
+   finished screen — no keyboard, no pan — never moved. So preventDefault any touch-drag
+   that is not inside something genuinely scrollable. The word screen has nothing to
+   scroll (main is locked and everything fits above the keyboard), so it can no longer be
+   dragged; the long grown-ups and finished screens, whose main really does scroll, walk
+   up to it here and are left alone. */
+addEventListener('touchmove', function(e){
+  for(var n = e.target; n && n.nodeType === 1 && n !== document.body; n = n.parentNode){
+    var oy = getComputedStyle(n).overflowY;
+    if((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight + 1) return;
+  }
+  e.preventDefault();                        // nothing here scrolls — do not let iOS pan it
+}, {passive:false});
 
 /* Plays one recording on its own, with no fallback in the way, and reports what
    actually happened. Without this a browser that cannot decode them looks

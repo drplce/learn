@@ -9,7 +9,7 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
 - **D-c** (→WIN-5): success = **word turns green + a very subtle size pulse**.
 
 ## NOW — fix reported + protect data
-- ⚠️ **SCR-1** — `position:fixed` body shipped 13.6, but on-device it **still drags** — the scrollbar in David's shot proves it's `main` scrolling, not the document. The body-pin stays (good defence) but the real fix is **LAY-2** (lock `main`).
+- ⚠️ **SCR-1 / scroll drag** — three tries: 13.6 body-pin (failed on device), 13.8 lock `main` (failed on device). Root cause finally: **iOS pans the VISUAL viewport with the keyboard up** — not a DOM scroll, unstoppable by overflow/position (David's tell: the map screen, no keyboard, never moved). **13.9 (LAY-2b)** adds the research-backed **gated `touchmove` preventDefault** — blocks any drag not inside a scrollable region. Guarded by `touch-drag-gate.spec.js`. **→ verify on phone: is it FINALLY still?**
 - ✅ **DAT-1** — `navigator.storage.persist()` on first tap (shipped 13.6).
 - ✅ **RES-1** — Measured. On the SE a 12-letter word maxes at **~34px** (width-limited; the `--t-3xl` ceiling is never reached), 14-letter ~29px. Corrects my earlier ~44px guess. Short words currently render 51–64px, so a locked size is a real reduction — **needs D-a refined** (see below) before LAY-1.
 
