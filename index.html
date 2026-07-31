@@ -647,7 +647,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.23';
+var VERSION = '13.24';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1526,7 +1526,21 @@ var SYLLABLES = (
   + 'e·lev·en mil·lion cal·en·dar cat·er·pil·lar sep·a·rate gov·ern·ment busi·ness or·ange '
   + 'col·our qui·et·ly prob·a·bly ac·tu·al·ly u·su·al·ly dif·fer·ent fa·vour·ite ba·nan·a '
   + 'im·por·tant re·mem·ber un·der·stand be·gin·ning po·ta·to to·ma·to gi·raffe croc·o·dile '
-  + 'oc·to·pus but·ter·fly').split(' ')
+  + 'oc·to·pus but·ter·fly '
+  // Second batch — more of the common list, same one-at-a-time checking. The rule opens a
+  // syllable on a short vowel it should close (cam·er·a not ca·me·ra, de·vel·op not de·ve·lop,
+  // prob·lem not pro·blem) and mishandles -tion/-sion/-cious/-geous and the g/ght clusters
+  // (na·tion·al not na·tio·nal, pre·cious not pre·ci·ous, fright·en not frigh·ten).
+  + 'fash·ion on·ion o·pin·ion re·gion na·tion·al gor·geous pre·cious dis·ap·pear in·stru·ment '
+  + 'trans·port sand·wich ti·tle straight·en fright·en light·ning sen·si·ble tab·let prob·lem '
+  + 'pub·lic pub·lish tri·an·gle rec·tan·gle in·cred·i·ble suit·a·ble de·scribe me·chan·ic '
+  + 'med·i·cine nat·u·ral pop·u·lar sev·er·al gen·er·al gen·er·ous de·vel·op cam·er·a com·e·dy '
+  + 'gal·ler·y mem·o·ry mel·o·dy en·er·gy sal·ad met·al meth·od sol·id pan·ic plan·et van·ish '
+  + 'pun·ish man·age pal·ace bal·ance prom·ise prop·er prod·uct proj·ect pres·ent pris·on '
+  + 'rec·i·pe rec·ord sec·ond strat·e·gy qual·i·ty grav·i·ty trav·el con·sid·er con·tin·ue '
+  + 'lit·er·a·ture tel·e·scope mag·a·zine skel·e·ton reg·u·lar rel·a·tive pos·i·tive pyr·a·mid '
+  + 'vin·e·gar vis·i·tor vit·a·min vol·ume val·ue fa·mil·iar sim·i·lar how·ev·er wiz·ard '
+  + 'wood·en mush·room mys·ter·y').split(' ')
   .reduce(function(m, x){ m[x.replace(/·/g, '')] = x.split('·'); return m; }, bare(null));
 
 function suffixSplit(s){

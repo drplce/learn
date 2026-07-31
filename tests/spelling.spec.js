@@ -744,16 +744,21 @@ test.describe('syllables', () => {
 
   test('gu and qu are one sound, not a syllable break', async ({page}) => {
     await open(page, '2026-07-28');
+    /* The rule keeps gu/qu together as one sound. "regular" used to sit here too, taking the
+       rule's re·gu·lar — but the u there is its own syllable (REG-yuh-lar), so it is reg·u·lar,
+       and it is in the researched dictionary now (SYL-1), where the right split is given rather
+       than guessed. The words below are the true digraphs the rule still handles. */
     const got = await page.evaluate(() => {
       const o = {};
       ['guard','guess','guide','language','penguin','tongue','league','plague','banquet',
-       'anguish','question','quarter','regular','guitar'].forEach(w => o[w] = window.__acorn.syllables(w).join('·'));
+       'anguish','question','quarter','guitar'].forEach(w => o[w] = window.__acorn.syllables(w).join('·'));
       return o;
     });
     expect(got).toEqual({guard:'guard', guess:'guess', guide:'guide', language:'lan·guage',
       penguin:'pen·guin', tongue:'tongue', league:'league', plague:'plague', banquet:'ban·quet',
-      anguish:'an·guish', question:'ques·tion', quarter:'quar·ter', regular:'re·gu·lar',
-      guitar:'gui·tar'});
+      anguish:'an·guish', question:'ques·tion', quarter:'quar·ter', guitar:'gui·tar'});
+    // And the dictionary's reg·u·lar is what she actually gets.
+    expect(await page.evaluate(() => window.__acorn.syllables('regular').join('·'))).toBe('reg·u·lar');
   });
 
   test('x closes the syllable before it', async ({page}) => {
