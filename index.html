@@ -160,7 +160,6 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 #act{flex:none; padding-top:var(--s2); display:flex; flex-wrap:wrap;
      gap:calc(var(--s2) * var(--ornament)); align-items:stretch;
      container-type:inline-size;}
-#act .primary{flex:1 1 7rem; margin:0;}
 #act .quiet{margin:0;}
 #act:empty{display:none;}
 /* The footer is NOT reserved on word screens. It only carries a button on a miss (the "next"
@@ -243,13 +242,14 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
    word-slot centres it, and the slot is a fixed height (see .wordslot), so nothing it holds can
    move the dots above it. The box hairline is drawn only on the input stages; here the same
    footprint carries no edge, which is why she reads it free. */
-.word,.marked{
+/* Just .word now: a miss no longer shows a separately-marked word (.marked) — it re-traces
+   the correct word in its box (WIN-1), the slipped letter drawn in orange on the trace itself
+   (.tracew .slip), so the marked-word styling is gone with it. */
+.word{
   position:relative;                                  /* the .seams overlay is measured against this */
   text-align:center; font-weight:700; line-height:1.7;
   letter-spacing:.06em; word-spacing:.1em; margin:0; padding:var(--s3) 0; overflow-wrap:anywhere;
   font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (max(var(--wl,6), 12) * .8)), var(--t-3xl));}
-.marked b{color:var(--ink); font-weight:700;}
-.marked u{color:var(--retry); text-decoration:none; border-bottom:3px solid var(--retry);}
 /* The success moment (WIN-5, decision D-c): a correct word IS the reward — it turns
    the accent green, the same green as the pebbles, the trace letter and her map, so it
    visibly joins the things she is collecting, and breathes once. No "Yes — that's it."
@@ -305,6 +305,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 .tracew .on{color:var(--ink);}                        /* copied — solid */
 .tracew .off{color:var(--ink-soft);}                  /* not reached — the app's soft ink, still AA */
 .tracew .now{color:var(--acc);}                       /* next — the letter she is on, lit green */
+.tracew .slip{color:var(--retry);}                    /* re-trace (WIN-1): a letter she slipped on, orange until re-copied */
 .tracein{position:absolute; inset:0; width:100%; min-height:var(--tap); border:0; padding:0;
          z-index:2;                                   /* the keyboard-catching layer, above both */
          background:transparent; color:transparent; -webkit-text-fill-color:transparent;
@@ -402,15 +403,9 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* The zone wrappers are invisible when empty so they add no stray gap. */
 .wordscreen > :empty{display:none;}
 
-.primary{display:flex; align-items:center; justify-content:center; gap:var(--s2); width:100%;
-         min-height:var(--tap-xl); margin-top:0; padding:var(--s2) var(--s4);
-         border-radius:var(--r-lg); background:var(--acc); color:var(--acc-ink);
-         font-size:var(--t-lg); font-weight:700; box-shadow:var(--shadow);
-         transition:transform var(--m-press) var(--ease);}
-.primary:active{transform:scale(.985);}
-/* The wordless carry-on / finish button: a chevron or tick, no label. Sized off the tap
-   scale like every .primary, the icon centred in it. */
-.iconbtn svg{width:calc(var(--t-xl) * var(--ornament)); height:calc(var(--t-xl) * var(--ornament)); flex:none;}
+/* (.primary and .iconbtn are gone: the only element that wore them was the miss verdict's
+   wordless continue chevron, and a miss re-traces now (WIN-1) — she copies the word to move on,
+   so there is no button. The grown-ups actions use .quiet; the winning word carries itself.) */
 /* The winning word is the tap target that skips the auto-advance wait (id="advance"
    lives on it now, not on a verdict line — WIN-5). It is already a big touch area, so it
    needs no extra sizing; just show it is tappable. */
@@ -598,7 +593,6 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Landscape with a keyboard up leaves almost nothing. The action keeps a real
    44px target but stops scaling with her text, and the page padding tightens,
    so what she is looking at still has somewhere to be. */
-:root[data-cramped]:not([data-stage=parent]) #act .primary,
 :root[data-cramped]:not([data-stage=parent]) #act .quiet{
   min-height:calc(var(--tap) * var(--ornament)); font-size:var(--t-md); padding:0 var(--s3); }
 :root[data-cramped]:not([data-stage=parent]) #app{
@@ -614,8 +608,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* The word is fitted to the width it has, which says nothing about height. With
    this little of that, its ceiling comes down — a smaller word she can see beats
    a bigger one cut off at the edge of the panel. */
-:root[data-cramped]:not([data-stage=parent]):not([data-stage=done]) .word,
-:root[data-cramped]:not([data-stage=parent]):not([data-stage=done]) .marked{
+:root[data-cramped]:not([data-stage=parent]):not([data-stage=done]) .word{
   font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (max(var(--wl,6), 12) * .8)),
                   var(--t-lg));}
 
@@ -654,7 +647,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.21';
+var VERSION = '13.22';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2081,13 +2074,23 @@ function check(){
       // while it is still fresh, rather than as a hard surprise tomorrow.
       if(W.shown.indexOf(w) >= 0 && W.requeue.indexOf(w) < 0) W.requeue.push(w);
     }
+    W.retrace = false;
     chime('right');
-  }else if(W.failed.indexOf(w) < 0){
-    // Marked down once, then queued to come back later in this same session —
-    // a real retrieval a few words on, rather than a copy off the screen.
-    W.failed.push(w);
-    recordWord(w, 'wrong');
-    if(W.requeue.indexOf(w) < 0) W.requeue.push(w);
+  }else{
+    /* A miss becomes a re-trace (WIN-1): the word back in its box to copy letter by letter,
+       her slip marked, before the sitting moves on. missAttempt holds what she wrote so the
+       verdict and the slipped letters can be worked out from it even as the box is re-copied
+       over the top; retrace drives the render and survives the resizes that re-run it. */
+    W.retrace = true;
+    W.missAttempt = W.attempt;
+    W.traced = 0;
+    if(W.failed.indexOf(w) < 0){
+      // Marked down once, then queued to come back later in this same session —
+      // a real retrieval a few words on, rather than a copy off the screen.
+      W.failed.push(w);
+      recordWord(w, 'wrong');
+      if(W.requeue.indexOf(w) < 0) W.requeue.push(w);
+    }
   }
   W.stage = 'check';
   render();
@@ -2142,6 +2145,7 @@ function next(){
   else { finish(); return; }
   W.stage = beginStage(word()); W.attempt = ''; W.tries = 0; W.keys = 0; W.traced = 0;
   W.notWritten = false;                        // every word starts its write attempt clean
+  W.retrace = false;                           // and never mid re-trace (WIN-1)
   render();
   say(word());
 }
@@ -2192,13 +2196,8 @@ function withName(s){
 }
 var SPK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         + '<path d="M11 5 6.5 9H3.5v6h3L11 19V5Z"/><path d="M15.5 9.2a4 4 0 0 1 0 5.6"/><path d="M18.4 6.6a8 8 0 0 1 0 10.8"/></svg>';
-// Wordless "carry on" and "finish": a forward chevron after a miss (she moves on
-// when she has looked long enough), a tick at the end of the sitting. No labels —
-// the icons carry it and the aria-label on the button says the rest.
-var CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-         + '<path d="M9 6l6 6-6 6"/></svg>';
-var TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-         + '<path d="M5 12.5l4.5 4.5L19 7"/></svg>';
+// (The forward chevron / finish tick that a miss verdict used to carry are gone with it: a miss
+// re-traces now (WIN-1) and copying the word to its end is what moves her on — no button, no icon.)
 
 // The one live region in the app. It exists in the document from the start,
 // because a region created inside fresh innerHTML is not reliably announced.
@@ -2689,11 +2688,18 @@ function renderWord(){
     act = hear;
   }
   else {
-    var ok = sameWord(W.attempt, w);
-    var m = matched(W.attempt, w);
+    /* She has checked. A win greens the word and carries her on; a miss becomes a re-trace
+       (WIN-1) — the word back in its box with her slipped letter in orange, copied letter by
+       letter to fix the shape before the sitting moves on. W.retrace (set in check() on a miss)
+       tells the two apart and survives the re-renders a resize causes — reading the box's
+       half-copied value back would otherwise flip a miss into a "win" mid-copy. The verdict and
+       the slip come from missAttempt, what she actually wrote, not the box being re-filled. */
+    var att = W.retrace ? (W.missAttempt || '') : W.attempt;
+    var ok = !W.retrace && sameWord(W.attempt, w);
+    var m = matched(att, w);
     var missing = w.length - m.count;
     // Marking every letter says only "all of this is wrong", which helps nobody
-    // — so below half matched, show the word plainly instead.
+    // — so below half matched, the re-trace marks nothing and she simply copies it whole.
     var close = w.length ? m.count / w.length >= .5 && missing > 0 : false;
     var extra = !ok && missing === 0;
     /* With nothing missing there is nothing for the usual marking to catch: every letter
@@ -2710,17 +2716,20 @@ function renderWord(){
        "togeather" the e that the extra a came after. */
     var extraAt = -1;
     if(extra){
-      var ai = 0, wj = 0, at = tidyTyped(String(W.attempt || '')).trim().toLowerCase();
+      var ai = 0, wj = 0, at = tidyTyped(String(att || '')).trim().toLowerCase();
       while(ai < at.length && wj < w.length){
         if(at[ai] === w[wj]){ ai++; wj++; continue; }
         break;                                   // hers, unaccounted for, right here
       }
       extraAt = Math.max(0, wj - 1);
     }
-    var marks = sylWord(w, function(c, i){
-      var miss = extra ? i === extraAt : !m.hit[i];
-      return miss ? '<u>' + esc(c) + '</u>' : '<b>' + esc(c) + '</b>'; });
-    var more = (W.i + 1 < W.words.length) || W.requeue.length;
+    /* The letters she slipped on — marked orange in the re-trace until she copies past them.
+       An extra letter points at the letter the surplus was added beside; a close miss marks
+       the letters that did not match; a barely-recognisable miss (not close) marks nothing and
+       is simply re-copied whole, which is kinder than an orange word. */
+    var slip = extra ? [extraAt]
+             : close ? w.split('').map(function(c, i){ return i; }).filter(function(i){ return !m.hit[i]; })
+             : [];
     /* What she is missing, in order. Computed before the verdict because the message
        depends on what kind of thing it is. */
     var look = w.split('').filter(function(c, i){ return !m.hit[i]; });
@@ -2761,42 +2770,47 @@ function renderWord(){
        spoken announcement is untouched — it still says the verdict, so nothing is lost to
        the ear. */
     var earned = ok && W.failed.indexOf(w) >= 0;
-    // The verdict line — the earned "You got there." and every miss's steer — rides in the
-    // reserved caption slot just above the word, so it never shoves the dots. A plain win has
-    // no line at all; the green word is the whole of it, and the slot simply sits empty.
-    supraInner = (!ok || earned)
-         ? '<div class="verdict ' + (ok ? 'ok' : 'again') + '">' + verdict + '</div>'
-         : '';
-    // Only ever the correct spelling on screen. Seeing her own misspelling
-    // is the one thing that measurably sets spelling back.
-    /* The extra-letter case belongs on the marked side. It is not "close" by the
-       half-matched test — close requires something missing, and here nothing is —
-       so it fell through to the plain word, and the one letter its verdict now
-       points at had nowhere to appear. */
-    /* On a win the word is the reward (greens + breathes) AND the tap-to-skip-the-wait
-       target — id="advance" moves here from the old verdict line. */
-    wordslot = (ok || (!close && !extra)
-                 ? wordBlock(ok ? 'word won' : 'word', sylWord(w, function(c){ return esc(c); }), w, wl, ok ? 'advance' : '')
-                 : wordBlock('marked', marks, w, wl));
-    below =
-         // Words first, then what happens next, then the buttons — so what she
-         // reads runs top to bottom without a button interrupting it.
-         /* Only when it is true. This said "in a moment" for every miss, including
-            the last attempt at the last word of the sitting, where the button beside
-            it already says Finish and nothing is requeued — driven for real, she was
-            told she would see it again and then the sitting ended. A missed word
-            drops to box 1 and is due at once, so "soon" is the honest version of the
-            same reassurance. */
-         (!ok ? '<div class="note">You’ll see this one again '
-                + (W.requeue.indexOf(w) >= 0 ? 'in a moment' : 'soon') + '.</div>' : '');
-    /* A win advances on its own (a timer set in check(), skippable by a tap or a
-       return), so it needs no button. A miss HOLDS: no timer, and a wordless forward
-       chevron she taps when she has looked at the corrected word long enough. The last
-       word ends the sitting the same way — a tick rather than a chevron. The control
-       keeps id="next" and a spoken label so tests and a screen reader still find it. */
-    act = ok ? hear
-             : hear + '<button class="primary iconbtn" id="next" aria-label="'
-                    + (more ? 'Next word' : 'Finish') + '">' + (more ? CHEV : TICK) + '</button>';
+    if(W.retrace){
+      /* A miss re-traces (WIN-1). The verdict steer rides in the caption slot as every miss's
+         line always has; below it the word is back in its box, copied letter by letter (the
+         same mechanic as the first trace — landed letters solid, the next lit, the rest faint),
+         with the letters she slipped on shown orange until she reaches and re-copies them. Only
+         the correct spelling is ever on the screen; her own misspelling is never put back in
+         front of her. No note and no chevron — copying the word to its end is what carries her
+         on (the keydown handler advances when the re-trace completes), and the word is already
+         recorded and requeued for a real retrieval later. */
+      supraInner = '<div class="verdict again">' + verdict + '</div>';
+      var t = W.traced || 0;
+      var traced = sylWord(w, function(c, i){
+        // Copied letters go solid; a letter she slipped on stays orange until she copies past it
+        // (the slip colour wins even at the letter she is on, so the one that matters is never
+        // hidden behind the green "type this" cue — it is the leftmost uncopied letter anyway);
+        // the next non-slip letter is the lit green one; the rest are faint.
+        var cls = i < t ? 'on'
+                : slip.indexOf(i) >= 0 ? 'slip'
+                : i === t ? 'now'
+                : 'off';
+        return '<span class="' + cls + '">' + esc(c) + '</span>';
+      });
+      wordslot = '<div class="trace"' + wl + '>'
+           +   '<svg class="hair" viewBox="' + HAIR_VB + '" preserveAspectRatio="none" aria-hidden="true">'
+           +     '<path d="' + boxHairPath('box') + '"/></svg>'
+           +   '<div class="tracew" role="img" aria-label="' + esc(spellOut(w)) + '">' + traced + '</div>'
+           +   '<input class="tracein" id="type" type="text" inputmode="text" autocomplete="off" '
+           +     'autocorrect="off" autocapitalize="off" spellcheck="false" '
+           +     'value="' + esc(w.slice(0, t)) + '" aria-label="Copy the word again">'
+           + '</div>';
+      below = '';
+      act = hear;
+    }else{
+      /* A win: the word IS the reward (greens + breathes, WIN-5) and the tap-to-skip-the-wait
+         target (id="advance"). The earned "You got there." after a fought-back miss rides in the
+         caption slot; a plain win has no line — the green word is the whole of it. */
+      supraInner = earned ? '<div class="verdict ok">' + verdict + '</div>' : '';
+      wordslot = wordBlock('word won', sylWord(w, function(c){ return esc(c); }), w, wl, 'advance');
+      below = '';
+      act = hear;
+    }
   }
 
   // The dots and the reserved caption slot, assembled once: constant structure on every stage,
@@ -3618,7 +3632,7 @@ function sylSeamPath(a, b, y, seed){
    drops all the seams: a seam is a stripe under one line, and real words never wrap this far
    (sylRanges guards the long ones off seams entirely). Re-run on every render and resize. */
 function drawSeams(){
-  ['.tracew', '.word', '.marked'].forEach(function(sel){
+  ['.tracew', '.word'].forEach(function(sel){
     var wordEl = el(sel);
     if(!wordEl) return;
     var old = wordEl.querySelector(':scope > svg.seams'); if(old) old.remove();
@@ -4288,7 +4302,9 @@ addEventListener('keydown', function(ev){
    only what she types from memory. Capture phase, ahead of the key counter, and it does
    not touch W.keys — the reset on the way to write is what keeps that guard clean. */
 addEventListener('keydown', function(ev){
-  if(!W || W.stage !== 'look' || !ev.target || ev.target.id !== 'type') return;
+  // The letter-by-letter copy drives two screens: the first trace of a new word (stage 'look')
+  // and the re-trace of a missed one (W.retrace, WIN-1). Both accept only the next correct letter.
+  if(!W || !(W.stage === 'look' || W.retrace) || !ev.target || ev.target.id !== 'type') return;
   var k = String(ev.key || '');
   if(k === 'Tab') return;                               // focus must still be able to leave the box
   ev.preventDefault();                                  // the box is ours to fill; nothing else edits it
@@ -4298,18 +4314,29 @@ addEventListener('keydown', function(ev){
   if(foldKey(k) !== foldKey(w.charAt(t))) return;       // not the next letter — discard it
   W.traced = t + 1;
   if(W.traced >= w.length){
-    /* The whole word is copied. A short settle so the finished trace registers, then the
-       blind write of the same word — the first real retrieval. Cancellable like the win
-       timer, so a programmatic cover() or next() never races it. */
     clearAuto();
-    W.autoTimer = setTimeout(function(){
-      if(!W || W.stage !== 'look') return;
-      // notWritten reset too: the blind write is a fresh retrieval, and if she used the
-      // mic or glided on the TRACE (a whole-word insert sets the flag), it must not follow
-      // her to the write and hand back a word she then writes by hand.
-      W.stage = 'write'; W.attempt = ''; W.keys = 0; W.traced = 0; W.notWritten = false;
-      render();
-    }, 500);
+    if(W.retrace){
+      /* The re-trace is complete — the missed word copied back correctly. A short settle so it
+         registers, then the sitting simply moves on (WIN-1: corrective, no re-score — the miss
+         was already recorded and requeued for a real retrieval later). */
+      W.autoTimer = setTimeout(function(){
+        if(!W || !W.retrace) return;
+        W.retrace = false;
+        next();
+      }, 500);
+    }else{
+      /* The whole word is copied. A short settle so the finished trace registers, then the
+         blind write of the same word — the first real retrieval. Cancellable like the win
+         timer, so a programmatic cover() or next() never races it. */
+      W.autoTimer = setTimeout(function(){
+        if(!W || W.stage !== 'look') return;
+        // notWritten reset too: the blind write is a fresh retrieval, and if she used the
+        // mic or glided on the TRACE (a whole-word insert sets the flag), it must not follow
+        // her to the write and hand back a word she then writes by hand.
+        W.stage = 'write'; W.attempt = ''; W.keys = 0; W.traced = 0; W.notWritten = false;
+        render();
+      }, 500);
+    }
   }
   render();
 }, true);
@@ -4328,11 +4355,12 @@ document.addEventListener('keydown', function(ev){
   if(ev.key === 'Enter' && ev.target.id === 'type' && W && W.stage === 'write'){
     ev.preventDefault(); unlock(); check(); return;
   }
-  /* On the verdict, return carries her on — the win's wait skipped, or the miss's
-     hold released — without her having to find the chevron. Gated to her own screen
-     and placed after the write branch so the same keypress that checks a word cannot
-     also advance past its verdict. */
-  if(ev.key === 'Enter' && W && W.stage === 'check' && screen === 'day'){
+  /* On a WIN, return carries her on — the win's wait skipped — without her having to wait it
+     out. Gated to her own screen and placed after the write branch so the same keypress that
+     checks a word cannot also advance past its verdict. Not on a re-trace (W.retrace): there
+     Enter is swallowed by the copy handler above, because copying the word to the end is what
+     moves her on, not a keypress that skips the correction. */
+  if(ev.key === 'Enter' && W && W.stage === 'check' && !W.retrace && screen === 'day'){
     ev.preventDefault(); unlock(); next(); return;
   }
   // Enter in the add-a-word box adds it, so a grown-up can rattle a few in.
@@ -4446,7 +4474,7 @@ loadClips(); render(); },
   // and the trace so a programmatic driver (and the sim) skips the trace exactly as the
   // old cover step did. At the look stage these are already clear, so this stays a no-op
   // for the sim and leaves its numbers byte-identical.
-  cover: function(){ if(W){ clearAuto(); W.stage = 'write'; W.attempt = ''; W.keys = 0; W.traced = 0; render(); } },
+  cover: function(){ if(W){ clearAuto(); W.stage = 'write'; W.attempt = ''; W.keys = 0; W.traced = 0; W.retrace = false; render(); } },
   type: function(v){ if(W){ W.attempt = v; if(el('#type')) el('#type').value = v; } },
   /* plan, day, listId and shown are here so a test can tell the sitting she was
      handed back apart from a fresh one that happens to look like it. Without them,
@@ -4457,6 +4485,7 @@ loadClips(); render(); },
                                      listId:W.listId, shown:W.shown.slice(),
                                      done:(W.done || []).slice(),
                                      keys:W.keys || 0,
+                                     retrace:!!W.retrace,
                                      notWritten:!!W.notWritten}; },
   go: go, screen: function(){ return screen; },
   BOX_DAYS: BOX_DAYS, MAX_BOX: MAX_BOX, KNOWN_BOX: KNOWN_BOX,

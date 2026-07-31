@@ -118,7 +118,7 @@ test.describe('submitting and advancing', () => {
     expect(errorsOf(page)).toEqual([]);
   });
 
-  test('a miss does NOT auto-advance and shows a wordless continue control', async ({page}) => {
+  test('a miss does NOT auto-advance — it re-traces, and copying it carries her on', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['because', 'rain', 'boat']);
     await page.evaluate(() => window.__acorn.cover());
@@ -126,32 +126,43 @@ test.describe('submitting and advancing', () => {
     await page.keyboard.press('Enter');
     await expect(page.locator('.verdict.again')).toBeVisible();
     const i0 = await page.evaluate(() => window.__acorn.session().i);
-    // She must dwell on the corrected word: no timer takes her off it.
+    // No timer takes her off it: a miss re-traces (WIN-1), and she stays on it until she copies it.
     await page.waitForTimeout(1600);
     expect(await page.evaluate(() => window.__acorn.session().stage)).toBe('check');
+    expect(await page.evaluate(() => window.__acorn.session().retrace)).toBe(true);
     expect(await page.evaluate(() => window.__acorn.session().i)).toBe(i0);
-    // A wordless continue control is present — id kept, no visible text.
-    const next = page.locator('#next');
-    await expect(next).toBeVisible();
-    await expect(next).toHaveText('');
-    await expect(next).toHaveAttribute('aria-label', /Next word|Finish/);
-    // Tapping it advances.
-    await next.click();
+    // No chevron — the way on is the box she copies into.
+    await expect(page.locator('#next')).toHaveCount(0);
+    await expect(page.locator('#type')).toBeVisible();
+    // Copying the word to its end advances her.
+    for(const c of 'because') await page.keyboard.press(c);
     await page.waitForFunction(i => window.__acorn.session() && window.__acorn.session().i > i,
                                i0, {timeout: 2000});
   });
 
-  test('return on the verdict advances too', async ({page}) => {
+  test('return skips the wait on a win, but a re-trace has to be copied', async ({page}) => {
     await open(page, '2026-07-28');
-    await startOn(page, ['because', 'rain', 'boat']);
+    await startOn(page, ['rain', 'boat', 'because']);
+    // A win: return skips the settle and carries her on (the winning word is the Enter target).
     await page.evaluate(() => window.__acorn.cover());
-    await write(page, 'becuase');
-    await page.keyboard.press('Enter');                        // check
+    await write(page, 'rain');
+    await page.keyboard.press('Enter');                        // check -> win
+    await expect(page.locator('.word.won')).toBeVisible();
+    const w0 = await page.evaluate(() => window.__acorn.session().i);
+    await page.keyboard.press('Enter');                        // return skips the wait
+    await page.waitForFunction(i => window.__acorn.session() && window.__acorn.session().i > i,
+                               w0, {timeout: 2000});
+    // A miss re-traces: return is swallowed by the copy handler, so it does NOT skip past it.
+    await page.evaluate(() => { const a = window.__acorn;
+      if(a.session().stage === 'look') a.cover(); });
+    await write(page, 'boot');                                 // wrong -> re-trace of 'boat'
+    await page.keyboard.press('Enter');
     await expect(page.locator('.verdict.again')).toBeVisible();
     const i0 = await page.evaluate(() => window.__acorn.session().i);
-    await page.keyboard.press('Enter');                        // return releases the hold
-    await page.waitForFunction(i => window.__acorn.session() && window.__acorn.session().i > i,
-                               i0, {timeout: 2000});
+    await page.keyboard.press('Enter');                        // swallowed
+    await page.waitForTimeout(700);
+    expect(await page.evaluate(() => window.__acorn.session().i),
+      'return skipped past the re-trace instead of making her copy it').toBe(i0);
   });
 });
 

@@ -87,11 +87,14 @@ test.describe('what the words claim', () => {
     expect(r).toMatch(/One took root tonight\./);
   });
 
-  test('she is only told she will see a word again when she will', async ({page}) => {
+  test('a missed word comes back only when it really will', async ({page}) => {
+    /* The re-trace (WIN-1) replaced the old "You'll see this one again in a moment / soon" note —
+       the trace page carries no such line — so the honesty this protected now lives in the model,
+       not a caption: a non-final miss is requeued for a real from-memory go later this sitting;
+       the last attempt at the last word is not requeued (nothing false is promised), and it still
+       comes back next sitting because a miss drops the word to box 1 (recorded wrong). */
     await open(page, '2026-08-01');
-    // The last attempt at the last word: the button beside the note already says
-    // Finish, and nothing is requeued.
-    const notes = await page.evaluate(() => {
+    const rows = await page.evaluate(() => {
       const a = window.__acorn;
       a.state.words.lists = [{id: 'x', name: 'T', words: ['said', 'went', 'rain']}];
       a.state.words.activeId = 'x';
@@ -102,33 +105,38 @@ test.describe('what the words claim', () => {
       for(let g = 0; g < 40 && a.session(); g++){
         const W = a.session();
         const isLast = (W.i + 1 >= W.words.length) && !W.requeue.length;
+        const alreadyFailed = (W.failed || []).indexOf(W.words[W.i]) >= 0;
         if(W.stage === 'look'){ a.cover(); continue; }
         if(W.stage === 'write'){
-          a.type(isLast ? 'zzz' : W.words[W.i]);
+          const word = W.words[W.i];
+          a.type(word.slice(0, -1) + 'z');            // always a miss
           a.check();
           const s = a.session() || {};
-          out.push({
-            note: [...document.querySelectorAll('#screen .note')].map(n => n.textContent).join(' '),
-            action: (document.querySelector('#act .primary') || {}).textContent || '',
-            comingBack: (s.requeue || []).indexOf(W.words[W.i]) >= 0,
-          });
-          a.next(); continue;
+          out.push({word: word, isLast: isLast, alreadyFailed: alreadyFailed,
+                    comingBack: (s.requeue || []).indexOf(word) >= 0,
+                    wrongRecorded: (a.mastery(word).wrong || 0) > 0});
+          a.next();                                    // past the re-trace, via the API
+          continue;
         }
         a.next();
       }
       return out;
     });
-    const promises = notes.filter(n => /again in a moment/.test(n.note));
-    expect(promises.length, 'nothing promised a return, so this proves nothing')
-      .toBeGreaterThan(0);
-    for(const n of promises)
-      expect(n.comingBack, `promised "in a moment" with action "${n.action}"`).toBe(true);
-    // A miss that is not coming back this sitting is still reassured, honestly: a
-    // missed word drops to box 1 and is due at the next sitting.
-    const finishing = notes.filter(n => n.action === 'Finish' && !n.comingBack);
-    for(const n of finishing){
-      expect(n.note).toMatch(/again soon/);
-      expect(n.note).not.toMatch(/in a moment/);
+    // The first miss of a word that is not the very last thing left is requeued for a real go
+    // later this sitting. (A second miss of a word already down is not re-requeued — it is
+    // already coming back — so only first misses carry the promise.)
+    const brought = rows.filter(r => !r.isLast && !r.alreadyFailed);
+    expect(brought.length, 'no first, non-final miss to check').toBeGreaterThan(0);
+    for(const r of brought)
+      expect(r.comingBack, `a first non-final miss of "${r.word}" was not requeued`).toBe(true);
+    // The last attempt at the last word is not requeued — nothing false is promised — but a miss
+    // still drops the word to box 1, so it comes back next sitting.
+    const finals = rows.filter(r => r.isLast);
+    expect(finals.length, 'no final miss to check').toBeGreaterThan(0);
+    for(const r of finals){
+      expect(r.comingBack, `the last attempt at "${r.word}" falsely requeued`).toBe(false);
+      expect(r.wrongRecorded,
+        `the last miss of "${r.word}" was not recorded to bring it back next sitting`).toBe(true);
     }
   });
 

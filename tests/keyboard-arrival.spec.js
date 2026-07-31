@@ -136,20 +136,15 @@ test.describe('arriving on a screen with a keyboard', () => {
       .toMatchObject({key: 'Tab', shift: true, prevented: false});
   });
 
-  test('and plain Tab really is the app taking over, once', async ({page}) => {
-    // The other side of the same guard: it fires on the first Tab and never again. The
-    // redirect is for a screen with no box — since 13.0 that is the verdict, not the
-    // first screen (which is a trace box), so drive to a miss verdict to test it.
-    await open(page, '2026-08-01');
-    await sittingOf(page, ['said', 'rain']);
-    await page.evaluate(() => { const a = window.__acorn; a.cover(); a.type('zzz'); a.check(); });
-    await watchKeys(page);
-    await page.keyboard.press('Tab');
-    expect((await lastKey(page)).prevented, 'the first Tab was not redirected').toBe(true);
-    await page.keyboard.press('Tab');
-    expect((await lastKey(page)).prevented,
-      'Tab is still being taken over after the first one').toBe(false);
-  });
+  /* (Retired at WIN-1.) There used to be a test here that a keyboard user's first Tab was
+     taken over and redirected to the continue button on a no-box screen — the miss verdict.
+     A miss re-traces now (WIN-1): it has a box, so Tab out of it is exactly what Tab should
+     do, and the only no-box word screen left is a win, which has no button to redirect to
+     (it auto-advances, and Enter carries her on). The redirect fired only when there was a
+     .primary button; there is none on a word screen any more, so the guard no longer has
+     anything to do. The guarantee it protected — a keyboard user is never dead-ended or given
+     a focus ring from nowhere — is held by "a touch user gets no focus ring..." below and by
+     spelling.spec.js's "driven by keyboard, focus is never dropped to the document". */
 
   test('a touch user gets no focus ring on a button out of nowhere', async ({page}) => {
     /* The trace box may hold focus — she types into it, as on the write screen, and the
@@ -163,18 +158,11 @@ test.describe('arriving on a screen with a keyboard', () => {
       .toContain(r.focus);
   });
 
-  test('and a pointer press afterwards puts it back to touch behaviour', async ({page}) => {
-    await open(page, '2026-08-01');
-    await sittingOf(page, ['said', 'rain']);
-    // A miss verdict — the screen with the continue button a keyboard user's ring lands on.
-    await page.evaluate(() => { const a = window.__acorn; a.cover(); a.type('zzz'); a.check(); });
-    await page.keyboard.press('Tab');
-    expect((await here(page)).isPrimary).toBe(true);
-    await page.mouse.click(5, 5);                 // she touched the screen
-    await page.evaluate(() => window.__acorn.go('day'));
-    const r = await here(page);
-    expect(r.isPrimary, 'a focus ring was still being moved about for a touch user').toBe(false);
-  });
+  /* (Retired at WIN-1, with the test above.) This drove to a miss verdict, Tabbed onto its
+     continue button (a .primary), then checked a pointer press dropped back to touch behaviour.
+     There is no continue button on a miss any more — it re-traces into a box — so there is no
+     .primary for a keyboard ring to land on. The _kbd-resets-on-pointerdown behaviour it leaned
+     on is unchanged and still exercised wherever focus is asserted after a tap. */
 
 });
 

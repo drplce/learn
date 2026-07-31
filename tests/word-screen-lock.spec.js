@@ -16,7 +16,8 @@ test('word screen main is locked and nothing clips at 1.5x on the smallest phone
   await page.locator('#type').click(); for(const c of 'responsibilty') await page.keyboard.press(c);
   await page.keyboard.press('Enter'); await page.waitForTimeout(200);
   const m = await page.evaluate(() => {
-    const main = document.querySelector('main'); const word = document.querySelector('.word,.marked');
+    // A miss re-traces (WIN-1), so the word on this checked screen is in the trace box (.tracew).
+    const main = document.querySelector('main'); const word = document.querySelector('.word,.tracew');
     const vh = document.documentElement.clientHeight; const wr = word && word.getBoundingClientRect();
     return { overflowY: getComputedStyle(main).overflowY, overflow: main.scrollHeight - main.clientHeight,
              within: wr ? (wr.top >= -1 && wr.bottom <= vh + 1) : false };

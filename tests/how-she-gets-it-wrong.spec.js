@@ -44,12 +44,15 @@ async function ask(page, target, typed){
   await page.evaluate(() => window.__acorn.check());
   return page.evaluate(() => {
     const scr = document.querySelector('#screen');
-    const marked = scr.querySelector('.marked');
+    // A miss re-traces now (WIN-1): the correct word back in its box, the slipped letter marked
+    // in orange (.slip) until she copies past it — instead of the old marked word with <u> under
+    // the letter to fix. The letter pointed at is the same one, drawn a different way.
+    const traced = scr.querySelector('.tracew');
     const v = scr.querySelector('.verdict');
     return {
       verdict: v ? v.textContent.replace(/\s+/g, ' ').trim() : '',
-      look: marked ? [...marked.querySelectorAll('u')].map(u => u.textContent).join('') : '',
-      shown: (marked || scr.querySelector('.word') || {}).textContent || '',
+      look: traced ? [...traced.querySelectorAll('.slip')].map(s => s.textContent).join('') : '',
+      shown: (traced || scr.querySelector('.word') || {}).textContent || '',
       screen: (scr.innerText || '').replace(/\s+/g, ' '),
       // The syllable chunks the seams are drawn under (they come from the correct word's split,
       // never from what she typed — the same guarantee the old chips had to meet).

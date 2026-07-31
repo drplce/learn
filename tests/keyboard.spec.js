@@ -206,10 +206,15 @@ test.describe('keeping the keyboard open', () => {
     expect(await focused(page), 'write stage').toBe('type');
 
     await write(page, 'becuase');
-    await page.keyboard.press('Enter');                        // return submits
-    expect(await focused(page), 'check stage').toBe('kbhold');
+    await page.keyboard.press('Enter');                        // return submits -> miss -> re-trace
+    // WIN-1: a miss re-traces into a box she copies, so the real input keeps focus here too —
+    // the held placeholder (#kbhold) is only needed on a win, the one word screen with no box.
+    expect(await focused(page), 're-trace stage').toBe('type');
 
-    await page.locator('#next').click();                       // the wordless continue after a miss
+    // Copying the re-trace to its end carries her to the next word, another trace, box focused.
+    for(const c of 'because') await page.keyboard.press(c);
+    await page.waitForFunction(() => { const W = window.__acorn.session();
+      return W && !W.retrace && W.stage === 'look'; }, null, {timeout: 2500});
     expect(await focused(page), 'next word').toBe('type');     // the next word traces, box focused
     expect(errorsOf(page)).toEqual([]);
   });

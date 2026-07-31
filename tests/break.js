@@ -138,13 +138,19 @@ async function main(){
          Emoji land here, which is right — three smileys are not a spelling attempt,
          and marking them a miss would drop her box for playing. */
       const letters = /[a-zA-Z]/.test(v);
-      if(await page.locator('#next').count()){
+      const retracing = await page.evaluate(() => { const s = window.__acorn.session(); return !!(s && s.retrace); });
+      if(retracing){
+        // A letter-bearing junk answer is a miss, and a miss re-traces (WIN-1): the way on is the
+        // box she copies into, not a button. It should only ever be reached with letters in it.
         if(!letters) bad('answer ' + JSON.stringify(v.slice(0, 20)),
                          'no letters in it, but it was marked as an attempt');
-        await page.evaluate(() => window.__acorn.next());
+        if(!await page.locator('#type').count())
+          bad('answer ' + JSON.stringify(v.slice(0, 20)), 'a re-trace with no box to copy into');
+        await page.evaluate(() => window.__acorn.next());   // past the re-trace, via the API
         await toWrite();
       }else if(letters){
-        bad('answer ' + JSON.stringify(v.slice(0, 20)), 'was accepted but offered no way on');
+        bad('answer ' + JSON.stringify(v.slice(0, 20)),
+            'a letter answer was neither a win nor a miss/re-trace nor a fumble');
       }else{
         // No letters: same word, untouched, and told what to do.
         const after = await page.evaluate(() => window.__acorn.session().i);
@@ -1267,12 +1273,13 @@ async function main(){
               const shown = sel => { const n = m.querySelector(sel); return !!n && n.getClientRects().length > 0; };
               return {
                 verdict: shown('.verdict'),
-                word: on('.marked') || on('.word'),
+                // A miss re-traces (WIN-1): the word she is shown is in the trace box (.tracew).
+                word: on('.marked') || on('.word') || on('.tracew'),
                 note: shown('.note'),
                 dots: shown('.dots'),
                 // The seam over the word, when it has more than one syllable — it rides on the
                 // word, so it is there whenever the word is.
-                seams: !!m.querySelector('.marked .seams, .word .seams'),
+                seams: !!m.querySelector('.tracew .seams, .word .seams'),
                 clipped: m.scrollHeight > m.clientHeight + 1,
                 sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
                 // Anything at all she can read, ignoring the buttons.
@@ -1898,12 +1905,14 @@ async function main(){
             if(a.session().stage === 'look') a.cover();
             a.type(ty); a.check();
             const scr = document.querySelector('#screen');
-            const marked = scr.querySelector('.marked');
+            // A miss re-traces now (WIN-1): the correct word back in its box (.tracew), the
+            // slipped letter orange (.slip) — instead of the old marked word with <u>.
+            const traced = scr.querySelector('.tracew');
             const v = scr.querySelector('.verdict');
             return {
               verdict: v ? v.textContent.replace(/\s+/g, ' ').trim() : '',
-              look: marked ? [...marked.querySelectorAll('u')].map(u => u.textContent).join('') : '',
-              shown: ((marked || scr.querySelector('.word') || {}).textContent || '').trim(),
+              look: traced ? [...traced.querySelectorAll('.slip')].map(s => s.textContent).join('') : '',
+              shown: ((traced || scr.querySelector('.word') || {}).textContent || '').trim(),
               screen: (scr.innerText || '').replace(/\s+/g, ' '),
               box: (a.state.words.mastery[t] || {}).box,
               alive: scr.children.length > 0,
@@ -2175,13 +2184,16 @@ async function main(){
         await page.waitForTimeout(80);
         const r = await page.evaluate(() => {
           const v = document.querySelector('.verdict');
+          // "Marked the whole word" now means every letter of the re-trace shown as a slip
+          // (orange) — the WIN-1 equivalent of the old all-<u> marked word. The slip logic
+          // never marks a majority (a close miss marks only the unmatched letters, and below
+          // half-matched marks nothing), so this must never be true.
+          const traced = document.querySelector('.tracew');
           let allMarked = false;
-          for(const el of document.querySelectorAll('#screen *')){
-            if(el.querySelector && el.querySelector('u') && el.children.length
-               && [...el.children].every(c => /^(U|B)$/.test(c.tagName))){
-              allMarked = el.querySelectorAll('u').length > 0 && el.querySelectorAll('b').length === 0;
-              break;
-            }
+          if(traced){
+            const letters = [...traced.querySelectorAll('span')].filter(s => !s.querySelector('span'));
+            const slips = letters.filter(s => s.classList.contains('slip'));
+            allMarked = letters.length > 0 && slips.length === letters.length;
           }
           return { verdict: v ? v.textContent : null,
                    won: !!document.querySelector('.word.won'),   // WIN-5: a correct spelling

@@ -194,11 +194,14 @@ test.describe('getting it wrong', () => {
     await page.evaluate(() => window.__acorn.check());
     // one letter out of place, so the wording is singular
     await expect(page.locator('.verdict.again')).toHaveText('So close. Look at this letter.');
-    await expect(page.locator('.marked u')).toHaveCount(1);       // the letter to look at
+    // WIN-1: a miss re-traces — the word back in its box, the slipped letter orange (.slip),
+    // and she copies it. One letter out, so one orange letter and the box to copy it into.
+    await expect(page.locator('.tracew .slip')).toHaveCount(1);   // the letter to look at
+    await expect(page.locator('#type')).toBeVisible();            // the box she re-copies into
+    await expect(page.locator('#next')).toHaveCount(0);           // no chevron — copying carries her on
     const body = await page.locator('#screen').innerText();
     expect(body).not.toContain('becuase');
     expect(body).not.toMatch(/wrong|incorrect|failed|bad/i);
-    await expect(page.locator('#next')).toBeVisible();            // no immediate re-copy
   });
 
   test('several letters out of place reads as plural', async ({page}) => {
@@ -208,7 +211,7 @@ test.describe('getting it wrong', () => {
     await write(page, 'togthr');        // drops the e and an e, so two unmatched
     await page.evaluate(() => window.__acorn.check());
     await expect(page.locator('.verdict.again')).toHaveText(/Look at these letters/);
-    expect(await page.locator('.marked u').count()).toBeGreaterThan(1);
+    expect(await page.locator('.tracew .slip').count()).toBeGreaterThan(1);
   });
 
   test('adding letters is pointed at, not just named', async ({page}) => {
@@ -228,9 +231,10 @@ test.describe('getting it wrong', () => {
        ways to reach it are doubled letters. */
     await expect(page.locator('.verdict.again'))
       .toHaveText('So close — there’s an extra bit here.');
-    await expect(page.locator('.marked')).toHaveCount(1);
-    await expect(page.locator('.marked')).toHaveText('together');
-    await expect(page.locator('.marked u')).toHaveText('e');   // the a went in after it
+    // The re-trace shows the correct word in its box; the letter her extra one went in after is
+    // the orange one she copies past.
+    await expect(page.locator('.tracew')).toHaveText('together');
+    await expect(page.locator('.tracew .slip')).toHaveText('e');   // the a went in after it
     const body = await page.locator('#screen').innerText();
     expect(body).not.toContain('togeather');
   });
@@ -250,7 +254,7 @@ test.describe('getting it wrong', () => {
       await write(page, attempt);
       await page.evaluate(() => window.__acorn.check());
       const verdict = await page.locator('.verdict').innerText();
-      const marked = await page.locator('.marked u').count();
+      const marked = await page.locator('.tracew .slip').count();   // WIN-1: the orange re-trace letters
       if(/Look at (this letter|these letters)/.test(verdict))
         expect(marked, `${attempt} -> ${word}`).toBeGreaterThan(0);
       if(/this letter\.$/.test(verdict)) expect(marked, `${attempt} -> ${word}`).toBe(1);
@@ -298,8 +302,10 @@ test.describe('getting it wrong', () => {
     await write(page, 'zzqq');
     await page.evaluate(() => window.__acorn.check());
     await expect(page.locator('.verdict.again')).toHaveText(/Here it is/);
-    await expect(page.locator('.marked')).toHaveCount(0);
-    await expect(page.locator('.word')).toHaveText('because');
+    // A wild guess is barely half right, so nothing is marked orange — she simply re-copies the
+    // whole word, no letter singled out. The word shows in its box, correctly spelt.
+    await expect(page.locator('.tracew .slip')).toHaveCount(0);
+    await expect(page.locator('.tracew')).toHaveText('because');
   });
 
   test('the word comes back later in the same session, from memory', async ({page}) => {
@@ -2046,14 +2052,16 @@ test.describe('what a screen reader is told', () => {
     expect(await page.locator('.tracew').textContent()).toBe('because');
   });
 
-  test('the marked word is spelt out too', async ({page}) => {
+  test('the re-traced word is spelt out too', async ({page}) => {
     await open(page, '2026-08-01');
     await startOn(page, ['because','rain','boat']);
     await page.evaluate(() => window.__acorn.cover());
     await write(page, 'becuase');
     await page.evaluate(() => window.__acorn.check());
-    await expect(page.locator('.marked')).toHaveAttribute('aria-label', 'b e c a u s e');
-    expect(await page.locator('.marked').textContent()).toBe('because');
+    // A miss re-traces (WIN-1); the word she copies back carries the same spelled-out label a
+    // shown word does, and its own text stays the clean word.
+    await expect(page.locator('.tracew')).toHaveAttribute('aria-label', 'b e c a u s e');
+    expect(await page.locator('.tracew').textContent()).toBe('because');
   });
 
   test('the progress bar does not announce over the top of the verdict', async ({page}) => {

@@ -140,8 +140,9 @@ test.describe('what a screen reader is told', () => {
 
   test('the letter to look at is named, not pointed at', async ({page}) => {
     await open(page, '2026-08-01');
-    // On screen the letter is marked. Marked-up text reads out as "s a i d" with
-    // no hint which one, because <u> against <b> carries nothing to read.
+    // On screen the slipped letter is marked orange in the re-trace (WIN-1). To a screen reader
+    // that colour carries nothing — the word is one role=img with a spelled-out label — so the
+    // announcement has to NAME the letter rather than point at it.
     const r = await page.evaluate(() => {
       const a = window.__acorn;
       a.state.words.lists = [{id:'x', name:'T', words:['said']}];
@@ -152,9 +153,9 @@ test.describe('what a screen reader is told', () => {
       a.type('sid'); a.check();                       // one letter missing: a
       return {heard: document.querySelector('#say').textContent.trim(),
               seen: document.querySelector('#screen .verdict').textContent.trim(),
-              marked: !!document.querySelector('#screen .marked')};
+              marked: !!document.querySelector('#screen .tracew .slip')};
     });
-    expect(r.marked, 'this attempt was not close enough to be marked').toBe(true);
+    expect(r.marked, 'this attempt was not close enough to mark the slipped letter').toBe(true);
     expect(r.seen).toMatch(/Look at this letter/);
     expect(r.heard, `pointed instead of named: "${r.heard}"`).toMatch(/Look at the letter a\./);
     // Never her own spelling, here or anywhere.

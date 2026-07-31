@@ -46,10 +46,12 @@ async function checkAt(page, w, h, scale, word){
       dots: on('.dots'),
       cramped: document.documentElement.hasAttribute('data-cramped'),
       // The seam overlay drawn over the word, when the word has more than one syllable.
-      seams: !!m.querySelector('.marked .seams, .word .seams'),
+      seams: !!m.querySelector('.tracew .seams, .word .seams'),
       clipped: m.scrollHeight > m.clientHeight + 1,
       sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
-      wordShown: on('.marked') || on('.word'),
+      // A miss re-traces now (WIN-1), so the word she is shown is in the trace box (.tracew), not
+      // a marked word — either way she must never be left with no word on the screen.
+      wordShown: on('.marked') || on('.word') || on('.tracew'),
     };
   }, {s: scale, word: word});
 }

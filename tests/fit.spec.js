@@ -77,16 +77,17 @@ test.describe('nothing is ever half shown', () => {
     const seen = await page.evaluate(() => {
       const vis = s => { const n = document.querySelector(s);
                          return !!n && !!n.getBoundingClientRect().height; };
-      // The pieces are the seams drawn under the word now, not a separate chip row — they ride
-      // on the word itself, so they cannot be shed out from under it.
-      return {word: vis('.marked') || vis('.word'),
-              seams: !!document.querySelector('.marked .seams, .word .seams'),
-              action: !!document.querySelector('#act button')};
+      // A near miss re-traces now (WIN-1): the word is back in its box (.tracew), the pieces are
+      // the seams drawn under it, and the way on is copying the word (the #type box) rather than
+      // a chevron. The seams ride on the word itself, so they cannot be shed out from under it.
+      return {word: vis('.marked') || vis('.word') || vis('.tracew'),
+              seams: !!document.querySelector('.tracew .seams, .word .seams'),
+              wayon: !!document.querySelector('#act button') || !!document.querySelector('#type')};
     });
     // Whatever had to go, these did not.
     expect(seen.word, 'the word itself').toBe(true);
     expect(seen.seams, 'the syllable pieces, drawn under the word').toBe(true);
-    expect(seen.action, 'the way on').toBe(true);
+    expect(seen.wayon, 'the way on').toBe(true);
   });
 
   // She is still told how she did, whatever the screen had room to draw.
