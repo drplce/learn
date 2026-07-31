@@ -288,8 +288,15 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
    the "type it to trace it" note and the syllable chips still fit above the keyboard — the
    breathing room inside the box is cheap to give up; the word and the box are not. */
 :root[data-tight] .trace{padding-block:0;}
-.tracew{width:100%; text-align:center; font-weight:700; line-height:1.35;
-        letter-spacing:.06em; word-spacing:.1em; padding-bottom:.08em; overflow-wrap:anywhere;
+/* No line-height of its own: it inherits the app's base line-height, which is exactly
+   what the writing box's <input> does too (.spellin sets no line-height). So the trace
+   letters and the written letters share one line-box, and the trace box and the writing
+   box come out the SAME height at every text scale — the box no longer "grows" ~10px on
+   the trace->write flip. (It used to force 1.35 with a .08em descender pad, ~10px short of
+   the input's inherited 1.7 line-box; the taller inherited line-box clears the descenders,
+   so the pad is gone.) */
+.tracew{width:100%; text-align:center; font-weight:700;
+        letter-spacing:.06em; word-spacing:.1em; overflow-wrap:anywhere;
         position:relative; z-index:1;                 /* the lit letters ride above the hair */
         font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (max(var(--wl,6), 12) * .8)), var(--t-3xl));}
 .tracew .on{color:var(--ink);}                        /* copied — solid */
@@ -642,7 +649,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.12';
+var VERSION = '13.13';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2593,7 +2600,7 @@ function renderWord(){
          // means "this is where you write", and the trace is a writing moment (she copies
          // the word into it). Same seed 'box' as the write screen, so it is visibly the
          // SAME box carrying over from trace to write. The lit-letter guidance rides on top.
-         +   '<svg class="hair" viewBox="0 0 ' + HAIR_W + ' ' + HAIR_H + '" preserveAspectRatio="none" aria-hidden="true">'
+         +   '<svg class="hair" viewBox="' + HAIR_VB + '" preserveAspectRatio="none" aria-hidden="true">'
          +     '<path d="' + boxHairPath('box') + '"/></svg>'
          // role=img with the word spelled out, exactly as the shown word carries it
          // elsewhere: a screen reader gets the spelling, not the letters read as a word,
@@ -2631,7 +2638,7 @@ function renderWord(){
          // the same job in five.
          + (cue ? '<p class="cue">means: <b>' + esc(cue) + '</b></p>' : '');
     wordslot = '<div class="spellinwrap">'
-         +   '<svg class="hair" viewBox="0 0 ' + HAIR_W + ' ' + HAIR_H + '" preserveAspectRatio="none" aria-hidden="true">'
+         +   '<svg class="hair" viewBox="' + HAIR_VB + '" preserveAspectRatio="none" aria-hidden="true">'
          +     '<path d="' + boxHairPath('box') + '"/></svg>'
          +   '<input class="spellin" id="type" type="text" inputmode="text" autocomplete="off" '
          +   'autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" '
@@ -3466,6 +3473,15 @@ function cellPath(w, x, y, r){ return blobPath(cellPoints(w, x, y, r)); }
    so the wobble follows the box but the line stays hairline-thin. Seeded, so it is the
    same edge every render and never crawls. */
 var HAIR_W = 320, HAIR_H = 84;
+/* The viewBox carries a uniform margin around the box on all four sides, so the jittered
+   perimeter points (up to +-amp off each edge) never reach the viewBox boundary. With
+   preserveAspectRatio="none" a point sitting on the boundary lands on the element edge,
+   where the non-scaling stroke straddles it and renders thin/clipped — which is why the
+   right and bottom edges came out lighter than the left. The margin (>= amp + stroke)
+   insets every edge equally, so the hairline is one uniform weight all the way round.
+   Both the trace box and the writing box draw from this same viewBox, so it fixes both. */
+var HAIR_M = 5;
+var HAIR_VB = (-HAIR_M) + ' ' + (-HAIR_M) + ' ' + (HAIR_W + 2 * HAIR_M) + ' ' + (HAIR_H + 2 * HAIR_M);
 function boxHairPath(seed){
   var rnd = seeded('hair' + seed), amp = 3.4, R = 20, W = HAIR_W, H = HAIR_H, pts = [], i, n = 3;
   function push(x, y, nx, ny){ pts.push([x + nx * (rnd() - .5) * 2 * amp, y + ny * (rnd() - .5) * 2 * amp]); }
