@@ -2140,6 +2140,57 @@ async function main(){
     await ctx.close();
   }
 
+  // ---- 34. the marking never blames her, and never marks the whole word
+  {
+    console.log('\n34. marking stays kind across a fuzz of misspellings');
+    const {page, ctx, errs} = await fresh(browser, '2026-08-01');
+    const WORDS = ['because', 'different', 'beautiful', 'question', 'together'];
+    const BLAME = /\b(wrong|failed|fail|bad|incorrect|mistake|error|nope)\b/i;
+    let checked = 0, faults = 0;
+    for(const target of WORDS){
+      // The correct spelling plus three realistic single edits: a dropped letter,
+      // a swapped pair, a doubled letter. All the shapes a tired hand makes.
+      const edits = [
+        target,
+        target.slice(0, 1) + target.slice(2),
+        target.slice(0, 1) + target[2] + target[1] + target.slice(3),
+        target.slice(0, 1) + target[1] + target[1] + target.slice(2),
+      ];
+      for(const attempt of edits){
+        await page.evaluate(t => {
+          const a = window.__acorn;
+          a.state.words.lists = [{id:'w', name:'T', words:[t]}];
+          a.state.words.activeId = 'w';
+          a.state.words.mastery = {[t]:{right:3, wrong:0, box:2, lastSeen:'2026-06-01'}};
+          a.state.words.sessions = []; a.save(); a.go('day'); a.start();
+        }, target);
+        await page.locator('#type').click().catch(() => {});
+        for(const c of attempt) await page.keyboard.press(c);
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(80);
+        const r = await page.evaluate(() => {
+          const v = document.querySelector('.verdict');
+          let allMarked = false;
+          for(const el of document.querySelectorAll('#screen *')){
+            if(el.querySelector && el.querySelector('u') && el.children.length
+               && [...el.children].every(c => /^(U|B)$/.test(c.tagName))){
+              allMarked = el.querySelectorAll('u').length > 0 && el.querySelectorAll('b').length === 0;
+              break;
+            }
+          }
+          return { verdict: v ? v.textContent : null, allMarked };
+        });
+        checked++;
+        if(!r.verdict){ bad('marking fuzz', 'no verdict for "' + attempt + '" (' + target + ')'); faults++; }
+        else if(BLAME.test(r.verdict)){ bad('marking fuzz', 'blame in "' + r.verdict + '"'); faults++; }
+        else if(r.allMarked){ bad('marking fuzz', 'every letter marked for "' + attempt + '" (' + target + ')'); faults++; }
+      }
+    }
+    if(errs.length){ bad('marking fuzz', errs[0]); faults++; }
+    if(!faults) ok(checked + ' misspellings judged: every verdict kind, none marked the whole word');
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));
