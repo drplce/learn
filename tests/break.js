@@ -595,7 +595,7 @@ async function main(){
     // and she can still finish the word
     await write(page, 'because');
     await page.keyboard.press("Enter");
-    if(!await page.locator('.verdict.ok').count()) bad('keyboard', 'could not finish the word');
+    if(!await page.locator('.word.won').count()) bad('keyboard', 'could not finish the word');
     else ok('and she can still finish it');
     if(errs.length) bad('keyboard', errs.join(' | '));
     await page.screenshot({path: OUT + '/break-17-keyboard.png'});
@@ -2126,13 +2126,15 @@ async function main(){
     await page.waitForTimeout(200);
     const r = await page.evaluate(() => ({
       verdict: (document.querySelector('.verdict') || {}).textContent || null,
+      won: !!document.querySelector('.word.won'),          // WIN-5: a correct answer is the green word
       box: (document.querySelector('#type') || {}).value || '',
       box_of_word: window.__acorn.mastery('rain').box,
     }));
-    // A hand-back is a silent reset: no verdict and the box wiped, on a word she just
-    // hand-typed. Her honest answer must instead be judged and advance the word a box.
+    // A hand-back is a silent reset: no result of any kind (no verdict AND no win) and the
+    // box wiped, on a word she just hand-typed. Her honest answer must instead be judged and
+    // advance the word a box.
     if(stillFlagged) bad('mic on the trace', 'notWritten survived into the write stage');
-    else if(!r.verdict && r.box === '') bad('mic on the trace', 'her hand-written answer was handed back');
+    else if(!r.verdict && !r.won && r.box === '') bad('mic on the trace', 'her hand-written answer was handed back');
     else if(r.box_of_word !== 2) bad('mic on the trace', 'the hand-written answer did not count (box ' + r.box_of_word + ')');
     else ok('a mic tap on the trace never reaches the blind write she does by hand');
     if(errs.length) bad('mic on the trace', errs.join(' | '));
@@ -2178,11 +2180,15 @@ async function main(){
               break;
             }
           }
-          return { verdict: v ? v.textContent : null, allMarked };
+          return { verdict: v ? v.textContent : null,
+                   won: !!document.querySelector('.word.won'),   // WIN-5: a correct spelling
+                   allMarked };                                   // is the green word, no verdict
         });
         checked++;
-        if(!r.verdict){ bad('marking fuzz', 'no verdict for "' + attempt + '" (' + target + ')'); faults++; }
-        else if(BLAME.test(r.verdict)){ bad('marking fuzz', 'blame in "' + r.verdict + '"'); faults++; }
+        // A correct spelling (the first edit) now shows as the green word, not a caption —
+        // that is a kind result too, so accept either the win or a verdict.
+        if(!r.verdict && !r.won){ bad('marking fuzz', 'no result for "' + attempt + '" (' + target + ')'); faults++; }
+        else if(r.verdict && BLAME.test(r.verdict)){ bad('marking fuzz', 'blame in "' + r.verdict + '"'); faults++; }
         else if(r.allMarked){ bad('marking fuzz', 'every letter marked for "' + attempt + '" (' + target + ')'); faults++; }
       }
     }

@@ -301,6 +301,6 @@ test.describe('keeping the keyboard open', () => {
     expect(await page.locator('#type').inputValue()).toBe('');
     await write(page, 'because');
     await page.keyboard.press("Enter");
-    await expect(page.locator('.verdict.ok')).toBeVisible();
+    await expect(page.locator('.word.won')).toBeVisible();   // WIN-5: the win is the green word
   });
 });

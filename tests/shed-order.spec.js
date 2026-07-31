@@ -144,10 +144,21 @@ test.describe('what gets dropped when it will not fit', () => {
       sweep();                                            // writing it
       a.type('beatiful'); a.check(); sweep();             // the marked word and a verdict
       a.next();
-      // Right first go, for the other verdict colour.
-      fresh(); on(['said']);
+      // Missed once, then got it on the way back round: the earned "You got there."
+      // verdict (.verdict.ok) and the winning word going green (.word.won). Since WIN-5 a
+      // plain first-go win shows no verdict line at all, so the earned path is the only one
+      // that renders .ok — a right-first-go here would leave it dead.
+      fresh(); on(['said', 'rain']);
       if(a.session().stage === 'look') a.cover();
-      a.type('said'); a.check(); sweep();
+      a.type('sed'); a.check(); sweep();                  // a miss: the marked word + 'again'
+      for(let g = 0; g < 8 && a.session(); g++){
+        const W = a.session();
+        if(W.words[W.i] === 'said' && W.stage !== 'look'){ a.type('said'); a.check(); break; }
+        if(W.stage === 'look'){ a.cover(); continue; }
+        if(W.stage === 'write'){ a.type(W.words[W.i]); a.check(); a.next(); continue; }
+        a.next();
+      }
+      sweep();                                            // earned win: .verdict.ok + .word.won
       // A word with a twin, so the meaning cue is on the writing screen.
       fresh(); on(['licence', 'practise']);
       if(a.session().stage === 'look') a.cover();

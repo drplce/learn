@@ -26,6 +26,7 @@ async function answer(page, target, typed){
     const m = a.state.words.mastery[o.target] || {};
     const v = document.querySelector('.verdict, .headline');
     return {right: m.right || 0, wrong: m.wrong || 0, verdict: (v ? v.textContent : '').trim(),
+            won: !!document.querySelector('.word.won'),   // WIN-5: the green word IS the win
             said: ((document.querySelector('#say') || {}).textContent || '').trim()};
   }, {target, typed});
 }
@@ -43,7 +44,7 @@ test.describe('the apostrophe her phone types', () => {
       const r = await answer(page, target, typed);
       expect(r.wrong, `${typed} for ${target} was marked wrong`).toBe(0);
       expect(r.right, `${typed} for ${target} did not count`).toBe(1);
-      expect(r.verdict).toMatch(/that’s it|Yes/i);
+      expect(r.won, `${typed} for ${target} did not show the win`).toBe(true);
     }
     expect(errorsOf(page)).toEqual([]);
   });

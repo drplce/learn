@@ -32,7 +32,11 @@ async function typeReal(page, word, typed){
   return page.evaluate(w => {
     const a = window.__acorn, m = a.mastery(w), s = a.session();
     const v = (document.querySelector('.verdict') || {}).textContent || '';
-    return {right: /that’s it|got there/.test(v), verdict: v, box: m.box,
+    // Since WIN-5 a win is signalled by the word itself going green (.word.won), not by a
+    // "that's it" caption — the plain win has no verdict line at all. .won is on both the
+    // plain and the earned win, so it is the reliable "she got it" tell.
+    const won = !!document.querySelector('.word.won');
+    return {right: won, verdict: v, box: m.box,
             wrong: m.wrong, rights: m.right, stage: s && s.stage,
             toast: (document.querySelector('#toast') || {}).textContent || ''};
   }, word);

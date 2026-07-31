@@ -247,6 +247,23 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
   font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (max(var(--wl,6), 12) * .8)), var(--t-3xl));}
 .marked b{color:var(--ink); font-weight:700;}
 .marked u{color:var(--retry); text-decoration:none; border-bottom:3px solid var(--retry);}
+/* The success moment (WIN-5, decision D-c): a correct word IS the reward — it turns
+   the accent green, the same green as the pebbles, the trace letter and her map, so it
+   visibly joins the things she is collecting, and breathes once. No "Yes — that's it."
+   caption above it any more; the word says it. The colour settle lives INSIDE the
+   keyframe (ink -> green by 40%) rather than a transition, because the word block is
+   built fresh each render and a transition has no prior state to move from; folding it
+   in makes the whole cue fire on insertion with no JS. +4% peak is under the app's own
+   +7% swatch emphasis and eases back to rest — a breath, not a bounce. The app's first
+   @keyframes. Under prefers-reduced-motion the global rule zeroes the duration, leaving
+   exactly the end state: green, at rest. --acc at this weight is AA on cream (5.5:1) and
+   dark (7.4:1), certified with the trace letter. */
+@keyframes acorn-settle{
+  0%{transform:scale(1); color:var(--ink);}
+  40%{transform:scale(1.04); color:var(--acc);}
+  100%{transform:scale(1); color:var(--acc);}
+}
+.word.won{color:var(--acc); animation:acorn-settle var(--m-quick) var(--ease);}
 
 /* The trace, on a never-met word. The letters carry the state and a transparent input
    over the top takes the keyboard: tapping anywhere on the word focuses it, and only
@@ -257,15 +274,29 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
    the announcement. The lit letter is the accent green — measured AA on cream (5.5:1) and
    in dark (7.4:1), like the other two inks — and none is faded by opacity, so every tint
    clears contrast. */
+/* The trace box carries the same pebble-echo edge as the writing box (its hair SVG is a
+   sibling here), so the padding and radius match .spellin's — the box she copies into and
+   the box she writes into are one and the same, drawn identically. */
+/* Vertical padding only: the letters keep the full content width the locked font size was
+   measured against, so a long word fills the box without wrapping. (The writing box can
+   afford side padding because its <input> never wraps — it overflows instead; the trace is
+   a wrapping element, so horizontal padding there would break a long word onto two lines.) */
 .trace{position:relative; min-height:var(--tap); margin:var(--s2) 0 var(--s1);
+       padding:var(--s3) 0; border-radius:var(--r-md);
        display:flex; align-items:center; justify-content:center;}
+/* When the screen is tight (landscape, keyboard up, big text) the box hugs the letters so
+   the "type it to trace it" note and the syllable chips still fit above the keyboard — the
+   breathing room inside the box is cheap to give up; the word and the box are not. */
+:root[data-tight] .trace{padding-block:0;}
 .tracew{width:100%; text-align:center; font-weight:700; line-height:1.35;
         letter-spacing:.06em; word-spacing:.1em; padding-bottom:.08em; overflow-wrap:anywhere;
+        position:relative; z-index:1;                 /* the lit letters ride above the hair */
         font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (max(var(--wl,6), 12) * .8)), var(--t-3xl));}
 .tracew .on{color:var(--ink);}                        /* copied — solid */
 .tracew .off{color:var(--ink-soft);}                  /* not reached — the app's soft ink, still AA */
 .tracew .now{color:var(--acc);}                       /* next — the letter she is on, lit green */
 .tracein{position:absolute; inset:0; width:100%; min-height:var(--tap); border:0; padding:0;
+         z-index:2;                                   /* the keyboard-catching layer, above both */
          background:transparent; color:transparent; -webkit-text-fill-color:transparent;
          caret-color:transparent; text-align:center; font:inherit;}
 .tracein:focus{outline:none;}
@@ -354,10 +385,10 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* The wordless carry-on / finish button: a chevron or tick, no label. Sized off the tap
    scale like every .primary, the icon centred in it. */
 .iconbtn svg{width:calc(var(--t-xl) * var(--ornament)); height:calc(var(--t-xl) * var(--ornament)); flex:none;}
-/* The win verdict is the tap target that skips the auto-advance wait, so give it room to
-   be tapped even when the line of text is short. */
-.verdict#advance{min-height:var(--tap); display:flex; align-items:center; justify-content:center;
-                 padding:0 var(--s3); cursor:pointer;}
+/* The winning word is the tap target that skips the auto-advance wait (id="advance"
+   lives on it now, not on a verdict line — WIN-5). It is already a big touch area, so it
+   needs no extra sizing; just show it is tappable. */
+.word#advance{cursor:pointer;}
 .quiet{display:block; width:100%; margin-top:var(--s3); min-height:var(--tap);
        border-radius:var(--r-md); color:var(--ink-soft); font-size:var(--t-md);
        font-weight:600; border:1px solid var(--line); background:var(--surface-2);}
@@ -611,7 +642,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.11';
+var VERSION = '13.12';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2147,8 +2178,9 @@ function spellOut(w){ return String(w).split('').join(' '); }
 // makes the label authoritative over the contents — on a role-less div the
 // label is not reliably exposed, and a second visually-hidden copy would put
 // the word into the element's own text twice.
-function wordBlock(cls, inner, word, style){
-  return '<div class="' + cls + '" role="img" aria-label="' + esc(spellOut(word)) + '"'
+function wordBlock(cls, inner, word, style, id){
+  return '<div class="' + cls + '"' + (id ? ' id="' + id + '"' : '')
+       + ' role="img" aria-label="' + esc(spellOut(word)) + '"'
        + style + '>' + inner + '</div>';
 }
 var _said = '';
@@ -2557,6 +2589,12 @@ function renderWord(){
       return '<span class="' + cls + '">' + esc(c) + '</span>';
     }).join('');
     wordslot = '<div class="trace"' + wl + '>'
+         // The same pebble-echo box as the writing screen sits behind the trace — the box
+         // means "this is where you write", and the trace is a writing moment (she copies
+         // the word into it). Same seed 'box' as the write screen, so it is visibly the
+         // SAME box carrying over from trace to write. The lit-letter guidance rides on top.
+         +   '<svg class="hair" viewBox="0 0 ' + HAIR_W + ' ' + HAIR_H + '" preserveAspectRatio="none" aria-hidden="true">'
+         +     '<path d="' + boxHairPath('box') + '"/></svg>'
          // role=img with the word spelled out, exactly as the shown word carries it
          // elsewhere: a screen reader gets the spelling, not the letters read as a word,
          // and the per-letter state colours are hidden behind the one label.
@@ -2669,18 +2707,27 @@ function renderWord(){
     // Spelt out letter by letter: a screen reader would otherwise read the word
     // as a word and never convey the spelling, which is the whole point here.
     announce(said_ + ' ' + w + '. ' + spellOut(w) + '.');
-    above = dots + '<div class="verdict ' + (ok ? 'ok' : 'again') + '"'
-         // On a win the app carries her on by itself; tapping the verdict skips the
-         // wait, so the whole line is the tap target for that.
-         + (ok ? ' id="advance"' : '') + '>' + verdict + '</div>';
+    /* The every-time "Yes — that's it." is gone (WIN-5): on a plain win the word itself
+       greens and breathes, and a caption saying what the colour already says only added
+       noise. Two lines survive because they carry something the green cannot: the EARNED
+       "You got there." after she fought back from a miss, and every miss's own steer. The
+       spoken announcement is untouched — it still says the verdict, so nothing is lost to
+       the ear. */
+    var earned = ok && W.failed.indexOf(w) >= 0;
+    above = dots + ((!ok || earned)
+         ? '<div class="verdict ' + (ok ? 'ok' : 'again') + '">' + verdict + '</div>'
+         : '');
     // Only ever the correct spelling on screen. Seeing her own misspelling
     // is the one thing that measurably sets spelling back.
     /* The extra-letter case belongs on the marked side. It is not "close" by the
        half-matched test — close requires something missing, and here nothing is —
        so it fell through to the plain word, and the one letter its verdict now
        points at had nowhere to appear. */
-    wordslot = (ok || (!close && !extra) ? wordBlock('word', esc(w), w, wl)
-                                         : wordBlock('marked', marks, w, wl));
+    /* On a win the word is the reward (greens + breathes) AND the tap-to-skip-the-wait
+       target — id="advance" moves here from the old verdict line. */
+    wordslot = (ok || (!close && !extra)
+                 ? wordBlock(ok ? 'word won' : 'word', esc(w), w, wl, ok ? 'advance' : '')
+                 : wordBlock('marked', marks, w, wl));
     below = sylRow
          // Words first, then what happens next, then the buttons — so what she
          // reads runs top to bottom without a button interrupting it.

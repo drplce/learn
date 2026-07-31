@@ -30,7 +30,8 @@ test('a mic tap on the trace does not hand back the later hand-written answer', 
   await page.keyboard.type('rain', {delay:8});
   await page.keyboard.press('Enter');
   await page.waitForTimeout(200);
-  // she gets a real verdict, not a silent hand-back (empty box, no verdict)
-  await expect(page.locator('.verdict.ok')).toBeVisible();
+  // she gets a real result, not a silent hand-back (empty box, no feedback). WIN-5: a
+  // plain win shows as the word going green, not a "that's it" line.
+  await expect(page.locator('.word.won')).toBeVisible();
   expect(await page.evaluate(() => window.__acorn.mastery('rain').box)).toBe(2);
 });

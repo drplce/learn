@@ -117,7 +117,10 @@ test.describe('a word she has never met', () => {
     await expect(page.locator('.note')).toHaveCount(0);
     await write(page, 'friend');
     await page.keyboard.press('Enter');
-    await expect(page.locator('.verdict.ok')).toHaveText(/that’s it/);
+    // WIN-5: a plain win is the word going green (.word.won), not a "that's it" caption —
+    // there is no verdict line on a first-try win any more.
+    await expect(page.locator('.word.won')).toHaveText('friend');
+    await expect(page.locator('.verdict')).toHaveCount(0);
     expect(await page.evaluate(() => window.__acorn.mastery('friend').box)).toBe(2);
     expect(errorsOf(page)).toEqual([]);
   });
@@ -165,7 +168,7 @@ test.describe('a word she already knows', () => {
     await page.evaluate(() => window.__acorn.cover());
     await write(page, 'rain');
     await page.locator('#type').press('Enter');
-    await expect(page.locator('.verdict.ok')).toBeVisible();
+    await expect(page.locator('.word.won')).toBeVisible();   // WIN-5: the win is the green word
   });
 });
 
@@ -2337,7 +2340,7 @@ test.describe('robustness', () => {
     await page.evaluate(() => window.__acorn.cover());
     await write(page, 'rain');
     await page.evaluate(() => window.__acorn.check());
-    await expect(page.locator('.verdict')).toBeVisible();
+    await expect(page.locator('.word.won')).toBeVisible();   // WIN-5: a plain win is the green word
     // And a grown-up is told, on the grown-ups screen only.
     await page.evaluate(() => window.__acorn.go('parent'));
     await expect(page.locator('#nosave')).toContainText(/isn’t saving/);

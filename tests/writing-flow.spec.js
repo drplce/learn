@@ -101,7 +101,7 @@ test.describe('submitting and advancing', () => {
     await expect(page.locator('#check')).toHaveCount(0);        // no visible Check button
     await write(page, 'rain');
     await page.keyboard.press('Enter');
-    await expect(page.locator('.verdict.ok')).toBeVisible();
+    await expect(page.locator('.word.won')).toBeVisible();   // WIN-5: the win is the green word
   });
 
   test('a correct answer auto-advances within ~1.6s, no tap', async ({page}) => {
@@ -110,7 +110,7 @@ test.describe('submitting and advancing', () => {
     await page.evaluate(() => window.__acorn.cover());
     await write(page, 'rain');
     await page.keyboard.press('Enter');
-    await expect(page.locator('.verdict.ok')).toBeVisible();
+    await expect(page.locator('.word.won')).toBeVisible();   // WIN-5: the win is the green word
     const i0 = await page.evaluate(() => window.__acorn.session().i);
     // No tap: the app carries her on by itself.
     await page.waitForFunction(i => window.__acorn.session() && window.__acorn.session().i > i,

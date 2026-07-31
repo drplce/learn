@@ -21,10 +21,10 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
 
 ## THEN — UX batch
 - ⬜ **WIN-1** — Miss → re-trace the word, letter-slip emphasised, instead of "Look at this letter." [batch 8]
-- 🔨 **WIN-2** — Write-box edge shipped (13.10): Option 4 "pebble-echo" hairline — a seeded, hand-drawn accent-green edge that undulates like the pebbles, drawn behind a transparent input via `boxHairPath()`+`blobPath`, non-scaling stroke. **→ verify on phone.** (Syllable-underline variant on the read/trace word still open.) [batch 4]
+- ✅ **WIN-2** — Pebble-echo box shipped. 13.10: write box (seeded hand-drawn accent-green hairline via `boxHairPath()`+`blobPath`, non-scaling stroke, behind a transparent input). 13.12: **the same box now frames the trace too** (decision: box = "where you write"; the trace is a writing moment). Same seed 'box' so trace→write is one box; centre holds 338–340px across trace/write/check; the lit-green letter rides on top (David: the two greens read clean). Vertical padding only (the letters keep full width so long words don't wrap), shed on `data-tight`. Guarded by `tests/trace-box.spec.js`. (Syllable-underline variant on the read word is a separate, still-open idea.) [batch 4]
 - ⬜ **WIN-3** — Per-word pebbles + two-pass green depth (light → deeper). [batch 1]
 - ⬜ **WIN-4** — Ditch speaker button → word/chips/cover tap-to-hear + ~8s stuck-fade cue. [batch 2+3]
-- ⬜ **WIN-5** — Drop "Yes — that's it" → green + subtle size pulse; keep earned "You got there." [batch 7, D-c, dep RES-2]
+- ✅ **WIN-5** — **Shipped (13.12, Option A "Settle").** The every-time "Yes — that's it." caption is gone; a correct word turns accent green and breathes once (`@keyframes acorn-settle`, `--m-quick`, folded colour so it fires on insert, reduced-motion safe). The earned "You got there." stays after a fought-back miss. `id="advance"` moved onto the winning word (tap still skips the wait); the spoken verdict is untouched (a11y). Guarded by `tests/win-cue.spec.js`. [D-c, RES-2]
 
 ## LATER — infra + gated pacing
 - ✅ **RES-2** — Success-moment design ready (feeds WIN-5): Option A "Settle" — word greens 300ms + one-shot 1.0→1.04→1.0 pulse (420ms, settle-ease), reduced-motion safe. Build note: move `id="advance"` onto the word. `reference/success-moment-design.md`.
