@@ -236,8 +236,14 @@ const TARGET = {lo: .80, hi: .85};
    she has finished. Shipped, it runs 89–100% across all six lists; the two mutations above
    put it at 60% and 65%. That gap is the spacing schedule doing its job, which is the whole
    claim the box intervals rest on. */
-const LEARNED = {lo: .80, why: 'the words she has met are actually being learned, which is'
-                             + ' what the expanding intervals are for'};
+/* 0.75, not 0.80 (worklist PACE-1 / B2, owner-approved): the hardest small lists — tionsion is
+   twelve all-irregular words — cannot get their last-met words to KNOWN_BOX inside a fixed
+   30-day window. tionsion reads 77.9% at 30 days but 98.9% by 60 and 100% by 90, and the words
+   met early enough to mature (>14d ago) are known-well at 97.9%. That is the window, not the
+   pacing. The interval-deletion mutations still read 53–65% here, well under 0.75, so the band
+   keeps its teeth. */
+const LEARNED = {lo: .75, why: 'the words she has met are being learned, only slower than a'
+                             + ' 30-day window can see — the hardest patterns need longer to mature'};
 
 async function main(){
   const days = Number(process.argv[2]) || 30;
@@ -344,7 +350,14 @@ async function main(){
       console.log('    ✓ learned ' + pct(learned) + ' of the ' + met.toFixed(0)
                   + ' words she met');
     }
-    if(stillArriving < 0.5){
+    /* < 3, not < 0.5 (worklist PACE-1 / B3, owner-approved): a box-1 word she keeps missing
+       re-counts as a "new" arrival each day, so a nearly-finished list like aussie reads
+       stillArriving 1.67 while lists with real intake from the lists that follow them sit near
+       25. The gap is enormous, so a cutoff of 3 exempts aussie's pure-revision tail — its
+       acquisition first-go, 87%, is inside the band — with no risk to any healthy list. This
+       is the fix for its 92.5%: the exemption already fired at 60 and 90 days, only its 30-day
+       trigger was set too tight. */
+    if(stillArriving < 3){
       console.log('    (nothing new arrived in the last third of the run — she has met all '
                   + met.toFixed(0) + ' words this list can reach, so every sitting is pure'
                   + ' revision and the difficulty bands do not apply)');
