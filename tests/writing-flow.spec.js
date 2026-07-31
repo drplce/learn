@@ -140,6 +140,36 @@ test.describe('submitting and advancing', () => {
                                i0, {timeout: 2000});
   });
 
+  test('copying a re-traced word corrects the shape but does NOT re-score it', async ({page}) => {
+    /* WIN-1, David's call: the re-trace is corrective, not a second chance to win. The miss is
+       already recorded (dropped to box 1, requeued for a real from-memory go later); copying the
+       word back must add nothing — not a right, not a box bump — or a child who fails a word and
+       then copies it would look like she had recovered it, which she has not. */
+    await open(page, '2026-07-28');
+    await startOn(page, ['boat', 'rain', 'said']);
+    await page.evaluate(() => window.__acorn.cover());          // boat is new: traced, then written
+    await write(page, 'boot');
+    await page.keyboard.press('Enter');                         // miss -> re-trace
+    const afterMiss = await page.evaluate(() => ({
+      mastery: window.__acorn.state.words.mastery.boat,
+      right: window.__acorn.session().right,
+      requeued: window.__acorn.session().requeue.indexOf('boat') >= 0}));
+    expect(afterMiss.mastery).toEqual({right: 0, wrong: 1, box: 1, lastSeen: '2026-07-28'});
+    expect(afterMiss.requeued, 'a missed word comes back for a real go').toBe(true);
+    // Copy the word to its end — the re-trace completes and carries her on.
+    for(const c of 'boat') await page.keyboard.press(c);
+    await page.waitForFunction(() => window.__acorn.session() && !window.__acorn.session().retrace,
+                               null, {timeout: 2000});
+    const afterCopy = await page.evaluate(() => ({
+      mastery: window.__acorn.state.words.mastery.boat,
+      right: window.__acorn.session().right,
+      stillRequeued: window.__acorn.session().requeue.indexOf('boat') >= 0
+                     || window.__acorn.session().words.slice(window.__acorn.session().i).indexOf('boat') >= 0}));
+    expect(afterCopy.mastery, 'the copy re-scored the word').toEqual(afterMiss.mastery);
+    expect(afterCopy.right, 'the copy counted as a right').toBe(afterMiss.right);
+    expect(afterCopy.stillRequeued, 'the word must still come back for a real retrieval').toBe(true);
+  });
+
   test('return skips the wait on a win, but a re-trace has to be copied', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['rain', 'boat', 'because']);
