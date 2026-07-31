@@ -641,7 +641,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.14';
+var VERSION = '13.15';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2555,9 +2555,17 @@ function dotShape(w){
   // words by length rather than as texture.
   var len = String(w).replace(/[^a-z']/gi, '').length;
   var r = DOT_R * (0.9 + 0.2 * Math.min(9, len) / 9);
-  // And a nudge off centre, seeded by the word, so the gaps between them are not
-  // all identical either. It stays inside the box, so it costs no layout.
-  return {r:r, x:DOT_BOX / 2 + (rnd() - .5) * 5, y:DOT_BOX / 2 + (rnd() - .5) * 1.2};
+  // A nudge off centre horizontally, seeded by the word, so the gaps between them are not all
+  // identical either. It stays inside the box, so it costs no layout.
+  var x = DOT_BOX / 2 + (rnd() - .5) * 5;
+  // Vertically the blob is LOCKED to the box middle by its own bounding box — an organic
+  // blob's mass sits a little off its drawing point, and that offset was invisible on a small
+  // grey dot but the current dot's 1.5 scale magnified it into a visible drop when it filled
+  // green. Centring the bbox makes every pebble level and the scale grow it symmetrically, so
+  // it never moves down when it turns green. (Was a y-jitter, which only added to the drift.)
+  var b = cellBounds(w, x, DOT_BOX / 2, r);
+  var y = DOT_BOX / 2 + (DOT_BOX / 2 - (b.y0 + b.y1) / 2);
+  return {r:r, x:x, y:y};
 }
 
 function renderWord(){
@@ -2567,7 +2575,7 @@ function renderWord(){
   // One dot per word the sitting set out to cover, filled as each is finished.
   var dots = '<div class="dots" aria-hidden="true">';
   for(var k = 0; k < W.plan; k++){
-    var dw = W.words[k] || String(k), ds = dotShape(dw);
+    var dw = W.words[k] || String(k), ds = dotShape(dw);   // ds.y is bbox-centred (see dotShape)
     dots += '<i class="' + (k < done ? 'on' : k === done ? 'now' : '') + '"'
          + ' data-r="' + ds.r.toFixed(2) + '" data-x="' + ds.x.toFixed(2) + '">'
          + '<svg viewBox="0 0 ' + DOT_BOX + ' ' + DOT_BOX + '" aria-hidden="true">'
