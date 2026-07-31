@@ -669,7 +669,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.18';
+var VERSION = '13.19';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2672,7 +2672,10 @@ function renderWord(){
          +     'autocorrect="off" autocapitalize="off" spellcheck="false" '
          +     'value="' + esc(w.slice(0, t)) + '" aria-label="Trace the word">'
          + '</div>';
-    below = sylRow + '<div class="note">Type it to trace it.</div>';
+    // No visible instruction on the trace either now (David: strip "Type it to trace it." —
+    // the whole flow is "no other text"). The spoken announcement above still says "Trace this
+    // word", so a screen reader keeps the steer; the lit letter shows her where she is.
+    below = sylRow;
     // No cover button any more — the trace completing is the cover.
     act = hear;
   }

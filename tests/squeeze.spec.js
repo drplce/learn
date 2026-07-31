@@ -147,10 +147,10 @@ test.describe('shrinking before shedding', () => {
     expect(r.squeezed, 'the squeeze stayed on after the screen got room back').toBeNull();
   });
 
-  test('the look stage keeps its instruction too', async ({page}) => {
-    /* The same mechanism was costing her the line that tells her what to do with the
-       word before she has covered it up. The button still says "Cover it up", so this
-       was never as bad as the silent verdict — but a shrink recovers it for free. */
+  test('the look stage fits without being cut off', async ({page}) => {
+    /* The trace carries no instruction line any more (WIN-4: "no other text" — the spoken
+       announcement still says "Trace this word"). What must still hold at her large text on the
+       narrowest phone is that the trace itself — the word and its box — is never cut off. */
     await open(page, '2026-08-01');
     await page.setViewportSize({width: 320, height: 568});
     const r = await page.evaluate(() => {
@@ -161,13 +161,14 @@ test.describe('shrinking before shedding', () => {
       a.state.words.mastery = {}; a.state.words.sessions = [];
       a.save(); a.go('day'); if(!a.session()) a.start();
       const m = document.querySelector('#screen');
-      const note = m.querySelector('.note');
       return {stage: a.session().stage,
-              note: !!note && getComputedStyle(note).display !== 'none',
+              note: !!m.querySelector('.note'),
+              traceShown: !!m.querySelector('.trace'),
               clipped: m.scrollHeight > m.clientHeight + 1};
     });
     expect(r.stage).toBe('look');
-    expect(r.note, 'the instruction on the look stage was shed rather than shrunk').toBe(true);
+    expect(r.note, 'the trace should carry no instruction line now').toBe(false);
+    expect(r.traceShown).toBe(true);
     expect(r.clipped).toBe(false);
   });
 

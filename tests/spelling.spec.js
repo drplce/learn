@@ -106,7 +106,7 @@ test.describe('a word she has never met', () => {
     // A never-met word is traced now, not passively looked at: it is shown to be
     // copied letter by letter.
     await expect(page.locator('.tracew')).toHaveText('friend');
-    await expect(page.locator('.note')).toContainText('Type it to trace it');
+    await expect(page.locator('.note')).toHaveCount(0);   // no visible instruction on the trace (WIN-4)
     await page.locator('#type').click();
     for(const c of 'friend') await page.keyboard.press(c);
     // The finished trace is the cover: the word is hidden and she writes it blind.
