@@ -371,7 +371,19 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 .wordscreen > .above,
 .wordscreen > .below{display:flex; flex-direction:column; align-items:center;
                      gap:var(--s2); width:100%;}
-.wordscreen > .above{align-self:end;}       /* sits just above the word */
+/* The above zone is the dots plus a RESERVED caption slot (.supra) — a constant height on every
+   stage, so the dots hold one position, hugging the word, and never ride up and down as the
+   meaning cue and the verdict come and go (they used to move by ~80px). One fixed skeleton: dots,
+   the caption slot, the centred word, everything else below — only the content varies. */
+.wordscreen > .above{align-self:end;}
+/* The caption slot: the meaning cue (write) or the verdict (check) sit here, one line above the
+   word. It holds that one line's height even when empty (sized to the taller caption, the verdict
+   at --t-md), so nothing above or below it moves as a line appears or clears. On a tight screen it
+   collapses — room matters more there than holding the dots perfectly still. */
+.supra{min-height:calc(var(--t-md) * 1.7); display:flex; align-items:center; justify-content:center;
+       width:100%;}
+.supra > *{margin:0;}
+:root[data-tight] .supra{min-height:0;}
 .wordscreen > .wordslot{align-self:center; width:100%;}
 .wordscreen > .below{align-self:start;}     /* sits just below the word */
 /* The zone wrappers are invisible when empty so they add no stray gap. */
@@ -641,7 +653,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.15';
+var VERSION = '13.16';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2598,7 +2610,11 @@ function renderWord(){
   // The three zones of the anchored word screen: what sits above the word, the
   // word itself (always the centred row), and what sits below it. Dots ride above
   // on every stage; each branch fills in the rest.
-  var above = dots, wordslot = '', below = '', act;
+  // One skeleton for every stage: dots (a fixed height, top), a reserved caption slot (the
+  // meaning cue on write, the verdict on check — a fixed height whether or not it has a line,
+  // so it never shoves the dots), the centred word, then everything else below it. Each branch
+  // only fills `supraInner` (the caption) and `below`; `above` is assembled once, constant.
+  var supraInner = '', wordslot = '', below = '', act;
 
   var wl = ' style="--wl:' + w.length + '"';
 
@@ -2657,12 +2673,12 @@ function renderWord(){
     // goes for a just-traced word — she watched herself copy it a second ago.
     var spoken = fresh ? 'Listen, then write it.' : 'Now write it from memory.';
     announce(spoken + (cue ? ' The one that means: ' + cue + '.' : ''));
-    above = dots + (told ? '<div class="note">' + told + '</div>' : '')
-         // "the one that means" cost 18 characters on every cue and pushed the
-         // longest of them to three lines at 320px and her largest text. Spoken
-         // it is worth having, so the announcement keeps it; read, "means:" does
-         // the same job in five.
-         + (cue ? '<p class="cue">means: <b>' + esc(cue) + '</b></p>' : '');
+    // The meaning cue (the one thing on this screen she cannot work out for herself) rides in
+    // the reserved caption slot just above the box — present or not, the slot is the same
+    // height, so the dots never move. "the one that means" cost 18 characters and pushed the
+    // longest to three lines at her largest text; read, "means:" does the same job in five, and
+    // the announcement keeps the fuller wording.
+    supraInner = cue ? '<p class="cue">means: <b>' + esc(cue) + '</b></p>' : '';
     wordslot = '<div class="spellinwrap">'
          +   '<svg class="hair" viewBox="' + HAIR_VB + '" preserveAspectRatio="none" aria-hidden="true">'
          +     '<path d="' + boxHairPath('box') + '"/></svg>'
@@ -2672,9 +2688,9 @@ function renderWord(){
          + '</div>';
     // No Check button — she is on touch and the keyboard's return key submits.
     // enterkeyhint="done" labels it, and the Enter handler calls check().
-    // The hear-again cue lives below the box, faded out; the idle timer (armHearCue, set
-    // after render) fades it in if she stalls. Writing is where she is recalling a hidden
-    // word, so it is the one stage that earns the hint.
+    // Below the box: the hear-again cue — a bare speaker glyph, faded out until the idle timer
+    // (armHearCue, set after render) fades it in when she stalls. Writing is the one stage that
+    // earns the hint.
     below = '<div class="hearcue" aria-hidden="true">' + SPK + '</div>';
     act = hear;
   }
@@ -2751,9 +2767,12 @@ function renderWord(){
        spoken announcement is untouched — it still says the verdict, so nothing is lost to
        the ear. */
     var earned = ok && W.failed.indexOf(w) >= 0;
-    above = dots + ((!ok || earned)
+    // The verdict line — the earned "You got there." and every miss's steer — rides in the
+    // reserved caption slot just above the word, so it never shoves the dots. A plain win has
+    // no line at all; the green word is the whole of it, and the slot simply sits empty.
+    supraInner = (!ok || earned)
          ? '<div class="verdict ' + (ok ? 'ok' : 'again') + '">' + verdict + '</div>'
-         : '');
+         : '';
     // Only ever the correct spelling on screen. Seeing her own misspelling
     // is the one thing that measurably sets spelling back.
     /* The extra-letter case belongs on the marked side. It is not "close" by the
@@ -2786,6 +2805,9 @@ function renderWord(){
                     + (more ? 'Next word' : 'Finish') + '">' + (more ? CHEV : TICK) + '</button>';
   }
 
+  // The dots and the reserved caption slot, assembled once: constant structure on every stage,
+  // so the dots hold one position and the word stays centred whatever the caption is doing.
+  var above = dots + '<div class="supra">' + supraInner + '</div>';
   el('#screen').innerHTML = '<div class="wordscreen"' + wl + '>'
     + '<div class="above">' + above + '</div>'
     + '<div class="wordslot">' + wordslot + '</div>'
