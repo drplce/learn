@@ -1828,14 +1828,16 @@ test.describe('with the software keyboard up', () => {
     await page.setViewportSize({width:375, height:667});
     await settle('roomy');
     expect(await seen()).toEqual({mode:'roomy', header:true, dots:true, box:true});
-    // Tight: the wordmark and the dots step aside. The box stays.
+    // Tight: the header steps aside, but the DOTS now stay — they are one small row worth
+    // seeing, and the header going makes room. The box stays.
     await page.setViewportSize({width:375, height:360});
     await settle('tight');
-    expect(await seen()).toEqual({mode:'tight', header:false, dots:false, box:true});
-    // Cramped: the controls stop scaling with her text, still 44px. The box stays.
+    expect(await seen()).toEqual({mode:'tight', header:false, dots:true, box:true});
+    // Cramped: the dots still hold on — they fit even here, and seeing the pebbles is worth it.
+    // (fitScreen would drop them only if the box itself were about to be cut off.)
     await page.setViewportSize({width:375, height:240});
     await settle('cramped');
-    expect(await seen()).toEqual({mode:'cramped', header:false, dots:false, box:true});
+    expect(await seen()).toEqual({mode:'cramped', header:false, dots:true, box:true});
   });
 
   test('a scarce screen never hides the way out of the grown-ups area', async ({page}) => {

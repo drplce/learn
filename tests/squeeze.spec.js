@@ -43,9 +43,13 @@ async function checkAt(page, w, h, scale, word){
         return {t: c.textContent, w: b.width, h: b.height, y: Math.round(b.top)};
       });
     const v = m.querySelector('.verdict');
+    // The verdict lives inside the reserved caption slot .supra now, and the shed logic hides
+    // the SLOT — so ask whether the verdict actually has a box on screen (getClientRects is
+    // empty when it or any ancestor is display:none), not whether its own display is set.
+    const shown = sel => { const n = m.querySelector(sel); return !!n && n.getClientRects().length > 0; };
     return {
-      verdict: on('.verdict'),
-      verdictText: v && getComputedStyle(v).display !== 'none' ? v.textContent.trim() : '',
+      verdict: shown('.verdict'),
+      verdictText: shown('.verdict') ? v.textContent.trim() : '',
       dots: on('.dots'),
       syls: on('.syls'),
       squeezed: document.documentElement.getAttribute('data-squeezed'),
@@ -190,8 +194,10 @@ test.describe('shrinking before shedding', () => {
     await open(page, '2026-08-01');
     const order = await page.evaluate(() => window.__acorn.shedOrder().word);
     expect(order.indexOf('.syls'), '.syls is not on the shed list').toBeGreaterThan(-1);
+    // The caption now lives in the reserved slot .supra (cue on write, verdict on check); the
+    // chips still go after it.
     expect(order.indexOf('.syls'), '.syls would go before the caption')
-      .toBeGreaterThan(order.indexOf('.verdict'));
+      .toBeGreaterThan(order.indexOf('.supra'));
     expect(order[order.length - 1], '.syls is not the last thing to go').toBe('.syls');
     /* And the shed list never reaches them while the caption is still up. data-cramped
        does hide the chips with the caption still showing, and that is the same judgement

@@ -102,7 +102,9 @@ test.describe('what gets dropped when it will not fit', () => {
     const order = await page.evaluate(() => window.__acorn.shedOrder());
     expect(order.word.indexOf('.note')).toBe(0);
     expect(order.word).not.toContain('.cue');
-    expect(order.word.indexOf('.verdict')).toBeGreaterThan(order.word.indexOf('.note'));
+    // The caption slot (.supra — the meaning cue on write, the verdict on check) goes after the
+    // note. It replaced the bare .verdict on the list when both moved into the reserved slot.
+    expect(order.word.indexOf('.supra')).toBeGreaterThan(order.word.indexOf('.note'));
   });
 
   test('nothing styled is left over from a screen that has gone', async ({page}) => {
