@@ -117,6 +117,15 @@ h1,h2{line-height:1.3; letter-spacing:0; margin:0; font-weight:700;}
      padding:calc(var(--s4) * var(--ornament) + env(safe-area-inset-top)) calc(var(--s4) + env(safe-area-inset-right)) calc(var(--s4) * var(--ornament) + env(safe-area-inset-bottom)) calc(var(--s4) + env(safe-area-inset-left));
      height:100vh; height:100dvh; height:var(--vh, 100dvh);
      display:flex; flex-direction:column;}
+/* When the keyboard comes up, iOS sometimes PANS the visual viewport to chase the
+   caret before our reserved keyboard-band has settled — and with the body pinned
+   (position:fixed) that pan gets stuck, leaving the box shoved off the top until a
+   keyboard hide/show jolts it back. That is the same visual-viewport pan behind the
+   old scroll bug, just its leftover. So when the viewport is panned (offsetTop > 0)
+   we glue the app back onto the visible region by shifting it up by exactly that
+   amount. Gated on [data-panned] so with no pan there is no transform at all — it
+   cannot touch the grown-ups or finished screens, which never pan. */
+:root[data-panned] #app{transform:translateY(var(--vvtop, 0px));}
 /* The content scrolls inside itself so the action below it can never be
    scrolled away from. At the larger text sizes — which is who this app is for —
    the column is taller than the phone, and the one button she needs sat up to
@@ -602,7 +611,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.10';
+var VERSION = '13.11';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2247,6 +2256,14 @@ function fitViewport(){
   // alone suggests.
   if(h < 22 * em) r.setAttribute('data-tight', ''); else r.removeAttribute('data-tight');
   if(h < 13 * em) r.setAttribute('data-cramped', ''); else r.removeAttribute('data-cramped');
+  /* Cancel any stuck visual-viewport pan: shift the app back down onto the visible
+     region by however far iOS has panned past the layout top. Only while on a word —
+     that is the only screen the pan hurts, and the only one pinned hard enough to
+     trap it. offsetTop is ~0 in the normal case, so [data-panned] never trips and no
+     transform is applied at all. */
+  var top = (vv && W && screen === 'day') ? Math.max(0, Math.round(vv.offsetTop)) : 0;
+  r.style.setProperty('--vvtop', top + 'px');
+  if(top > 0) r.setAttribute('data-panned', ''); else r.removeAttribute('data-panned');
 }
 if(window.visualViewport){
   visualViewport.addEventListener('resize', fitViewport);
