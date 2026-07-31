@@ -647,7 +647,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.22';
+var VERSION = '13.23';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1495,7 +1495,7 @@ var SUFFIXES = SUFFIXES_FREE.concat(['er','est','ly','ed']);
 // out "the·re·fore" and "anything" comes out "a·nyth·ing" — so the common ones
 // a Year 4/5 list actually contains are hand-split here.
 var COMPOUNDS = ('any·thing any·one any·where any·body every·thing every·one every·where '
-  + 'some·thing some·one some·where some·times no·thing no·body no·where there·fore '
+  + 'every·body every·day some·thing some·one some·where some·times no·thing no·body no·where there·fore '
   + 'with·out with·in him·self her·self my·self your·self it·self them·selves our·selves '
   + 'can·not in·to up·on up·stairs down·stairs out·side in·side be·side along·side '
   + 'birth·day play·ground foot·ball net·ball week·end break·fast after·noon '
@@ -1505,6 +1505,28 @@ var COMPOUNDS = ('any·thing any·one any·where any·body every·thing every·o
   // Keyed by her words, so no prototype: COMPOUNDS["constructor"] otherwise
   // answered with Object itself and syllables() crashed the whole render on
   // .slice() — the app died on the word rather than mis-splitting it.
+  .reduce(function(m, x){ m[x.replace(/·/g, '')] = x.split('·'); return m; }, bare(null));
+
+/* Researched splits for the common words the letter-rule syllabifier gets wrong — checked one
+   at a time against a dictionary rather than calculated (David, 2026-07-31: "don't try [to]
+   calculate syllables, just research each word"). The rule over-splits a vowel it should keep
+   with its consonant ("e·ve·ry·bo·dy", "dif·fe·rent", "pe·o·ple", "de·li·ci·ous") and under-
+   splits an -ible/-le it should break ("terr·ible", "poss·ible", "sci·ence" as one). The words
+   she meets on the built-in lists are already hand-split there; this covers the ones a grown-up
+   might paste in, so a custom list is as right as the built-in ones. Same seams, same spoken
+   pieces. Consulted before COMPOUNDS and the rule; every entry is verified to spell its word by
+   tests/syllables-quality.spec.js. Not exhaustive — the rule is still the last resort — but it
+   fixes the common Year 3-6 words outright. */
+var SYLLABLES = (
+    'an·oth·er fam·i·ly peo·ple an·i·mal an·i·mals el·e·phant di·no·saur com·put·er tel·e·phone '
+  + 'choc·o·late eve·ning par·a·graph tem·per·a·ture dan·ger·ous de·li·cious care·ful·ly '
+  + 'in·ter·est·ing ter·ri·ble hor·ri·ble pos·si·ble im·pos·si·ble in·vis·i·ble com·fort·a·ble '
+  + 'veg·e·ta·ble li·brar·y or·di·nar·y nec·es·sar·y en·gine sci·ence ex·per·i·ment '
+  + 'e·lec·tric·i·ty i·mag·i·na·tion in·for·ma·tion ed·u·ca·tion cel·e·bra·tion pop·u·la·tion '
+  + 'e·lev·en mil·lion cal·en·dar cat·er·pil·lar sep·a·rate gov·ern·ment busi·ness or·ange '
+  + 'col·our qui·et·ly prob·a·bly ac·tu·al·ly u·su·al·ly dif·fer·ent fa·vour·ite ba·nan·a '
+  + 'im·por·tant re·mem·ber un·der·stand be·gin·ning po·ta·to to·ma·to gi·raffe croc·o·dile '
+  + 'oc·to·pus but·ter·fly').split(' ')
   .reduce(function(m, x){ m[x.replace(/·/g, '')] = x.split('·'); return m; }, bare(null));
 
 function suffixSplit(s){
@@ -1534,6 +1556,7 @@ function syllables(word){
   s = s.replace(/-/g, '');
   if(s.length <= 3) return s ? [s] : [];
 
+  if(SYLLABLES[s]) return SYLLABLES[s].slice();      // researched split wins over the rule
   if(COMPOUNDS[s]) return COMPOUNDS[s].slice();
 
   var suf = suffixSplit(s);
@@ -4434,7 +4457,7 @@ window.__acorn = {
 loadClips(); render(); },
   todayISO: todayISO, dayDiff: dayDiff,
   syllables: syllables, splitOf: splitOf, offerVoices: offerVoices, sameWord: sameWord,
-  clearVoiceCache: function(){ _voice = null; _voiceKey = null; }, parseWordList: parseWordList, COMPOUNDS: COMPOUNDS,
+  clearVoiceCache: function(){ _voice = null; _voiceKey = null; }, parseWordList: parseWordList, COMPOUNDS: COMPOUNDS, SYLLABLES: SYLLABLES,
   matched: function(a, b){ var m = matched(a, b); return {count:m.count, hit:Object.keys(m.hit).map(Number).sort(function(x,y){return x-y;})}; },
   mastery: mastery, recordWord: recordWord, isDue: isDue, overdueRatio: overdueRatio,
   acquiring: acquiring, knownCount: knownCount,

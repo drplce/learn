@@ -102,6 +102,36 @@ test.describe('splitting a word nobody checked by hand', () => {
     expect(bad, 'chunks with no vowel in them').toEqual([]);
   });
 
+  test('the researched dictionary spells every word it splits, and wins over the rule', async ({page}) => {
+    /* SYLLABLES (and the every·/any·/some· COMPOUNDS) are checked one word at a time against a
+       dictionary because the letter-rule gets the common ones wrong. A typo in one of those splits
+       is a misspelling on her screen and a wrong-sounding piece in her ear, so every entry must
+       spell its word back, and syllables() must actually use it (over the rule it corrects). */
+    await open(page, '2026-08-01');
+    const r = await page.evaluate(() => {
+      const a = window.__acorn, bad = [], unused = [];
+      const check = dict => {
+        for(const key of Object.keys(dict)){
+          const want = dict[key];
+          if(want.join('') !== key) bad.push(key + ' -> ' + want.join('·') + ' (does not spell it)');
+          const got = a.syllables(key).join('·');
+          if(got !== want.join('·')) unused.push(key + ': rule/other gave ' + got + ' not ' + want.join('·'));
+        }
+      };
+      check(a.SYLLABLES);
+      // Only the every·/any·/some· family of COMPOUNDS is a plain word the rule would otherwise
+      // reach here (the rest are checked by the corpus above); spot-check the ones added for this.
+      ['everybody', 'everyday'].forEach(w => {
+        const got = a.syllables(w).join('·');
+        if(got !== a.COMPOUNDS[w].join('·')) unused.push(w + ': gave ' + got);
+        if(a.COMPOUNDS[w].join('') !== w) bad.push(w + ' compound does not spell it');
+      });
+      return {bad, unused};
+    });
+    expect(r.bad, 'a researched split does not spell its own word').toEqual([]);
+    expect(r.unused, 'a researched split is not the one syllables() returns').toEqual([]);
+  });
+
   test('a hand-checked list is used as given, never re-derived', async ({page}) => {
     // The built-in splits are the authority for those words: "e·nough" is right and
     // syllables() would not get there on its own.
