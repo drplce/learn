@@ -89,12 +89,17 @@ html{
 }
 /* The document is a fixed frame that never scrolls or rubber-bands: everything
    that needs to scroll does so inside main (below), which is overscroll-contained.
-   Without this, iOS lets you drag the whole page to nowhere. The safe-area insets
-   live on #app, not here, so the body is never a notch taller than the screen —
-   which was itself enough to make the page draggable. */
+   overflow:hidden + overscroll-behavior alone were NOT enough on iOS — in a
+   Home-Screen app the keyboard overlays (the layout viewport never shrinks) and
+   WebKit still lets the whole page be dragged with the keyboard up. Pinning the
+   body with position:fixed removes the thing there is to drag: the layout viewport
+   is nailed down, so there is no document pan (worklist SCR-1; verify on device).
+   Safe-area insets live on #app, not here, so the body is never a notch taller than
+   the screen — which was itself enough to make the page draggable. */
 html,body{margin:0; height:100%; overflow:hidden; overscroll-behavior:none;
           background:var(--surface);}
 body{
+  position:fixed; inset:0; width:100%;
   color:var(--ink); font-family:var(--sans);
   /* generous line and word spacing: the part of typography that does help */
   line-height:1.7; letter-spacing:.01em; word-spacing:.06em; text-align:left;
@@ -573,7 +578,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.5';
+var VERSION = '13.6';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1138,6 +1143,10 @@ var _unlocked = false;
 function unlock(){
   if(_unlocked) return;
   _unlocked = true;
+  // Ask the browser to keep her progress durably (worklist DAT-1). Only granted to a
+  // Home-Screen web app — a no-op in a normal Safari tab — so it costs nothing and, once
+  // installed, moves her data out of reach of the timed-eviction sweep. Once, on first tap.
+  try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
   audioCtx();
   try{ speechSynthesis.getVoices(); }catch(e){}
   pickVoice();
