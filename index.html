@@ -87,13 +87,18 @@ html{
   /* rem against the browser's own base, so the OS text-size setting still counts */
   font-size:calc(1.0625rem * var(--scale));
 }
-html,body{margin:0; min-height:100%; background:var(--surface);}
+/* The document is a fixed frame that never scrolls or rubber-bands: everything
+   that needs to scroll does so inside main (below), which is overscroll-contained.
+   Without this, iOS lets you drag the whole page to nowhere. The safe-area insets
+   live on #app, not here, so the body is never a notch taller than the screen —
+   which was itself enough to make the page draggable. */
+html,body{margin:0; height:100%; overflow:hidden; overscroll-behavior:none;
+          background:var(--surface);}
 body{
   color:var(--ink); font-family:var(--sans);
   /* generous line and word spacing: the part of typography that does help */
   line-height:1.7; letter-spacing:.01em; word-spacing:.06em; text-align:left;
   -webkit-font-smoothing:antialiased;
-  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 button,input,textarea{font:inherit; color:inherit; letter-spacing:inherit;}
 button{border:0; background:none; cursor:pointer; touch-action:manipulation;}
@@ -102,7 +107,9 @@ h1,h2{line-height:1.3; letter-spacing:0; margin:0; font-weight:700;}
 :focus-visible{outline:3px solid var(--acc); outline-offset:2px;}
 
 #app{max-width:34rem; margin:0 auto;
-     padding:calc(var(--s4) * var(--ornament)) var(--s4);
+     /* safe-area insets fold into the app's own padding, inside the border-box
+        height, so the frame stays exactly the height of the screen (no overflow). */
+     padding:calc(var(--s4) * var(--ornament) + env(safe-area-inset-top)) calc(var(--s4) + env(safe-area-inset-right)) calc(var(--s4) * var(--ornament) + env(safe-area-inset-bottom)) calc(var(--s4) + env(safe-area-inset-left));
      height:100vh; height:100dvh; height:var(--vh, 100dvh);
      display:flex; flex-direction:column;}
 /* The content scrolls inside itself so the action below it can never be
@@ -549,7 +556,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.1';
+var VERSION = '13.2';
 var KEY = 'acorn.v1';
 
 /* =========================================================
