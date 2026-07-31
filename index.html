@@ -654,7 +654,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.20';
+var VERSION = '13.21';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -3596,14 +3596,13 @@ function sylWord(w, letterHtml){
   });
   return html;
 }
-/* One open, gently uneven stroke under a chunk, inset a little at both ends so consecutive
-   seams leave a clear gap (the gap is what shows the split, the letters staying together). The
-   same seeded, cornerless hand as the box, but an open line rather than the closed blob. Drawn
-   in the word overlay's own pixel space, from the measured chunk box. */
-function sylSeamPath(x0, x1, y, seed){
-  var inset = (x1 - x0) * 0.12, a = x0 + inset, b = x1 - inset, w = b - a;
+/* One open, gently uneven stroke under a chunk, from a to b in the overlay's pixel space (the
+   caller has already inset the ends off the chunk box to leave the gap). The same seeded,
+   cornerless hand as the box, but an open line rather than the closed blob. */
+function sylSeamPath(a, b, y, seed){
+  var w = b - a;
   if(w < 2) return '';
-  var rnd = seeded('seam' + seed), n = 5, amp = Math.min(2, w * 0.045), p = [], i;
+  var rnd = seeded('seam' + seed), n = 5, amp = Math.min(1.8, w * 0.05), p = [], i;
   for(i = 0; i <= n; i++) p.push([a + w * i / n, y + (rnd() - .5) * 2 * amp]);
   var d = 'M' + p[0][0].toFixed(1) + ' ' + p[0][1].toFixed(1);
   for(i = 1; i < n; i++){
@@ -3636,7 +3635,14 @@ function drawSeams(){
       // The chunk's rect is the tight font box, so its bottom already sits at the descender
       // line; drop the seam a hair below that to clear a y or g tail and read as an underline.
       var y = (s.bottom - wr.top) + fs * 0.05;
-      d += sylSeamPath(s.left - wr.left, s.right - wr.left, y, segs[k].textContent + k);
+      /* The seam should read as "a line under THESE letters" — so it spans nearly the whole
+         chunk, with a clear, even break to the next one. A fixed inset (in em) at each end gives
+         a break of the same width between every pair of chunks, whatever their length; a chunk
+         too narrow to spare it (a one-letter syllable) keeps a proportional inset instead, so
+         its seam never inverts. The gap between two adjacent seams is inset + inset. */
+      var x0 = s.left - wr.left, x1 = s.right - wr.left;
+      var inset = Math.min(fs * 0.16, (x1 - x0) * 0.24);
+      d += sylSeamPath(x0 + inset, x1 - inset, y, segs[k].textContent + k);
     }
     if(!d) return;
     var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
