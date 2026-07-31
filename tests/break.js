@@ -2098,6 +2098,48 @@ async function main(){
                   + ' hyphen and none read a mark aloud as a letter');
   }
 
+  // ---- 33. the mic key on the trace must not poison the blind write
+  {
+    console.log('\n33. mic on the trace, then a hand-written answer');
+    const {page, ctx, errs} = await fresh(browser, '2026-08-01');
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'w', name:'T', words:['rain']}];
+      a.state.words.activeId = 'w'; a.state.words.mastery = {}; a.state.words.sessions = [];
+      a.save(); a.go('day'); a.start();
+    });
+    // She found the mic key and used it on the TRACE: the phone spells the whole word
+    // in a single event, with no keydown behind it — the signature of a hand-back.
+    await page.evaluate(() => {
+      const box = document.querySelector('#type');
+      box.focus(); box.value = 'rain';
+      box.dispatchEvent(new InputEvent('input', {inputType:'insertText', data:'rain', bubbles:true}));
+    });
+    // Then she traces it by hand, which covers it, and writes it from memory by hand.
+    await page.locator('#type').click().catch(() => {});
+    for(const c of 'rain') await page.keyboard.press(c);
+    await page.waitForTimeout(650);
+    const stillFlagged = await page.evaluate(() => window.__acorn.session().notWritten);
+    await page.locator('#type').click().catch(() => {});
+    for(const c of 'rain') await page.keyboard.press(c);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(200);
+    const r = await page.evaluate(() => ({
+      verdict: (document.querySelector('.verdict') || {}).textContent || null,
+      box: (document.querySelector('#type') || {}).value || '',
+      box_of_word: window.__acorn.mastery('rain').box,
+    }));
+    // A hand-back is a silent reset: no verdict and the box wiped, on a word she just
+    // hand-typed. Her honest answer must instead be judged and advance the word a box.
+    if(stillFlagged) bad('mic on the trace', 'notWritten survived into the write stage');
+    else if(!r.verdict && r.box === '') bad('mic on the trace', 'her hand-written answer was handed back');
+    else if(r.box_of_word !== 2) bad('mic on the trace', 'the hand-written answer did not count (box ' + r.box_of_word + ')');
+    else ok('a mic tap on the trace never reaches the blind write she does by hand');
+    if(errs.length) bad('mic on the trace', errs.join(' | '));
+    await page.screenshot({path: OUT + '/break-20-mic-trace.png'});
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));

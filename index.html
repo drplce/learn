@@ -573,7 +573,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.4';
+var VERSION = '13.5';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2037,6 +2037,7 @@ function next(){
   else if(W.requeue.length){ W.words.push(W.requeue.shift()); W.i++; }
   else { finish(); return; }
   W.stage = beginStage(word()); W.attempt = ''; W.tries = 0; W.keys = 0; W.traced = 0;
+  W.notWritten = false;                        // every word starts its write attempt clean
   render();
   say(word());
 }
@@ -3995,7 +3996,10 @@ addEventListener('keydown', function(ev){
     clearAuto();
     W.autoTimer = setTimeout(function(){
       if(!W || W.stage !== 'look') return;
-      W.stage = 'write'; W.attempt = ''; W.keys = 0; W.traced = 0;
+      // notWritten reset too: the blind write is a fresh retrieval, and if she used the
+      // mic or glided on the TRACE (a whole-word insert sets the flag), it must not follow
+      // her to the write and hand back a word she then writes by hand.
+      W.stage = 'write'; W.attempt = ''; W.keys = 0; W.traced = 0; W.notWritten = false;
       render();
     }, 500);
   }
