@@ -305,11 +305,19 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
    word just fits and no bigger, so what she traced, wrote and had checked never changes
    size under her. Letter-spacing matches the trace's .06em too, or the same word would
    sit wider here than where she read it. --wl is inherited from .wordscreen. */
+.spellinwrap{position:relative;}
 .spellin{width:100%; text-align:center; font-weight:700;
          font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (max(var(--wl,6), 12) * .8)), var(--t-3xl));
          letter-spacing:.06em; padding:var(--s3); border-radius:var(--r-md);
-         background:var(--surface-2); border:2px solid var(--line-2);}
-.spellin:focus{outline:none; border-color:var(--acc);}
+         background:transparent; border:0; position:relative; z-index:1;}
+.spellin:focus{outline:none;}
+/* Option 4 "pebble-echo" edge (WIN-2): the hair SVG draws the whole box behind the
+   transparent input — a wobbly fill in her surface colour and a thin accent-green
+   hand-drawn stroke that undulates like the pebbles. non-scaling-stroke keeps the line
+   hairline-thin however the reference box is stretched to the real one. */
+.hair{position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; color:var(--acc);}
+.hair path{fill:var(--surface-2); stroke:currentColor; stroke-width:1.3; vector-effect:non-scaling-stroke;
+           stroke-linecap:round; stroke-linejoin:round;}
 
 /* The word keeps ONE vertical position across every stage — look, write, check,
    success, correction — so the shape she memorised never jumps between screens.
@@ -594,7 +602,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.9';
+var VERSION = '13.10';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2567,9 +2575,13 @@ function renderWord(){
          // it is worth having, so the announcement keeps it; read, "means:" does
          // the same job in five.
          + (cue ? '<p class="cue">means: <b>' + esc(cue) + '</b></p>' : '');
-    wordslot = '<input class="spellin" id="type" type="text" inputmode="text" autocomplete="off" '
+    wordslot = '<div class="spellinwrap">'
+         +   '<svg class="hair" viewBox="0 0 ' + HAIR_W + ' ' + HAIR_H + '" preserveAspectRatio="none" aria-hidden="true">'
+         +     '<path d="' + boxHairPath('box') + '"/></svg>'
+         +   '<input class="spellin" id="type" type="text" inputmode="text" autocomplete="off" '
          +   'autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" '
-         +   'value="' + esc(W.attempt) + '" aria-label="Type the word">';
+         +   'value="' + esc(W.attempt) + '" aria-label="Type the word">'
+         + '</div>';
     // No Check button — she is on touch and the keyboard's return key submits.
     // enterkeyhint="done" labels it, and the Enter handler calls check().
     act = hear;
@@ -3382,6 +3394,25 @@ function blobBounds(pts){
   return {x0:lo[0], y0:lo[1], x1:hi[0], y1:hi[1]};
 }
 function cellPath(w, x, y, r){ return blobPath(cellPoints(w, x, y, r)); }
+/* The write box's edge (WIN-2, Option 4 "pebble-echo"): a hand-drawn hairline that
+   undulates with the same character as the pebbles she is collecting — a ring of points
+   round the box perimeter, jittered along each edge's normal like a pebble's ring but
+   lower-frequency and a touch higher-amplitude, fed through the same cornerless blobPath.
+   Drawn once at a reference size and stretched to the real box with a non-scaling stroke,
+   so the wobble follows the box but the line stays hairline-thin. Seeded, so it is the
+   same edge every render and never crawls. */
+var HAIR_W = 320, HAIR_H = 84;
+function boxHairPath(seed){
+  var rnd = seeded('hair' + seed), amp = 3.4, R = 20, W = HAIR_W, H = HAIR_H, pts = [], i, n = 3;
+  function push(x, y, nx, ny){ pts.push([x + nx * (rnd() - .5) * 2 * amp, y + ny * (rnd() - .5) * 2 * amp]); }
+  for(i = 0; i < n; i++) push(R + (W - 2 * R) * i / n, 0, 0, -1);      // top, left to right
+  push(W - R, 0, 0, -1);
+  push(W, R, 1, 0); push(W, H - R, 1, 0);                             // right edge
+  for(i = 0; i < n; i++) push(W - R - (W - 2 * R) * i / n, H, 0, 1);  // bottom, right to left
+  push(R, H, 0, 1);
+  push(0, H - R, -1, 0); push(0, R, -1, 0);                           // left edge
+  return blobPath(pts);
+}
 /* The outline itself: a closed curve through the midpoints of the ring, each
    piece a quadratic bending towards the point between them. Nothing in here has
    a corner, and it works for any number of points — seven for a word, three for

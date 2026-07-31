@@ -20,7 +20,7 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
 
 ## THEN — UX batch
 - ⬜ **WIN-1** — Miss → re-trace the word, letter-slip emphasised, instead of "Look at this letter." [batch 8]
-- ⬜ **WIN-2** — Sketchy hairline syllable underline; word stays book-natural. [batch 4]
+- 🔨 **WIN-2** — Write-box edge shipped (13.10): Option 4 "pebble-echo" hairline — a seeded, hand-drawn accent-green edge that undulates like the pebbles, drawn behind a transparent input via `boxHairPath()`+`blobPath`, non-scaling stroke. **→ verify on phone.** (Syllable-underline variant on the read/trace word still open.) [batch 4]
 - ⬜ **WIN-3** — Per-word pebbles + two-pass green depth (light → deeper). [batch 1]
 - ⬜ **WIN-4** — Ditch speaker button → word/chips/cover tap-to-hear + ~8s stuck-fade cue. [batch 2+3]
 - ⬜ **WIN-5** — Drop "Yes — that's it" → green + subtle size pulse; keep earned "You got there." [batch 7, D-c, dep RES-2]
