@@ -1220,15 +1220,17 @@ async function main(){
        only ever checked the first. fitScreen deletes until the panel fits, so a screen
        with every sentence taken off it passes every measurement in here — no overflow,
        no clipping, nothing off the edge. That is exactly what happened at 320px and her
-       largest text: three syllable chips wrapped onto a second row, the shed list ran to
-       the end, and she was left looking at a rust-coloured letter in the middle of her
+       largest text once: three syllable chips wrapped onto a second row, the shed list ran
+       to the end, and she was left looking at a rust-coloured letter in the middle of her
        word with not one word anywhere telling her why.
 
-       So the invariant is about order rather than outcome. Deleting the caption is
-       allowed when there is genuinely no room for it — a four-chunk word at 320px and
-       1.5x does not fit however it is squeezed. What is not allowed is deleting it
-       before trying to make it smaller. If the verdict is gone, both shrink rungs must
-       have been used first. */
+       The chips are gone (13.20 — their split is a faint seam drawn under the word now, no
+       row of its own, so it cannot wrap and cannot be shed out from under the word), and the
+       two-rung squeeze with them. So the invariant is about order rather than outcome.
+       Deleting the caption is allowed when there is genuinely no room for it — a four-chunk
+       word at 320px and 1.5x does not fit however small. What is not allowed is deleting it
+       before the things below it in the shed list. If the verdict is gone, the note and the
+       dots — least useful first — must have gone before it. */
     const WORDS = ['beautiful', 'because', 'remember', 'different', 'interesting', 'said'];
     let broke = 0, shedAnyway = 0, cases = 0;
     for(const [width, height] of [[320, 568], [360, 640], [390, 844], [320, 480],
@@ -1258,22 +1260,21 @@ async function main(){
                 const n = m.querySelector(sel);
                 return !!n && getComputedStyle(n).display !== 'none';
               };
-              /* Rendered, not merely display:block. In landscape at her largest text
-                 data-cramped hides the whole .syls row, and a chip inside it still
-                 reports display:inline-flex while measuring 0x0 — which read as five
-                 tap targets under 44px until I looked at what they actually were. */
-              const chips = [...m.querySelectorAll('.syl')]
-                .filter(c => c.getClientRects().length > 0)
-                .map(c => { const b = c.getBoundingClientRect();
-                            return {t: c.textContent, w: b.width, h: b.height}; });
+              /* Has a box on screen, not merely display:block. The verdict, the note and the
+                 dots can be shed by hiding a slot ABOVE them (the caption lives in .supra),
+                 so their own display stays set while they measure nothing — getClientRects is
+                 empty when the element or any ancestor is display:none. */
+              const shown = sel => { const n = m.querySelector(sel); return !!n && n.getClientRects().length > 0; };
               return {
-                verdict: on('.verdict'),
+                verdict: shown('.verdict'),
                 word: on('.marked') || on('.word'),
-                rung: document.documentElement.getAttribute('data-squeezed'),
-                cramped: document.documentElement.hasAttribute('data-cramped'),
-                chips: chips,
-                small: chips.filter(c => c.w < 43.5 || c.h < 43.5).map(c => c.t),
+                note: shown('.note'),
+                dots: shown('.dots'),
+                // The seam over the word, when it has more than one syllable — it rides on the
+                // word, so it is there whenever the word is.
+                seams: !!m.querySelector('.marked .seams, .word .seams'),
                 clipped: m.scrollHeight > m.clientHeight + 1,
+                sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
                 // Anything at all she can read, ignoring the buttons.
                 words: (m.innerText || '').replace(/\s+/g, ' ').trim(),
               };
@@ -1281,10 +1282,9 @@ async function main(){
             const at = width + 'x' + height + ' @' + scale + ' "' + word + '"';
             const why = !r.word ? 'the word itself came off the screen'
               : r.clipped ? 'the screen is cut off'
-              : r.small.length ? 'chip "' + r.small[0] + '" fell under the 44px target'
-              : (!r.verdict && r.rung !== '2' && !r.cramped)
-                  ? 'the verdict was deleted at rung ' + JSON.stringify(r.rung)
-                    + ' — shrinking was still available and was not tried'
+              : r.sideways ? 'the screen scrolls sideways'
+              : (!r.verdict && (r.note || r.dots))
+                  ? 'the caption was shed while the note or the dots were still up — shed order is wrong'
               : !r.words ? 'nothing readable is left on the screen at all'
               : null;
             if(why){ bad('screen emptied, ' + at, why); broke++; }
@@ -1296,8 +1296,8 @@ async function main(){
       }
     }
     if(!broke) ok(cases + ' verdict screens across six shapes and five text sizes each kept'
-                  + ' her word, her chips and something to read — the ' + shedAnyway
-                  + ' that still lost the caption had both shrink rungs used on them first');
+                  + ' her word and something to read — the ' + shedAnyway
+                  + ' that lost the caption had the note and dots shed before it');
   }
 
   /* ---------------------------------------------------------------

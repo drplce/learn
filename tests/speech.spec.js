@@ -357,16 +357,26 @@ test.describe('what she hears', () => {
 
   test('a piece of a word is never spoken faster than the whole word', async ({page}) => {
     await listen(page, AU);
-    // The slowest setting is where a fixed syllable rate used to invert this.
+    // The chips that used to be tapped to hear a piece are gone (their split is a drawn seam
+    // now), so the pieces are heard the other way they always were: a miss speaks the whole
+    // word and then its pieces. The rate rule is the same one, checked across the settings —
+    // the slowest is where a fixed syllable rate used to invert it.
     for(const rate of [0.7, 0.85, 0.95, 1.1]){
       await page.evaluate(r => { window.__acorn.state.settings.speechRate = r;
                                  window.__acorn.save(); }, rate);
       await startOn(page, ['because','rain','boat']);
+      await page.evaluate(() => window.__acorn.cover());
+      await write(page, 'becuase');
       await clear(page);
-      await page.locator('.syl').first().click();
-      const [piece] = await spoken(page);
-      expect(piece.text, `rate ${rate}`).toBe('be');
+      await page.evaluate(() => window.__acorn.check());
+      const said = await spoken(page);
+      // [whole, be, cause] — the pieces come after the word, and slower than it.
+      const whole = said.find(u => u.text.trim() === 'because');
+      const piece = said.find(u => u.text.trim() === 'be');
+      expect(piece, `rate ${rate}: the piece "be" was not spoken`).toBeTruthy();
       expect(piece.rate, `syllable at speech rate ${rate}`).toBeLessThan(rate);
+      expect(piece.rate, `syllable slower than the whole word at rate ${rate}`)
+        .toBeLessThan(whole.rate);
       expect(piece.rate).toBeGreaterThanOrEqual(0.5);
     }
   });

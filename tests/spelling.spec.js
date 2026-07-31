@@ -136,18 +136,30 @@ test.describe('a word she has never met', () => {
     expect(attrs).toEqual({correct:'off', cap:'off', spell:'false', complete:'off'});
   });
 
-  test('a one-syllable word is not given a syllable row repeating itself', async ({page}) => {
+  test('a one-syllable word is not given a seam repeating itself', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['said']);
     await expect(page.locator('.tracew')).toHaveText('said');
-    await expect(page.locator('.syls')).toHaveCount(0);
+    // Nothing to split, so no chunks and no seam overlay — the word stands plain.
+    await expect(page.locator('.tracew .sylseg')).toHaveCount(0);
+    await expect(page.locator('.tracew .seams')).toHaveCount(0);
   });
 
-  test('a multi-syllable word shows its parts, each speakable', async ({page}) => {
+  test('a multi-syllable word shows its parts as seams under the word', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['because']);
-    await expect(page.locator('.syl')).toHaveCount(2);
-    await expect(page.locator('.syl').first()).toHaveText('be');
+    // The split is a seam under each chunk now, not a row of chips. The word stays a whole,
+    // book-natural run — .tracew reads "because" — and its chunks are marked by .sylseg spans
+    // (so the seam overlay can be measured onto them) with one faint hairline each.
+    await expect(page.locator('.tracew')).toHaveText('because');
+    const segs = page.locator('.tracew .sylseg');
+    await expect(segs).toHaveCount(2);
+    await expect(segs.first()).toHaveText('be');
+    await expect(segs.nth(1)).toHaveText('cause');
+    await expect(page.locator('.tracew .seams')).toHaveCount(1);
+    // The pieces are still spoken (on a miss, and by the model that drives it); speech.spec
+    // covers the speaking. Here: the model splits the word into the same two pieces.
+    expect(await page.evaluate(() => window.__acorn.splitOf('because'))).toEqual(['be', 'cause']);
   });
 });
 
@@ -1876,11 +1888,17 @@ test.describe('a long word stays whole', () => {
         }, {scale, w});
         const m = await page.evaluate(() => {
           const el = document.querySelector('.tracew');       // the traced word, shown to copy
-          const rg = document.createRange();
-          rg.selectNodeContents(el);
-          // The traced word is one span per letter, so a range over it returns a rect per
-          // letter, not per line — count distinct vertical positions to get real lines.
-          const tops = new Set([...rg.getClientRects()].map(r => Math.round(r.top)));
+          // Count lines from the letters only. The word is a run of letter spans grouped into
+          // .sylseg chunks; the faint syllable seams are a separate .seams overlay sitting below
+          // the letters (a different vertical position by design), so a range over the whole
+          // element would count the seam row as a second line. Measure the chunk boxes instead —
+          // and for a one-syllable word (no chunks, no seams) fall back to the letters directly.
+          const chunks = [...el.querySelectorAll('.sylseg')];
+          const rects = chunks.length
+            ? chunks.flatMap(c => [...c.getClientRects()])
+            : (() => { const rg = document.createRange(); rg.selectNodeContents(el);
+                       return [...rg.getClientRects()]; })();
+          const tops = new Set(rects.map(r => Math.round(r.top)));
           return {lines: tops.size,
                   px: Math.round(parseFloat(getComputedStyle(el).fontSize)),
                   past: Math.round(el.getBoundingClientRect().right - document.documentElement.clientWidth)};
@@ -2089,15 +2107,18 @@ test.describe('reachable without a touchscreen', () => {
     await expect(page.locator('h1')).toHaveAccessibleName('Acorn');
   });
 
-  test('the syllables are buttons, labelled and focusable', async ({page}) => {
+  test('the syllable seams are decoration, not a control in her way', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['because']);
-    const syls = page.locator('.syl');
-    await expect(syls).toHaveCount(2);
-    expect(await syls.first().evaluate(n => n.tagName)).toBe('BUTTON');
-    await expect(syls.first()).toHaveAttribute('aria-label', 'Hear be');
-    await syls.first().focus();
-    expect(await page.evaluate(() => document.activeElement.className)).toContain('syl');
+    // The chips were focusable buttons; the seams that replaced them are a reading aid drawn
+    // over the word, so they are hidden from assistive tech and are not tab stops or tap
+    // targets. Nothing on the word screen is a syllable control any more.
+    await expect(page.locator('[data-syl], button.syl')).toHaveCount(0);
+    const overlay = page.locator('.tracew .seams');
+    await expect(overlay).toHaveCount(1);
+    await expect(overlay).toHaveAttribute('aria-hidden', 'true');
+    // The word itself still carries its spelling for a screen reader, unchanged by the seams.
+    await expect(page.locator('.tracew')).toHaveAttribute('aria-label', 'b e c a u s e');
   });
 
   test('the tricky-word chips are buttons too', async ({page}) => {
@@ -2163,10 +2184,10 @@ test.describe('reachable without a touchscreen', () => {
       reachable.add(await page.evaluate(() =>
         document.activeElement.id || document.activeElement.className || document.activeElement.tagName));
     }
-    expect([...reachable].join(' ')).toMatch(/syl/);
-    // WIN-4: the speaker button is gone, so there is no #hear to tab to any more; the trace
-    // box and the syllable chips are the controls on this stage.
-    expect([...reachable].join(' ')).toMatch(/type/);   // the trace box she copies into
+    // WIN-4 took the speaker button, and 13.20 took the syllable chips (their split is a drawn
+    // seam now, not a control). The trace box she copies into is the one control on this stage,
+    // and it must be reachable by keyboard.
+    expect([...reachable].join(' ')).toMatch(/type/);
   });
 
   test('driven by keyboard, focus is never dropped to the document', async ({page}) => {

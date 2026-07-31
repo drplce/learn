@@ -136,11 +136,12 @@ test.describe('the reasons behind the design, not just the behaviour', () => {
   });
 
   test('§6 every word of more than one syllable is offered in pieces', async ({page}) => {
-    /* On the screen, not in the model. My first version of this compared splitOf() against
-       syllables() — which return the same array as each other, so it asserted nothing and
-       still managed to fail, because I read the array as a count. What the claim is actually
-       about is whether she is offered the pieces, so this renders the stage and counts the
-       chips she can see and tap. */
+    /* On the screen, not in the model. The pieces used to be a row of chips; since 13.20 they
+       are seams — a faint hairline drawn under each chunk of the word itself, the word left
+       whole and book-natural. So "offered in pieces" is now: the word is split into .sylseg
+       chunks that spell it, a .seams overlay is drawn over them, and a one-syllable word gets
+       neither. (The pieces are still SPOKEN — on a miss, and by the model here; speech.spec
+       covers the speaking.) */
     await open(page, '2026-08-01');
     for(const [word, want] of [['beautiful', 3], ['because', 2], ['remember', 3],
                                ['different', 3], ['said', 0], ['rain', 0], ['went', 0]]){
@@ -151,18 +152,21 @@ test.describe('the reasons behind the design, not just the behaviour', () => {
         a.state.words.activeId = id;
         a.state.words.mastery = {}; a.state.words.sessions = [];
         a.save(); a.go('day'); if(!a.session()) a.start();
-        const chips = [...document.querySelectorAll('.syl')]
+        const word = document.querySelector('.tracew');
+        const chunks = [...word.querySelectorAll('.sylseg')]
           .filter(c => c.getClientRects().length > 0);
         return {pieces: a.syllables(w),
-                chips: chips.map(c => c.textContent),
-                tappable: chips.filter(c => c.hasAttribute('data-syl')).length};
+                chunks: chunks.map(c => c.textContent),
+                seams: word.querySelectorAll('.seams').length};
       }, word);
-      expect(r.chips.length, `"${word}" was offered as ${r.chips.length} chips, wanted ${want}`)
+      expect(r.chunks.length, `"${word}" was split into ${r.chunks.length} chunks, wanted ${want}`)
         .toBe(want);
       if(want){
-        expect(r.chips.join(''), `the chips for "${word}" do not spell it`).toBe(word);
-        expect(r.tappable, `the chips for "${word}" cannot be tapped to hear them`).toBe(want);
-        expect(r.pieces.length, 'the chips disagree with the split behind them').toBe(want);
+        expect(r.chunks.join(''), `the chunks for "${word}" do not spell it`).toBe(word);
+        expect(r.seams, `"${word}" has its chunks but no seam drawn over them`).toBe(1);
+        expect(r.pieces.length, 'the chunks disagree with the split behind them').toBe(want);
+      } else {
+        expect(r.seams, `a one-syllable word "${word}" was given a seam`).toBe(0);
       }
     }
     expect(errorsOf(page)).toEqual([]);

@@ -75,37 +75,11 @@ test.describe('tap targets', () => {
     expect([...new Set(tooSmall)]).toEqual([]);
   });
 
-  test('a syllable chunk of one letter is still a full target', async ({page}) => {
-    // "e·nough" and "a·fraid" open on a single letter, which is the narrowest a chunk
-    // can possibly be.
-    await open(page, '2026-08-01');
-    const sizes = await page.evaluate(() => {
-      const a = window.__acorn;
-      a.state.settings.textScale = 0.8;
-      a.state.words.activeId = 'tricky';               // enough -> e·nough
-      a.save(); a.go('parent'); a.go('day');
-      if(!a.session()) a.start();
-      // Walk to a word that splits on a single letter.
-      for(let g = 0; g < 40; g++){
-        const W = a.session();
-        if(!W) break;
-        if(W.stage === 'look' && a.splitOf(W.words[W.i]).some(p => p.length === 1)) break;
-        if(W.stage === 'look'){ a.cover(); continue; }
-        if(W.stage === 'write'){ a.type(W.words[W.i]); a.check(); a.next(); continue; }
-        a.next();
-      }
-      return [...document.querySelectorAll('.syl')].map(e => {
-        const r = e.getBoundingClientRect();
-        return {text: e.textContent, w: Math.round(r.width), h: Math.round(r.height)};
-      });
-    });
-    // Not every walk lands on such a word; when it does, hold it to the floor.
-    for(const s of sizes){
-      expect(s.w, `the "${s.text}" chunk is ${s.w}px wide`).toBeGreaterThanOrEqual(44);
-      expect(s.h, `the "${s.text}" chunk is ${s.h}px tall`).toBeGreaterThanOrEqual(44);
-    }
-    expect(errorsOf(page)).toEqual([]);
-  });
+  // (Until 13.20 there was a test here holding a one-letter syllable chip — "e·nough",
+  // "a·fraid" — to the 44px floor, the narrowest a tappable chunk could be. The chips are
+  // gone; the syllable split is a faint seam drawn under the word now, not a tap target, so
+  // there is no chunk to size. The seam being non-interactive is asserted in spelling.spec.js
+  // ("the syllable seams are decoration, not a control in her way").)
 
   test('every tappable thing is sized off the tap scale, not by its contents',
     async ({page}) => {
@@ -113,9 +87,12 @@ test.describe('tap targets', () => {
       // padding and font happen to add up to will drift below the floor the next time
       // either changes.
       await open(page, '2026-08-01');
-      const loose = await page.evaluate(() => {
+      const held = await page.evaluate(() => {
         const sheet = [...document.styleSheets].find(s => !s.href);
-        const want = /^(\.syl|\.quiet|\.seg button|\.chip|\.back|\.swatch)/;
+        // The syllable chips are gone (their split is a drawn seam under the word now, not a
+        // tappable pill), so the tappable things left are these, and each has to name --tap so
+        // its size cannot drift below the floor the next time a padding or a font changes.
+        const want = /^(\.quiet|\.seg button|\.chip|\.back|\.swatch)/;
         const seen = {};
         const walk = rules => {
           for(const r of rules){
@@ -130,10 +107,10 @@ test.describe('tap targets', () => {
         walk(sheet.cssRules);
         return seen;
       });
-      // .syl is the one that was missing; the others were already held.
-      expect(Object.keys(loose)).toContain('.syl');
-      expect(loose['.syl'], '.syl is no longer held to the tap scale')
-        .toMatch(/var\(--tap\)/);
+      for(const sel of ['.quiet', '.chip', '.back', '.swatch']){
+        expect(Object.keys(held), `${sel} is no longer held to the tap scale`).toContain(sel);
+        expect(held[sel], `${sel} is not held to the tap scale`).toMatch(/var\(--tap\)/);
+      }
     });
 
 });

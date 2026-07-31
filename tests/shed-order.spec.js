@@ -76,23 +76,19 @@ test.describe('what gets dropped when it will not fit', () => {
   test('the word itself is never shed', async ({page}) => {
     /* The lesson itself. Whatever else has to go, not these.
 
-       .syls used to be on this list, on the reading that the word's pieces are part of
-       the lesson. It came off in 11.4, because the alternative turned out to be worse:
-       turned sideways at her largest text, dropping the note, the dots and the caption
-       still left the panel a few pixels too tall, and a panel that will not fit is cut
-       off — so what got hidden was part of the word, which is the one thing this test
-       exists to protect. data-cramped had already been hiding the chip row for the same
-       reason since long before, so the row was never really unshakeable; the shed list
-       just had no way to reach that conclusion by measurement. The chips are last on the
-       list, so they only go once everything above them has already gone. */
+       .syls used to be the last name on this list — the syllable chips, shed only once
+       everything above them had gone. The chips are gone now: the word's split is a seam
+       drawn under the word itself (a .seams overlay measured onto it), so there is no
+       separate row to shed and nothing to place on this list — the pieces cannot be shed
+       out from under the word because they ARE the word. The caption slot .supra is the
+       last thing to go, after the note and the dots. */
     await open(page, '2026-08-01');
     const order = await page.evaluate(() => window.__acorn.shedOrder());
     const all = [...order.word, ...order.done];
-    for(const keep of ['.word', '.marked', '.spellin', '.cue'])
+    for(const keep of ['.word', '.marked', '.spellin', '.cue', '.seams', '.sylseg'])
       expect(all, `${keep} is in the shed list`).not.toContain(keep);
     expect(order.word[order.word.length - 1],
-      '.syls is on the list but not at the end of it, so the chips could go while\n' +
-      'something less useful than them is still on the screen').toBe('.syls');
+      'the caption slot is not the last thing to go').toBe('.supra');
   });
 
   test('the cue outlives the instruction, and both outlive nothing else', async ({page}) => {

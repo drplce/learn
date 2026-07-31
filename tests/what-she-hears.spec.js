@@ -216,9 +216,11 @@ test.describe('the words a school list really holds', () => {
     expect(by["everybody's"]).toEqual(['e', 've', 'ry', 'bo', "dy's"]);
   });
 
-  test('the chips of a contraction are all sayable and all tappable', async ({page}) => {
-    // They speak when tapped, which is what made the orphaned "re" worth fixing rather
-    // than tidying.
+  test('the chunks of a contraction are all real, none an orphaned apostrophe', async ({page}) => {
+    // The split keeps the apostrophe with its letters ("they" + "'re", not "they" + "re" + "'"),
+    // which is what made the orphaned "re" worth fixing. The pieces are seams now, not chips,
+    // but the same thing has to hold: every chunk under the word carries a letter, and together
+    // they spell the word.
     await open(page, '2026-08-01');
     for(const w of ["they're", "haven't", "everybody's"]){
       const r = await page.evaluate(word => {
@@ -228,16 +230,22 @@ test.describe('the words a school list really holds', () => {
         a.state.words.activeId = id;
         a.state.words.mastery = {}; a.state.words.sessions = [];
         a.save(); a.go('day'); if(!a.session()) a.start();
-        return [...document.querySelectorAll('.syl')]
-          .filter(c => c.getClientRects().length > 0)
-          .map(c => ({text: c.textContent, says: c.dataset.syl,
-                      label: c.getAttribute('aria-label')}));
+        const wordEl = document.querySelector('.tracew');
+        return {chunks: [...wordEl.querySelectorAll('.sylseg')].map(c => c.textContent),
+                whole: wordEl.textContent,
+                says: a.splitOf(wordEl.textContent)};
       }, w);
-      for(const c of r){
-        expect(c.text, `a chip of "${w}" is just an apostrophe`).toMatch(/[a-z]/);
-        expect(c.says, `a chip of "${w}" has nothing to say`).toBe(c.text);
-        expect(c.label, `a chip of "${w}" is unlabelled`).toContain(c.text);
-      }
+      // The split is the source of truth (it drives both the seams and the spoken pieces):
+      // it tiles the word and no piece is a lone apostrophe — the orphaned "re" this guards.
+      expect(r.says.join(''), `the split of "${w}" does not spell it`).toBe(w);
+      for(const p of r.says)
+        expect(p, `a piece of "${w}" is just an apostrophe`).toMatch(/[a-z]/);
+      // A multi-syllable contraction shows those same pieces as seam chunks under the word; a
+      // one-syllable one ("they're") gets no chunks and no seam, as it should.
+      if(r.says.length > 1)
+        expect(r.chunks, `the seams for "${w}" do not match its split`).toEqual(r.says);
+      else
+        expect(r.chunks.length, `a one-syllable "${w}" was given seam chunks`).toBe(0);
     }
     expect(errorsOf(page)).toEqual([]);
   });

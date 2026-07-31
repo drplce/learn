@@ -77,14 +77,15 @@ test.describe('nothing is ever half shown', () => {
     const seen = await page.evaluate(() => {
       const vis = s => { const n = document.querySelector(s);
                          return !!n && !!n.getBoundingClientRect().height; };
-      return {word: vis('.marked') || vis('.word'), chips: vis('.syls'),
-              chipCount: document.querySelectorAll('.syl').length,
+      // The pieces are the seams drawn under the word now, not a separate chip row — they ride
+      // on the word itself, so they cannot be shed out from under it.
+      return {word: vis('.marked') || vis('.word'),
+              seams: !!document.querySelector('.marked .seams, .word .seams'),
               action: !!document.querySelector('#act button')};
     });
     // Whatever had to go, these did not.
     expect(seen.word, 'the word itself').toBe(true);
-    expect(seen.chips, 'the syllable pieces').toBe(true);
-    expect(seen.chipCount).toBeGreaterThan(1);
+    expect(seen.seams, 'the syllable pieces, drawn under the word').toBe(true);
     expect(seen.action, 'the way on').toBe(true);
   });
 
