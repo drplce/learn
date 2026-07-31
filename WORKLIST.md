@@ -11,10 +11,10 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
 ## NOW — fix reported + protect data
 - ✅ **SCR-1** — `position:fixed` body to stop iOS's document pan (shipped 13.6). **VERIFY ON PHONE** — Chromium can't reproduce the iOS keyboard drag; if it misbehaves, it rolls into LAY-2.
 - ✅ **DAT-1** — `navigator.storage.persist()` on first tap (shipped 13.6).
-- 🔨 **RES-1** — Measure longest-word fit on iPhone SE → the text-size cap. Feeds LAY-1.
+- ✅ **RES-1** — Measured. On the SE a 12-letter word maxes at **~34px** (width-limited; the `--t-3xl` ceiling is never reached), 14-letter ~29px. Corrects my earlier ~44px guess. Short words currently render 51–64px, so a locked size is a real reduction — **needs D-a refined** (see below) before LAY-1.
 
 ## NEXT — deterministic layout
-- ⬜ **LAY-1** — Constant word size: cap config sizes so a 12-letter word just fits; no per-word shrink at ≤12. [dep RES-1, D-a]
+- ⏸ **LAY-1** — Constant word size. **Blocked on D-a refined:** RES-1 shows the locked size is ~34px (smaller than short words get today). Option A = lock 34px, fully uniform; Option B = unify the sizing *rule* across stages but keep short words big, only 13+ shrink. [dep RES-1, D-a]
 - ⬜ **LAY-2** — Hard-fix the word/box at one position across all stages + lock `main` scroll. [dep LAY-1, D-b]
 - ⬜ **DAT-2** — Surface export/import backup prominently on the grown-ups screen.
 
