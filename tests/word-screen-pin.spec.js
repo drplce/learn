@@ -39,3 +39,33 @@ test('the dots and the word hold position on write, cue or no cue', async ({page
   expect(Math.abs(withCue.dots - noCue.dots), `dots moved: ${withCue.dots} vs ${noCue.dots}`).toBeLessThanOrEqual(1);
   expect(Math.abs(withCue.word - noCue.word), `box moved: ${withCue.word} vs ${noCue.word}`).toBeLessThanOrEqual(1);
 });
+
+test('the dots and the word hold ONE position across trace, write, win and miss', async ({page}) => {
+  await open(page, '2026-08-01');
+  await page.setViewportSize({width:375, height:667});
+  const wordSel = '.trace, .spellinwrap, .word, .marked';
+  const at = async () => ({ dots: await mid(page, '.dots'), word: await mid(page, wordSel) });
+  const dots = [], words = [];
+  // trace (a new word), then write, then a win — one word carried through its stages.
+  await page.evaluate(() => { const a = window.__acorn;
+    a.state.words.lists = [{id:'w', name:'T', words:['because','rain']}];
+    a.state.words.activeId = 'w'; a.state.words.mastery = {}; a.state.words.sessions = [];
+    a.save(); a.go('day'); a.start(); });
+  let p = await at(); dots.push(p.dots); words.push(p.word);                 // trace
+  await page.evaluate(() => window.__acorn.cover());
+  p = await at(); dots.push(p.dots); words.push(p.word);                     // write
+  await page.evaluate(() => { window.__acorn.type('because'); window.__acorn.check(); });
+  p = await at(); dots.push(p.dots); words.push(p.word);                     // win
+  // a miss (its own word, with the "next" button in the footer).
+  await page.evaluate(() => { const a = window.__acorn;
+    a.state.words.lists = [{id:'m', name:'T', words:['friend','rain']}];
+    a.state.words.activeId = 'm';
+    a.state.words.mastery = {friend:{right:3,wrong:0,box:2,lastSeen:'2026-06-01'}};
+    a.state.words.sessions = []; a.save(); a.go('day'); a.start();
+    if(a.session().stage === 'look') a.cover(); a.type('frend'); a.check(); });
+  p = await at(); dots.push(p.dots); words.push(p.word);                     // miss
+  // Every stage lands on one line for the dots, and one for the word — no jump anywhere.
+  const spread = a => Math.max(...a) - Math.min(...a);
+  expect(spread(dots), `dots move across stages: ${dots.map(n => n.toFixed(0))}`).toBeLessThanOrEqual(2);
+  expect(spread(words), `word moves across stages: ${words.map(n => n.toFixed(0))}`).toBeLessThanOrEqual(2);
+});

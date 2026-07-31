@@ -163,6 +163,13 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 #act .primary{flex:1 1 7rem; margin:0;}
 #act .quiet{margin:0;}
 #act:empty{display:none;}
+/* On a word screen the footer holds ONE height whether or not it has a button — the "next"
+   chevron only appears on a miss, and without this it shrank `main` and re-centred the whole
+   word band up ~40px between a win and a miss. Reserving it keeps `main` (and so the word and
+   the dots) fixed across every stage of the word. The grown-ups and finished screens keep the
+   collapse. */
+:root:not([data-stage=parent]):not([data-stage=done]):not([data-tight]) #act{
+  min-height:calc(var(--tap-xl) + var(--s2)); display:flex;}
 
 /* ---------- header: the mark + today's progress ---------- */
 /* flex:none, so the header is pinned to the top of the app exactly the way #act
@@ -230,10 +237,15 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
    .763 ("enough"). Past about fourteen letters the floor takes over and it
    wraps, which is still better than clipping letters off a word she is
    about to copy. */
+/* The checked word shares the writing box's footprint exactly — same line-box (1.7, inherited
+   like the input's) and the same vertical padding — so the word-slot is ONE height on every
+   stage (trace box, writing box, checked word) and the word's top never shifts. No margin: the
+   word-slot centres it, and the slot is a fixed height (see .wordslot), so nothing it holds can
+   move the dots above it. The box hairline is drawn only on the input stages; here the same
+   footprint carries no edge, which is why she reads it free. */
 .word,.marked{
-  text-align:center; font-weight:700; line-height:1.35;
-  letter-spacing:.06em; word-spacing:.1em; margin:var(--s2) 0 var(--s1);
-  padding-bottom:.08em; overflow-wrap:anywhere;
+  text-align:center; font-weight:700; line-height:1.7;
+  letter-spacing:.06em; word-spacing:.1em; margin:0; padding:var(--s3) 0; overflow-wrap:anywhere;
   font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (max(var(--wl,6), 12) * .8)), var(--t-3xl));}
 .marked b{color:var(--ink); font-weight:700;}
 .marked u{color:var(--retry); text-decoration:none; border-bottom:3px solid var(--retry);}
@@ -271,7 +283,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
    measured against, so a long word fills the box without wrapping. (The writing box can
    afford side padding because its <input> never wraps — it overflows instead; the trace is
    a wrapping element, so horizontal padding there would break a long word onto two lines.) */
-.trace{position:relative; min-height:var(--tap); margin:var(--s2) 0 var(--s1);
+.trace{position:relative; min-height:var(--tap); margin:0;
        padding:var(--s3) 0; border-radius:var(--r-md);
        display:flex; align-items:center; justify-content:center;}
 /* When the screen is tight (landscape, keyboard up, big text) the box hugs the letters so
@@ -653,7 +665,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.16';
+var VERSION = '13.17';
 var KEY = 'acorn.v1';
 
 /* =========================================================
