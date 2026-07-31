@@ -858,10 +858,13 @@ async function main(){
               const box = act && act.getBoundingClientRect();
               out.push({
                 stage: W.stage,
-                // Off the bottom, or off the side, and she cannot go on.
-                offscreen: !box || box.bottom > vh + 1 || box.top < -1
-                                || box.right > vw + 1 || box.left < -1,
-                small: !box || box.width < 44 || box.height < 44,
+                // The button that moves her on only exists on a miss (the chevron) and at the
+                // end (the tick); look/write have none since WIN-4 (she types/traces on, and a
+                // win auto-advances), so a missing button on those stages is right, not a fault.
+                // When a button IS there it must be fully on screen and 44px.
+                offscreen: box ? (box.bottom > vh + 1 || box.top < -1
+                                || box.right > vw + 1 || box.left < -1) : false,
+                small: box ? (box.width < 44 || box.height < 44) : false,
                 sideways: de.scrollWidth > vw + 1,
                 // Anything tappable that has ended up under 44px.
                 tiny: [...document.querySelectorAll('button')].filter(e => {

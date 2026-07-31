@@ -58,11 +58,13 @@ test.describe('a tap that hits nothing', () => {
     expect(errorsOf(page)).toEqual([]);
   });
 
-  test('a tap on a real control still does its own job', async ({page}) => {
-    // Hear it must speak and not be swallowed by the refocus; Check must check.
+  test('a tap to replay the word does its job without disturbing what she wrote', async ({page}) => {
+    // WIN-4: the speaker button is gone — a tap on the word screen replays the word. It must
+    // not be swallowed by the refocus, must keep her half-written word, and leave her writing;
+    // and Enter must still check.
     await open(page, '2026-08-01');
     await midWord(page);
-    await page.locator('#hear').tap();
+    await page.locator('.dots').tap();
     expect((await focusNow(page)).typed).toBe('beauti');
     expect((await page.evaluate(() => window.__acorn.session().stage))).toBe('write');
     await page.evaluate(() => window.__acorn.check());

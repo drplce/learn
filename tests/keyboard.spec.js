@@ -45,12 +45,12 @@ async function fakeKeyboard(page){
   });
 }
 const kb = (page, n) => page.evaluate(v => window.__kb(v), n);
-// The speaker is the one control on the word screen at every stage since 13.0 (the
-// Check button and the cover button are gone), so it is what must not jump.
-const actionTop = page => page.evaluate(() =>
-  Math.round(document.querySelector('#act .hear').getBoundingClientRect().top));
+// WIN-4 removed the speaker button, so the writing box is the thing she looks at and it is
+// what must not jump as the keyboard comes and goes.
+const boxTop = page => page.evaluate(() =>
+  Math.round(document.querySelector('.spellinwrap').getBoundingClientRect().top));
 
-test.describe('the buttons hold still', () => {
+test.describe('the box holds still', () => {
 
   test('nothing moves once the keyboard height is known', async ({page}) => {
     await open(page, '2026-08-01');
@@ -62,22 +62,22 @@ test.describe('the buttons hold still', () => {
       window.__acorn.save();
     });
     await startOn(page, ['because','friend','thought']);
-    await page.evaluate(() => window.__acorn.cover());   // the writing box + speaker
+    await page.evaluate(() => window.__acorn.cover());   // the writing box
     const seen = [];
-    seen.push(await actionTop(page));                    // keyboard space reserved
+    seen.push(await boxTop(page));                       // keyboard space reserved
     await kb(page, 320);                                 // it opens
-    seen.push(await actionTop(page));
-    await page.locator('#hear').click();
+    seen.push(await boxTop(page));
+    await page.locator('.spellinwrap').click();          // a tap to replay must not shift it
     await kb(page, 0);                                   // iOS drops it anyway
-    seen.push(await actionTop(page));
+    seen.push(await boxTop(page));
     await kb(page, 320);
-    seen.push(await actionTop(page));
+    seen.push(await boxTop(page));
     await write(page, 'becuase');
     await kb(page, 0);
-    seen.push(await actionTop(page));
-    // The whole point: she should never have to look for the button again.
+    seen.push(await boxTop(page));
+    // The whole point: the box she is writing in never moves under her.
     expect(Math.max(...seen) - Math.min(...seen),
-           'the speaker moved as the keyboard came and went: ' + seen.join(', ')).toBe(0);
+           'the box moved as the keyboard came and went: ' + seen.join(', ')).toBe(0);
   });
 
   /* The header is the last thing that was allowed to move. It is the first item
@@ -148,20 +148,15 @@ test.describe('the buttons hold still', () => {
       expect(await page.evaluate(() => window.__acorn.state.settings.kbInset)).toBe(300);
     });
 
-  test('a tap on a button does not take focus off the box', async ({page}) => {
+  test('a tap on the screen to replay does not take focus off the box', async ({page}) => {
     await open(page, '2026-08-01');
     await pretendTouch(page, true);
     await startOn(page, ['because','friend']);
     await page.evaluate(() => window.__acorn.cover());
     expect(await focused(page)).toBe('type');
-    // Cancelling mousedown is what stops iOS beginning to close the keyboard;
-    // refocusing after the tap is too late.
-    const prevented = await page.evaluate(() => {
-      const ev = new MouseEvent('mousedown', {bubbles:true, cancelable:true});
-      document.querySelector('#hear').dispatchEvent(ev);
-      return ev.defaultPrevented;
-    });
-    expect(prevented).toBe(true);
+    // WIN-4: a tap anywhere on the word screen replays the word. A tap that lands off the box
+    // (here, the progress dots) must not blur the box she is typing into.
+    await page.locator('.dots').click();
     expect(await focused(page)).toBe('type');
   });
 
@@ -219,13 +214,15 @@ test.describe('keeping the keyboard open', () => {
     expect(errorsOf(page)).toEqual([]);
   });
 
-  test('tapping Hear it does not let the keyboard go', async ({page}) => {
+  test('tapping to hear the word again does not let the keyboard go', async ({page}) => {
     await open(page, '2026-08-01');
     await pretendTouch(page, true);
     await startOn(page, ['because','friend']);
     expect(await focused(page)).toBe('type');                 // the trace box holds focus
-    await page.locator('#hear').click();
-    // The tap must not pull focus off the box she is typing into.
+    // WIN-4: the speaker button is gone; a tap on the screen replays the word. It must not pull
+    // focus off the box she is typing into. (This word is at the trace stage — .dots is on
+    // every word stage, so it is the stable thing to tap.)
+    await page.locator('.dots').click();
     expect(await focused(page)).toBe('type');
   });
 

@@ -182,8 +182,8 @@ test.describe('the pre-recorded voice', () => {
     });
     await startOn(page, ['because','rain','boat']);
     expect(await played(page)).toEqual([]);
-    // but an explicit tap still plays the recording
-    await page.locator('#hear').click();
+    // but an explicit tap on the screen still plays the recording (WIN-4)
+    await page.locator('.dots').click();
     expect((await played(page)).map(p => p.src)).toEqual(['because.mp3']);
   });
 
@@ -460,13 +460,13 @@ test.describe('what she hears', () => {
     expect((await spoken(page))[0].voice).toBe('Matilda (Premium)');
   });
 
-  test('read-aloud off silences the app but not the Hear it button', async ({page}) => {
+  test('read-aloud off silences the app but not a deliberate tap to hear', async ({page}) => {
     await listen(page, AU);
     await page.evaluate(() => { window.__acorn.state.settings.readAloud = false;
                                 window.__acorn.save(); });
     await startOn(page, ['because','rain','boat']);
     expect(await spoken(page)).toEqual([]);              // nothing unprompted
-    await page.locator('#hear').click();
+    await page.locator('.dots').click();                 // WIN-4: a tap replays, read-aloud or not
     expect((await spoken(page)).map(u => u.text)).toEqual(['because']);
     // and a miss stays silent too
     await page.evaluate(() => window.__acorn.cover());
@@ -490,7 +490,7 @@ test.describe('what she hears', () => {
     await listen(page, AU);
     await startOn(page, ['because','rain','boat']);
     const before = await page.evaluate(() => window.__cancels);
-    for(let i = 0; i < 5; i++) await page.locator('#hear').click();
+    for(let i = 0; i < 5; i++) await page.locator('.dots').click();   // WIN-4: taps to replay
     const after = await page.evaluate(() => window.__cancels);
     expect(after - before).toBe(5);
   });

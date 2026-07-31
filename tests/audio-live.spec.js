@@ -275,16 +275,14 @@ test.describe('the audio path for real', () => {
   test('her speed setting reaches the real element', async ({page}) => {
     await boot(page, ['because','be','cause','said']);
     for(const [rate, cmp] of [[0.7, 'slower'], [1.1, 'faster']]){
-      /* Tap Hear it, rather than bouncing through the grown-ups screen to make the
-         word announce itself again. That worked only because leaving her screen used
-         to throw the sitting away and coming back started it over — which is the
-         thing 10.6 stopped doing, because it also showed her a word she was writing
-         from memory. Hear it is the path she actually uses. */
+      /* Tap the screen to replay the word (WIN-4: the speaker button is gone, a tap anywhere
+         on the word screen speaks it again) rather than bouncing through the grown-ups screen.
+         The progress dots are on every stage and are not a control, so a tap there replays. */
       await page.evaluate(r => {
         window.__acorn.state.settings.speechRate = r;
         window.__acorn.save(); window.__ev = [];
       }, rate);
-      await page.locator('#hear').click();
+      await page.locator('.dots').click();
       await page.waitForFunction(() => window.__ev.some(e => e.play), null, {timeout:5000});
       const first = (await events(page)).find(e => e.play);
       if(cmp === 'slower') expect(first.rate).toBeLessThan(1);

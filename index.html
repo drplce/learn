@@ -160,18 +160,8 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 #act{flex:none; padding-top:var(--s2); display:flex; flex-wrap:wrap;
      gap:calc(var(--s2) * var(--ornament)); align-items:stretch;
      container-type:inline-size;}
-#act .hear{flex:0 0 auto; margin:0;}
 #act .primary{flex:1 1 7rem; margin:0;}
 #act .quiet{margin:0;}
-/* The footer's width measured in rem shrinks as her text grows, so this fires
-   exactly when the two labels can no longer share a line — at which point the
-   speaker keeps its icon and gives up its label rather than the row splitting
-   in two and taking the height the word needs. It keeps its spoken name. */
-@container (max-width: 15rem){
-  #act .hear span{position:absolute; width:1px; height:1px; overflow:hidden;
-                  clip:rect(0 0 0 0); white-space:nowrap;}
-  #act .hear{padding:0 var(--s3);}
-}
 #act:empty{display:none;}
 
 /* ---------- header: the mark + today's progress ---------- */
@@ -340,12 +330,16 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 .verdict.ok{color:var(--good);}
 .verdict.again{color:var(--retry);}
 
-.hear{display:flex; align-items:center; justify-content:center; gap:var(--s2);
-      margin:0 auto; min-height:var(--tap-lg); padding:0 var(--s4);
-      border-radius:var(--r-md); background:var(--surface-2); border:1px solid var(--line-2);
-      font-weight:700; font-size:var(--t-md);}
-.hear svg{width:calc(var(--t-xl) * var(--ornament)); height:calc(var(--t-xl) * var(--ornament)); flex:none;}
-.hear:active{background:var(--acc-soft);}
+/* The hear-again cue (WIN-4): the speaker BUTTON is gone — on her word screen a tap
+   anywhere (the word, the box, the space around it — never the keyboard) replays the word.
+   Because there is no button to show that, if she sits ~8s without typing the bare speaker
+   glyph (no box, no chrome) fades in below the box, then fades back the instant she types or
+   taps. Same glyph the button used, at the same size; opacity is toggled by a data-attr so
+   the shed-order audit sees one class, not a second 'shown' one that never renders. */
+.hearcue{display:flex; justify-content:center; margin-top:var(--s3); color:var(--acc);
+         opacity:0; transition:opacity var(--m-slow) var(--ease); pointer-events:none;}
+.hearcue svg{width:calc(var(--t-xl) * var(--ornament)); height:calc(var(--t-xl) * var(--ornament)); flex:none;}
+.hearcue[data-show]{opacity:1;}
 
 /* The box she writes in is sized by the SAME rule as the trace and the checked word
    (LAY-1): a word is one locked size across every stage, big enough that a 12-letter
@@ -578,8 +572,6 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 :root[data-cramped]:not([data-stage=parent]) #act .primary,
 :root[data-cramped]:not([data-stage=parent]) #act .quiet{
   min-height:calc(var(--tap) * var(--ornament)); font-size:var(--t-md); padding:0 var(--s3); }
-:root[data-cramped]:not([data-stage=parent]) #act .hear{
-  min-height:calc(var(--tap) * var(--ornament)); }
 :root[data-cramped]:not([data-stage=parent]) #app{
   padding-top:0; padding-bottom:var(--s1); }
 :root[data-cramped][data-stage=done] .headline{ font-size:var(--t-lg); margin:0; }
@@ -649,7 +641,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.13';
+var VERSION = '13.14';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2102,7 +2094,26 @@ function check(){
 }
 // Cancel a pending auto-advance (win) or trace-settle timer. Called at the head of
 // every path that moves her — next(), go(), finish() — so nothing double-fires.
-function clearAuto(){ if(W && W.autoTimer){ clearTimeout(W.autoTimer); W.autoTimer = null; } }
+function clearAuto(){ if(W && W.autoTimer){ clearTimeout(W.autoTimer); W.autoTimer = null; } stopHearCue(); }
+
+/* The hear-again cue (WIN-4): with the speaker button gone, a bare speaker glyph fades in
+   below the box if she stalls on the WRITING stage — where she is recalling a hidden word —
+   to show that a tap replays it, then fades out the moment she types or taps. ~8s of stillness
+   is "stuck"; anything she does resets it. A behaviour timer, not a CSS duration (the fade
+   itself is --m-slow), so the count lives here in JS. */
+var _hearCue = 0, HEAR_CUE_MS = 8000;
+function stopHearCue(){
+  if(_hearCue){ clearTimeout(_hearCue); _hearCue = 0; }
+  var c = el('.hearcue'); if(c) c.removeAttribute('data-show');
+}
+function armHearCue(){
+  stopHearCue();
+  if(!(W && W.stage === 'write' && touchOnly())) return;
+  _hearCue = setTimeout(function(){
+    _hearCue = 0;
+    var c = el('.hearcue'); if(c) c.setAttribute('data-show', '');
+  }, HEAR_CUE_MS);
+}
 function next(){
   clearAuto();
   // Keep just ahead of her: the next word and its pieces, if they are not
@@ -2186,7 +2197,10 @@ function spellOut(w){ return String(w).split('').join(' '); }
 // label is not reliably exposed, and a second visually-hidden copy would put
 // the word into the element's own text twice.
 function wordBlock(cls, inner, word, style, id){
-  return '<div class="' + cls + '"' + (id ? ' id="' + id + '"' : '')
+  // The winning word (id="advance") is the tap/Enter target that skips the auto-advance
+  // wait, so it is made programmatically focusable (tabindex -1) — with the speaker gone it
+  // is what carries focus on a win, rather than focus dropping to the document.
+  return '<div class="' + cls + '"' + (id ? ' id="' + id + '" tabindex="-1"' : '')
        + ' role="img" aria-label="' + esc(spellOut(word)) + '"'
        + style + '>' + inner + '</div>';
 }
@@ -2457,13 +2471,12 @@ function restoreFocus(){
     return;
   }
   if(!_kbd){ holdKeyboard(); return; }
-  /* The primary action, not simply the first button. Every stage lays out "Hear it"
-     first and the action that moves her on second, so #act button always picked
-     Hear it — measured, a keyboard-only sitting needed an extra Tab on every look
-     and every verdict, and Enter on arrival replayed the word instead of going
-     forward. The ".primary" fallback further down shows this was the intent all
-     along; the selector just never looked inside #act for it. */
-  var go = el('#act .primary') || el('#act button')
+  /* On a win there is no button any more (the speaker went with WIN-4 and a win
+     auto-advances), so the winning word itself carries focus — it is the tap/Enter target
+     that skips the wait, made programmatically focusable for exactly this. Otherwise the
+     primary action, not simply the first button: the ".primary" inside #act moves her on. */
+  var go = el('#advance')
+        || el('#act .primary') || el('#act button')
         || el('#screen .primary') || el('#screen button');
   if(go) go.focus({preventScroll:true});
 }
@@ -2570,7 +2583,10 @@ function renderWord(){
     : '';
   // Icon only now — the speaker shape carries it, and its spoken name stays on the
   // aria-label. Dropping the word takes the last read-aloud label off her word screens.
-  var hear = '<button class="hear" id="hear" aria-label="Hear it">' + SPK + '</button>';
+  // The speaker button is gone (WIN-4): nothing in #act on a word, so it collapses. She
+  // hears the word when it appears, and a tap anywhere replays it; the fade-in cue below the
+  // box teaches that. Kept as an empty string so the three `act =` sites read unchanged.
+  var hear = '';
   // The three zones of the anchored word screen: what sits above the word, the
   // word itself (always the centred row), and what sits below it. Dots ride above
   // on every stage; each branch fills in the rest.
@@ -2620,7 +2636,9 @@ function renderWord(){
     // she writes, which she cannot work out for herself. A word she has already met
     // needs no line: the covered word, the focused box and having just heard it say
     // enough, and the same sentence every time read as noise. (§ writing-screen polish.)
-    var told = fresh ? 'Listen, then write it.' : '';
+    // No visible instruction on the writing screen any more (WIN-4: "no other text"). The
+    // spoken cue below still tells her, through the live region, to listen then write.
+    var told = '';
     // The cue is the one thing on this screen she cannot work out for herself,
     // so it is announced with the instruction and it is not in fitScreen()'s
     // shed list — on a cramped screen the instruction goes and the cue stays.
@@ -2646,6 +2664,10 @@ function renderWord(){
          + '</div>';
     // No Check button — she is on touch and the keyboard's return key submits.
     // enterkeyhint="done" labels it, and the Enter handler calls check().
+    // The hear-again cue lives below the box, faded out; the idle timer (armHearCue, set
+    // after render) fades it in if she stalls. Writing is where she is recalling a hidden
+    // word, so it is the one stage that earns the hint.
+    below = '<div class="hearcue" aria-hidden="true">' + SPK + '</div>';
     act = hear;
   }
   else {
@@ -2762,6 +2784,8 @@ function renderWord(){
     + '<div class="below">' + below + '</div>'
     + '</div>';
   el('#act').innerHTML = act;
+  // Start (or clear) the idle countdown for the hear-again cue for whatever stage this is.
+  armHearCue();
 }
 
 /* Counted across all her words, not the list she happens to be on. It used to be the
@@ -3926,7 +3950,6 @@ document.addEventListener('click', function(ev){
   // Cover button (the trace is the cover) and no Check button (return submits).
   if(t.closest('#advance')){ next(); return; }
   if(t.closest('#next')) { next(); return; }
-  if(t.closest('#hear')) { var w = word(); if(w) say(w, {force:true}); return; }
   if((hit = t.closest('[data-syl]'))){ say(hit.dataset.syl, {force:true, rate:sylRate()}); return; }
   if((hit = t.closest('[data-hear]'))){ say(hit.dataset.hear, {force:true}); return; }
 
@@ -4050,14 +4073,25 @@ document.addEventListener('click', function(ev){
     return;
   }
 
+  /* A tap that hit nothing on her word screen replays the word (WIN-4). The speaker button
+     is gone, so the whole screen — the word, the box, the space around it — is how she hears
+     it again. Not the control buttons/links or the syllable chips (they returned above with
+     their own taps), and touch only, so a keyboard/screen-reader user is left alone. The win
+     word (#advance) already returned above, so a tap there carries her on rather than replays. */
+  if(screen === 'day' && word() && touchOnly()
+     && !t.closest('button, a[href], [data-syl], [data-hear]')){
+    say(word(), {force:true});
+    armHearCue();               // she acted — hide the cue and restart its idle countdown
+  }
+
   /* A tap that hit nothing, while she has a word to write. The whole design keeps some
      input focused at all times so the software keyboard never closes and the two buttons
      never jump — holdKeyboard() does it between stages, and the spelling box itself does
-     it while she is writing. A finger that lands slightly wide, on the instruction just
-     above the box or on the covered word, blurs the box and there was nothing to put it
-     back: the keyboard closes and the buttons move, which is the exact dance #kbhold was
-     added to stop. Touchscreens only, as everywhere else here — pulling focus back would
-     fight anyone driving by keyboard or exploring by screen reader. */
+     it while she is writing. A finger that lands slightly wide, on the covered word or the
+     space by the box, blurs the box and there was nothing to put it back: the keyboard
+     closes and the buttons move, which is the exact dance #kbhold was added to stop.
+     Touchscreens only, as everywhere else here — pulling focus back would fight anyone
+     driving by keyboard or exploring by screen reader. */
   if(el('#type') && touchOnly() && !_kbd && !t.closest('button, input, textarea, a[href], [data-syl]')
      && document.activeElement !== el('#type')){
     var box = el('#type');
@@ -4166,6 +4200,7 @@ document.addEventListener('input', function(ev){
   if(chars(now) - chars(was) > 1) W.notWritten = true;
   if(chars(ev.data) > 1) W.notWritten = true;
   W.attempt = now;
+  armHearCue();                 // she is typing — hide the cue and restart its countdown
 });
 // Enter checks the word — she shouldn't have to find a button.
 document.addEventListener('keydown', function(ev){

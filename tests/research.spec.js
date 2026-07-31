@@ -170,6 +170,19 @@ test.describe('the reasons behind the design, not just the behaviour', () => {
 
   test('§7 the word is always available to hear, at every stage she needs it', async ({page}) => {
     await open(page, '2026-08-01');
+    // WIN-4 took the speaker button away: the word is spoken when it appears, and a tap
+    // anywhere on the screen replays it. So "available to hear" is now the whole word screen,
+    // still at every stage — proven by a tap producing speech on each of look and write.
+    await page.evaluate(() => {
+      window.__spoke = 0;
+      Object.defineProperty(window, 'SpeechSynthesisUtterance',
+        {value: function(t){ this.text = t; this.rate = 1; this.pitch = 1; }, configurable:true});
+      Object.defineProperty(window, 'speechSynthesis', {configurable:true, value:{
+        getVoices: () => [{name:'Karen', lang:'en-AU', voiceURI:'Karen'}],
+        cancel(){}, speak(){ window.__spoke++; }, onvoiceschanged: null
+      }});
+      window.__acorn.clearVoiceCache(); window.__acorn.setClips([]);
+    });
     for(const stage of ['look', 'write']){
       await page.evaluate(s => {
         const a = window.__acorn;
@@ -180,8 +193,11 @@ test.describe('the reasons behind the design, not just the behaviour', () => {
         a.save(); a.go('day'); if(!a.session()) a.start();
         if(s === 'write' && a.session().stage === 'look') a.cover();
       }, stage);
-      await expect(page.locator('#hear'), `no way to hear it on the ${stage} stage`)
-        .toHaveCount(1);
+      await expect(page.locator('#hear'), `the speaker button should be gone on ${stage}`).toHaveCount(0);
+      await page.evaluate(() => { window.__spoke = 0; });
+      await page.locator(stage === 'look' ? '.trace' : '.spellinwrap').click();
+      await page.waitForFunction(() => window.__spoke > 0, null,
+        {timeout: 2000}).catch(() => { throw new Error('no way to hear it on the ' + stage + ' stage'); });
     }
     expect(errorsOf(page)).toEqual([]);
   });

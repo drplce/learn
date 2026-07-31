@@ -155,11 +155,11 @@ test.describe('submitting and advancing', () => {
   });
 });
 
-test.describe('the Hear-it control', () => {
+test.describe('hearing the word again', () => {
 
-  test('shows no text but keeps its label and still speaks', async ({page}) => {
+  test('the speaker button is gone; a tap on the screen replays the word', async ({page}) => {
     await open(page, '2026-07-28');
-    // Stub the synthesiser and drop the clip index so Hear it takes the phone-voice
+    // Stub the synthesiser and drop the clip index so a replay takes the phone-voice
     // path we can observe.
     await page.evaluate(() => {
       window.__spoke = 0;
@@ -173,14 +173,13 @@ test.describe('the Hear-it control', () => {
       window.__acorn.setClips([]);
     });
     await startOn(page, ['rain']);
-    const hear = page.locator('#hear');
-    await expect(hear).toBeVisible();
-    await expect(hear).toHaveText('');                          // icon only, no "Hear it" text
-    await expect(hear).toHaveAttribute('aria-label', 'Hear it');
-    const body = await page.locator('#app').innerText();
-    expect(body).not.toContain('Hear it');                      // the words are gone everywhere
+    // WIN-4: no speaker button anywhere, and the words "Hear it" appear nowhere.
+    await expect(page.locator('#hear')).toHaveCount(0);
+    expect(await page.locator('#app').innerText()).not.toContain('Hear it');
+    // The whole screen is the replay now — a tap speaks the word again. (This word is at the
+    // trace stage; .dots is present on every word stage, so it is the stable thing to tap.)
     await page.evaluate(() => { window.__spoke = 0; });
-    await hear.click();
+    await page.locator('.dots').click();
     await page.waitForFunction(() => window.__spoke > 0, null, {timeout: 2000});
   });
 });

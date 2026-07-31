@@ -159,7 +159,7 @@ test.describe('a word she already knows', () => {
     await expect(page.locator('#type')).toBeVisible();          // straight to writing
     await expect(page.locator('.word')).toHaveCount(0);
     await expect(page.locator('#cover')).toHaveCount(0);
-    await expect(page.locator('.note')).toContainText('Listen, then write it');
+    await expect(page.locator('.note')).toHaveCount(0);         // WIN-4: no instruction line
   });
 
   test('pressing Enter checks it', async ({page}) => {
@@ -1637,7 +1637,10 @@ test.describe('she never has to scroll to answer', () => {
             pageScrolls: document.documentElement.scrollHeight > vh + 2
           };
         });
-        if(!m.actions) problems.push(`${stage}: no action at all`);
+        // WIN-4: look/write/right carry no #act button any more (the speaker is gone; she
+        // types, taps to hear, and a win auto-advances). So no "action at all" is expected on
+        // those — the guarantee that survives is that whatever IS on screen is not clipped or
+        // off the fold, and the word/box itself is never cut off (keyCut, below).
         if(m.belowFold) problems.push(`${stage}: ${m.belowFold} action(s) below the fold`);
         if(m.tooNarrow) problems.push(`${stage}: an action is under 44px`);
         if(m.offRight) problems.push(`${stage}: an action runs off the right`);
@@ -1648,18 +1651,17 @@ test.describe('she never has to scroll to answer', () => {
     });
   }
 
-  test('the speaker is icon only but keeps its spoken name', async ({page}) => {
+  test('there is no speaker button — the whole word screen is the way to hear it', async ({page}) => {
     await open(page, '2026-08-01');
     await page.setViewportSize({width:375, height:667});
-    // Since 13.0 the button has lost its "Hear it" label at every size — an icon only —
-    // but keeps its name for a screen reader.
-    await put(page, 1.5, 'look');
-    await expect(page.locator('#hear span')).toHaveCount(0);
-    await expect(page.locator('#hear')).toHaveText('');
-    await expect(page.locator('#hear')).toHaveAttribute('aria-label', 'Hear it');
-    await put(page, 1, 'look');
-    await expect(page.locator('#hear span')).toHaveCount(0);
-    await expect(page.locator('#hear')).toHaveAttribute('aria-label', 'Hear it');
+    // WIN-4 removed the speaker button and its "Hear it" label from every stage and size.
+    for(const scale of [1, 1.5]){
+      for(const stage of ['look', 'write']){
+        await put(page, scale, stage);
+        await expect(page.locator('#hear'), `speaker still on ${stage} at ${scale}x`).toHaveCount(0);
+        expect(await page.locator('#app').innerText()).not.toContain('Hear it');
+      }
+    }
   });
 
   test('the grown-ups screen scrolls to its end with Back still in reach', async ({page}) => {
@@ -1813,25 +1815,27 @@ test.describe('with the software keyboard up', () => {
                  : r.hasAttribute('data-tight') ? 'tight' : 'roomy';
       return mode === w;
     }, want, {timeout:3000});
+    // WIN-4 removed the write instruction, so there is no .note to shed here any more; the
+    // sheddable things on this cold-review write screen are the header and the progress dots,
+    // and the box is what must never give way.
     const seen = async () => page.evaluate(() => ({
       mode: document.documentElement.hasAttribute('data-cramped') ? 'cramped'
           : document.documentElement.hasAttribute('data-tight') ? 'tight' : 'roomy',
       header: !!document.querySelector('.bar')?.getBoundingClientRect().height,
       dots: !!document.querySelector('.dots')?.getBoundingClientRect().height,
-      note: !!document.querySelector('.note')?.getBoundingClientRect().height,
       box: !!document.querySelector('#type')?.getBoundingClientRect().height,
     }));
     await page.setViewportSize({width:375, height:667});
     await settle('roomy');
-    expect(await seen()).toEqual({mode:'roomy', header:true, dots:true, note:true, box:true});
-    // Tight: the wordmark, the dots and the instruction step aside. The box stays.
+    expect(await seen()).toEqual({mode:'roomy', header:true, dots:true, box:true});
+    // Tight: the wordmark and the dots step aside. The box stays.
     await page.setViewportSize({width:375, height:360});
     await settle('tight');
-    expect(await seen()).toEqual({mode:'tight', header:false, dots:false, note:false, box:true});
+    expect(await seen()).toEqual({mode:'tight', header:false, dots:false, box:true});
     // Cramped: the controls stop scaling with her text, still 44px. The box stays.
     await page.setViewportSize({width:375, height:240});
     await settle('cramped');
-    expect(await seen()).toEqual({mode:'cramped', header:false, dots:false, note:false, box:true});
+    expect(await seen()).toEqual({mode:'cramped', header:false, dots:false, box:true});
   });
 
   test('a scarce screen never hides the way out of the grown-ups area', async ({page}) => {
@@ -2158,7 +2162,8 @@ test.describe('reachable without a touchscreen', () => {
         document.activeElement.id || document.activeElement.className || document.activeElement.tagName));
     }
     expect([...reachable].join(' ')).toMatch(/syl/);
-    expect([...reachable].join(' ')).toMatch(/hear/);
+    // WIN-4: the speaker button is gone, so there is no #hear to tab to any more; the trace
+    // box and the syllable chips are the controls on this stage.
     expect([...reachable].join(' ')).toMatch(/type/);   // the trace box she copies into
   });
 
@@ -2169,6 +2174,10 @@ test.describe('reachable without a touchscreen', () => {
     // appearing from nowhere on a touchscreen is only noise — so a test that
     // clicks would be testing the touch path instead.
     await page.keyboard.press('Tab');                         // she is on a keyboard now
+    // The speaker used to be the tab stop just after the box; with it gone (WIN-4) a Tab off
+    // the trace box lands on nothing, so put her back where the app actually keeps her — in
+    // the box, the state restoreFocus establishes on every word. From here she is driven by keys.
+    await page.evaluate(() => { const t = document.querySelector('#type'); if(t) t.focus(); });
     const stageOf = () => page.evaluate(() =>
       window.__acorn.session() ? window.__acorn.session().stage : 'done');
     const landed = [];
