@@ -9,13 +9,13 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
 - **D-c** (→WIN-5): success = **word turns green + a very subtle size pulse**.
 
 ## NOW — fix reported + protect data
-- ✅ **SCR-1** — `position:fixed` body to stop iOS's document pan (shipped 13.6). **VERIFY ON PHONE** — Chromium can't reproduce the iOS keyboard drag; if it misbehaves, it rolls into LAY-2.
+- ⚠️ **SCR-1** — `position:fixed` body shipped 13.6, but on-device it **still drags** — the scrollbar in David's shot proves it's `main` scrolling, not the document. The body-pin stays (good defence) but the real fix is **LAY-2** (lock `main`).
 - ✅ **DAT-1** — `navigator.storage.persist()` on first tap (shipped 13.6).
 - ✅ **RES-1** — Measured. On the SE a 12-letter word maxes at **~34px** (width-limited; the `--t-3xl` ceiling is never reached), 14-letter ~29px. Corrects my earlier ~44px guess. Short words currently render 51–64px, so a locked size is a real reduction — **needs D-a refined** (see below) before LAY-1.
 
 ## NEXT — deterministic layout
-- ⏸ **LAY-1** — Constant word size. **Blocked on D-a refined:** RES-1 shows the locked size is ~34px (smaller than short words get today). Option A = lock 34px, fully uniform; Option B = unify the sizing *rule* across stages but keep short words big, only 13+ shrink. [dep RES-1, D-a]
-- ⬜ **LAY-2** — Hard-fix the word/box at one position across all stages + lock `main` scroll. [dep LAY-1, D-b]
+- ✅ **LAY-1** — **Option A shipped (13.7).** One locked ~34px word across trace/write/check; all ≤12-letter words identical (cat = presentation = 33.8px), 13+ shrink uniformly. Write box now on the same clamp (was fixed --t-2xl) and matched to .06em spacing. **Review on phone** — short words are smaller than before (the trade you accepted).
+- 🔨 **LAY-2** — Hard-fix the word/box at one position across all stages + **lock `main` scroll** (the real SCR-1 fix, now unblocked by LAY-1's deterministic size). [D-b: shed harder, button sacred]
 - ⬜ **DAT-2** — Surface export/import backup prominently on the grown-ups screen.
 
 ## THEN — UX batch
@@ -30,7 +30,7 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
 - ⬜ **INF-1** — Service worker for guaranteed offline launch (skipWaiting + network-first HTML + bumped VERSION).
 - ⬜ **INF-2** — Manifest + icons (192/512) + `format-detection` meta.
 - ✅ **RES-3** — Pacing analysis done: both breaches are **30-day-window measurement artifacts; the engine is correct.** tionsion is learned (98.9% by 60d), aussie's 92.5% is a finished-list revision tail. `reference/pacing-analysis.md`.
-- ⏸ **PACE-1** — **Not an engine problem** (RES-3). Recommended fix = recalibrate 2 sim bands, not the engine: **B2** tionsion learned floor 0.80→0.75 (mutation test still fails 53.7%, teeth kept); **B3** mend aussie's finished-list exemption to fire at 30d (it already does at 60/90d). **Needs your sign-off** — touches the pacing bands. Engine ramps (E1/E2) tested and rejected (regress other lists).
+- ✅ **PACE-1** — **B2 + B3 shipped (owner-approved).** sim.js bands recalibrated (learned floor 0.80→0.75; finished-list exemption 0.5→3), engine untouched. **sim now green.**
 
 ## Done / closed
 - ✅ 13.1 trace letter green · 13.2 scroll-lock v1 · 13.3 anchor · 13.4 drop write-instruction · 13.5 mic-on-trace fix

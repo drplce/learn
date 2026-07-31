@@ -225,7 +225,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
   text-align:center; font-weight:700; line-height:1.35;
   letter-spacing:.06em; word-spacing:.1em; margin:var(--s2) 0 var(--s1);
   padding-bottom:.08em; overflow-wrap:anywhere;
-  font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (var(--wl,6) * .8)), var(--t-3xl));}
+  font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (max(var(--wl,6), 12) * .8)), var(--t-3xl));}
 .marked b{color:var(--ink); font-weight:700;}
 .marked u{color:var(--retry); text-decoration:none; border-bottom:3px solid var(--retry);}
 
@@ -242,7 +242,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
        display:flex; align-items:center; justify-content:center;}
 .tracew{width:100%; text-align:center; font-weight:700; line-height:1.35;
         letter-spacing:.06em; word-spacing:.1em; padding-bottom:.08em; overflow-wrap:anywhere;
-        font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (var(--wl,6) * .8)), var(--t-3xl));}
+        font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (max(var(--wl,6), 12) * .8)), var(--t-3xl));}
 .tracew .on{color:var(--ink);}                        /* copied — solid */
 .tracew .off{color:var(--ink-soft);}                  /* not reached — the app's soft ink, still AA */
 .tracew .now{color:var(--acc);}                       /* next — the letter she is on, lit green */
@@ -290,8 +290,14 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 .hear svg{width:calc(var(--t-xl) * var(--ornament)); height:calc(var(--t-xl) * var(--ornament)); flex:none;}
 .hear:active{background:var(--acc-soft);}
 
-.spellin{width:100%; text-align:center; font-size:var(--t-2xl); font-weight:700;
-         letter-spacing:.12em; padding:var(--s3); border-radius:var(--r-md);
+/* The box she writes in is sized by the SAME rule as the trace and the checked word
+   (LAY-1): a word is one locked size across every stage, big enough that a 12-letter
+   word just fits and no bigger, so what she traced, wrote and had checked never changes
+   size under her. Letter-spacing matches the trace's .06em too, or the same word would
+   sit wider here than where she read it. --wl is inherited from .wordscreen. */
+.spellin{width:100%; text-align:center; font-weight:700;
+         font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (max(var(--wl,6), 12) * .8)), var(--t-3xl));
+         letter-spacing:.06em; padding:var(--s3); border-radius:var(--r-md);
          background:var(--surface-2); border:2px solid var(--line-2);}
 .spellin:focus{outline:none; border-color:var(--acc);}
 
@@ -540,7 +546,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
    a bigger one cut off at the edge of the panel. */
 :root[data-cramped]:not([data-stage=parent]):not([data-stage=done]) .word,
 :root[data-cramped]:not([data-stage=parent]):not([data-stage=done]) .marked{
-  font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (var(--wl,6) * .8)),
+  font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (max(var(--wl,6), 12) * .8)),
                   var(--t-lg));}
 
 /* Delays as well as durations. Killing only the duration left the finished
@@ -578,7 +584,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.6';
+var VERSION = '13.7';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2640,7 +2646,7 @@ function renderWord(){
                     + (more ? 'Next word' : 'Finish') + '">' + (more ? CHEV : TICK) + '</button>';
   }
 
-  el('#screen').innerHTML = '<div class="wordscreen">'
+  el('#screen').innerHTML = '<div class="wordscreen"' + wl + '>'
     + '<div class="above">' + above + '</div>'
     + '<div class="wordslot">' + wordslot + '</div>'
     + '<div class="below">' + below + '</div>'
