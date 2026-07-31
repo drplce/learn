@@ -573,7 +573,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.3';
+var VERSION = '13.4';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2503,14 +2503,22 @@ function renderWord(){
   }
   else if(W.stage === 'write'){
     var fresh = W.shown.indexOf(w) < 0 && W.failed.indexOf(w) < 0;
-    var told = fresh ? 'Listen, then write it.' : 'Now write it from memory.';
+    // A brand-new word keeps "Listen, then write it" — it tells her to hear it before
+    // she writes, which she cannot work out for herself. A word she has already met
+    // needs no line: the covered word, the focused box and having just heard it say
+    // enough, and the same sentence every time read as noise. (§ writing-screen polish.)
+    var told = fresh ? 'Listen, then write it.' : '';
     // The cue is the one thing on this screen she cannot work out for herself,
     // so it is announced with the instruction and it is not in fitScreen()'s
     // shed list — on a cramped screen the instruction goes and the cue stays.
     var cue = meaningOf(w);
     // Never the word itself here — announcing it would give the spelling away.
-    announce(told + (cue ? ' The one that means: ' + cue + '.' : ''));
-    above = dots + '<div class="note">' + told + '</div>'
+    // The spoken instruction stays even when the on-screen line is dropped: a screen
+    // reader still needs telling she is now writing from memory. Only the visible line
+    // goes for a just-traced word — she watched herself copy it a second ago.
+    var spoken = fresh ? 'Listen, then write it.' : 'Now write it from memory.';
+    announce(spoken + (cue ? ' The one that means: ' + cue + '.' : ''));
+    above = dots + (told ? '<div class="note">' + told + '</div>' : '')
          // "the one that means" cost 18 characters on every cue and pushed the
          // longest of them to three lines at 320px and her largest text. Spoken
          // it is worth having, so the announcement keeps it; read, "means:" does

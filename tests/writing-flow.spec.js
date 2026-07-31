@@ -68,7 +68,8 @@ test.describe('tracing a new word', () => {
     await expect(page.locator('.spellin')).toBeVisible();      // the blind write box
     await expect(page.locator('.trace')).toHaveCount(0);
     await expect(page.locator('.tracew')).toHaveCount(0);
-    await expect(page.locator('.note')).toContainText('from memory');
+    // A just-traced word carries no instruction line now (13.4).
+    await expect(page.locator('.note')).toHaveCount(0);
     expect(await page.evaluate(() => window.__acorn.session().stage)).toBe('write');
     expect(await page.evaluate(() => window.__acorn.session().words[window.__acorn.session().i]))
       .toBe('said');                                           // still the same word

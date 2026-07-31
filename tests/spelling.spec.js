@@ -112,7 +112,9 @@ test.describe('a word she has never met', () => {
     // The finished trace is the cover: the word is hidden and she writes it blind.
     await expect(page.locator('#type')).toBeVisible();
     await expect(page.locator('.tracew')).toHaveCount(0);      // genuinely hidden
-    await expect(page.locator('.note')).toContainText('from memory');
+    // A word she just traced writes with no instruction line — she watched herself
+    // copy it a second ago (13.4). The spoken cue stays in the aria-live region.
+    await expect(page.locator('.note')).toHaveCount(0);
     await write(page, 'friend');
     await page.keyboard.press('Enter');
     await expect(page.locator('.verdict.ok')).toHaveText(/that’s it/);
@@ -1791,9 +1793,14 @@ test.describe('with the software keyboard up', () => {
     await page.evaluate(() => {
       const a = window.__acorn;
       a.state.settings.textScale = 1.5;
-      a.state.words.lists = [{id:'w1', name:'T', words:['because','friend']}];
-      a.state.words.activeId = 'w1'; a.state.words.mastery = {}; a.state.words.sessions = [];
-      a.save(); a.go('parent'); a.go('day'); a.cover();
+      a.state.words.lists = [{id:'w1', name:'T', words:['because']}];
+      a.state.words.activeId = 'w1';
+      // A cold review word goes straight to write and keeps its instruction line
+      // ("Listen, then write it"), so there is a note here for the squeeze to shed.
+      // A just-traced new word has no note at all now (13.4), which is a different case.
+      a.state.words.mastery = {because:{right:3,wrong:0,box:2,lastSeen:'2026-06-01'}};
+      a.state.words.sessions = [];
+      a.save(); a.go('parent'); a.go('day'); a.start();
     });
     // setViewportSize resolves before the resize handler has run, so wait for
     // the mode to settle rather than reading straight away.

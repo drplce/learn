@@ -179,7 +179,10 @@ test.describe('words that sound like other words', () => {
     await open(page, '2026-08-01');
     const r = await askedFor(page, 'zqxj');
     expect(r.cue).toBeNull();
-    expect(r.note).toMatch(/write it/i);
+    // A just-traced word shows no on-screen instruction line now (13.4); the
+    // instruction is spoken instead, so a screen reader still gets it.
+    expect(r.note).toBeNull();
+    expect(r.live).toMatch(/write it/i);
     expect(errorsOf(page)).toEqual([]);
   });
 
