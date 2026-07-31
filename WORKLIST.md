@@ -26,11 +26,11 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
 - ⬜ **WIN-5** — Drop "Yes — that's it" → green + subtle size pulse; keep earned "You got there." [batch 7, D-c, dep RES-2]
 
 ## LATER — infra + gated pacing
-- ✅ **RES-2** — Success-moment design proposal ready (feeds WIN-5): word greens 300ms + one-shot 1.0→1.04→1.0 pulse (420ms, settle-ease), reduced-motion safe. `scratchpad/success-moment-design.md`.
+- ✅ **RES-2** — Success-moment design ready (feeds WIN-5): Option A "Settle" — word greens 300ms + one-shot 1.0→1.04→1.0 pulse (420ms, settle-ease), reduced-motion safe. Build note: move `id="advance"` onto the word. `reference/success-moment-design.md`.
 - ⬜ **INF-1** — Service worker for guaranteed offline launch (skipWaiting + network-first HTML + bumped VERSION).
 - ⬜ **INF-2** — Manifest + icons (192/512) + `format-detection` meta.
-- 🔬 **RES-3** — Pacing analysis of `aussie`/`tionsion` + options. *agent running, feeds PACE-1*
-- ⏸ **PACE-1** — Pacing ramp (`aussie` too easy 92.5%, `tionsion` under-learned 77.9%). Build + measure + sign-off before shipping.
+- ✅ **RES-3** — Pacing analysis done: both breaches are **30-day-window measurement artifacts; the engine is correct.** tionsion is learned (98.9% by 60d), aussie's 92.5% is a finished-list revision tail. `reference/pacing-analysis.md`.
+- ⏸ **PACE-1** — **Not an engine problem** (RES-3). Recommended fix = recalibrate 2 sim bands, not the engine: **B2** tionsion learned floor 0.80→0.75 (mutation test still fails 53.7%, teeth kept); **B3** mend aussie's finished-list exemption to fire at 30d (it already does at 60/90d). **Needs your sign-off** — touches the pacing bands. Engine ramps (E1/E2) tested and rejected (regress other lists).
 
 ## Done / closed
 - ✅ 13.1 trace letter green · 13.2 scroll-lock v1 · 13.3 anchor · 13.4 drop write-instruction · 13.5 mic-on-trace fix
