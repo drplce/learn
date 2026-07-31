@@ -15,7 +15,7 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
 
 ## NEXT — deterministic layout
 - ✅ **LAY-1** — **Option A shipped (13.7).** One locked ~34px word across trace/write/check; all ≤12-letter words identical (cat = presentation = 33.8px), 13+ shrink uniformly. Write box now on the same clamp (was fixed --t-2xl) and matched to .06em spacing. **Review on phone** — short words are smaller than before (the trade you accepted).
-- 🔨 **LAY-2** — Hard-fix the word/box at one position across all stages + **lock `main` scroll** (the real SCR-1 fix, now unblocked by LAY-1's deterministic size). [D-b: shed harder, button sacred]
+- ✅ **LAY-2** — **Locked `main` on the word screen (13.8).** Measured 0px overflow at 1.5× on the SE with the keyboard up (look/write/check), and the button lives in #act below main, so nothing clips — iOS simply can't rubber-band a `hidden` region. Grown-ups/finished keep their scroll. Guarded by `tests/word-screen-lock.spec.js`. **→ verify the drag is gone on your phone.** (The 13.3 anchor already pins the word across stages, so no separate hard-pin was needed.)
 - ⬜ **DAT-2** — Surface export/import backup prominently on the grown-ups screen.
 
 ## THEN — UX batch

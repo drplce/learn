@@ -123,6 +123,16 @@ h1,h2{line-height:1.3; letter-spacing:0; margin:0; font-weight:700;}
    288px below the fold. She should never have to discover scrolling to answer
    a word. */
 main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
+/* On the word screen main never needs to scroll: LAY-1 made the word one
+   deterministic size, the tight/cramped shed drops everything non-essential, and
+   the one button she needs lives in #act BELOW main, not in the scroll. Measured,
+   the content fits above the keyboard at 1.5x on the smallest phone with nothing
+   to spare (0px overflow on look/write/check). So lock it — iOS was letting her
+   drag and rubber-band this region with the keyboard up even with nothing to
+   scroll, which is the drag she reported and position:fixed on the body could not
+   stop (LAY-2, the real SCR-1 fix). The grown-ups and finished screens, which are
+   genuinely long, keep their scroll. */
+:root:not([data-stage=parent]):not([data-stage=done]) main{overflow:hidden;}
 /* Her screens sit in the middle of the room they have rather than clinging to
    the top of it — at normal text size three quarters of the panel was empty
    below the word. Auto margins rather than justify-content:center because when
@@ -584,7 +594,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.7';
+var VERSION = '13.8';
 var KEY = 'acorn.v1';
 
 /* =========================================================
