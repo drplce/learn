@@ -10,3 +10,6 @@ playwright-report/
 .env.*
 .dev.vars
 *.pem
+
+# Transient Claude agent worktrees and local state
+.claude/
