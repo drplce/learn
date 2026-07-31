@@ -290,6 +290,23 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
          background:var(--surface-2); border:2px solid var(--line-2);}
 .spellin:focus{outline:none; border-color:var(--acc);}
 
+/* The word keeps ONE vertical position across every stage — look, write, check,
+   success, correction — so the shape she memorised never jumps between screens.
+   A three-row grid whose middle row is the word: the equal rows above and below
+   hold everything else (progress, verdict, instruction / pieces, note) and fill
+   without moving it. When the column is too tall to fit, the outer rows collapse
+   to nothing and main scrolls, which is exactly when fitScreen sheds — so the
+   squeeze still runs. The word block itself is unchanged; only where it sits is. */
+.wordscreen{display:grid; grid-template-rows:1fr auto 1fr; min-height:100%; width:100%;}
+.wordscreen > .above,
+.wordscreen > .below{display:flex; flex-direction:column; align-items:center;
+                     gap:var(--s2); width:100%;}
+.wordscreen > .above{align-self:end;}       /* sits just above the word */
+.wordscreen > .wordslot{align-self:center; width:100%;}
+.wordscreen > .below{align-self:start;}     /* sits just below the word */
+/* The zone wrappers are invisible when empty so they add no stray gap. */
+.wordscreen > :empty{display:none;}
+
 .primary{display:flex; align-items:center; justify-content:center; gap:var(--s2); width:100%;
          min-height:var(--tap-xl); margin-top:0; padding:var(--s2) var(--s4);
          border-radius:var(--r-lg); background:var(--acc); color:var(--acc-ink);
@@ -556,7 +573,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.2';
+var VERSION = '13.3';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2447,7 +2464,10 @@ function renderWord(){
   // Icon only now — the speaker shape carries it, and its spoken name stays on the
   // aria-label. Dropping the word takes the last read-aloud label off her word screens.
   var hear = '<button class="hear" id="hear" aria-label="Hear it">' + SPK + '</button>';
-  var body, act;
+  // The three zones of the anchored word screen: what sits above the word, the
+  // word itself (always the centred row), and what sits below it. Dots ride above
+  // on every stage; each branch fills in the rest.
+  var above = dots, wordslot = '', below = '', act;
 
   var wl = ' style="--wl:' + w.length + '"';
 
@@ -2468,7 +2488,7 @@ function renderWord(){
       var cls = i < t ? 'on' : i === t ? 'now' : 'off';
       return '<span class="' + cls + '">' + esc(c) + '</span>';
     }).join('');
-    body = '<div class="trace"' + wl + '>'
+    wordslot = '<div class="trace"' + wl + '>'
          // role=img with the word spelled out, exactly as the shown word carries it
          // elsewhere: a screen reader gets the spelling, not the letters read as a word,
          // and the per-letter state colours are hidden behind the one label.
@@ -2476,8 +2496,8 @@ function renderWord(){
          +   '<input class="tracein" id="type" type="text" inputmode="text" autocomplete="off" '
          +     'autocorrect="off" autocapitalize="off" spellcheck="false" '
          +     'value="' + esc(w.slice(0, t)) + '" aria-label="Trace the word">'
-         + '</div>' + sylRow
-         + '<div class="note">Type it to trace it.</div>';
+         + '</div>';
+    below = sylRow + '<div class="note">Type it to trace it.</div>';
     // No cover button any more — the trace completing is the cover.
     act = hear;
   }
@@ -2490,13 +2510,13 @@ function renderWord(){
     var cue = meaningOf(w);
     // Never the word itself here — announcing it would give the spelling away.
     announce(told + (cue ? ' The one that means: ' + cue + '.' : ''));
-    body = '<div class="note">' + told + '</div>'
+    above = dots + '<div class="note">' + told + '</div>'
          // "the one that means" cost 18 characters on every cue and pushed the
          // longest of them to three lines at 320px and her largest text. Spoken
          // it is worth having, so the announcement keeps it; read, "means:" does
          // the same job in five.
-         + (cue ? '<p class="cue">means: <b>' + esc(cue) + '</b></p>' : '')
-         + '<input class="spellin" id="type" type="text" inputmode="text" autocomplete="off" '
+         + (cue ? '<p class="cue">means: <b>' + esc(cue) + '</b></p>' : '');
+    wordslot = '<input class="spellin" id="type" type="text" inputmode="text" autocomplete="off" '
          +   'autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" '
          +   'value="' + esc(W.attempt) + '" aria-label="Type the word">';
     // No Check button — she is on touch and the keyboard's return key submits.
@@ -2569,19 +2589,19 @@ function renderWord(){
     // Spelt out letter by letter: a screen reader would otherwise read the word
     // as a word and never convey the spelling, which is the whole point here.
     announce(said_ + ' ' + w + '. ' + spellOut(w) + '.');
-    body = '<div class="verdict ' + (ok ? 'ok' : 'again') + '"'
+    above = dots + '<div class="verdict ' + (ok ? 'ok' : 'again') + '"'
          // On a win the app carries her on by itself; tapping the verdict skips the
          // wait, so the whole line is the tap target for that.
-         + (ok ? ' id="advance"' : '') + '>' + verdict + '</div>'
-         // Only ever the correct spelling on screen. Seeing her own misspelling
-         // is the one thing that measurably sets spelling back.
-         /* The extra-letter case belongs on the marked side. It is not "close" by the
-            half-matched test — close requires something missing, and here nothing is —
-            so it fell through to the plain word, and the one letter its verdict now
-            points at had nowhere to appear. */
-         + (ok || (!close && !extra) ? wordBlock('word', esc(w), w, wl)
-                                     : wordBlock('marked', marks, w, wl))
-         + sylRow
+         + (ok ? ' id="advance"' : '') + '>' + verdict + '</div>';
+    // Only ever the correct spelling on screen. Seeing her own misspelling
+    // is the one thing that measurably sets spelling back.
+    /* The extra-letter case belongs on the marked side. It is not "close" by the
+       half-matched test — close requires something missing, and here nothing is —
+       so it fell through to the plain word, and the one letter its verdict now
+       points at had nowhere to appear. */
+    wordslot = (ok || (!close && !extra) ? wordBlock('word', esc(w), w, wl)
+                                         : wordBlock('marked', marks, w, wl));
+    below = sylRow
          // Words first, then what happens next, then the buttons — so what she
          // reads runs top to bottom without a button interrupting it.
          /* Only when it is true. This said "in a moment" for every miss, including
@@ -2602,7 +2622,11 @@ function renderWord(){
                     + (more ? 'Next word' : 'Finish') + '">' + (more ? CHEV : TICK) + '</button>';
   }
 
-  el('#screen').innerHTML = dots + body;
+  el('#screen').innerHTML = '<div class="wordscreen">'
+    + '<div class="above">' + above + '</div>'
+    + '<div class="wordslot">' + wordslot + '</div>'
+    + '<div class="below">' + below + '</div>'
+    + '</div>';
   el('#act').innerHTML = act;
 }
 
