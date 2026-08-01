@@ -13,7 +13,7 @@ touch the trigger again. David can retune the work or the cadence by editing thi
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: hourly
-last-run: 2026-08-01T00:49Z
+last-run: 2026-08-01T01:51Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -45,9 +45,10 @@ Never call `update_trigger` for cadence. The cadence lives here now. (The trigge
   FILE: correct anything stale (pacing numbers, scope, the NOT-NOW list, dates), fold in what has
   been learned, keep it tight. This file is the living document now — not the trigger prompt.
 
-**Currently open (keeps it HOT):** the WIN-3 pebble-depth pick (A sheen / B two-tone / C shadow
-/ D outline / flat), the WIN-1 re-trace caption wording, and whether the re-trace gets a skip.
-Clear these from here when David answers.
+**Currently open (keeps it HOT):** the WIN-3 pebble-depth pick — A sheen / B two-tone / C shadow
+/ D outline / flat (mockup sent; awaiting David's letter). The re-trace caption (ditched, 13.25)
+and the escape (kept strict: copy the whole word, 13.25) are settled. Clear the pebble line from
+here when David answers, and cool to daily if nothing else is open.
 
 ---
 
