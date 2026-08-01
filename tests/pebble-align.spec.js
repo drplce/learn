@@ -131,3 +131,32 @@ test('the enlarged pebble follows the word she is on, even after a miss', async 
   expect(f.nowCount, 'exactly one pebble is the enlarged one').toBe(1);
   expect(f.nowWord, 'the enlarged pebble is stuck behind the word she is on').toBe('friend');
 });
+
+/* The pebble greens on SUCCESS, not on arrival (David): the word she is ON stays the faint blob
+   (just enlarged) until she spells it right, and only then fills. So "where she is" and "what she
+   has already done" are different colours — an empty pebble she is about to fill, not one that is
+   green before she has written a letter. */
+test('the pebble she is on stays faint until she spells it — it greens on success', async ({page}) => {
+  await open(page, '2026-08-01');
+  const r = await page.evaluate(() => {
+    const a = window.__acorn;
+    a.state.words.lists = [{id:'s', name:'T', words:['because','friend','thought']}];
+    a.state.words.activeId = 's';
+    const m = () => ({right:2, wrong:0, box:2, lastSeen:'2026-07-31'});   // review: written from memory
+    a.state.words.mastery = {because:m(), friend:m(), thought:m()};
+    a.state.words.sessions = []; a.save(); a.go('day'); a.start();
+    const baseOf = w => {
+      const S = a.session();
+      const dot = [...document.querySelectorAll('.dots i')].find((_, k) => S.words[k] === w);
+      return getComputedStyle(dot.querySelector('.pb-base')).fill;
+    };
+    const faint = baseOf('thought');        // an unmet word she has not reached: the faint blob
+    const onArrival = baseOf('because');     // the word she is ON, before she has written it
+    const W = a.session(); if(W.stage === 'look') a.cover();
+    a.type('because'); a.check();            // spell it right
+    const afterSuccess = baseOf('because');
+    return {faint, onArrival, afterSuccess};
+  });
+  expect(r.onArrival, 'the word she is on is still the faint blob before she spells it').toBe(r.faint);
+  expect(r.afterSuccess, 'once she spells it right, the pebble fills green').not.toBe(r.faint);
+});

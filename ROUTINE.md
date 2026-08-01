@@ -13,7 +13,7 @@ touch the trigger again. David can retune the work or the cadence by editing thi
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: hourly
-last-run: 2026-08-01T06:35Z
+last-run: 2026-08-01T06:44Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -50,9 +50,11 @@ acted on two of his notes: **13.28** the enlarged pebble now follows the word sh
 behind after a miss), and **13.29** the lit dome now completes on the second time through a word
 *in the same sitting* (his clarification), not on a second separate day — replacing the
 mastery-box gate that made review words arrive pre-domed. Both shipped, teeth-checked, harnesses
-green. HOT until he has seen them on the phone (screenshots sent). One thing still unbuilt because
-it was never confirmed: whether the base pebble should fill on *success* rather than on *arrival*
-(my proposal, David has not asked for it) — do NOT build without a clear ask.
+green. HOT until he has seen them on the phone (screenshots sent). **13.30** then acted on his answer
+"Pebble goes green on success": the word she is on stays the faint enlarged blob until she spells
+it right, then it fills — greens on success, not on arrival. All three pebble refinements (focus,
+dome=second-in-sitting, fill-on-success) are now shipped and teeth-checked; nothing else on the
+pebbles is open. HOT until David confirms the set on his phone.
 
 ---
 

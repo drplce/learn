@@ -224,12 +224,13 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 .dots i{flex:none; width:calc(var(--t-sm) * var(--ornament)); height:calc(var(--t-sm) * var(--ornament));
         transition:transform var(--m-quick) var(--ease);}
 .dots i svg{display:block; width:100%; height:100%; overflow:visible;}
-.dots i path{fill:var(--line-2);}                    /* an unmet dot: one flat faint blob */
+.dots i path{fill:var(--line-2);}                    /* unmet — or the word she is ON but has not
+                                                        yet spelled: a flat faint blob, waiting */
 .dots i .pb-dome{display:none;}                      /* no dome on an unmet or first-round dot */
-.dots i.on .pb-base, .dots i.now .pb-base{fill:var(--acc);}        /* first round collected: flat green */
-.dots i.rooted.on .pb-base, .dots i.rooted.now .pb-base{fill:var(--acc-deep);}   /* second round: deep rim... */
-.dots i.rooted.on .pb-dome, .dots i.rooted.now .pb-dome{display:block; fill:var(--acc-lite);}  /* ...+ lit dome */
-.dots i.now{transform:scale(1.5);}
+.dots i.on .pb-base{fill:var(--acc);}                /* greens on SUCCESS (once collected): flat green */
+.dots i.rooted.on .pb-base{fill:var(--acc-deep);}    /* done a second time this sitting: deep rim... */
+.dots i.rooted.on .pb-dome{display:block; fill:var(--acc-lite);}   /* ...+ lit dome */
+.dots i.now{transform:scale(1.5);}                   /* the word she is on is the enlarged one, filled or not */
 
 /* The word she reads and the word she is shown afterwards must be the
    same size, weight and spacing — otherwise the shape she memorised
@@ -653,7 +654,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.29';
+var VERSION = '13.30';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2625,7 +2626,8 @@ function renderWord(){
   header();
 
   /* One dot per word the sitting set out to cover. State is by WORD, not by position: "on" for a
-     word she has finished, "now" (enlarged) for the word she is on RIGHT NOW, faint for the rest.
+     word she has spelled right (it greens on success, not on arrival), "now" (enlarged, and faint
+     until she earns it) for the word she is on RIGHT NOW, faint for the rest.
      It used to be by count — done ones were dots 0..done-1 and the current one was dot[done] — but
      a miss (or a from-memory requeue) moves her forward without adding to that count, so the
      enlarged pebble fell behind onto the wrong word. Keying off the current word (and the done set)
