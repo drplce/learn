@@ -13,7 +13,7 @@ touch the trigger again. David can retune the work or the cadence by editing thi
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: hourly
-last-run: 2026-08-01T13:31Z
+last-run: 2026-08-01T16:48Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -92,6 +92,34 @@ built into the app yet): wordless concepts (bloom/harvest/quiet) → a physics "
     surface (a real engine change — do it BEHIND the existing map so nothing breaks); needs real
     mastery data to pick which words are "deep enough"; reuse the coord fix (screen→viewBox via
     getScreenCTM, not a naive rect ratio, or a letterboxed square viewBox makes every touch miss).
+  - **BATCH SHIPPED (13.37–13.40), the wordless-finish + pebble refinements.** David gave a batch of
+    requests (with a screenshot) and said "ship tonight"; worked top-down, pushed each increment:
+    - **13.37 wordless finished screen** ("clear all the text"): the map case renders only the
+      garden; the line and praise are gone from the screen. Dead end keeps its one sentence + tick.
+      Big test re-point: every visible-headline/praise assertion moved to #say (spoken/announced
+      channel, unchanged); the "announced == on screen" principle gained a conscious exception (the
+      picture is the visible counterpart on the wordless screen).
+    - **13.38 no on-device selection** (user-select:none + -webkit-touch-callout:none app-wide,
+      inputs keep it — fixes the blue highlight / press-hold callout on pebbles, mark, back) +
+      **progress pebbles 1.4× larger**. New tests/no-select.spec.js.
+    - **13.39 praise → "Great effort.", SPOKEN** (David: "just say great effort"). One line whatever
+      the evening; and it is now spoken via say() — a deliberate reversal of the old shown-not-spoken
+      call, because the wordless screen left nowhere to show it and "great effort" is two warm words
+      that don't carry the synthetic-sarcasm risk the old "Every one, first go." did. Count stays in
+      the live region only (never spoken to her, never drawn). Praise-varies tests retired.
+    - **13.40 the way on is a breathing pebble**, not a worded button — a --tap-xl blob pulsing at
+      --m-breath (a 4th ladder value); pulse rides the svg not the button so the hit box is stable.
+      Auto-open to the finished screen when the day's sitting is done already worked (go('day')).
+    - **TWO THINGS FLAGGED FOR DAVID, not built** (both need his product call, wrong to invent
+      overnight): (a) **bigger map / more ghosts** — runs straight into network.spec's deliberate
+      composition invariants (horizon fixed at 6+floor(met/5), cells fill ¼–⅓ of the frame, camera
+      stays close, one organism); a portrait frame and a deeper horizon both broke them. Which
+      invariant to relax is his. Only a small map-margin trim shipped. (b) **"pulse only until the
+      daily max, else hide"** — there is no daily-max concept, and her real save shows she does
+      several new-word sittings a day (4 on Jul 30), so hiding once reviews are caught up would cut
+      her off. Needs his definition. The pebble shows whenever there's anything to practise for now.
+    - **Step 3 (pool-physics map)** — still prototype-first per agreement; not started.
+
   - **STEP 1 SHIPPED (13.36).** David said "Yes prototype step 1" — the gentle whole-map arrival,
     the safe no-rewrite first step. On a session end the whole garden she already has now settles in
     from the middle out (.settling) while tonight's words swell in last (.arriving), so the map feels
