@@ -13,7 +13,7 @@ touch the trigger again. David can retune the work or the cadence by editing thi
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: hourly
-last-run: 2026-08-01T07:37Z
+last-run: 2026-08-01T07:49Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -66,7 +66,11 @@ syllabifier (`splitOf`/`SYLLABLES`/`syllables()`) is now VESTIGIAL: nothing the 
 hears uses it; it survives only in the clip prefetch (warming part-clips never played) and the
 model-level research tests. A future tidy pass could tear it out entirely — flagged, not urgent,
 don't do it without a reason. Open: David to confirm the pebble reward, the clean word, and the
-word-only miss on his phone. HOT until he has.
+word-only miss on his phone. **13.34** reviewed and tightened the win→next timing (all durations
+now in one `REWARD` object; fill/swell/hold/handoff trimmed, plus a new gentle word-rise on
+advance) and shipped an interactive timing PLAYGROUND artifact so David can dial the exact feel and
+report the numbers. Open: David to try the playground / feel the new timing on his phone and say
+whether the fill, the hold, the word-rise want nudging. HOT until he confirms the timing.
 
 ---
 

@@ -2102,7 +2102,7 @@ function check(){
        straight after check() — as the sim and the harnesses do — can never advance
        twice, which is what keeps that loop timing-independent. */
     clearAuto();
-    W.autoTimer = setTimeout(next, 1400);
+    W.autoTimer = setTimeout(next, REWARD.hold);   // the beat she rests on the filled pebble (see REWARD)
   }else{
     // A miss holds — no timer. She dwells on the corrected word and moves on when she
     // is ready. The whole word is spoken again — not its pieces (David, 13.33: the
@@ -2588,7 +2588,16 @@ function dotShape(w){
      2. When she MOVES ON, the word she just left loses `now` (CSS rest = small) and the next word
         gains it (CSS rest = large). We tween the leaver 1.5 -> 1 and the newcomer 1 -> 1.5 at the
         same time, so the big pebble hands off — one shrinks as the next grows into focus.
-   A second-time win (the dome appears) fades its lit dome in. Reduced motion shows the end state. */
+   A second-time win (the dome appears) fades its lit dome in. When she moves on the incoming word
+   also rises gently into focus (REWARD.wordIn), so it comes in with the pebble rather than popping.
+   Reduced motion shows the end state.
+
+   REWARD holds every duration of the win->next flow in one place, so the feel can be tuned by the
+   numbers (David reviews these live): `hold` is the beat she rests on the filled green pebble
+   before it advances (check() uses it); the rest are the animation lengths here. Tightened 13.34
+   from 520/560/320 fill/swell/handoff and a 1400 hold — the fill is a brisker pop, the dead air
+   after it is shorter, and the next word eases in instead of appearing all at once. */
+var REWARD = {fill: 440, swell: 440, swellPeak: 1.58, hold: 1150, handoff: 300, wordIn: 240};
 var _pebPrev = null;
 function pebVar(name){
   try{ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }catch(e){ return ''; }
@@ -2617,27 +2626,35 @@ function syncPebbles(){
         if(base){
           var green = getComputedStyle(base).fill;          // the CSS target (deep rim if rooted)
           var grey = pebVar('--line-2') || green;
-          base.animate([{fill: grey}, {fill: green}], {duration: 520, easing: EASE});
+          base.animate([{fill: grey}, {fill: green}], {duration: REWARD.fill, easing: EASE});
         }
-        el0.animate([{transform: 'scale(1.5)'}, {transform: 'scale(1.6)', offset: .5},
-                     {transform: 'scale(1.5)'}], {duration: 560, easing: EASE});
+        el0.animate([{transform: 'scale(1.5)'}, {transform: 'scale(' + REWARD.swellPeak + ')', offset: .45},
+                     {transform: 'scale(1.5)'}], {duration: REWARD.swell, easing: EASE});
         // A second win roots the pebble: fade its lit dome in rather than snapping it on.
         if((corr[cur] || 0) >= 2 && (prev.corr[cur] || 0) < 2){
           var dome = el0.querySelector('.pb-dome');
-          if(dome) dome.animate([{opacity: 0}, {opacity: 1}], {duration: 520, easing: EASE});
+          if(dome) dome.animate([{opacity: 0}, {opacity: 1}], {duration: REWARD.fill, easing: EASE});
         }
       }
     }
-    // 2) She has moved on — hand the big pebble off: the one she left shrinks, the next grows.
+    // 2) She has moved on — hand the big pebble off: the one she left shrinks, the next grows,
+    //    and the incoming word rises gently into focus with it (not a hard pop).
     if(prev.cur != null && prev.cur !== cur){
       var leftEl = byWord.get(prev.cur);
       if(leftEl)
         leftEl.animate([{transform: 'scale(1.5)'}, {transform: 'scale(1)'}],
-                       {duration: 320, easing: EASE});
+                       {duration: REWARD.handoff, easing: EASE});
       var newEl = cur != null ? byWord.get(cur) : null;
       if(newEl)
         newEl.animate([{transform: 'scale(1)'}, {transform: 'scale(1.5)'}],
-                      {duration: 320, easing: EASE});
+                      {duration: REWARD.handoff, easing: EASE});
+      // The word she is about to write (shown on a new word's trace; a covered review word has
+      // no visible letters to move, so this simply finds nothing).
+      var wordEl = document.querySelector('.tracew, .word');
+      if(wordEl)
+        wordEl.animate([{opacity: .35, transform: 'translateY(5px)'},
+                        {opacity: 1, transform: 'translateY(0)'}],
+                       {duration: REWARD.wordIn, easing: EASE});
     }
   }
   _pebPrev = {cur: cur, done: W.done.slice(), corr: Object.assign({}, corr)};
