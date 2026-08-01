@@ -237,21 +237,19 @@ test.describe('the audio path for real', () => {
       expect(asked.some(u => u.endsWith('/learn/audio/because.wav'))).toBe(true);
     });
 
-  test('the pieces follow the word, in order, without a gap in the chain',
-    async ({page}) => {
+  test('a miss re-plays just the whole word clip, in one shot', async ({page}) => {
+      // The spoken word-in-parts was dropped with the seams (13.33, David): a miss re-says the
+      // whole word only, so its own clip plays once — no "be", "cause" chain behind it.
       await boot(page, ['because','be','cause','said']);
       await page.evaluate(() => window.__acorn.cover());
       await write(page, 'becuase');
       await page.evaluate(() => { window.__ev = []; });
       await page.evaluate(() => window.__acorn.check());
-      await page.waitForFunction(() => window.__ev.filter(e => e.play).length >= 3,
+      await page.waitForFunction(() => window.__ev.filter(e => e.play).length >= 1,
                                  null, {timeout:5000});
+      await page.waitForTimeout(300);            // let any (unwanted) chain reveal itself
       const played = (await events(page)).filter(e => e.play).map(e => e.play);
-      expect(played).toEqual(['because','be','cause']);
-      // Each one really ended before the next began.
-      const ev = await events(page);
-      const order = ev.map(e => e.play ? 'play:' + e.play : e.ended ? 'end:' + e.ended : 'err');
-      expect(order.indexOf('end:because')).toBeLessThan(order.indexOf('play:be'));
+      expect(played).toEqual(['because']);
     });
 
   test('a missing file falls through to the phone voice rather than silence',

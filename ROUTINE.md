@@ -13,7 +13,7 @@ touch the trigger again. David can retune the work or the cadence by editing thi
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: hourly
-last-run: 2026-08-01T07:24Z
+last-run: 2026-08-01T07:37Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -60,8 +60,13 @@ then hands the size off to the next word as it grows into focus — driven by `s
 the Web Animations API (the row is HTML-rebuilt each render, so CSS transitions can't cross it).
 The adversarial pass caught a real bug in it (a plain-object word→element map collided with
 `__proto__`/`toLocaleString`); fixed with a Map. Open: (a) David to confirm the pebble set, the
-reward animation, and the clean word on his phone; (b) his decision on whether the spoken
-word-in-parts on a miss should also go (same imperfect splits). HOT while either is open.
+reward animation, and the clean word on his phone. **13.33** dropped the spoken word-in-parts on
+a miss too (David: "Drop it too") — a miss now re-says the whole word, never its pieces. The
+syllabifier (`splitOf`/`SYLLABLES`/`syllables()`) is now VESTIGIAL: nothing the child sees or
+hears uses it; it survives only in the clip prefetch (warming part-clips never played) and the
+model-level research tests. A future tidy pass could tear it out entirely — flagged, not urgent,
+don't do it without a reason. Open: David to confirm the pebble reward, the clean word, and the
+word-only miss on his phone. HOT until he has.
 
 ---
 

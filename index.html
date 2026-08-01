@@ -637,7 +637,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.32';
+var VERSION = '13.33';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1166,38 +1166,8 @@ function say(text, opts){
     speechSynthesis.speak(u);
   }catch(e){}
 }
-// A piece of a word is always spoken slower than the whole, whatever speed she
-// has chosen — a fixed rate meant "Slow" gave her syllables faster than words.
-function sylRate(){ return Math.max(.5, (Number(S.settings.speechRate) || .95) - .25); }
-// The whole word, then its pieces: hearing "be" and "cause" without "because"
-// first leaves nothing to attach them to.
-function sayParts(word, parts){
-  if(S.settings.readAloud === false) return;
-  var queue = (parts && parts.length > 1) ? [word].concat(parts) : [word];
-  if(haveClips(queue)){
-    try{ speechSynthesis.cancel(); }catch(e){}
-    var whole = Math.max(.7, Math.min(1.25, (Number(S.settings.speechRate) || .95) / .95));
-    return void playClips(queue.map(function(p, i){ return [p, i === 0 ? whole : whole * .8]; }),
-                          function(){ sayPartsSpoken(word, parts); });
-  }
-  sayPartsSpoken(word, parts);
-}
-function sayPartsSpoken(word, parts){
-  var queue = (parts && parts.length > 1) ? [word].concat(parts) : [word];
-  stopClips();
-  try{
-    speechSynthesis.cancel();
-    var v = pickVoice();
-    queue.forEach(function(p, i){
-      if(!p) return;
-      var u = new SpeechSynthesisUtterance(i ? ' ' + p : p);
-      if(v){ u.voice = v; u.lang = v.lang; }
-      // The whole word at her speed, the pieces slower.
-      u.rate = i === 0 ? (Number(S.settings.speechRate) || .95) : sylRate();
-      speechSynthesis.speak(u);
-    });
-  }catch(e){}
-}
+// (sayParts/sayPartsSpoken/sylRate were removed with the spoken word-in-parts, 13.33 — a miss
+// now re-says the whole word through say(), never its pieces.)
 var _unlocked = false;
 function unlock(){
   if(_unlocked) return;
@@ -2135,8 +2105,11 @@ function check(){
     W.autoTimer = setTimeout(next, 1400);
   }else{
     // A miss holds — no timer. She dwells on the corrected word and moves on when she
-    // is ready. The parts are still spoken.
-    sayParts(w, splitOf(w));
+    // is ready. The whole word is spoken again — not its pieces (David, 13.33: the
+    // syllabifier still split some words wrong, and a wrong break is worse than none in
+    // the ear as much as on the screen, so the spoken breakdown is gone with the seams).
+    // No force: a miss respects read-aloud-off, the way the spoken parts used to.
+    say(w);
   }
 }
 // Cancel a pending auto-advance (win) or trace-settle timer. Called at the head of
@@ -4123,7 +4096,7 @@ document.addEventListener('click', function(ev){
   // Cover button (the trace is the cover) and no Check button (return submits).
   if(t.closest('#advance')){ next(); return; }
   if(t.closest('#next')) { next(); return; }
-  if((hit = t.closest('[data-syl]'))){ say(hit.dataset.syl, {force:true, rate:sylRate()}); return; }
+  // (The [data-syl] tap-a-piece-to-hear handler went with the syllable chips/seams, 13.33.)
   if((hit = t.closest('[data-hear]'))){ say(hit.dataset.hear, {force:true}); return; }
 
   // ---- grown-ups

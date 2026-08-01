@@ -112,7 +112,7 @@ test.describe('the pre-recorded voice', () => {
     expect((await spoken(page)).map(u => u.text)).toEqual(['rain']);
   });
 
-  test('a miss plays the word then its pieces, the pieces slower', async ({page}) => {
+  test('a miss re-plays just the whole word clip, not its pieces', async ({page}) => {
     await open(page, '2026-08-01');
     await listen(page, AU);
     await watchAudio(page);
@@ -122,29 +122,13 @@ test.describe('the pre-recorded voice', () => {
     await write(page, 'becuase');
     await page.evaluate(() => { window.__played = []; window.__spoken = []; });
     await page.evaluate(() => window.__acorn.check());
-    // Each clip starts the next when it ends, so the sequence arrives over time.
-    await page.waitForFunction(() => window.__played.filter(p => p.src).length >= 3,
+    await page.waitForFunction(() => window.__played.filter(p => p.src).length >= 1,
                                null, {timeout:3000});
+    // Just the word — the spoken word-in-parts was dropped with the seams (13.33), because the
+    // same imperfect split that read wrong on screen read wrong in the ear.
     const seq = await played(page);
-    expect(seq.map(p => p.src)).toEqual(['because.mp3','be.mp3','cause.mp3']);
-    expect(seq[1].rate).toBeLessThan(seq[0].rate);
+    expect(seq.map(p => p.src)).toEqual(['because.mp3']);
     expect(await spoken(page)).toEqual([]);
-  });
-
-  test('a half-recorded word is spoken rather than mixed', async ({page}) => {
-    await open(page, '2026-08-01');
-    await listen(page, AU);
-    await watchAudio(page);
-    // The word is recorded but "cause" is not: mixing a studio voice and a
-    // synthetic one in a single breath sounds worse than either.
-    await setClips(page, ['because','be']);
-    await startOn(page, ['because','rain','boat']);
-    await page.evaluate(() => window.__acorn.cover());
-    await write(page, 'becuase');
-    await page.evaluate(() => { window.__played = []; window.__spoken = []; });
-    await page.evaluate(() => window.__acorn.check());
-    expect(await played(page)).toEqual([]);
-    expect((await spoken(page)).map(u => u.text.trim())).toEqual(['because','be','cause']);
   });
 
   test('a clip that will not load falls back to the phone voice', async ({page}) => {
@@ -355,12 +339,11 @@ test.describe('what she hears', () => {
     expect((await spoken(page)).map(u => u.text)).toEqual(['because']);
   });
 
-  test('a piece of a word is never spoken faster than the whole word', async ({page}) => {
+  test('a miss re-speaks just the whole word, at her speed, never in pieces', async ({page}) => {
     await listen(page, AU);
-    // The chips that used to be tapped to hear a piece are gone (and the seams that replaced
-    // them, 13.31), so the pieces are heard the other way they always were: a miss speaks the
-    // whole word and then its pieces. The rate rule is the same one, checked across the settings
-    // — the slowest is where a fixed syllable rate used to invert it.
+    // The spoken word-in-parts was dropped with the seams (13.33, David): the same imperfect
+    // split that read wrong on screen read wrong in the ear, and a wrong break is worse than none.
+    // A miss now simply re-says the whole word, at her chosen speed, whatever its speed setting.
     for(const rate of [0.7, 0.85, 0.95, 1.1]){
       await page.evaluate(r => { window.__acorn.state.settings.speechRate = r;
                                  window.__acorn.save(); }, rate);
@@ -370,28 +353,10 @@ test.describe('what she hears', () => {
       await clear(page);
       await page.evaluate(() => window.__acorn.check());
       const said = await spoken(page);
-      // [whole, be, cause] — the pieces come after the word, and slower than it.
-      const whole = said.find(u => u.text.trim() === 'because');
-      const piece = said.find(u => u.text.trim() === 'be');
-      expect(piece, `rate ${rate}: the piece "be" was not spoken`).toBeTruthy();
-      expect(piece.rate, `syllable at speech rate ${rate}`).toBeLessThan(rate);
-      expect(piece.rate, `syllable slower than the whole word at rate ${rate}`)
-        .toBeLessThan(whole.rate);
-      expect(piece.rate).toBeGreaterThanOrEqual(0.5);
+      expect(said.map(u => u.text.trim()), `rate ${rate}: a miss says only the whole word`)
+        .toEqual(['because']);
+      expect(said[0].rate, `rate ${rate}: the word is said at her speed`).toBeCloseTo(rate, 5);
     }
-  });
-
-  test('a miss plays the whole word first, then its pieces', async ({page}) => {
-    await listen(page, AU);
-    await startOn(page, ['because','rain','boat']);
-    await page.evaluate(() => window.__acorn.cover());
-    await write(page, 'becuase');
-    await clear(page);
-    await page.evaluate(() => window.__acorn.check());
-    const said = await spoken(page);
-    // "be" and "cause" with no "because" first leaves nothing to attach them to.
-    expect(said.map(u => u.text.trim())).toEqual(['because','be','cause']);
-    expect(said[0].rate).toBeGreaterThan(said[1].rate);
   });
 
   test('a one-syllable miss plays the word once, not a lone fragment', async ({page}) => {
