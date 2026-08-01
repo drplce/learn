@@ -13,7 +13,7 @@ touch the trigger again. David can retune the work or the cadence by editing thi
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: hourly
-last-run: 2026-08-01T12:38Z
+last-run: 2026-08-01T13:31Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -92,6 +92,20 @@ built into the app yet): wordless concepts (bloom/harvest/quiet) → a physics "
     surface (a real engine change — do it BEHIND the existing map so nothing breaks); needs real
     mastery data to pick which words are "deep enough"; reuse the coord fix (screen→viewBox via
     getScreenCTM, not a naive rect ratio, or a letterboxed square viewBox makes every touch miss).
+  - **STEP 1 SHIPPED (13.36).** David said "Yes prototype step 1" — the gentle whole-map arrival,
+    the safe no-rewrite first step. On a session end the whole garden she already has now settles in
+    from the middle out (.settling) while tonight's words swell in last (.arriving), so the map feels
+    alive as it forms — no interaction, nothing new to learn. Built into the REAL map's arrival.
+    Notable: had to move the arrival off a CSS transition onto the **Web Animations API** — a
+    transition on freshly-built DOM is suppressed on first paint (transition-property lands in the
+    same recalc as the value change), so on a fast compositor the flourish silently jumped to the end
+    (this was latent in the ORIGINAL .arriving too — it only "worked" on real vsync hardware and was
+    invisible/untestable in headless). WAAPI plays reliably everywhere, is capturable, honours
+    reduced-motion by creating no animation at all, and let the tests assert real animation objects
+    (not just that the classes exist, which a frozen end state can't be told apart from). Filmstrip
+    captured (scratchpad/arrive-film.png). **Open: David to feel the gentle arrival on his phone and
+    say if the pace/feel is right before Steps 2+** (touch, thread, ripen — which need the physics
+    rewrite and his build approval per the three awaiting decisions above).
 
 **Cadence note (12:38Z):** clean maintenance pass, unchanged code (HEAD still a075861) — Playwright
 577 + known audio-live:126 flake; sim in band; break's "two windows" finding was the known
