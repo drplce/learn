@@ -168,6 +168,30 @@ test.describe('the screen at the end of a sitting', () => {
     expect(marked).toBe(0);
   });
 
+  /* Step 1 of the end-of-session reimagining: the WHOLE garden settles in on arrival, not only
+     tonight's words. Every other cell eases up gently (.settling) while tonight's swell (.arriving),
+     so the map feels alive as it forms — with no interaction and nothing new for her to learn. */
+  test('the whole map settles in on arrival, not only tonight’s words', async ({page}) => {
+    await open(page, '2026-08-01');
+    await sit(page, ['rain', 'boat', 'said', 'went']);
+    const r = await page.evaluate(() => ({
+      settling: document.querySelectorAll('#screen .net-cell.settling').length,
+      arriving: document.querySelectorAll('#screen .net-cell.arriving').length,
+      total:    document.querySelectorAll('#screen .net-cell').length,
+      // The motion is driven by the Web Animations API, not a CSS transition — a transition on
+      // freshly-built DOM is suppressed on its first paint and skipped the flourish silently on a
+      // fast compositor. Counting real animation objects proves the arrival actually plays, which
+      // a class-only check (present but frozen at the end state) cannot tell apart from nothing.
+      moving: document.getAnimations().filter(a => a.effect && a.effect.target &&
+              a.effect.target.classList && a.effect.target.classList.contains('net-cell')).length,
+    }));
+    expect(r.arriving, 'tonight’s words still swell in').toBeGreaterThan(0);
+    expect(r.settling, 'the rest of the garden settles in too, not just tonight’s').toBeGreaterThan(0);
+    expect(r.settling + r.arriving, 'every cell takes part in the arrival').toBe(r.total);
+    expect(r.moving, 'the cells are actually animating in, not frozen at the end state')
+      .toBeGreaterThan(0);
+  });
+
   /* A headline taller than the picture it introduces. "Three more took root tonight"
      ran to two lines at her ordinary text size and three at the largest on a 375px
      phone. Two mistakes in finding that: my first measurement used getClientRects on a

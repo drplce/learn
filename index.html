@@ -423,11 +423,14 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
    wide and no taller, which on a phone wasted the whole middle of the screen. */
 .donenet .net{margin:0; width:100%; height:100%; max-height:100%;}
 .doneend{flex:none;}
-/* Tonight's words arrive: a speck that swells and fills. */
-.net-cell.arriving{transform-box:fill-box; transform-origin:center;
-  transition:transform var(--m-slow) var(--ease), fill-opacity var(--m-slow) var(--ease),
-             stroke-opacity var(--m-slow) var(--ease);}
-.net.seeded .net-cell.arriving{transform:scale(.12); fill-opacity:0; stroke-opacity:0;}
+/* The arrival — tonight's words swelling in (.arriving) and, since Step 1, the whole rest of the
+   garden easing up gently with them (.settling) — is driven frame-by-frame from arriveMap() via
+   the Web Animations API, the same technique the pebble reward uses. That is deliberate: a plain
+   CSS transition on freshly-built DOM is suppressed on its first paint (the transition-property
+   arrives in the same style recalc as the value change), which made the flourish silently skip to
+   the end on a fast compositor. WAAPI has no such rule. All CSS owns here is the point the scale
+   grows from; the motion, timing and stagger live in arriveMap(). */
+.net-cell.arriving, .net-cell.settling{transform-box:fill-box; transform-origin:center;}
 .tick{text-align:center; font-size:calc(var(--t-4xl) * var(--ornament)); color:var(--acc); line-height:1;
       margin:var(--s2) 0 var(--s5);}
 .headline{text-align:center; font-size:var(--t-xl); font-weight:700; margin:var(--s4) 0 var(--s1);}
@@ -637,7 +640,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.35';
+var VERSION = '13.36';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2173,6 +2176,7 @@ function finish(){
   var every = W.firstTime === distinct;
   W = null;
   saying = withName(every ? 'Every one, first go{n}.' : 'All done{n}.');
+  _freshDone = true;            // a real session-end: let the map arrive (arriveMap)
   screen = 'day'; render();
   chime('done');
   /* The praise is shown, not spoken. There is no recording of it — there is no
@@ -3034,7 +3038,7 @@ function renderDone(){
     + '</div>';
   el('#act').innerHTML = canPractise
     ? '<button class="quiet" id="again">Practise a bit more</button>' : '';
-  if(net) growTonight(grew);
+  if(net) arriveMap(grew);
 }
 /* Small numbers as words, because "3 more took root" reads like a receipt. Past nine
    the digit is easier to read anyway, and it has to fall back to one rather than off
@@ -3061,34 +3065,60 @@ var _arrived = {day:'', words:bare(null)};
    arrives, then one every fifth of a second, so a nine-word evening is over in under
    two. The cells themselves move at --m-slow. Under prefers-reduced-motion the media
    query zeroes every transition-delay, so this becomes one instant arrival. */
-var ARRIVE_LEAD = 0.18, ARRIVE_STEP = 0.2;
-function growTonight(all){
-  if(_arrived.day !== todayISO()) _arrived = {day:todayISO(), words:bare(null)};
-  var words = all.filter(function(w){ return !_arrived.words[w]; });
-  if(!words.length) return;
-  words.forEach(function(w){ _arrived.words[w] = 1; });
+var ARRIVE_LEAD = 0.18, ARRIVE_STEP = 0.2, ARRIVE_SETTLE = 0.5;
+/* Set by finish() and consumed here, so the arrival plays when she has just finished a sitting —
+   not when the finished screen merely re-renders (a grown-up nudging the text size, a reload). */
+var _freshDone = false;
+function arriveMap(grew){
   var svg = el('#screen .net');
   if(!svg) return;
-  var marked = 0;
-  words.forEach(function(w, i){
-    var cells = svg.querySelectorAll('.net-cell');
-    for(var k = 0; k < cells.length; k++){
-      var t = cells[k].querySelector('title');
-      if(!t || t.textContent !== w) continue;
-      cells[k].classList.add('arriving');
-      cells[k].style.transitionDelay = (ARRIVE_LEAD + marked * ARRIVE_STEP).toFixed(2) + 's';
-      marked++;
-      break;
+  if(!_freshDone) return;
+  _freshDone = false;
+  if(_arrived.day !== todayISO()) _arrived = {day:todayISO(), words:bare(null)};
+  /* Tonight's NEW words get the emphatic swell, once each per day — noted so a second sitting the
+     same evening does not swell them again. Everything else is the garden she already had. */
+  var tset = bare(null);
+  grew.forEach(function(w){ if(!_arrived.words[w]){ tset[w] = 1; _arrived.words[w] = 1; } });
+  // Ripple out from the middle of the picture, measured in its own viewBox units.
+  var cx = 0, cy = 0, maxd = 1, vb = svg.viewBox && svg.viewBox.baseVal;
+  if(vb && vb.width){ cx = vb.x + vb.width / 2; cy = vb.y + vb.height / 2; maxd = Math.hypot(vb.width, vb.height) / 2 || 1; }
+  /* Reduced motion: mark the roles (so a screen reader and the tests still see what tonight did),
+     but do not move anything — the media query would zero a CSS tween anyway, and WAAPI ignores it,
+     so we skip the animation ourselves. */
+  var reduce = false;
+  try{ reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
+  var SLOW = 600, EASE = 'cubic-bezier(.22,.61,.36,1)';  // --m-slow, --ease
+  svg.classList.add('arrive');
+  var cells = svg.querySelectorAll('.net-cell'), tn = 0;
+  for(var k = 0; k < cells.length; k++){
+    var c = cells[k], t = c.querySelector('title'), w = t ? t.textContent : '';
+    var arriving = !!(w && tset[w]);
+    c.classList.add(arriving ? 'arriving' : 'settling');
+    if(reduce) continue;
+    var delay, from;
+    if(arriving){
+      // The words that took root tonight: swell in from a speck, last, after the garden has settled.
+      delay = (ARRIVE_SETTLE + ARRIVE_LEAD + tn * ARRIVE_STEP) * 1000; from = 0.12; tn++;
+    } else {
+      // The rest of the garden eases up gently, sooner in the middle than at the rim.
+      var dist = 0;
+      try{ var bb = c.getBBox(); dist = Math.hypot(bb.x + bb.width / 2 - cx, bb.y + bb.height / 2 - cy) / maxd; }catch(e){}
+      delay = (0.04 + Math.min(1, dist) * ARRIVE_SETTLE) * 1000; from = 0.72;
     }
-  });
-  if(!marked) return;
-  svg.classList.add('seeded');
-  // Two frames, so the browser lays the seeded state out before it is taken away.
-  requestAnimationFrame(function(){
-    requestAnimationFrame(function(){
-      if(svg.isConnected) svg.classList.remove('seeded');
-    });
-  });
+    /* WAAPI, not a CSS transition: freshly-built DOM suppresses a transition on its first paint,
+       which silently skipped the flourish on a fast compositor. fill:'backwards' holds the small,
+       invisible start through the delay so nothing flashes in before its turn. */
+    c.animate([{transform:'scale(' + from + ')', opacity:0},
+               {transform:'scale(1)', opacity:1}],
+              {duration:SLOW, delay:delay, easing:EASE, fill:'backwards'});
+  }
+  if(reduce) return;
+  // The faint threads and pencil marks fade up with the garden, not before it.
+  var faders = svg.querySelectorAll('.net-link, .net-sketch');
+  for(var j = 0; j < faders.length; j++){
+    faders[j].animate([{opacity:0}, {opacity:1}],
+      {duration:SLOW, delay:ARRIVE_SETTLE * 500, easing:EASE, fill:'backwards'});
+  }
 }
 
 function renderParent(){

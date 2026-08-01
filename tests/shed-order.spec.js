@@ -188,6 +188,23 @@ test.describe('what gets dropped when it will not fit', () => {
         a.next();
       }
       sweep();
+      /* The finished screen when she already has a garden: the words met on earlier days
+         settle gently in (.settling) as tonight's swell (.arriving) — Step 1's whole-map
+         arrival. Both states show on one screen only when an older word is present, so seed
+         a couple met a few days back before practising two fresh ones to the end. Without
+         this .settling is styled but never rendered (every cell on a from-scratch map is
+         tonight's, so it all arrives and nothing settles). */
+      fresh(); on(['said', 'rain', 'because', 'friend']);
+      a.state.words.mastery = {because: {right: 3, wrong: 0, box: 3, lastSeen: '2026-07-28'},
+                               friend: {right: 3, wrong: 0, box: 3, lastSeen: '2026-07-28'}};
+      a.save();
+      for(let g = 0; g < 20 && a.session(); g++){
+        const W = a.session();
+        if(W.stage === 'look'){ a.cover(); continue; }
+        if(W.stage === 'write'){ a.type(W.words[W.i]); a.check(); a.next(); continue; }
+        a.next();
+      }
+      sweep();                                            // done map: .settling (older) + .arriving
       a.state.words.lists = [{id: 'empty', name: 'E', words: []}];
       a.state.words.activeId = 'empty'; fresh();
       a.save(); a.go('day'); sweep();

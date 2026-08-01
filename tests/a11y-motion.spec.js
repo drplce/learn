@@ -30,15 +30,18 @@ test.describe('reduced motion', () => {
   test('the flourish is the end state, not the same dance at zero speed', async ({page}) => {
     // Killing transition-duration alone left every delay in place, so the cells
     // still arrived one at a time — fourteen words was 2.8 seconds of popping for
-    // someone who asked for no motion.
+    // someone who asked for no motion. The arrival is driven by the Web Animations
+    // API now (a CSS transition on fresh DOM was silently skipped on a fast
+    // compositor); arriveMap reads the reduced-motion query itself and creates no
+    // animation at all, so there is nothing to run, not a run at zero speed.
     await page.emulateMedia({reducedMotion: 'reduce'});
     await open(page, '2026-08-01');
     await finishASitting(page);
-    const delays = await page.evaluate(() =>
+    const running = await page.evaluate(() =>
       [...document.querySelectorAll('#screen .net-cell.arriving')]
-        .map(c => getComputedStyle(c).transitionDelay));
-    expect(delays.length, 'nothing was flourishing, so this proves nothing').toBeGreaterThan(0);
-    for(const d of delays) expect(d, `a cell still waits ${d} before arriving`).toBe('0s');
+        .map(c => c.getAnimations().length));
+    expect(running.length, 'nothing was flourishing, so this proves nothing').toBeGreaterThan(0);
+    for(const n of running) expect(n, 'a cell is still animating under reduced motion').toBe(0);
     expect(errorsOf(page)).toEqual([]);
   });
 
@@ -46,12 +49,14 @@ test.describe('reduced motion', () => {
     await page.emulateMedia({reducedMotion: 'no-preference'});
     await open(page, '2026-08-01');
     await finishASitting(page);
+    // The stagger lives in each cell's animation delay now, not a CSS transition-delay.
     const delays = await page.evaluate(() =>
       [...document.querySelectorAll('#screen .net-cell.arriving')]
-        .map(c => parseFloat(getComputedStyle(c).transitionDelay)));
+        .map(c => { const an = c.getAnimations()[0];
+                    return an ? an.effect.getTiming().delay : 0; }));  // milliseconds
     expect(delays.length).toBeGreaterThan(1);
     // Staggered, slow and gentle — the thing she practises more to see again.
-    expect(Math.max(...delays), 'the flourish stopped being staggered').toBeGreaterThan(0.15);
+    expect(Math.max(...delays), 'the flourish stopped being staggered').toBeGreaterThan(150);
   });
 
 });
