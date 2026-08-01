@@ -2252,6 +2252,46 @@ async function main(){
     await ctx.close();
   }
 
+  // ---- 36. the finished praise is spoken, and ONLY when read-aloud is on
+  {
+    console.log('\n36. "great effort" is spoken on finish, and silent when she has read-aloud off');
+    // 13.39 reversed a deliberate call (praise used to be shown, not spoken) — so the exact edge
+    // the other tests skip is the one that matters: with read-aloud OFF, say() must not utter it.
+    // A synthetic voice on a child who turned the voice off is precisely the kind of thing that
+    // slips through when only the happy path is tested.
+    let faults = 0;
+    for(const readAloud of [true, false]){
+      const {page, ctx, errs} = await fresh(browser, '2026-08-01');
+      await page.evaluate((ra) => {
+        window.__spoke = [];
+        try{ const ss = window.speechSynthesis;
+          ss.speak = function(u){ try{ window.__spoke.push(String((u && u.text) || '')); }catch(e){} }; }catch(e){}
+        const a = window.__acorn;
+        a.state.settings.readAloud = ra;
+        a.state.words.lists = [{id:'w', name:'T', words:['rain','boat','said']}];
+        a.state.words.activeId = 'w'; a.state.words.mastery = {}; a.state.words.sessions = [];
+        a.save(); a.go('day'); if(!a.session()) a.start();
+        for(let g = 0; g < 40 && a.session(); g++){ const W = a.session();
+          if(W.stage === 'look'){ a.cover(); continue; }
+          if(W.stage === 'write'){ a.type(W.words[W.i]); a.check(); a.next(); continue; } a.next(); }
+      }, readAloud);
+      await page.waitForTimeout(200);
+      const r = await page.evaluate(() => ({
+        praised: (window.__spoke || []).some(t => /great effort/i.test(t)),
+        finished: !window.__acorn.session(),
+        hasWayOn: !!document.querySelector('#again, .tick'),
+      }));
+      const tag = readAloud ? 'read-aloud on' : 'read-aloud off';
+      if(!r.finished){ bad('praise on finish', tag + ': the sitting did not reach the finished screen'); faults++; }
+      else if(!r.hasWayOn){ bad('praise on finish', tag + ': the finished screen did not render'); faults++; }
+      else if(readAloud && !r.praised){ bad('praise on finish', 'read-aloud on, but "great effort" was never spoken'); faults++; }
+      else if(!readAloud && r.praised){ bad('praise on finish', 'read-aloud OFF, but the praise was spoken at her anyway'); faults++; }
+      else if(errs.length){ bad('praise on finish', tag + ': ' + errs.join(' | ')); faults++; }
+      await ctx.close();
+    }
+    if(!faults) ok('"great effort" is spoken when read-aloud is on and stays silent when it is off');
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));
