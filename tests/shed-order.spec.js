@@ -157,6 +157,13 @@ test.describe('what gets dropped when it will not fit', () => {
         a.next();
       }
       sweep();                                            // earned win: .verdict.ok + .word.won
+      // A word already rooted from earlier rounds (box >= 3): collecting it shows the two-tone
+      // pebble — the deep rim and the lit dome (.rooted on the dot, .pb-dome shown), which a
+      // first-round pebble does not have. Without this the dome's classes read as styled-but-dead.
+      fresh(); a.state.words.mastery = {because:{right:5, wrong:0, box:4, lastSeen:'2026-07-20'}};
+      on(['because', 'rain']);
+      if(a.session().stage === 'look') a.cover();
+      a.type('because'); a.check(); sweep();
       // A word with a twin, so the meaning cue is on the writing screen.
       fresh(); on(['licence', 'practise']);
       if(a.session().stage === 'look') a.cover();
