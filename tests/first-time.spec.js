@@ -44,8 +44,8 @@ async function sit(page, words, decide){
     return {
       asks,
       record: s && {asked: s.asked, words: s.words, right: s.right, firstTime: s.firstTime},
-      cheer: (document.querySelector('#screen .cheer') || {}).textContent || '',
-      head: (document.querySelector('#screen .headline') || {}).textContent || '',
+      // The finished map is wordless now (David); the line and the praise are spoken, off #say.
+      said: (document.querySelector('#say') || {}).textContent || '',
       accuracy: a.recentAccuracy(),
     };
   }, {ws: words, src: decide});
@@ -59,7 +59,7 @@ test.describe('right first time', () => {
     const firsts = r.asks.filter(a => a.nth === 1 && a.right).length;
     expect(r.record.firstTime).toBe(firsts);
     expect(r.record.firstTime).toBe(r.record.words);
-    expect(r.cheer).toBe('Every one, first go.');
+    expect(r.said).toContain('Every one, first go.');
   });
 
   test('a word missed and never got does not count', async ({page}) => {
@@ -67,8 +67,8 @@ test.describe('right first time', () => {
     const r = await sit(page, ['said', 'went', 'rain'],
                         '(w, nth) => w === "said" ? "zzz" : w');
     expect(r.record.firstTime).toBe(r.record.words - 1);
-    expect(r.cheer, 'praised for an evening with a word she never got').not.toMatch(/first go/);
-    expect(r.head).toMatch(/^Two took root tonight\.$/);
+    expect(r.said, 'praised for an evening with a word she never got').not.toMatch(/first go/);
+    expect(r.said).toMatch(/Two took root tonight\./);
   });
 
   test('getting there on the second go is right, but not right first time',
@@ -82,9 +82,9 @@ test.describe('right first time', () => {
       expect(r.record.firstTime).toBe(r.record.words - 1);
       expect(r.record.right, 'getting there later was not counted as right at all')
         .toBeGreaterThan(r.record.firstTime);
-      expect(r.cheer).not.toMatch(/first go/);
+      expect(r.said).not.toMatch(/first go/);
       // She did get it in the end, so it took root.
-      expect(r.head).toMatch(/^Three took root tonight\.$/);
+      expect(r.said).toMatch(/Three took root tonight\./);
     });
 
   test('an evening with nothing right counts nothing', async ({page}) => {
@@ -92,8 +92,8 @@ test.describe('right first time', () => {
     const r = await sit(page, ['said', 'went', 'rain'], '(w, nth) => "zzz"');
     expect(r.record.firstTime).toBe(0);
     expect(r.record.right).toBe(0);
-    expect(r.cheer).not.toMatch(/first go/);
-    expect(r.head).not.toMatch(/took root/);
+    expect(r.said).not.toMatch(/first go/);
+    expect(r.said).not.toMatch(/took root/);
   });
 
   test('a fumbled tap on an empty box is not an ask', async ({page}) => {
@@ -185,10 +185,10 @@ test.describe('right first time', () => {
     ]){
       const r = await sit(page, ['said', 'went', 'rain'], decide);
       const clean = r.record.firstTime === r.record.words;
-      expect(/first go/.test(r.cheer), `${label}: cheer "${r.cheer}" against ` +
+      expect(/first go/.test(r.said), `${label}: heard "${r.said}" against ` +
         `${r.record.firstTime}/${r.record.words} first go`).toBe(clean);
-      // The headline counts words that took root, which is never more than she met.
-      const m = r.head.match(/^(\w+) took root/);
+      // What she is told counts words that took root, which is never more than she met.
+      const m = r.said.match(/^(\w+) took root/);
       if(m){
         const WORDS = {One: 1, Two: 2, Three: 3, Four: 4, Five: 5};
         expect(WORDS[m[1]] || Number(m[1])).toBeLessThanOrEqual(r.record.words);

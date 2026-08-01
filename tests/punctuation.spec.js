@@ -24,7 +24,7 @@ async function answer(page, target, typed){
     a.state.words.activeId = 'w1'; a.state.words.mastery = {}; a.state.words.sessions = [];
     a.save(); a.go('day'); a.start(); a.cover(); a.type(o.typed); a.check();
     const m = a.state.words.mastery[o.target] || {};
-    const v = document.querySelector('.verdict, .headline');
+    const v = document.querySelector('.verdict');
     return {right: m.right || 0, wrong: m.wrong || 0, verdict: (v ? v.textContent : '').trim(),
             won: !!document.querySelector('.word.won'),   // WIN-5: the green word IS the win
             said: ((document.querySelector('#say') || {}).textContent || '').trim()};

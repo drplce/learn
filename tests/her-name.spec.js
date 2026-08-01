@@ -28,46 +28,45 @@ async function praiseWith(page, name, opts){
       if(W.stage === 'write'){ a.type(W.words[W.i]); a.check(); a.next(); continue; }
       a.next();
     }
-    const cheer = document.querySelector('#screen .cheer');
+    // The praise she reads went wordless (David) — it is spoken now, not drawn — so her name in
+    // it is read off the live region (#say). The finished screen itself carries no praise box.
     const de = document.documentElement;
     const scr = document.querySelector('#screen');
     return {
-      text: cheer ? cheer.textContent : null,
-      shown: !!cheer && getComputedStyle(cheer).display !== 'none',
-      overflows: cheer ? cheer.scrollWidth > cheer.clientWidth + 1 : false,
-      width: cheer ? Math.round(cheer.getBoundingClientRect().width) : 0,
+      said: (document.querySelector('#say') || {}).textContent || '',
       sideways: de.scrollWidth > de.clientWidth + 1,
       clipped: scr.scrollHeight > scr.clientHeight + 1,
       html: scr.innerHTML,
-      said: (document.querySelector('#say') || {}).textContent || '',
     };
   }, {n: name, w: o.word, s: o.scale || 1});
 }
 
 test.describe('her name in the praise', () => {
 
-  test('a name of any length stays inside its box', async ({page}) => {
+  test('a name of any length never breaks the finished screen', async ({page}) => {
+    // The praise carrying her name is spoken now, not drawn, so a long name can no longer run out
+    // of a visible box — but it still must not break the layout by any other path, at her largest
+    // text on the smallest phone.
     await open(page, '2026-08-01');
     await page.setViewportSize({width: 320, height: 568});
     for(const name of ['Ivy', 'Charlotte', 'Bartholomew-Wilhelmina', 'Mary Elizabeth Anne',
                        "O'Sullivan-Fitzgerald", 'A'.repeat(32)]){
       const r = await praiseWith(page, name, {scale: 1.5});
-      expect(r.overflows, `"${name.slice(0, 20)}" ran out of its box`).toBe(false);
       expect(r.sideways, `"${name.slice(0, 20)}" made the page scroll sideways`).toBe(false);
       expect(r.clipped, `"${name.slice(0, 20)}" cut the screen off`).toBe(false);
     }
     expect(errorsOf(page)).toEqual([]);
   });
 
-  test('and she still gets her praise, rather than it being shed', async ({page}) => {
-    // The failure past forty characters was not an overflow but a disappearance: the
-    // line grew until fitScreen dropped it, and the evening ended with nothing said.
+  test('and she still gets her praise, spoken, however long her name', async ({page}) => {
+    // The failure past forty characters was a disappearance: the visible line grew until fitScreen
+    // dropped it, and the evening ended with nothing said. Spoken through the live region it cannot
+    // be shed — the praise, with her name, is there whatever the name.
     await open(page, '2026-08-01');
     await page.setViewportSize({width: 320, height: 568});
     for(const name of ['Ivy', 'Bartholomew-Wilhelmina', 'A'.repeat(32)]){
       const r = await praiseWith(page, name, {scale: 1.5});
-      expect(r.shown, `"${name.slice(0, 20)}" cost her the praise entirely`).toBe(true);
-      expect(r.text).toContain('first go');
+      expect(r.said, `"${name.slice(0, 20)}" cost her the praise entirely`).toContain('first go');
     }
   });
 
@@ -126,21 +125,17 @@ test.describe('her name in the praise', () => {
   });
 
   test('markup in the name is text, not markup', async ({page}) => {
-    // It is rendered into the praise, into the announcement, and back into the field
-    // she was typed in. All three have to escape her.
+    // It is spoken into the announcement (the live region) and written back into the field she was
+    // typed in. Both have to escape her — no element built from her name, wherever it lands.
     await open(page, '2026-08-01');
     const r = await praiseWith(page, '<b>bold</b><img src=x onerror=alert(1)>');
-    /* The word "onerror" does appear in the markup, escaped — that is her name rendered
-       as text and is the correct outcome, not a leak. What matters is that no element was
-       built from it, so the check is on the tags and the tree, not on the characters. */
-    expect(r.html).not.toContain('<b>bold</b>');
-    expect(r.html).not.toContain('<img');
-    expect(r.html, 'the angle brackets were not escaped').toContain('&lt;b&gt;');
-    expect(r.text, 'the name did not reach the praise at all').toContain('bold');
-    expect(r.said).toContain('bold');
+    expect(r.said, 'the name did not reach the spoken praise at all').toContain('bold');
+    /* announce() sets #say by textContent, so the literal characters "<b>bold</b>" ARE present as
+       text — that is her name rendered as text and is the correct outcome, not a leak. What matters
+       is that no element was built from it, so the check is on the tree, not on the characters. */
     const built = await page.evaluate(() => ({
-      b: document.querySelectorAll('#screen b').length,
-      img: document.querySelectorAll('#screen img').length,
+      b: document.querySelectorAll('#say b, #screen b').length,
+      img: document.querySelectorAll('#say img, #screen img').length,
     }));
     expect(built.b, 'a <b> element was built from her name').toBe(0);
     expect(built.img, 'an <img> element was built from her name').toBe(0);
@@ -154,7 +149,11 @@ test.describe('her name in the praise', () => {
     await open(page, '2026-08-01');
     for(const name of ['', '   ', '\t']){
       const r = await praiseWith(page, name);
-      expect(r.text, `${JSON.stringify(name)} left a dangling comma`).toBe('Every one, first go.');
+      // Spoken now: the reward line, then a clean "Every one, first go." with no dangling comma
+      // where the empty name slot was.
+      expect(r.said, `${JSON.stringify(name)} left a dangling comma`)
+        .toContain('Every one, first go.');
+      expect(r.said, `${JSON.stringify(name)} left a dangling comma`).not.toMatch(/,\s*,|,\s*\./);
     }
   });
 

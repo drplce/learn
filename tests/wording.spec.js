@@ -26,8 +26,8 @@ async function sitAnswering(page, words, answer){
       a.next();
     }
     return {
-      head: (document.querySelector('#screen .headline') || {}).textContent || '',
-      cheer: (document.querySelector('#screen .cheer') || {}).textContent || '',
+      // The finished map screen is wordless now (David) — the line that used to head it and the
+      // praise beneath it are spoken, not drawn, so what tonight claimed is read off #say.
       said: (document.querySelector('#say') || {}).textContent || '',
       flourishing: document.querySelectorAll('#screen .net-cell.arriving').length,
       cells: document.querySelectorAll('#screen .net-cell').length,
@@ -42,9 +42,8 @@ test.describe('what the words claim', () => {
     // She met three words and never got one of them. "Three took root tonight" was
     // the line, on the one evening a false claim does the most harm.
     const r = await sitAnswering(page, ['said', 'went', 'rain'], 'return "zzz";');
-    expect(r.head, `claimed roots on a nothing-right evening: "${r.head}"`)
+    expect(r.said, `claimed roots on a nothing-right evening: "${r.said}"`)
       .not.toMatch(/took root/);
-    expect(r.said).not.toMatch(/took root/);
     // And nothing flourishes, because nothing was earned.
     expect(r.flourishing).toBe(0);
     // The shapes are still there — she did meet the words, and the map says so.
@@ -57,7 +56,7 @@ test.describe('what the words claim', () => {
     // First word right, the rest wrong. One took root, not three.
     const r = await sitAnswering(page, ['said', 'went', 'rain'],
                                  'return w === "said" ? "said" : "zzz";');
-    expect(r.head).toMatch(/^One took root tonight\.$/);
+    expect(r.said).toMatch(/One took root tonight\./);
     expect(r.flourishing, 'the number and the shapes that flourish disagree').toBe(1);
   });
 
@@ -82,7 +81,7 @@ test.describe('what the words claim', () => {
         }
         a.next();
       }
-      return (document.querySelector('#screen .headline') || {}).textContent || '';
+      return (document.querySelector('#say') || {}).textContent || '';
     });
     expect(r).toMatch(/One took root tonight\./);
   });

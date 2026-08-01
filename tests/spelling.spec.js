@@ -404,12 +404,10 @@ test.describe('finishing', () => {
     // Three words, each shown once and then asked again from memory.
     expect(asked.length).toBe(6);
     expect([...new Set(asked)].sort()).toEqual(['boat','light','rain']);
-    // Her words rather than a tick: the picture is what says the sitting happened,
-    // and the praise is the quiet line under it.
+    // Her words rather than a tick: the picture is what says the sitting happened. The screen
+    // itself is wordless now (David) — what tonight did and the praise are spoken, off #say.
     await expect(page.locator('#screen .net')).toBeVisible();
-    await expect(page.locator('#screen')).toContainText(/first go|All done/);
-    // The headline is what tonight did; the praise is the quiet line beneath her words.
-    await expect(page.locator('#screen')).toContainText(/first go|All done/);
+    await expect(page.locator('#say')).toContainText(/first go|All done/);
     const s = await page.evaluate(() => window.__acorn.state.words.sessions);
     expect(s.length).toBe(1);
     expect(s[0]).toMatchObject({words:3, firstTime:3});
@@ -1064,7 +1062,9 @@ test.describe('the grown-ups area', () => {
     expect(await page.evaluate(() => window.__acorn.state.profile.name)).toBe('Harriet');
     await startOn(page, ['rain']);
     await finishSession(page);
-    await expect(page.locator('#screen')).toContainText(/Harriet/);
+    // The praise carrying her name is spoken now, not drawn (David) — it reaches her through the
+    // live region, not the wordless screen.
+    await expect(page.locator('#say')).toContainText(/Harriet/);
   });
 
   test('changing the list changes what she practises', async ({page}) => {
@@ -2035,12 +2035,11 @@ test.describe('the words she reads', () => {
     await open(page, '2026-07-28');
     await startOn(page, ['rain']);
     await finishSession(page);
-    // No name set: the greeting must still read as a sentence.
-    const bare = (await page.locator('.cheer').count())
-      ? await page.locator('.cheer').textContent()
-      : await page.locator('.headline').textContent();
+    // No name set: the spoken greeting must still read as a sentence, with the name slot filled
+    // in and gone (never a raw "{n}"). It is spoken now, not drawn — read it off #say.
+    const bare = (await page.locator('#say').textContent()).trim();
     expect(bare).not.toContain('{n}');
-    expect(bare).toMatch(/^(Every one, first go|All done)\.$/);
+    expect(bare).toMatch(/(Every one, first go|All done)\./);
   });
 });
 
@@ -2084,11 +2083,17 @@ test.describe('what a screen reader is told', () => {
     await expect(page.locator('#say')).toHaveAttribute('role', 'status');
   });
 
-  test('the finished screen is a real heading', async ({page}) => {
+  test('the finished screen is a labelled picture, its screen-reader anchor', async ({page}) => {
+    // The finished screen went wordless (David): there is no heading line any more, so the thing
+    // that names the screen to a screen reader is the picture itself — one role=img with a
+    // spelled-out label carrying the numbers. That is what must be there, not an h2.
     await open(page, '2026-08-01');
     await startOn(page, ['rain','boat']);
     await finishSession(page);
-    await expect(page.locator('h2.headline')).toBeVisible();
+    await expect(page.locator('#screen .net')).toHaveAttribute('role', 'img');
+    const label = await page.locator('#screen .net').getAttribute('aria-label');
+    expect(label && label.trim().length, 'the picture has no accessible name').toBeGreaterThan(0);
+    await expect(page.locator('#screen h2.headline')).toHaveCount(0);
   });
 
   /* The count is across all her words rather than the open list, because moving her on
@@ -2290,9 +2295,10 @@ test.describe('the grown-ups screen hands her back a word', () => {
     const before = await page.evaluate(() => window.__acorn.state.words.sessions.length);
     await page.evaluate(() => window.__acorn.go('parent'));
     await page.locator('.back').click();
-    // "All done for today" is the honest answer here, with a way to ask for more.
+    // The finished screen is the honest answer here — her wordless garden, with a way to ask for
+    // more. (It used to carry an "All done for today" line; that went when the screen did.)
     expect(await page.evaluate(() => !!window.__acorn.session())).toBe(false);
-    await expect(page.locator('.headline')).toBeVisible();
+    await expect(page.locator('#screen .net')).toBeVisible();
     await expect(page.locator('#again')).toBeVisible();
     expect(await page.evaluate(() => window.__acorn.state.words.sessions.length)).toBe(before);
   });

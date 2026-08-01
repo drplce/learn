@@ -65,15 +65,27 @@ test.describe('what she hears matches what is there', () => {
     expect(errorsOf(page)).toEqual([]);
   });
 
-  test('what is announced is what is on the screen, and nothing more', async ({page}) => {
-    /* The rule this comes down to. Anything announced that is not on the screen is a
-       second, invisible version of the screen that nobody is reviewing. */
+  test('what is announced has a counterpart on the screen — the picture, now it is wordless',
+    async ({page}) => {
+    /* The rule this comes down to: nothing announced should be a second, invisible version of the
+       screen that nobody is reviewing. The finished screen went wordless (David) — the reward line
+       is spoken but no longer written — so its visible counterpart is the PICTURE, not text: the
+       same words swelling in, and the numbers on the picture's own label. The rule still holds; the
+       counterpart is a drawing rather than a sentence. (The dead end, which is words not a picture,
+       still shows its one line — checked below.) */
     await open(page, '2026-08-01');
     for(const how of ['all', 'some']){
       const r = await finish(page, ['said', 'they', 'rain'], how);
-      // Every sentence announced has to appear on the screen too.
-      for(const s of r.said.split(/(?<=\.)\s+/).filter(Boolean))
-        expect(r.seen, `"${s}" was announced but is not on the screen`).toContain(s.trim());
+      expect(r.said.length, 'the finished screen announced nothing').toBeGreaterThan(4);
+      // The visible counterpart of the spoken reward is the map, present and labelled.
+      const pic = await page.evaluate(() => {
+        const n = document.querySelector('#screen .net');
+        return {there: !!n, label: n ? (n.getAttribute('aria-label') || '') : ''};
+      });
+      expect(pic.there, 'the reward was spoken with no picture to carry it').toBe(true);
+      expect(pic.label.trim().length, 'the picture has no accessible name').toBeGreaterThan(0);
+      // And nothing false is written: the wordless screen carries no text at all.
+      expect(r.seen, 'the finished screen is meant to be wordless').toBe('');
     }
   });
 

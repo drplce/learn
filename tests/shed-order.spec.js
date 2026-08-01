@@ -90,16 +90,19 @@ test.describe('what gets dropped when it will not fit', () => {
       'the caption slot is not the last thing to go').toBe('.supra');
   });
 
-  test('the cue outlives the instruction, and both outlive nothing else', async ({page}) => {
-    // Ordering, not just membership: .note goes before .verdict, and the meaning cue
-    // is not in the list at all — it is the one thing she cannot work out herself.
+  test('the cue outlives the dots, and both outlive nothing else', async ({page}) => {
+    // Ordering, not just membership. The old ".note" instruction is gone (it was the trace's
+    // "type it to trace it" line and the finished screen's praise, both since removed as the app
+    // went wordless), so the row of progress dots is now the least useful thing on the word screen
+    // and goes first; the caption slot .supra goes after it. The meaning cue .cue is not in the
+    // list at all — it is the one thing she cannot work out herself.
     await open(page, '2026-08-01');
     const order = await page.evaluate(() => window.__acorn.shedOrder());
-    expect(order.word.indexOf('.note')).toBe(0);
+    expect(order.word.indexOf('.dots')).toBe(0);
     expect(order.word).not.toContain('.cue');
-    // The caption slot (.supra — the meaning cue on write, the verdict on check) goes after the
-    // note. It replaced the bare .verdict on the list when both moved into the reserved slot.
-    expect(order.word.indexOf('.supra')).toBeGreaterThan(order.word.indexOf('.note'));
+    expect(order.word).not.toContain('.note');
+    // The caption slot (.supra — the meaning cue on write, the verdict on check) goes last.
+    expect(order.word.indexOf('.supra')).toBeGreaterThan(order.word.indexOf('.dots'));
   });
 
   test('nothing styled is left over from a screen that has gone', async ({page}) => {

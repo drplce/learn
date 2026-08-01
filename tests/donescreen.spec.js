@@ -51,7 +51,8 @@ test.describe('the screen at the end of a sitting', () => {
         a.state.words.sessions = [{date:'2026-08-01', list:a.activeList().id, asked:k, words:k,
                                    firstTime:k, fresh:all.slice(0, k), grew:[], slipped:[]}];
         a.save(); a.go('parent'); a.go('day');
-        return (document.querySelector('.headline') || {}).textContent;
+        // Wordless screen now (David): what tonight did is spoken, not drawn — read it off #say.
+        return (document.querySelector('#say') || {}).textContent;
       }, n);
       // Past nine the digit reads more easily, and it must never fall off the end of
       // the list — a long evening once told her "undefined more took root tonight".
@@ -67,11 +68,12 @@ test.describe('the screen at the end of a sitting', () => {
       a.state.words.sessions = [{date:'2026-08-01', list:a.activeList().id, asked:8, words:8,
                                  firstTime:8, fresh:[], grew:[], slipped:[]}];
       a.save(); a.go('parent'); a.go('day');
-      return {head: (document.querySelector('.headline') || {}).textContent,
+      return {head: (document.querySelector('#say') || {}).textContent,
               screen: document.querySelector('#screen').innerText,
               said: document.querySelector('#say').textContent};
     });
-    // No invented growth, and no number she has to parse.
+    // No invented growth, and no number she has to parse. The screen is wordless; what she is
+    // told (out.head, off #say) is the honest "done", not a count.
     expect(out.head).toMatch(/All done for today|first go/);
     expect(out.screen).not.toMatch(/took root/);
     expect(out.screen).not.toMatch(/known well/);
@@ -92,7 +94,8 @@ test.describe('the screen at the end of a sitting', () => {
     await sit(page, ['rain', 'boat', 'said', 'went']);
     const out = await page.evaluate(() => {
       const n = document.querySelectorAll('#screen .net-cell.arriving').length;
-      const head = (document.querySelector('.headline') || {}).textContent || '';
+      // Wordless screen: the count is spoken now, off #say, not drawn in a headline.
+      const head = (document.querySelector('#say') || {}).textContent || '';
       const t = window.__acorn.tonight();
       return {marked: n, head: head, fresh: t.fresh.length, grew: t.grew.length};
     });
@@ -147,13 +150,14 @@ test.describe('the screen at the end of a sitting', () => {
       document.querySelector('#again').click();
       sit();
       const two = arriving();
-      return {one, two, head: (document.querySelector('.headline') || {}).textContent};
+      return {one, two, head: (document.querySelector('#say') || {}).textContent};
     });
     expect(out.one.length, 'nothing arrived the first time').toBeGreaterThan(0);
     expect(out.two.filter(w => out.one.includes(w)),
            'she watched the same words arrive twice').toEqual([]);
-    // The count is still the honest total for the evening — "tonight", not "just now".
-    expect(out.head).toMatch(/took root tonight\.$/);
+    // The count is still the honest total for the evening — "tonight", not "just now". Spoken
+    // now, so the praise may follow it; the reward line is there, not anchored to the end.
+    expect(out.head).toMatch(/took root tonight\./);
   });
 
   test('yesterday’s evening does not arrive again today', async ({page}) => {
@@ -192,42 +196,12 @@ test.describe('the screen at the end of a sitting', () => {
       .toBeGreaterThan(0);
   });
 
-  /* A headline taller than the picture it introduces. "Three more took root tonight"
-     ran to two lines at her ordinary text size and three at the largest on a 375px
-     phone. Two mistakes in finding that: my first measurement used getClientRects on a
-     block element, which returns one rect however many lines it wraps to; and my first
-     test fed it candidate strings instead of asking the app what it says, so it passed
-     against the wording it was meant to catch. It renders real sittings now. */
-  test('the line at the top is never more than two lines', async ({page}) => {
-    for(const vp of [{width:320, height:568}, {width:375, height:667}, {width:390, height:844}]){
-      await page.setViewportSize(vp);
-      await open(page, '2026-08-01');
-      for(const scale of [0.9, 1, 1.15, 1.3, 1.5]){
-        for(const moved of [1, 3, 9, 14, 40, 0]){
-          const r = await page.evaluate(({s, k}) => {
-            const a = window.__acorn;
-            a.reset(); a.setToday('2026-08-01');
-            a.state.settings.textScale = s;
-            const all = [];
-            a.allLists().forEach(l => a.wordsOf(l).forEach(w => { if(all.indexOf(w) < 0) all.push(w); }));
-            all.slice(0, k).forEach(w => a.state.words.mastery[w] =
-              {right:1, wrong:0, box:2, lastSeen:'2026-08-01'});
-            a.state.words.sessions = [{date:'2026-08-01', list:a.activeList().id,
-                                       asked:Math.max(1, k), words:Math.max(1, k),
-                                       firstTime:Math.max(1, k),
-                                       fresh:all.slice(0, k), grew:[], slipped:[]}];
-            a.save(); a.go('parent'); a.go('day');
-            const h = document.querySelector('.headline');
-            const range = document.createRange();
-            range.selectNodeContents(h);
-            const tops = new Set([...range.getClientRects()].map(x => Math.round(x.top)));
-            return {text: h.textContent, lines: tops.size};
-          }, {s: scale, k: moved});
-          expect(r.lines, `${vp.width}px at ${scale}x: "${r.text}"`).toBeLessThanOrEqual(2);
-        }
-      }
-    }
-  });
+  /* There is no headline on the finished screen to wrap any more — it went wordless (David), so
+     the "never more than two lines" guard that protected the "N took root tonight" line retired
+     with the line itself. What matters now is that the wordless screen still fits and the way on
+     is always there, at every phone and text size — which the next test covers. The one line that
+     remains anywhere on a finished screen is the dead end's fixed, short "No words yet. Ask a
+     grown-up to add some.", which cannot grow with the count. */
 
   test('the whole screen still fits, on every phone at every text size', async ({page}) => {
     for(const vp of [{width:320, height:568}, {width:375, height:667}, {width:390, height:844}]){

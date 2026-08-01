@@ -155,9 +155,12 @@ for (const scheme of ['light', 'dark']) {
           // cued = the meaning cue with no instruction beside it ("means:" + the word,
           // two nodes) now that the write line is gone; the cue is still what matters and
           // is still measured. write = a plain covered box, which can be text-free.
+          // done = the finished screen went wordless (David) — the line and the praise are
+          // spoken, not drawn — so the only text left is the one "practise a bit more"
+          // button, whose contrast is still measured; it allows the single node.
           expect(rows.length, `${screen}/${stage} rendered nothing`)
             .toBeGreaterThanOrEqual(stage === 'deadend' ? 2 : stage === 'write' ? 0
-                                  : stage === 'cued' ? 2 : 3);
+                                  : stage === 'cued' ? 2 : stage === 'done' ? 1 : 3);
           rows.filter(r => r.ratio < r.need)
               .forEach(r => fails.push(`${screen}/${stage} ${r.ratio}:1 (need ${r.need}) ${r.px}px — ${r.what}`));
         }

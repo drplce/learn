@@ -102,28 +102,24 @@ test.describe('what a screen reader is told', () => {
     expect(r.boxes, 'the name added line boxes to the header').toBeLessThanOrEqual(1);
   });
 
-  test('the finished screen says what is on it, starting with the line at the top',
+  test('the finished screen is not silent, and leads with what tonight did',
     async ({page}) => {
       await open(page, '2026-08-01');
       await finishASitting(page);
       const heard = await said(page);
-      const headline = await page.locator('#screen .headline').textContent();
-      // It used to announce the cheer and a total and never this.
-      expect(heard, `the headline "${headline}" was never announced`).toContain(headline.trim());
-      /* The total is no longer announced, and this line used to insist that it was.
-         Read back, the reasoning did not survive contact with the sentence it produced:
-         "Three took root tonight. Every one, first go, Ivy. 0 of 100 words known well."
-         A perfect evening, and then a nought. The bar and the total came off this screen in
-         9.7 exactly because they read as a target she has not reached rather than as work
-         she has done, and appending the same number here handed it to the one child who
-         cannot see that it was removed.
-         Nothing is lost by taking it out: the picture carries those numbers as its own
-         label — "3 met, 0 known well, 100 in all" — so a screen reader still finds them, in
-         the same place the sighted child finds the picture, rather than having them pushed
-         at her the moment the screen arrives. Checked in the real accessibility tree. */
+      // The screen is wordless now (David) — there is no headline to read — but it must not arrive
+      // silent for the child who listens: the reward is spoken through the live region, leading
+      // with what tonight did.
+      expect(heard.length, 'the finished screen arrived silent').toBeGreaterThan(4);
+      expect(heard, 'the reward line is not what she hears first')
+        .toMatch(/^(\w+ took root tonight|All done|Every one, first go)/);
+      /* The total is still not announced. Read back, the old reasoning did not survive contact
+         with the sentence it produced: "Three took root tonight. Every one, first go, Ivy. 0 of
+         100 words known well." A perfect evening, and then a nought. The bar and the total came off
+         this screen in 9.7 because they read as a target she has not reached rather than as work she
+         has done. The picture carries those numbers as its own label — "3 met, 0 known well, 100 in
+         all" — so a screen reader still finds them where the sighted child finds the picture. */
       expect(heard, 'a count she cannot see is being read out again').not.toMatch(/known well/);
-      // And in the order the screen is in.
-      expect(heard.indexOf(headline.trim())).toBe(0);
       expect(errorsOf(page)).toEqual([]);
     });
 

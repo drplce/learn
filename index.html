@@ -320,19 +320,11 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
          caret-color:transparent; text-align:center; font:inherit;}
 .tracein:focus{outline:none;}
 
-/* overflow-wrap:anywhere because the praise carries her name, and a name with no
-   break in it had nowhere to wrap: measured at 320px and her largest text, forty
-   unbroken characters ran straight out of the 269px box. "Bartholomew-Wilhelmina" is
-   fine — the hyphen is a break — so it takes something pasted or hammered into the
-   name field to do it, which is exactly the case nothing else was catching. The word
-   she is spelling has had this since it was written. */
-.note{text-align:center; color:var(--ink-soft); margin:var(--s4) 0 0; font-size:var(--t-md);
-      max-width:32ch; margin-left:auto; margin-right:auto; overflow-wrap:anywhere;}
 /* Quieter than the instruction above it but not soft-grey: this is the only
    thing telling her which of two real words is wanted, so it stays on --ink at
-   full contrast and the meaning itself is the bold part. */
-/* 32ch, the same as .note above it: at 28ch the longest cue broke after "drive"
-   and left "with" alone on a second line at her ordinary text size. */
+   full contrast and the meaning itself is the bold part. 32ch max-width: at 28ch the
+   longest cue broke after "drive" and left "with" alone on a second line at her
+   ordinary text size. */
 .cue{text-align:center; font-size:var(--t-sm); color:var(--ink); margin:var(--s2) auto 0;
      max-width:32ch;}
 .cue b{font-weight:700;}
@@ -414,7 +406,11 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Her finished screen: the line, then the picture in a window of its own, then the
    count. The window takes what is left and no more, so a small phone at the largest
    text shrinks the picture rather than pushing the count off the bottom. */
-:root[data-stage=done] main{justify-content:space-between;}
+/* Centred, not spread. The map fills the room by itself (.donenet is flex:1), so this only
+   governs the dead end — the mark and its one sentence sit together in the middle rather than
+   being pushed to opposite edges, where the tick's own margin used to tip it into overflow and
+   fitScreen would drop it. */
+:root[data-stage=done] main{justify-content:center;}
 :root[data-stage=done] main > :first-child{margin-top:0;}
 :root[data-stage=done] main > :last-child{margin-bottom:0;}
 .donenet{flex:1; min-height:0; display:flex; align-items:center; justify-content:center;
@@ -422,7 +418,6 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* The picture takes the room that is there. width:100% alone left it as tall as it was
    wide and no taller, which on a phone wasted the whole middle of the screen. */
 .donenet .net{margin:0; width:100%; height:100%; max-height:100%;}
-.doneend{flex:none;}
 /* The arrival — tonight's words swelling in (.arriving) and, since Step 1, the whole rest of the
    garden easing up gently with them (.settling) — is driven frame-by-frame from arriveMap() via
    the Web Animations API, the same technique the pebble reward uses. That is deliberate: a plain
@@ -433,8 +428,10 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 .net-cell.arriving, .net-cell.settling{transform-box:fill-box; transform-origin:center;}
 .tick{text-align:center; font-size:calc(var(--t-4xl) * var(--ornament)); color:var(--acc); line-height:1;
       margin:var(--s2) 0 var(--s5);}
+/* Only the dead end draws a headline now — "No words yet. Ask a grown-up to add some." — since
+   the finished screen went wordless. The praise line that used to sit beneath the map (.cheer) is
+   spoken, not drawn. */
 .headline{text-align:center; font-size:var(--t-xl); font-weight:700; margin:var(--s4) 0 var(--s1);}
-.headline.cheer{color:var(--good);}
 
 /* ---------- grown-ups ---------- */
 .sect{margin-bottom:var(--s6);}
@@ -575,13 +572,12 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
    keyboard does not change the layout viewport at all. data-tight is set from
    visualViewport, measured against the real root font size. Scoped to the
    writing stage — on the grown-ups screen this would hide the way back out. */
-/* The header and the trace note step aside on a tight screen. The progress DOTS do NOT any
-   more — they are one small row, they fit even here (the header going reclaims more than they
-   cost), and they were vanishing on exactly the screen this app is built for: large text with
-   the keyboard up. If a screen is so tight that even they will not fit, fitScreen() still drops
-   them, but only as the last resort (they are last in SHED_ORDER now). */
-:root[data-tight]:not([data-stage=parent]) .bar,
-:root[data-tight]:not([data-stage=parent]) .note{ display:none; }
+/* The header steps aside on a tight screen. The progress DOTS do NOT any more — they are one
+   small row, they fit even here (the header going reclaims more than they cost), and they were
+   vanishing on exactly the screen this app is built for: large text with the keyboard up. If a
+   screen is so tight that even they will not fit, fitScreen() still drops them, but only as the
+   last resort (they are last in SHED_ORDER now). */
+:root[data-tight]:not([data-stage=parent]) .bar{ display:none; }
 :root[data-tight][data-stage=done] .tick{ display:none; }
 /* With the keyboard up there is no room for a picture, and she is not looking at it
    then anyway — she is on her way to the next word. */
@@ -640,7 +636,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.36';
+var VERSION = '13.37';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2451,8 +2447,8 @@ function render(){
    not in a row of their own, so there is nothing separate to shed for them — the word carries
    its own split. The writing screen's dots never overflow (the footer is not reserved) and are
    no longer hidden when tight, so they simply show. */
-var SHED_ORDER = {word: ['.note', '.dots', '.supra'],
-                  done: ['.tick', '.donenet', '.note']};
+var SHED_ORDER = {word: ['.dots', '.supra'],
+                  done: ['.tick', '.donenet']};
 function fitScreen(){
   if(screen === 'parent') return;              // a long page there is fine
   var m = el('#screen');
@@ -3029,13 +3025,16 @@ function renderDone(){
      it, and the praise beneath them when she has earned it. The totals belong to a
      grown-up and are on the grown-ups screen; a screen reader still hears where she is
      up to, because that is announced. */
-  el('#screen').innerHTML =
-      '<h2 class="headline">' + esc(line) + '</h2>'
-    + (net ? '<div class="donenet">' + renderNetwork(net, true) + '</div>'
-           : '<div class="tick" aria-hidden="true">✓</div>')
-    + '<div class="doneend">'
-    + (cheer ? '<div class="note cheer">' + esc(cheer) + '</div>' : '')
-    + '</div>';
+  /* Her finished screen is the garden and nothing written (David: "clear all the text"). The
+     line that used to head it ("Three took root tonight.") and the praise beneath it are still
+     SPOKEN — she hears them, readAloud on — but on screen the picture does the talking, with no
+     words for her to read. The one exception is the dead end: with no map to draw, the words are
+     the whole message, so a grown-up who has left her on an empty list is still told, above the
+     tick. */
+  el('#screen').innerHTML = net
+    ? '<div class="donenet">' + renderNetwork(net, true) + '</div>'
+    : '<h2 class="headline">' + esc(line) + '</h2>'
+      + '<div class="tick" aria-hidden="true">✓</div>';
   el('#act').innerHTML = canPractise
     ? '<button class="quiet" id="again">Practise a bit more</button>' : '';
   if(net) arriveMap(grew);
