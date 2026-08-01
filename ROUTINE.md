@@ -13,7 +13,7 @@ touch the trigger again. David can retune the work or the cadence by editing thi
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: hourly
-last-run: 2026-08-01T16:48Z
+last-run: 2026-08-01T18:46Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -118,7 +118,22 @@ built into the app yet): wordless concepts (bloom/harvest/quiet) → a physics "
       daily max, else hide"** — there is no daily-max concept, and her real save shows she does
       several new-word sittings a day (4 on Jul 30), so hiding once reviews are caught up would cut
       her off. Needs his definition. The pebble shows whenever there's anything to practise for now.
-    - **Step 3 (pool-physics map)** — still prototype-first per agreement; not started.
+    - **Step 3 (pool-physics map) — PROTOTYPE BUILT (18:46Z pass), awaiting David.** David: "Great
+      plan. Ship 1 to 6. Go. I'll check tomorrow." 1–6 shipped (13.37–13.40); item 5's bigger/fuller
+      map was the one blocked, and it is the SAME job as Step 3, so I built the Step 3 prototype he
+      was expecting for his check-in. `scratchpad/pool.html`, published artifact
+      f0a92335-3c27-4b0f-966f-523f0c6aa21d. It is the end-of-session map as a full-SCREEN pebble
+      pool: her word-pebbles (deep = known well) fill the whole screen (answers item 5's "bigger,
+      more ghosts"), she can drag any pebble and it bumps the others (pool physics — collisions
+      resolved over a few passes), they settle (damping), and a soft inward force makes them creep
+      back from the edges so none stick at the rim (his exact ask). Acorn's own blob code
+      (seeded/cellPoints/blobPath) ported verbatim; coord bug avoided by a 1:1 pixel viewBox
+      (pointer coords map straight, no getScreenCTM letterboxing). NOT in the app — prototype only,
+      per the standing "don't build the physics surface into the app without approval". Open for
+      David: does the feel/weight/settle work; should the pool be the whole finished screen (folding
+      in the wordless garden + the breathing "more" pebble), or a mode she enters; and the two
+      still-open batch decisions (which map invariant to relax if we DON'T go full-physics; the
+      "daily max" definition for the pebble).
 
   - **STEP 1 SHIPPED (13.36).** David said "Yes prototype step 1" — the gentle whole-map arrival,
     the safe no-rewrite first step. On a session end the whole garden she already has now settles in
