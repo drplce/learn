@@ -196,6 +196,30 @@ test.describe('the screen at the end of a sitting', () => {
       .toBeGreaterThan(0);
   });
 
+  /* The way on from the finished screen is a pebble that breathes, not a worded button (David):
+     the same organic blob she collects, larger and gently pulsing — an invitation with no text. It
+     must still be a named, tappable control and it must actually pulse when motion is not reduced. */
+  test('the way on is a named, breathing pebble, not a worded button', async ({page}) => {
+    await page.emulateMedia({reducedMotion: 'no-preference'});
+    await open(page, '2026-08-01');
+    await sit(page, ['rain', 'boat', 'said']);
+    const b = await page.evaluate(() => {
+      const el = document.querySelector('#again');
+      if(!el) return null;
+      return {cls: el.className,
+              name: (el.getAttribute('aria-label') || el.textContent || '').trim(),
+              text: el.textContent.trim(),
+              hasPebble: !!el.querySelector('svg path'),
+              anims: el.getAnimations({subtree: true}).length};
+    });
+    expect(b, 'the way on is gone').not.toBeNull();
+    expect(b.cls, 'still the old worded button').toContain('morepeb');
+    expect(b.text, 'the pebble carries visible words').toBe('');
+    expect(b.name, 'the pebble is unnamed to a screen reader').toMatch(/practise/i);
+    expect(b.hasPebble, 'no pebble shape drawn').toBe(true);
+    expect(b.anims, 'the pebble does not breathe').toBeGreaterThan(0);
+  });
+
   /* There is no headline on the finished screen to wrap any more — it went wordless (David), so
      the "never more than two lines" guard that protected the "N took root tonight" line retired
      with the line itself. What matters now is that the wordless screen still fits and the way on

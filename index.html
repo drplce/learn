@@ -66,6 +66,10 @@
      in without anyone noticing. Same drift the length scales had in 10.3. */
   --ease:cubic-bezier(.22,.61,.36,1);
   --m-press:.18s; --m-quick:.3s; --m-slow:.6s;
+  /* A fourth, apart from the three transition durations above: the slow breath of an ambient
+     pulse (the "practise a bit more" pebble), which is not a UI transition but a thing that is
+     always gently moving. Kept on the ladder so it is not a literal written into a keyframe. */
+  --m-breath:2.4s;
 }
 /* Background tints — some readers find a particular tint easier. */
 [data-tint="peach"]{--surface:#FBF0E8;--surface-2:#FFF8F2;}
@@ -435,6 +439,17 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
    the end on a fast compositor. WAAPI has no such rule. All CSS owns here is the point the scale
    grows from; the motion, timing and stagger live in arriveMap(). */
 .net-cell.arriving, .net-cell.settling{transform-box:fill-box; transform-origin:center;}
+/* The way on from the finished screen (David): a single larger pebble that breathes gently, in
+   place of a worded button. It is a real 44px+ tap target and keeps its name for a screen reader;
+   the pulse is ambient (--m-breath), and the reduced-motion override stills it to the base size. */
+.morepeb{display:block; margin:0 auto; width:var(--tap-xl); height:var(--tap-xl); padding:0; background:none;}
+/* The pulse rides the pebble (the svg), not the button, so the tap target's box never moves —
+   a breathing button is never "stable" to a tap-and-hold or a test, and the hit area should sit
+   still while the drawing breathes. */
+.morepeb svg{display:block; width:100%; height:100%; overflow:visible;
+             transform-origin:center; animation:morepulse var(--m-breath) var(--ease) infinite;}
+.morepeb path{fill:var(--acc);}
+@keyframes morepulse{0%,100%{transform:scale(1);} 50%{transform:scale(1.09);}}
 .tick{text-align:center; font-size:calc(var(--t-4xl) * var(--ornament)); color:var(--acc); line-height:1;
       margin:var(--s2) 0 var(--s5);}
 /* Only the dead end draws a headline now — "No words yet. Ask a grown-up to add some." — since
@@ -645,7 +660,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.39';
+var VERSION = '13.40';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -3046,8 +3061,15 @@ function renderDone(){
     ? '<div class="donenet">' + renderNetwork(net, true) + '</div>'
     : '<h2 class="headline">' + esc(line) + '</h2>'
       + '<div class="tick" aria-hidden="true">✓</div>';
+  /* The way on is a pebble that breathes, not a worded button (David) — the same organic blob she
+     collects, larger, gently pulsing, an invitation with no text. It still carries its name for a
+     screen reader, and it does the same thing the button did: tap it for another sitting. */
+  var mds = dotShape('more');
   el('#act').innerHTML = canPractise
-    ? '<button class="quiet" id="again">Practise a bit more</button>' : '';
+    ? '<button class="morepeb" id="again" aria-label="Practise a bit more">'
+      + '<svg viewBox="0 0 ' + DOT_BOX + ' ' + DOT_BOX + '" aria-hidden="true">'
+      + '<path d="' + cellPath('more', mds.x, mds.y, mds.r) + '"/></svg></button>'
+    : '';
   if(net) arriveMap(grew);
 }
 /* Small numbers as words, because "3 more took root" reads like a receipt. Past nine

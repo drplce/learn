@@ -273,8 +273,9 @@ test.describe('what gets dropped when it will not fit', () => {
 test.describe('how things move', () => {
 
   test('every duration comes off the motion ladder', async ({page}) => {
-    // One easing and three durations. Written as literals in six places they were
-    // already consistent by luck; a seventh would not have been.
+    // One easing and four durations now — the three transition steps and the slow --m-breath of
+    // the "practise a bit more" pebble's ambient pulse. Written as literals they were consistent by
+    // luck; taken from --m-* they cannot drift, which is the whole point of this check.
     await open(page, '2026-08-01');
     const loose = await page.evaluate(() => {
       const sheet = [...document.styleSheets].find(s => !s.href);
