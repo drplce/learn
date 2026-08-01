@@ -192,8 +192,11 @@ test.describe('getting it wrong', () => {
     await page.evaluate(() => window.__acorn.cover());
     await write(page, 'becuase');
     await page.evaluate(() => window.__acorn.check());
-    // one letter out of place, so the wording is singular
-    await expect(page.locator('.verdict.again')).toHaveText('So close. Look at this letter.');
+    // one letter out of place, so the wording is singular. No visible caption now (David: "ditch
+    // the re-trace caption") — the singular naming lives on the live region, the orange letter is
+    // what she sees.
+    expect(await page.evaluate(() => document.querySelector('#say').textContent))
+      .toMatch(/So close\. Look at the letter [a-z]+\./);
     // WIN-1: a miss re-traces — the word back in its box, the slipped letter orange (.slip),
     // and she copies it. One letter out, so one orange letter and the box to copy it into.
     await expect(page.locator('.tracew .slip')).toHaveCount(1);   // the letter to look at
@@ -210,7 +213,8 @@ test.describe('getting it wrong', () => {
     await page.evaluate(() => window.__acorn.cover());
     await write(page, 'togthr');        // drops the e and an e, so two unmatched
     await page.evaluate(() => window.__acorn.check());
-    await expect(page.locator('.verdict.again')).toHaveText(/Look at these letters/);
+    expect(await page.evaluate(() => document.querySelector('#say').textContent))
+      .toMatch(/Look at the letters /);       // plural naming on the live region
     expect(await page.locator('.tracew .slip').count()).toBeGreaterThan(1);
   });
 
@@ -229,8 +233,8 @@ test.describe('getting it wrong', () => {
        waving at the whole word. Tested against the slips a dyslexic nine-year-old actually
        makes, this was the one verdict of six that pointed at nothing, and two of the three
        ways to reach it are doubled letters. */
-    await expect(page.locator('.verdict.again'))
-      .toHaveText('So close — there’s an extra bit here.');
+    expect(await page.evaluate(() => document.querySelector('#say').textContent))
+      .toMatch(/So close — there’s an extra bit here\./);
     // The re-trace shows the correct word in its box; the letter her extra one went in after is
     // the orange one she copies past.
     await expect(page.locator('.tracew')).toHaveText('together');
@@ -253,12 +257,16 @@ test.describe('getting it wrong', () => {
       await page.evaluate(() => window.__acorn.cover());
       await write(page, attempt);
       await page.evaluate(() => window.__acorn.check());
-      const verdict = await page.locator('.verdict').innerText();
+      // The naming lives on the live region now (no visible caption): "Look at the letter a."
+      // (singular) or "Look at the letters a and b." (plural). Whenever it names letters, some
+      // are orange in the re-trace.
+      const verdict = await page.evaluate(() => document.querySelector('#say').textContent);
       const marked = await page.locator('.tracew .slip').count();   // WIN-1: the orange re-trace letters
-      if(/Look at (this letter|these letters)/.test(verdict))
+      if(/Look at the letters? /.test(verdict))
         expect(marked, `${attempt} -> ${word}`).toBeGreaterThan(0);
-      if(/this letter\.$/.test(verdict)) expect(marked, `${attempt} -> ${word}`).toBe(1);
-      if(/these letters/.test(verdict)) expect(marked, `${attempt} -> ${word}`).toBeGreaterThan(1);
+      if(/Look at the letter [a-z]+\. /.test(verdict) && !/the letters/.test(verdict))
+        expect(marked, `${attempt} -> ${word}`).toBe(1);
+      if(/the letters/.test(verdict)) expect(marked, `${attempt} -> ${word}`).toBeGreaterThan(1);
       // Her own spelling is never on the screen, whatever the verdict — except
       // where dropping letters leaves a substring of the real word ("nee" in
       // "knee"), which is the correct word being shown, not her attempt.
@@ -301,7 +309,7 @@ test.describe('getting it wrong', () => {
     await page.evaluate(() => window.__acorn.cover());
     await write(page, 'zzqq');
     await page.evaluate(() => window.__acorn.check());
-    await expect(page.locator('.verdict.again')).toHaveText(/Here it is/);
+    expect(await page.evaluate(() => document.querySelector('#say').textContent)).toMatch(/Here it is/);
     // A wild guess is barely half right, so nothing is marked orange — she simply re-copies the
     // whole word, no letter singled out. The word shows in its box, correctly spelt.
     await expect(page.locator('.tracew .slip')).toHaveCount(0);

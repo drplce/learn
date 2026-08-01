@@ -342,7 +342,6 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 .cue b{font-weight:700;}
 .verdict{text-align:center; font-size:var(--t-md); font-weight:700; margin:0 0 var(--s2);}
 .verdict.ok{color:var(--good);}
-.verdict.again{color:var(--retry);}
 
 /* The hear-again cue (WIN-4): the speaker BUTTON is gone — on her word screen a tap
    anywhere (the word, the box, the space around it — never the keyboard) replays the word.
@@ -647,7 +646,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.24';
+var VERSION = '13.25';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2808,15 +2807,16 @@ function renderWord(){
        the ear. */
     var earned = ok && W.failed.indexOf(w) >= 0;
     if(W.retrace){
-      /* A miss re-traces (WIN-1). The verdict steer rides in the caption slot as every miss's
-         line always has; below it the word is back in its box, copied letter by letter (the
-         same mechanic as the first trace — landed letters solid, the next lit, the rest faint),
-         with the letters she slipped on shown orange until she reaches and re-copies them. Only
-         the correct spelling is ever on the screen; her own misspelling is never put back in
-         front of her. No note and no chevron — copying the word to its end is what carries her
-         on (the keydown handler advances when the re-trace completes), and the word is already
-         recorded and requeued for a real retrieval later. */
-      supraInner = '<div class="verdict again">' + verdict + '</div>';
+      /* A miss re-traces (WIN-1). The word is back in its box, copied letter by letter (the same
+         mechanic as the first trace — landed letters solid, the next lit, the rest faint), with
+         the letters she slipped on shown orange until she reaches and re-copies them. Only the
+         correct spelling is ever on the screen; her own misspelling is never put back in front of
+         her. No visible caption (David: "ditch the re-trace caption" — the orange letter and the
+         word reappearing in its box are the whole signal, and the spoken word-in-parts still
+         plays); the spoken verdict stays on the live region (announce, above) untouched. No note
+         and no chevron — copying the word to its end is what carries her on (the keydown handler
+         advances when the re-trace completes), and the word is already recorded and requeued. */
+      supraInner = '';
       var t = W.traced || 0;
       var traced = sylWord(w, function(c, i){
         // Copied letters go solid; a letter she slipped on stays orange until she copies past it
@@ -4506,7 +4506,17 @@ loadClips(); render(); },
   start: start, check: check, next: next, paceLabel: paceLabel, announce: announce,
   // Enough of a handle to drive a whole session from a script — the
   // simulations in tests/sim.js run the real flow, not a copy of it.
-  reset: function(){ localStorage.removeItem(KEY); load(); },
+  // A clean slate: wipe storage AND drop any live session. Without the W = null a session
+  // built at page load (before a test's setToday) outlives the reset, and on the one date where
+  // its day equals the test's target it passes sessionStillGood and renders over a screen the
+  // test is trying to reach — a done-screen test that only failed when the wall clock caught up
+  // to its hard-coded date. reset is a test/sim hook, never the app.
+  reset: function(){ W = null; localStorage.removeItem(KEY); load(); },
+  // Drop any live sitting without wiping her data — for tests that build a specific state and
+  // then a specific screen, where the sitting the app auto-starts at page load (its day is the
+  // real clock's, set before the test's setToday) would otherwise still be valid for the test's
+  // date and render over the screen the test is reaching for. A test hook, never the app.
+  clearSession: function(){ clearAuto(); W = null; },
   // Jumps 'look' -> 'write' the way completing the trace does, resetting attempt, keys
   // and the trace so a programmatic driver (and the sim) skips the trace exactly as the
   // old cover step did. At the look stage these are already clear, so this stays a no-op

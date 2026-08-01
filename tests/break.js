@@ -1238,7 +1238,7 @@ async function main(){
        before the things below it in the shed list. If the verdict is gone, the note and the
        dots — least useful first — must have gone before it. */
     const WORDS = ['beautiful', 'because', 'remember', 'different', 'interesting', 'said'];
-    let broke = 0, shedAnyway = 0, cases = 0;
+    let broke = 0, cases = 0;
     for(const [width, height] of [[320, 568], [360, 640], [390, 844], [320, 480],
                                   [568, 320], [740, 360]]){
       for(const scale of [0.8, 1, 1.3, 1.5, 1.6]){
@@ -1272,8 +1272,9 @@ async function main(){
                  empty when the element or any ancestor is display:none. */
               const shown = sel => { const n = m.querySelector(sel); return !!n && n.getClientRects().length > 0; };
               return {
-                verdict: shown('.verdict'),
-                // A miss re-traces (WIN-1): the word she is shown is in the trace box (.tracew).
+                // A miss re-traces (WIN-1) and carries no visible caption now (David: "ditch the
+                // re-trace caption") — the word she copies is in the trace box (.tracew), and that
+                // is the thing that must survive the shed. There is no caption to shed any more.
                 word: on('.marked') || on('.word') || on('.tracew'),
                 note: shown('.note'),
                 dots: shown('.dots'),
@@ -1290,21 +1291,17 @@ async function main(){
             const why = !r.word ? 'the word itself came off the screen'
               : r.clipped ? 'the screen is cut off'
               : r.sideways ? 'the screen scrolls sideways'
-              : (!r.verdict && (r.note || r.dots))
-                  ? 'the caption was shed while the note or the dots were still up — shed order is wrong'
               : !r.words ? 'nothing readable is left on the screen at all'
               : null;
             if(why){ bad('screen emptied, ' + at, why); broke++; }
-            if(!r.verdict) shedAnyway++;
           }
         }catch(e){ bad('screen emptied, ' + width + 'x' + height + ' @' + scale, 'threw: ' + e.message); broke++; }
         if(errs.length){ bad('screen emptied, ' + width + 'x' + height, errs[0]); broke++; }
         await ctx.close();
       }
     }
-    if(!broke) ok(cases + ' verdict screens across six shapes and five text sizes each kept'
-                  + ' her word and something to read — the ' + shedAnyway
-                  + ' that lost the caption had the note and dots shed before it');
+    if(!broke) ok(cases + ' miss screens across six shapes and five text sizes each kept'
+                  + ' her word in its box and something to read, never cut off');
   }
 
   /* ---------------------------------------------------------------
@@ -1908,9 +1905,10 @@ async function main(){
             // A miss re-traces now (WIN-1): the correct word back in its box (.tracew), the
             // slipped letter orange (.slip) — instead of the old marked word with <u>.
             const traced = scr.querySelector('.tracew');
-            const v = scr.querySelector('.verdict');
+            // The re-trace has no visible caption now (David: "ditch the re-trace caption"); the
+            // verdict wording — the same close/extra/plain reading — is on the live region.
             return {
-              verdict: v ? v.textContent.replace(/\s+/g, ' ').trim() : '',
+              verdict: (document.querySelector('#say').textContent || '').replace(/\s+/g, ' ').trim(),
               look: traced ? [...traced.querySelectorAll('.slip')].map(s => s.textContent).join('') : '',
               shown: ((traced || scr.querySelector('.word') || {}).textContent || '').trim(),
               screen: (scr.innerText || '').replace(/\s+/g, ' '),
@@ -2096,11 +2094,13 @@ async function main(){
       /* The spelt-out word at the end of the announcement names every character of the
          correct spelling, mark included — that is right. What must never appear is the
          word "letter" next to a mark: "the letter '" or "the letter -". */
+      // No visible caption on the re-trace now (David: "ditch the re-trace caption"); the naming
+      // lives on the live region (r.said), which is what a screen reader gets anyway.
       const why = r.wrong !== 1 ? 'was not marked as a miss (wrong=' + r.wrong + ')'
-        : !/needs a/.test(r.verdict) ? 'did not name what is missing: "' + r.verdict + '"'
+        : !/needs a/.test(r.said) ? 'did not name what is missing: "' + r.said + '"'
         : /letter ['’\-]/.test(r.said) ? 'read a mark aloud as a letter: "' + r.said + '"'
-        : mark === 'apostrophe' && !/apostrophe/.test(r.verdict) ? 'a dropped apostrophe went unnamed'
-        : mark === 'hyphen' && !/hyphen/.test(r.verdict) ? 'a dropped hyphen went unnamed'
+        : mark === 'apostrophe' && !/apostrophe/.test(r.said) ? 'a dropped apostrophe went unnamed'
+        : mark === 'hyphen' && !/hyphen/.test(r.said) ? 'a dropped hyphen went unnamed'
         : null;
       if(why){ bad('mark-drop, ' + at, why); broke++; } else named++;
     }
@@ -2183,7 +2183,6 @@ async function main(){
         await page.keyboard.press('Enter');
         await page.waitForTimeout(80);
         const r = await page.evaluate(() => {
-          const v = document.querySelector('.verdict');
           // "Marked the whole word" now means every letter of the re-trace shown as a slip
           // (orange) — the WIN-1 equivalent of the old all-<u> marked word. The slip logic
           // never marks a majority (a close miss marks only the unmatched letters, and below
@@ -2195,9 +2194,11 @@ async function main(){
             const slips = letters.filter(s => s.classList.contains('slip'));
             allMarked = letters.length > 0 && slips.length === letters.length;
           }
-          return { verdict: v ? v.textContent : null,
+          // The re-trace has no visible caption now (David: "ditch the re-trace caption"); the
+          // kind verdict wording is on the live region, set on a miss and a win alike.
+          return { verdict: (document.querySelector('#say').textContent || '').trim() || null,
                    won: !!document.querySelector('.word.won'),   // WIN-5: a correct spelling
-                   allMarked };                                   // is the green word, no verdict
+                   allMarked };                                   // is the green word
         });
         checked++;
         // A correct spelling (the first edit) now shows as the green word, not a caption —

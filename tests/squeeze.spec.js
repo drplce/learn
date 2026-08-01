@@ -66,12 +66,10 @@ test.describe('the word and the verdict survive a tight screen', () => {
       for(const scale of [0.9, 1, 1.2, 1.3, 1.4, 1.5]){
         for(const word of ['beautiful', 'remember', 'different']){
           const r = await checkAt(page, w, h, scale, word);
+          // A miss re-traces now (WIN-1) and carries no visible verdict (David: "ditch the
+          // re-trace caption"), so the thing that must survive a tight screen is the WORD in its
+          // box — the whole point of the re-trace is that she copies it — never cut off.
           expect(r.wordShown, `${w}x${h} @${scale} lost the word itself`).toBe(true);
-          expect(r.verdict,
-            `${w}x${h} @${scale} "${word}": no verdict — she got a marked letter and nothing else`)
-            .toBe(true);
-          expect(r.verdictText.length,
-            `${w}x${h} @${scale} "${word}": the verdict was empty`).toBeGreaterThan(4);
           expect(r.clipped, `${w}x${h} @${scale} "${word}" is cut off`).toBe(false);
           expect(r.sideways, `${w}x${h} @${scale} "${word}" scrolls sideways`).toBe(false);
         }

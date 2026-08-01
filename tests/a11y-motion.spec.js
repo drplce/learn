@@ -152,11 +152,12 @@ test.describe('what a screen reader is told', () => {
       if(a.session().stage === 'look') a.cover();
       a.type('sid'); a.check();                       // one letter missing: a
       return {heard: document.querySelector('#say').textContent.trim(),
-              seen: document.querySelector('#screen .verdict').textContent.trim(),
               marked: !!document.querySelector('#screen .tracew .slip')};
     });
+    // The re-trace carries no visible caption any more (David: "ditch the re-trace caption") —
+    // the orange slipped letter is the steer she sees. The screen-reader announcement still has
+    // to NAME the letter rather than point at it, since "this letter" means nothing read aloud.
     expect(r.marked, 'this attempt was not close enough to mark the slipped letter').toBe(true);
-    expect(r.seen).toMatch(/Look at this letter/);
     expect(r.heard, `pointed instead of named: "${r.heard}"`).toMatch(/Look at the letter a\./);
     // Never her own spelling, here or anywhere.
     expect(r.heard).not.toContain('sid');

@@ -80,7 +80,9 @@ test.describe('the apostrophe her phone types', () => {
     for(const [target, typed] of [["don't", 'dont'], ["it's", 'its'],
                                   ["they're", 'theyre'], ["o'clock", 'oclock']]){
       const r = await answer(page, target, typed);
-      expect(r.verdict, `${typed} for ${target}`).toBe('So close — it needs an apostrophe.');
+      // No visible caption now (David: "ditch the re-trace caption"); the naming lives on the
+      // live region (r.said), which the read-aloud checks below already use.
+      expect(r.said, `${typed} for ${target}`).toMatch(/So close — it needs an apostrophe\./);
       // Never "the letter '", on screen or read aloud. The spelt-out word at the end of
       // the announcement still names every character of the correct spelling, which is
       // right — that is the spelling, not a list of what she missed.
@@ -89,7 +91,7 @@ test.describe('the apostrophe her phone types', () => {
     }
     // The hyphen gets its own name for the same reason.
     const h = await answer(page, 'well-known', 'wellknown');
-    expect(h.verdict).toBe('So close — it needs a hyphen.');
+    expect(h.said).toMatch(/So close — it needs a hyphen\./);
     expect(h.said).not.toMatch(/letter -/);
     expect(errorsOf(page)).toEqual([]);
   });
@@ -99,9 +101,9 @@ test.describe('the apostrophe her phone types', () => {
     // is still pointed at as a letter.
     await open(page, '2026-08-01');
     const r = await answer(page, "don't", "dnt");        // dropped the o as well
-    expect(r.verdict, 'a dropped letter was called a mark').not.toMatch(/apostrophe|hyphen/);
+    expect(r.said, 'a dropped letter was called a mark').not.toMatch(/apostrophe|hyphen/);
     const s = await answer(page, 'friend', 'frend');     // plain word, dropped an i
-    expect(s.verdict).toMatch(/Look at this letter/);
+    expect(s.said).toMatch(/Look at the letter/);        // named on the live region
   });
 });
 

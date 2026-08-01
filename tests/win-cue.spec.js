@@ -76,7 +76,8 @@ test('an earned win keeps "You got there." beside the green word', async ({page}
   await page.locator('#type').click();
   for(const c of 'becoz') await page.keyboard.press(c);
   await page.keyboard.press('Enter');
-  await expect(page.locator('.verdict.again')).toBeVisible();   // a miss, held
+  expect(await page.evaluate(() => window.__acorn.session().retrace),
+    'a miss should re-trace').toBe(true);                       // a miss, re-trace (no caption now)
   // Loop back round to the requeued word and get it.
   const got = await page.evaluate(() => {
     const a = window.__acorn;

@@ -137,7 +137,10 @@ test.describe('interleaving', () => {
         a.state.words.sessions.push({date: '2026-07-2' + i, asked: 9, words: 9, right: 9,
                                      firstTime: 9, fresh: [], grew: [], slipped: []});
       a.state.words.activeId = 'easy'; a.save();
-      a.setToday('2026-08-01'); a.go('parent'); a.go('day');
+      // Drop the sitting auto-started at page load: its day is 2026-08-01 (the real clock now),
+      // which matches this test's date, so without this it survives as a valid sitting and the
+      // intake below is never built. (Latent until the wall clock reached the hard-coded date.)
+      a.setToday('2026-08-01'); a.clearSession(); a.go('parent'); a.go('day');
       if(!a.session()) a.start();
       const W = a.session();
       const met = Object.keys(a.state.words.mastery);

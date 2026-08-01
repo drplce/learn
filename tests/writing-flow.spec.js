@@ -124,7 +124,8 @@ test.describe('submitting and advancing', () => {
     await page.evaluate(() => window.__acorn.cover());
     await write(page, 'becuase');
     await page.keyboard.press('Enter');
-    await expect(page.locator('.verdict.again')).toBeVisible();
+    expect(await page.evaluate(() => window.__acorn.session().retrace),
+      'a miss should re-trace (no visible caption now)').toBe(true);
     const i0 = await page.evaluate(() => window.__acorn.session().i);
     // No timer takes her off it: a miss re-traces (WIN-1), and she stays on it until she copies it.
     await page.waitForTimeout(1600);
@@ -220,7 +221,8 @@ test.describe('submitting and advancing', () => {
       if(a.session().stage === 'look') a.cover(); });
     await write(page, 'boot');                                 // wrong -> re-trace of 'boat'
     await page.keyboard.press('Enter');
-    await expect(page.locator('.verdict.again')).toBeVisible();
+    expect(await page.evaluate(() => window.__acorn.session().retrace),
+      'a miss should re-trace (no visible caption now)').toBe(true);
     const i0 = await page.evaluate(() => window.__acorn.session().i);
     await page.keyboard.press('Enter');                        // swallowed
     await page.waitForTimeout(700);

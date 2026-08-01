@@ -48,9 +48,12 @@ async function ask(page, target, typed){
     // in orange (.slip) until she copies past it — instead of the old marked word with <u> under
     // the letter to fix. The letter pointed at is the same one, drawn a different way.
     const traced = scr.querySelector('.tracew');
-    const v = scr.querySelector('.verdict');
+    // The re-trace shows no visible verdict any more (David: "ditch the re-trace caption"); the
+    // wording — the same close/extra/plain reading — still goes to the live region, so read it
+    // there. (The earned "You got there." on a WIN is still a visible .verdict.ok; that read
+    // stays direct where those tests do it.)
     return {
-      verdict: v ? v.textContent.replace(/\s+/g, ' ').trim() : '',
+      verdict: (document.querySelector('#say').textContent || '').replace(/\s+/g, ' ').trim(),
       look: traced ? [...traced.querySelectorAll('.slip')].map(s => s.textContent).join('') : '',
       shown: (traced || scr.querySelector('.word') || {}).textContent || '',
       screen: (scr.innerText || '').replace(/\s+/g, ' '),
