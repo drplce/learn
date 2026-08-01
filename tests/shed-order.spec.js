@@ -157,13 +157,21 @@ test.describe('what gets dropped when it will not fit', () => {
         a.next();
       }
       sweep();                                            // earned win: .verdict.ok + .word.won
-      // A word already rooted from earlier rounds (box >= 3): collecting it shows the two-tone
-      // pebble — the deep rim and the lit dome (.rooted on the dot, .pb-dome shown), which a
-      // first-round pebble does not have. Without this the dome's classes read as styled-but-dead.
-      fresh(); a.state.words.mastery = {because:{right:5, wrong:0, box:4, lastSeen:'2026-07-20'}};
-      on(['because', 'rain']);
+      // A word done a SECOND time in the same sitting (WIN-3, David): its pebble roots — the
+      // deep rim and the lit dome (.rooted on the dot, .pb-dome shown), which a once-collected
+      // pebble does not have. It is earned within the sitting (corr >= 2), so drive the word's
+      // first go and then its from-memory requeue to completion. Without this .rooted is dead.
+      fresh(); on(['because', 'rain']);
       if(a.session().stage === 'look') a.cover();
-      a.type('because'); a.check(); sweep();
+      a.type('because'); a.check(); a.next();             // first go -> requeues from memory
+      for(let g = 0; g < 10 && a.session(); g++){
+        const W = a.session();
+        if(W.words[W.i] === 'because' && W.stage !== 'look'){ a.type('because'); a.check(); break; }
+        if(W.stage === 'look'){ a.cover(); continue; }
+        if(W.stage === 'write'){ a.type(W.words[W.i]); a.check(); a.next(); continue; }
+        a.next();
+      }
+      sweep();                                            // rooted pebble: .rooted + lit dome
       // A word with a twin, so the meaning cue is on the writing screen.
       fresh(); on(['licence', 'practise']);
       if(a.session().stage === 'look') a.cover();

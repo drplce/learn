@@ -653,7 +653,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.28';
+var VERSION = '13.29';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2028,7 +2028,10 @@ function start(){
        plan:words.length, right:0, firstTime:0,
        // What tonight actually did, for the screen at the end of it.
        fresh:[], grew:[], slipped:[],
-       requeue:[], failed:[], shown:[], asked:[], done:[], keys:0};
+       // corr counts how many times each word has been written correctly IN THIS sitting.
+       // The lit dome (WIN-3) shows once a word reaches two — "done for the second time
+       // tonight" — so it is earned within the sitting, not carried in from long-term mastery.
+       requeue:[], failed:[], shown:[], asked:[], done:[], corr:{}, keys:0};
   W.stage = beginStage(words[0]); W.traced = 0;
   screen = 'day';
   render();
@@ -2109,6 +2112,7 @@ function check(){
     // in the same sitting is a good sign, not a day's worth of progress.
     recordWord(w, firstAsk ? 'first' : 'later');
     W.right++;
+    W.corr[w] = (W.corr[w] || 0) + 1;              // a correct go tonight; two of these root the pebble
     if(W.done.indexOf(w) < 0) W.done.push(w);      // finished, however many goes it took
     if(firstAsk){
       W.firstTime++;
@@ -2632,13 +2636,13 @@ function renderWord(){
     var dw = W.words[k] || String(k), ds = dotShape(dw);   // ds.y is bbox-centred (see dotShape)
     /* Two paths, base first (the tests and the map read the first path as THE outline): the
        full blob, then a smaller concentric blob offset up and left — the lit dome of the
-       two-tone pebble (WIN-3). The dome is the SECOND layer: it completes only once she has been
-       through the word a second round (David). The first success takes the box 1->2, the second
-       (on a later day) 2->3 — a same-day "from memory" go never advances it — so box >= 3 is
-       "rooted", and only a rooted pebble gets the deep rim + lit dome. A first-round collected
-       word is flat accent green; an unmet dot is the flat faint blob it always was. Same seed,
+       two-tone pebble (WIN-3). The dome is the SECOND layer: it completes only once she has
+       written the word correctly a SECOND time in this same sitting (David) — the from-memory
+       requeue she nails, or a word she gets right twice tonight. So it is earned within the
+       sitting (corr >= 2), not carried in from long-term mastery: a word collected once tonight
+       is flat accent green, and an unmet dot is the flat faint blob it always was. Same seed,
        so the dome is the same shape, just smaller. */
-    var rooted = (mastery(dw).box || 1) >= 3;
+    var rooted = ((W.corr || {})[dw] || 0) >= 2;
     var state = W.done.indexOf(dw) >= 0 ? 'on' : (dw === w ? 'now' : '');
     dots += '<i class="' + state + (rooted ? ' rooted' : '') + '"'
          + ' data-r="' + ds.r.toFixed(2) + '" data-x="' + ds.x.toFixed(2) + '">'

@@ -42,47 +42,55 @@ test('every pebble blob is vertically centred, so none drifts down when it goes 
   }
 });
 
-/* The two-tone dome is the SECOND layer of the pebble and it completes only on her second round
-   through a word (David, 13.27): the first success takes the box 1->2, a later-day success 2->3,
-   and a same-day repeat never advances it — so box >= 3 is "rooted" and only a rooted, collected
-   pebble shows the lit dome (.pb-dome). A word she is collecting for the first time is flat accent
-   green; an unmet dot is the faint blob. This is what turns "collected once" and "taking root"
-   into two different pebbles she can tell apart. */
-test('the lit dome fills only on the second round, not the first', async ({page}) => {
+/* The two-tone dome is the SECOND layer of the pebble and it completes only when she has written
+   the word correctly a SECOND time within the SAME sitting (David, 13.29): the from-memory requeue
+   she then nails, or any word she gets right twice tonight. It is earned inside the sitting
+   (W.corr >= 2), not carried in from long-term mastery — so a review word she gets right once
+   tonight does NOT arrive pre-domed. A word collected once is flat accent green; the twice-collected
+   one grows the deep rim + lit dome. This is what turns "collected once" and "done again from
+   memory" into two different pebbles she can tell apart, on the night it happens. */
+test('the lit dome fills only on the second time through, in the same sitting', async ({page}) => {
   await open(page, '2026-08-01');
   const r = await page.evaluate(() => {
     const a = window.__acorn;
-    a.state.words.lists = [{id:'p', name:'T', words:['because','beautiful','rain','said']}];
+    // Two brand-new words: each is shown, then requeued to be written again from memory, so each
+    // can reach a second correct go tonight without any long-term mastery in play.
+    a.state.words.lists = [{id:'p', name:'T', words:['beautiful','wonderful']}];
     a.state.words.activeId = 'p';
-    // "because" is already rooted from earlier rounds (box 4); "beautiful" is brand new.
-    a.state.words.mastery = {because:{right:5, wrong:0, box:4, lastSeen:'2026-07-20'}};
+    a.state.words.mastery = {};
     a.state.words.sessions = []; a.save(); a.go('day'); a.start();
-    // Collect both: the rooted one climbs to box 5 (stays rooted); the new one takes box 1->2
-    // (first round — no dome yet).
-    for(let g = 0; g < 2 && a.session(); g++){
-      const W = a.session();
-      if(W.stage === 'look') a.cover();
-      a.type(W.words[W.i]); a.check(); a.next();
-    }
-    const domeOn = i => { const d = i.querySelector('.pb-dome');
-      return !!d && getComputedStyle(d).display !== 'none'; };
-    const dots = [...document.querySelectorAll('.dots i')];
-    const at = w => dots.find((_, k) => a.session().words[k] === w);
-    return {
-      rootedBox: a.state.words.mastery.because.box,
-      freshBox: a.state.words.mastery.beautiful.box,
-      rootedDome: domeOn(at('because')),
-      freshDome: domeOn(at('beautiful')),
-      // the base of a first-round pebble is the flat accent, of a rooted one the deep rim
-      rootedBaseDeep: getComputedStyle(at('because').querySelector('.pb-base')).fill
-        !== getComputedStyle(at('beautiful').querySelector('.pb-base')).fill,
+
+    const domeOn = w => {
+      const S = a.session();
+      const dot = [...document.querySelectorAll('.dots i')].find((_, k) => S.words[k] === w);
+      const d = dot && dot.querySelector('.pb-dome');
+      return !!d && getComputedStyle(d).display !== 'none';
     };
+    const baseFill = w => {
+      const S = a.session();
+      const dot = [...document.querySelectorAll('.dots i')].find((_, k) => S.words[k] === w);
+      return getComputedStyle(dot.querySelector('.pb-base')).fill;
+    };
+
+    // Complete every word each time it is asked. Snapshot the dome for "beautiful" the first time
+    // it is done (corr 1) and again the second time (corr 2, the from-memory go), then stop while
+    // the dots are still on screen.
+    let afterFirst = null, afterSecond = null, flatBase = null, rootedBase = null;
+    for(let guard = 0; guard < 20 && a.session(); guard++){
+      const W = a.session(); const w = W.words[W.i];
+      if(W.stage === 'look') a.cover();
+      a.type(w); a.check();
+      if(w === 'beautiful'){
+        if(afterFirst === null){ afterFirst = domeOn('beautiful'); flatBase = baseFill('beautiful'); }
+        else { afterSecond = domeOn('beautiful'); rootedBase = baseFill('beautiful'); break; }
+      }
+      a.next();
+    }
+    return {afterFirst, afterSecond, deepened: flatBase !== rootedBase};
   });
-  expect(r.rootedBox, 'the review word should be past its second round').toBeGreaterThanOrEqual(3);
-  expect(r.freshBox, 'a brand-new word collected once is only in its first round').toBeLessThanOrEqual(2);
-  expect(r.rootedDome, 'a rooted (second-round) pebble should show the lit dome').toBe(true);
-  expect(r.freshDome, 'a first-round pebble must NOT show the dome yet').toBe(false);
-  expect(r.rootedBaseDeep, 'a rooted pebble should have the deep rim, not the flat green').toBe(true);
+  expect(r.afterFirst, 'collected once tonight — no dome yet').toBe(false);
+  expect(r.afterSecond, 'done a second time tonight — the dome lights').toBe(true);
+  expect(r.deepened, 'the rooted pebble takes the deep rim, not the flat green it had first').toBe(true);
 });
 
 /* The enlarged "now" pebble marks the word she is on. It used to be chosen by how many words were

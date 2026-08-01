@@ -12,8 +12,8 @@ touch the trigger again. David can retune the work or the cadence by editing thi
 <!-- STATE — the routine reads these two values, and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: 2h
-last-run: 2026-08-01T04:36Z
+interval: hourly
+last-run: 2026-08-01T06:35Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -45,11 +45,14 @@ Never call `update_trigger` for cadence. The cadence lives here now. (The trigge
   FILE: correct anything stale (pacing numbers, scope, the NOT-NOW list, dates), fold in what has
   been learned, keep it tight. This file is the living document now — not the trigger prompt.
 
-**Currently open (keeps it HOT):** nothing. The WIN-3 pebbles are settled — two-tone (13.26),
-with the lit dome completing only on the second round through a word (13.27, David's refinement).
-The re-trace caption (ditched, 13.25) and the escape (strict copy, 13.25) are done too. No open
-user request; cooling by the ladder (2h → daily → weekly). If David asks for anything, jump
-straight back to hourly.
+**Currently open (keeps it HOT):** awaiting David's look at the pebble refinements. This pass
+acted on two of his notes: **13.28** the enlarged pebble now follows the word she is on (it fell
+behind after a miss), and **13.29** the lit dome now completes on the second time through a word
+*in the same sitting* (his clarification), not on a second separate day — replacing the
+mastery-box gate that made review words arrive pre-domed. Both shipped, teeth-checked, harnesses
+green. HOT until he has seen them on the phone (screenshots sent). One thing still unbuilt because
+it was never confirmed: whether the base pebble should fill on *success* rather than on *arrival*
+(my proposal, David has not asked for it) — do NOT build without a clear ask.
 
 ---
 
