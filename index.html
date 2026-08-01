@@ -637,7 +637,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.33';
+var VERSION = '13.35';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -4363,6 +4363,10 @@ addEventListener('keydown', function(ev){
         // her to the write and hand back a word she then writes by hand.
         W.stage = 'write'; W.attempt = ''; W.keys = 0; W.traced = 0; W.notWritten = false;
         render();
+        // Say the word again as the write screen arrives — the same as landing on any word
+        // (next() speaks it on arrival), so she hears it once more before writing it from
+        // memory, rather than the write screen coming up silent after the trace (David).
+        say(word());
       }, 500);
     }
   }

@@ -13,7 +13,7 @@ touch the trigger again. David can retune the work or the cadence by editing thi
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: hourly
-last-run: 2026-08-01T07:49Z
+last-run: 2026-08-01T08:00Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -69,8 +69,12 @@ don't do it without a reason. Open: David to confirm the pebble reward, the clea
 word-only miss on his phone. **13.34** reviewed and tightened the win→next timing (all durations
 now in one `REWARD` object; fill/swell/hold/handoff trimmed, plus a new gentle word-rise on
 advance) and shipped an interactive timing PLAYGROUND artifact so David can dial the exact feel and
-report the numbers. Open: David to try the playground / feel the new timing on his phone and say
-whether the fill, the hold, the word-rise want nudging. HOT until he confirms the timing.
+report the numbers. **13.35** fixed a David-reported gap: after tracing a new word, the blind-write
+screen came up silent — now it announces the word again (`say(word())` on the trace→write
+transition), the same as landing on any word. (Also bumped the VERSION stamp, which had lagged at
+13.33 since the 13.34 commit didn't touch it.) Open: David to try the playground / feel the new
+timing on his phone and say whether the fill, the hold, the word-rise want nudging. HOT until he
+confirms the timing.
 
 ---
 

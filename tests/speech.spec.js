@@ -339,6 +339,21 @@ test.describe('what she hears', () => {
     expect((await spoken(page)).map(u => u.text)).toEqual(['because']);
   });
 
+  test('after tracing a new word, the write screen announces it again', async ({page}) => {
+    await listen(page, AU);
+    await startOn(page, ['because','rain','boat']);   // a new word: it arrives on the trace
+    // Focus the box, then clear everything said so far (the trace-landing announce, and the
+    // WIN-4 tap-to-hear that a tap on the box also fires) so we isolate the write-screen announce.
+    await page.locator('#type').click();
+    await clear(page);
+    // Copy the word to the end — that completes the trace and, after the settle, the blind write
+    // screen arrives. It should say the word again, the same as landing on any word (David).
+    for(const c of 'because') await page.keyboard.press(c);
+    await page.waitForFunction(() => window.__acorn.session().stage === 'write', null, {timeout:2500});
+    await page.waitForFunction(() => window.__spoken.length > 0, null, {timeout:2500});
+    expect((await spoken(page)).map(u => u.text.trim())).toEqual(['because']);
+  });
+
   test('a miss re-speaks just the whole word, at her speed, never in pieces', async ({page}) => {
     await listen(page, AU);
     // The spoken word-in-parts was dropped with the seams (13.33, David): the same imperfect
