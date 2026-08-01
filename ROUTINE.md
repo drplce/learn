@@ -12,8 +12,8 @@ touch the trigger again. David can retune the work or the cadence by editing thi
 <!-- STATE — the routine reads these two values, and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: 2h
-last-run: 2026-08-01T09:41Z
+interval: hourly
+last-run: 2026-08-01T12:38Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -76,13 +76,30 @@ transition), the same as landing on any word. (Also bumped the VERSION stamp, wh
 timing on his phone and say whether the fill, the hold, the word-rise want nudging. HOT until he
 confirms the timing.
 
-**Cadence note (09:41Z):** clean maintenance pass — all three harnesses green (Playwright 577 + the
-known audio-live:126 network flake; break clean; sim in band). No product changes: David is mid-
-review on the reward timing (playground sent), so the reward is deliberately left untouched to
-avoid churn. Added break.js §35 (hammering Enter/taps through a win advances exactly one word,
-teeth-checked against a double-advance). Nothing actionable open on my side, so cooling hourly →
-2h. The moment David sends anything — a request, a defect, new words, or his timing verdict —
-jump straight back to hourly.
+**BIG OPEN THREAD — the end-of-session (DONE) map screen, reimagined wordless (David, live
+10:40–12:30Z).** A run of interactive prototype Artifacts (all in the session scratchpad, NOTHING
+built into the app yet): wordless concepts (bloom/harvest/quiet) → a physics "map you can touch"
+(drag pebbles, spring home) → a MERGE idea → THREADING to merge.
+  - **Settled model (David chose "reading 2"):** she MANUALLY threads rooted (well-known) pebbles
+    together with a hand-drawn ORGANIC thread into a persistent group ("stays linked", nothing
+    auto-sorts); at **ten** the group settles, draws tight, and RIPENS into one larger banked pebble
+    (extra corner + lit facet). Latest prototype: `scratchpad/grow.html` (artifact 942a45eb).
+  - **Awaiting David before ANY build:** (1) ladder? banks thread into a 9-cornered giant, or one
+    level; (2) undo? pull a pebble back out before ripen (ripen is permanent); (3) pace? one
+    necklace per evening or many — plus explicit go-ahead. **Do NOT build this into the app without
+    his approval** (asked, not answered — a cron firing is not approval).
+  - Build notes for when approved: turns the done-screen map from a fixed camera into a live physics
+    surface (a real engine change — do it BEHIND the existing map so nothing breaks); needs real
+    mastery data to pick which words are "deep enough"; reuse the coord fix (screen→viewBox via
+    getScreenCTM, not a naive rect ratio, or a letterboxed square viewBox makes every touch miss).
+
+**Cadence note (12:38Z):** clean maintenance pass, unchanged code (HEAD still a075861) — Playwright
+577 + known audio-live:126 flake; sim in band; break's "two windows" finding was the known
+parallel-load flake (clean on re-run). No product changes (David mid-decision; no build approval).
+David is deep in live collaboration → HOT → hourly.
+
+(History of the pebble/word-screen work 13.28–13.35 above is settled and shipped; David's phone
+confirmation of that set is still nominally open but superseded by the active DONE-screen thread.)
 
 ---
 
