@@ -170,6 +170,39 @@ test.describe('submitting and advancing', () => {
     expect(afterCopy.stillRequeued, 'the word must still come back for a real retrieval').toBe(true);
   });
 
+  test('missing the same word twice re-traces both times, and marks it down only once', async ({page}) => {
+    /* A missed word re-traces, then requeues for a real from-memory go later in the sitting.
+       If she misses it AGAIN when it comes back, it has to re-trace again — the correction is
+       the whole point — but it is still just one word gone wrong today, so it is marked down
+       once, not twice. (Both misses are typed by hand: once real keystrokes are seen, a value
+       with none behind it is treated as dictation and handed back, so a probe that sets the box
+       directly never reaches the second miss at all.) */
+    await open(page, '2026-07-28');
+    await startOn(page, ['boat']);
+    await page.evaluate(() => window.__acorn.cover());          // boat is new: to its write
+    // First miss -> re-trace.
+    await write(page, 'boot');
+    await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => window.__acorn.session().retrace)).toBe(true);
+    await expect(page.locator('.tracew .slip')).toHaveCount(1);
+    expect(await page.evaluate(() => window.__acorn.state.words.mastery.boat.wrong)).toBe(1);
+    // Copy it to the end — completes and requeues boat straight back (single-word list).
+    await page.locator('#type').click();
+    for(const c of 'boat') await page.keyboard.press(c);
+    await page.waitForFunction(() => { const s = window.__acorn.session();
+      return s && !s.retrace && s.words[s.i] === 'boat' && s.stage === 'write'; },
+      null, {timeout: 2500});
+    // Miss it a second time -> it must re-trace again.
+    await write(page, 'boot');
+    await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => window.__acorn.session().retrace),
+      'the second miss of the same word did not re-trace').toBe(true);
+    await expect(page.locator('.tracew .slip')).toHaveCount(1);
+    expect(await page.evaluate(() => window.__acorn.state.words.mastery.boat.wrong),
+      'a word gone wrong twice in one sitting was marked down twice').toBe(1);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
   test('return skips the wait on a win, but a re-trace has to be copied', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['rain', 'boat', 'because']);
