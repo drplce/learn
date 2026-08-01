@@ -59,7 +59,9 @@ test.describe('right first time', () => {
     const firsts = r.asks.filter(a => a.nth === 1 && a.right).length;
     expect(r.record.firstTime).toBe(firsts);
     expect(r.record.firstTime).toBe(r.record.words);
-    expect(r.said).toContain('Every one, first go.');
+    // One praise now, whatever the evening held (David): "Great effort.", not a line that varies
+    // with how clean it was. The record still knows firstTime; the spoken line no longer reports it.
+    expect(r.said).toContain('Great effort.');
   });
 
   test('a word missed and never got does not count', async ({page}) => {
@@ -173,9 +175,10 @@ test.describe('right first time', () => {
     expect(rows.accuracy, 'the pace can read above 100% right').toBeLessThanOrEqual(1);
   });
 
-  test('the cheer and the count on the screen agree with the record', async ({page}) => {
-    // Three things describe the same evening: the line at the top, the praise beneath
-    // the picture, and the row the app writes down. They must not disagree.
+  test('the count she is told never exceeds the words she met, whatever the evening', async ({page}) => {
+    // The praise no longer varies with the evening — it is "Great effort." every time now (David),
+    // so there is nothing there to disagree with the record. What must still hold is the count in
+    // the live region: it counts words that took root, and that is never more than she met.
     await open(page, '2026-08-01');
     for(const [decide, label] of [
       ['(w, nth) => w', 'all right'],
@@ -184,9 +187,7 @@ test.describe('right first time', () => {
       ['(w, nth) => "zzz"', 'nothing right'],
     ]){
       const r = await sit(page, ['said', 'went', 'rain'], decide);
-      const clean = r.record.firstTime === r.record.words;
-      expect(/first go/.test(r.said), `${label}: heard "${r.said}" against ` +
-        `${r.record.firstTime}/${r.record.words} first go`).toBe(clean);
+      expect(r.said, `${label}: no praise heard`).toContain('Great effort');
       // What she is told counts words that took root, which is never more than she met.
       const m = r.said.match(/^(\w+) took root/);
       if(m){

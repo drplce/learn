@@ -112,7 +112,7 @@ test.describe('what a screen reader is told', () => {
       // with what tonight did.
       expect(heard.length, 'the finished screen arrived silent').toBeGreaterThan(4);
       expect(heard, 'the reward line is not what she hears first')
-        .toMatch(/^(\w+ took root tonight|All done|Every one, first go)/);
+        .toMatch(/^(\w+ took root tonight|All done|Great effort)/);
       /* The total is still not announced. Read back, the old reasoning did not survive contact
          with the sentence it produced: "Three took root tonight. Every one, first go, Ivy. 0 of
          100 words known well." A perfect evening, and then a nought. The bar and the total came off

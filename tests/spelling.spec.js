@@ -407,7 +407,7 @@ test.describe('finishing', () => {
     // Her words rather than a tick: the picture is what says the sitting happened. The screen
     // itself is wordless now (David) — what tonight did and the praise are spoken, off #say.
     await expect(page.locator('#screen .net')).toBeVisible();
-    await expect(page.locator('#say')).toContainText(/first go|All done/);
+    await expect(page.locator('#say')).toContainText(/Great effort/);
     const s = await page.evaluate(() => window.__acorn.state.words.sessions);
     expect(s.length).toBe(1);
     expect(s[0]).toMatchObject({words:3, firstTime:3});
@@ -2039,7 +2039,7 @@ test.describe('the words she reads', () => {
     // in and gone (never a raw "{n}"). It is spoken now, not drawn — read it off #say.
     const bare = (await page.locator('#say').textContent()).trim();
     expect(bare).not.toContain('{n}');
-    expect(bare).toMatch(/(Every one, first go|All done)\./);
+    expect(bare).toMatch(/Great effort\./);
   });
 });
 

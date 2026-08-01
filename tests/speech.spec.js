@@ -296,10 +296,11 @@ test.describe('telling a grown-up whether recordings are working', () => {
 
 test.describe('what she hears', () => {
 
-  // Praise is shown, not spoken. Nothing with her name in it is ever recorded, so
-  // the phone voice had to read it, and a synthetic voice delivering "Every one,
-  // first go" lands between flat and sarcastic.
-  test('the finished screen says nothing out loud', async ({page}) => {
+  // The finished screen speaks its praise now (David: "just say 'great effort'"). It used not to —
+  // the screen showed the praise and a synthetic voice delivering "Every one, first go." landed
+  // between flat and sarcastic — but the screen went wordless, so a praise she cannot see or hear
+  // is no praise, and "great effort" is two warm words that do not carry that risk.
+  test('the finished screen speaks its praise, and nothing but', async ({page}) => {
     await open(page, '2026-08-01');
     await noClips(page);
     await listen(page, [{name:'Karen', lang:'en-AU'}]);
@@ -315,19 +316,15 @@ test.describe('what she hears', () => {
         a.next();
       }
     });
-    // The finished screen is wordless now (David): what tonight did and the praise are spoken
-    // through the live region, not drawn — so the reward line lands on #say, not #screen.
-    await expect(page.locator('#say')).toContainText(/first go|All done/);
     const spoken = await page.evaluate(() => (window.__spoken || []).map(u => u.text.trim()));
-    // Only words, never a sentence. The reward line goes to the live region, not the clip voice —
-    // nothing read aloud as speech carries her name or the praise.
-    expect(spoken.filter(t => !['rain', 'boat'].includes(t)),
-           'something other than a word was read aloud').toEqual([]);
-    const head = (await page.locator('#say').textContent()).trim();
-    expect(spoken).not.toContain(head);
-    // The reward reaches a screen reader through the live region.
-    expect(head).toMatch(/first go|All done/);
-    expect(head).toMatch(/\S/);
+    // The praise is spoken aloud at the end now.
+    expect(spoken.some(t => /great effort/i.test(t)), 'the praise was not spoken').toBe(true);
+    // And nothing else beyond the praise and the words she practised — never a count, never a
+    // sentence about her performance.
+    expect(spoken.filter(t => !['rain', 'boat'].includes(t) && !/^great effort/i.test(t)),
+           'something other than a word or the praise was read aloud').toEqual([]);
+    // The live region carries the reward too, for a screen reader.
+    await expect(page.locator('#say')).toContainText(/Great effort/);
   });
 
 

@@ -645,7 +645,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.38';
+var VERSION = '13.39';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2178,19 +2178,21 @@ function finish(){
                          slipped:W.slipped.slice()});
   if(S.words.sessions.length > 60) S.words.sessions = S.words.sessions.slice(-60);
   save();
-  var every = W.firstTime === distinct;
   W = null;
-  saying = withName(every ? 'Every one, first go{n}.' : 'All done{n}.');
+  // One praise, whatever the evening held (David: "just say 'great effort'"). It used to be
+  // "Every one, first go." on a clean night and "All done." otherwise; a single warm line asks
+  // nothing of her performance and never reads as faint praise on a night she found hard.
+  saying = withName('Great effort{n}.');
   _freshDone = true;            // a real session-end: let the map arrive (arriveMap)
   screen = 'day'; render();
   chime('done');
-  /* The praise is shown, not spoken. There is no recording of it — there is no
-     recording of anything with her name in it — so the phone voice had to read it,
-     and a synthetic voice delivering "Every one, first go" lands somewhere between
-     flat and sarcastic. Praise that sounds insincere is worse than praise nobody
-     said out loud. The words she is practising are still spoken, because there the
-     job is the sound of the word and not the warmth of it, and a screen reader is
-     still told through the live region. */
+  /* And spoken now, not only shown (David) — the finished screen went wordless, so there is
+     nowhere left to show it, and a praise she cannot see or hear is no praise. The old reason not
+     to speak it was that a synthetic voice made "Every one, first go." sound flat or sarcastic;
+     "great effort" is two warm words that do not carry that risk, and it is what she asked to hear.
+     Respects readAloud (say() is silent when she has it off) and reaches a screen reader through
+     the live region as before. */
+  say(saying);
 }
 
 /* =========================================================

@@ -66,7 +66,7 @@ test.describe('her name in the praise', () => {
     await page.setViewportSize({width: 320, height: 568});
     for(const name of ['Ivy', 'Bartholomew-Wilhelmina', 'A'.repeat(32)]){
       const r = await praiseWith(page, name, {scale: 1.5});
-      expect(r.said, `"${name.slice(0, 20)}" cost her the praise entirely`).toContain('first go');
+      expect(r.said, `"${name.slice(0, 20)}" cost her the praise entirely`).toContain('Great effort');
     }
   });
 
@@ -149,10 +149,10 @@ test.describe('her name in the praise', () => {
     await open(page, '2026-08-01');
     for(const name of ['', '   ', '\t']){
       const r = await praiseWith(page, name);
-      // Spoken now: the reward line, then a clean "Every one, first go." with no dangling comma
-      // where the empty name slot was.
+      // Spoken now: a clean "Great effort." with no dangling comma where the empty name slot was
+      // ("Great effort, ." or "Great effort,").
       expect(r.said, `${JSON.stringify(name)} left a dangling comma`)
-        .toContain('Every one, first go.');
+        .toContain('Great effort.');
       expect(r.said, `${JSON.stringify(name)} left a dangling comma`).not.toMatch(/,\s*,|,\s*\./);
     }
   });

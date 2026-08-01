@@ -49,7 +49,7 @@ test.describe('what she hears matches what is there', () => {
     await open(page, '2026-08-01');
     const r = await finish(page, ['said', 'they', 'rain'], 'all');
     expect(r.said).toContain('took root tonight');
-    expect(r.said).toContain('first go');
+    expect(r.said).toContain('Great effort');
     expect(r.said, `she was told "${r.said}"`).not.toMatch(/\bwords known well\b/);
     expect(r.said, 'a bare count came through anyway').not.toMatch(/\b0 of \d+/);
   });
