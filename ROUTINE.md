@@ -12,8 +12,8 @@ touch the trigger again. David can retune the work or the cadence by editing thi
 <!-- STATE — the routine reads these two values, and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: hourly
-last-run: 2026-08-01T20:38Z
+interval: 2h
+last-run: 2026-08-01T22:41Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -150,10 +150,14 @@ built into the app yet): wordless concepts (bloom/harvest/quiet) → a physics "
     say if the pace/feel is right before Steps 2+** (touch, thread, ripen — which need the physics
     rewrite and his build approval per the three awaiting decisions above).
 
-**Cadence note (12:38Z):** clean maintenance pass, unchanged code (HEAD still a075861) — Playwright
-577 + known audio-live:126 flake; sim in band; break's "two windows" finding was the known
-parallel-load flake (clean on re-run). No product changes (David mid-decision; no build approval).
-David is deep in live collaboration → HOT → hourly.
+**Cadence note (22:41Z):** clean full pass, app code unchanged since 13.40 — Playwright 580 +
+known audio-live:126 flake, break clean across 36 cases, sim in band. The whole 1–6 batch is
+shipped and solid; the Step 3 pebble-pool prototype and the flagged decisions (map invariant,
+"daily max") are all waiting on David, who said he'd check tomorrow. Nothing is open FOR ME to
+build — the work is blocked on his reaction, and re-running clean harnesses hourly on unchanged
+code is waste. So COOLING one step: hourly → 2h. This only paces the autonomous passes; a live
+message from David is answered immediately regardless. If he reacts and wants iteration, back to
+hourly. (Earlier note, 12:38Z: clean pass on HEAD a075861, David mid-decision — superseded.)
 
 (History of the pebble/word-screen work 13.28–13.35 above is settled and shipped; David's phone
 confirmation of that set is still nominally open but superseded by the active DONE-screen thread.)
