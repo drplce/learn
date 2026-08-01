@@ -108,8 +108,15 @@ body{
   /* generous line and word spacing: the part of typography that does help */
   line-height:1.7; letter-spacing:.01em; word-spacing:.06em; text-align:left;
   -webkit-font-smoothing:antialiased;
+  /* Nothing she taps is text to select. On the phone a press on a pebble, the acorn mark or the
+     back button raised the blue selection highlight or the press-and-hold callout, which reads as
+     "did I break it?" on a screen that is all pictures and buttons. The two boxes she actually
+     types into turn it back on below. */
+  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
 }
 button,input,textarea{font:inherit; color:inherit; letter-spacing:inherit;}
+/* The one place selection belongs: the fields a grown-up types into (her name, a pasted list). */
+input,textarea{-webkit-user-select:text; user-select:text; -webkit-touch-callout:default;}
 button{border:0; background:none; cursor:pointer; touch-action:manipulation;}
 h1,h2{line-height:1.3; letter-spacing:0; margin:0; font-weight:700;}
 /* Keyboard focus stays visible; a tap never draws one. */
@@ -221,7 +228,9 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
    handful of the things she is collecting. The box is the same size for every
    dot and the differences in size and spacing are drawn inside it, so the row
    cannot reflow and the current one is still only ever scaled. */
-.dots i{flex:none; width:calc(var(--t-sm) * var(--ornament)); height:calc(var(--t-sm) * var(--ornament));
+/* 1.4× the base size (David): the pebbles she is collecting read as pebbles, not specks. The box
+   is still square and the current one still only scales, so the row cannot reflow. */
+.dots i{flex:none; width:calc(var(--t-sm) * var(--ornament) * 1.4); height:calc(var(--t-sm) * var(--ornament) * 1.4);
         transition:transform var(--m-quick) var(--ease);}
 .dots i svg{display:block; width:100%; height:100%; overflow:visible;}
 .dots i path{fill:var(--line-2);}                    /* unmet — or the word she is ON but has not
@@ -414,7 +423,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 :root[data-stage=done] main > :first-child{margin-top:0;}
 :root[data-stage=done] main > :last-child{margin-bottom:0;}
 .donenet{flex:1; min-height:0; display:flex; align-items:center; justify-content:center;
-         margin:var(--s4) 0;}
+         margin:var(--s2) 0;}
 /* The picture takes the room that is there. width:100% alone left it as tall as it was
    wide and no taller, which on a phone wasted the whole middle of the screen. */
 .donenet .net{margin:0; width:100%; height:100%; max-height:100%;}
@@ -636,7 +645,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.37';
+var VERSION = '13.38';
 var KEY = 'acorn.v1';
 
 /* =========================================================
