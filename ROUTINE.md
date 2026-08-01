@@ -12,8 +12,8 @@ touch the trigger again. David can retune the work or the cadence by editing thi
 <!-- STATE — the routine reads these two values, and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: hourly
-last-run: 2026-08-01T08:00Z
+interval: 2h
+last-run: 2026-08-01T09:41Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -75,6 +75,14 @@ transition), the same as landing on any word. (Also bumped the VERSION stamp, wh
 13.33 since the 13.34 commit didn't touch it.) Open: David to try the playground / feel the new
 timing on his phone and say whether the fill, the hold, the word-rise want nudging. HOT until he
 confirms the timing.
+
+**Cadence note (09:41Z):** clean maintenance pass — all three harnesses green (Playwright 577 + the
+known audio-live:126 network flake; break clean; sim in band). No product changes: David is mid-
+review on the reward timing (playground sent), so the reward is deliberately left untouched to
+avoid churn. Added break.js §35 (hammering Enter/taps through a win advances exactly one word,
+teeth-checked against a double-advance). Nothing actionable open on my side, so cooling hourly →
+2h. The moment David sends anything — a request, a defect, new words, or his timing verdict —
+jump straight back to hourly.
 
 ---
 

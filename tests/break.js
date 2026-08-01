@@ -2211,6 +2211,47 @@ async function main(){
     await ctx.close();
   }
 
+  // ---- 35. hammering through a win never skips a word or throws
+  {
+    console.log('\n35. hammering Enter and taps through a win');
+    const {page, ctx, errs} = await fresh(browser, '2026-08-01');
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'w', name:'T', words:['because','friend','thought','through']}];
+      a.state.words.activeId = 'w';
+      // Review words (box 2): each is written blind, no trace in the way.
+      const m = () => ({right:2, wrong:0, box:2, lastSeen:'2026-07-31'});
+      a.state.words.mastery = {because:m(), friend:m(), thought:m(), through:m()};
+      a.state.words.sessions = []; a.save(); a.go('day'); a.start();
+    });
+    const w0 = await page.evaluate(() => window.__acorn.session().words[0]);
+    // Spell the first word right, then hammer: the winning Enter is followed by a burst of more
+    // Enters and taps, all inside the reward's hold. The one auto-advance timer, the tap on the
+    // win word and the Enter-on-check all call next(), which clears the timer at its head — so
+    // she must advance exactly ONE word, never skip past the second, and nothing may throw while
+    // syncPebbles animates the hand-off under the hammering.
+    await page.locator('#type').click().catch(() => {});
+    for(const c of w0) await page.keyboard.press(c);
+    await page.keyboard.press('Enter');                 // the win
+    for(let n = 0; n < 5; n++){                          // hammer, faster than the ~1150ms hold
+      await page.keyboard.press('Enter');
+      await page.locator('#screen').click({position:{x:40, y:40}}).catch(() => {});
+    }
+    await page.waitForTimeout(1500);                     // let any stray timer fire
+    const r = await page.evaluate(() => {
+      const a = window.__acorn, S = a.session();
+      return S ? {i: S.i, done: (S.done || []).length, alive: true,
+                  hasWord: !!document.querySelector('.tracew, .word, .spellin')} : {alive: false};
+    });
+    if(!r.alive) bad('hammer through win', 'the sitting vanished under a burst of Enters/taps');
+    else if(r.i !== 1) bad('hammer through win', 'advanced ' + r.i + ' words on one win (should be 1 — a word was skipped)');
+    else if(r.done !== 1) bad('hammer through win', r.done + ' words marked done from one win (should be 1)');
+    else if(!r.hasWord) bad('hammer through win', 'no word on the screen after the burst');
+    else if(errs.length) bad('hammer through win', errs.join(' | '));
+    else ok('a burst of Enters and taps through a win advances exactly one word, no skip, no throw');
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));
