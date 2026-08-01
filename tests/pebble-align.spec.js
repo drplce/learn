@@ -84,3 +84,42 @@ test('the lit dome fills only on the second round, not the first', async ({page}
   expect(r.freshDome, 'a first-round pebble must NOT show the dome yet').toBe(false);
   expect(r.rootedBaseDeep, 'a rooted pebble should have the deep rim, not the flat green').toBe(true);
 });
+
+/* The enlarged "now" pebble marks the word she is on. It used to be chosen by how many words were
+   done (dot[done]) — but a miss moves her forward without finishing anything, so the big pebble
+   fell behind onto the word she had just left (David spotted it after a repeat). Keyed off the
+   current word now, it follows her wherever she is, including back onto an earlier word's own
+   pebble when that word comes round again. */
+test('the enlarged pebble follows the word she is on, even after a miss', async ({page}) => {
+  await open(page, '2026-08-01');
+  await page.evaluate(() => {
+    const a = window.__acorn;
+    a.state.words.lists = [{id:'f', name:'T', words:['because','friend','thought']}];
+    a.state.words.activeId = 'f';
+    // Review words (box 2) so each is written from memory, no trace step in the way.
+    const m = () => ({right:2, wrong:0, box:2, lastSeen:'2026-07-31'});
+    a.state.words.mastery = {because:m(), friend:m(), thought:m()};
+    a.state.words.sessions = []; a.save(); a.go('day'); a.start();
+  });
+  const focus = () => page.evaluate(() => {
+    const a = window.__acorn, W = a.session();
+    const dots = [...document.querySelectorAll('.dots i')];
+    const now = dots.findIndex(i => i.classList.contains('now'));
+    return {current: W.words[W.i], nowWord: now >= 0 ? W.words[now] : null,
+            nowCount: dots.filter(i => i.classList.contains('now')).length};
+  });
+  // On the first word to start with.
+  expect((await focus()).nowWord).toBe('because');
+  // Miss "because" -> it re-traces; complete the copy -> she advances to "friend".
+  await page.locator('#type').click();
+  for(const c of 'becuase') await page.keyboard.press(c);
+  await page.keyboard.press('Enter');
+  await page.locator('#type').click();
+  for(const c of 'because') await page.keyboard.press(c);
+  await page.waitForFunction(() =>
+    window.__acorn.session().words[window.__acorn.session().i] === 'friend', null, {timeout: 2500});
+  const f = await focus();
+  expect(f.current).toBe('friend');
+  expect(f.nowCount, 'exactly one pebble is the enlarged one').toBe(1);
+  expect(f.nowWord, 'the enlarged pebble is stuck behind the word she is on').toBe('friend');
+});
