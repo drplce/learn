@@ -133,12 +133,14 @@ test('the enlarged pebble follows the word she is on, even after a miss', async 
 });
 
 /* The pebble greens on SUCCESS, not on arrival (David): the word she is ON stays the faint blob
-   (just enlarged) until she spells it right, and only then fills. So "where she is" and "what she
-   has already done" are different colours — an empty pebble she is about to fill, not one that is
-   green before she has written a letter. */
+   (just enlarged) until she spells it right, and only then fills — the fill is a reward animation
+   (syncPebbles greens it in over ~half a second WHILE it is still large), so the green is read
+   after it settles, not on the instant of the check. So "where she is" and "what she has already
+   done" are different colours — an empty pebble she is about to fill, not one that is green before
+   she has written a letter. */
 test('the pebble she is on stays faint until she spells it — it greens on success', async ({page}) => {
   await open(page, '2026-08-01');
-  const r = await page.evaluate(() => {
+  const before = await page.evaluate(() => {
     const a = window.__acorn;
     a.state.words.lists = [{id:'s', name:'T', words:['because','friend','thought']}];
     a.state.words.activeId = 's';
@@ -153,10 +155,59 @@ test('the pebble she is on stays faint until she spells it — it greens on succ
     const faint = baseOf('thought');        // an unmet word she has not reached: the faint blob
     const onArrival = baseOf('because');     // the word she is ON, before she has written it
     const W = a.session(); if(W.stage === 'look') a.cover();
-    a.type('because'); a.check();            // spell it right
-    const afterSuccess = baseOf('because');
-    return {faint, onArrival, afterSuccess};
+    a.type('because'); a.check();            // spell it right — the reward fill begins
+    return {faint, onArrival};
   });
-  expect(r.onArrival, 'the word she is on is still the faint blob before she spells it').toBe(r.faint);
-  expect(r.afterSuccess, 'once she spells it right, the pebble fills green').not.toBe(r.faint);
+  expect(before.onArrival, 'the word she is on is still the faint blob before she spells it')
+    .toBe(before.faint);
+  // Let the reward fill settle, then read the pebble she just won: it is no longer faint.
+  const afterSuccess = await page.evaluate(async () => {
+    const a = window.__acorn;
+    const baseOf = () => {
+      const S = a.session();
+      const dot = [...document.querySelectorAll('.dots i')].find((_, k) => S.words[k] === 'because');
+      return dot && dot.querySelector('.pb-base');
+    };
+    const base = baseOf();
+    if(base) await Promise.all(base.getAnimations().map(an => an.finished.catch(() => {})));
+    const settled = baseOf();          // re-query in case a re-render replaced the element
+    return settled ? getComputedStyle(settled).fill : '';
+  });
+  expect(afterSuccess, 'once she spells it right, the pebble fills green').not.toBe(before.faint);
+});
+
+/* The reward choreography (David: "one of the main reward features"). Size and fill are independent
+   states: on a win the pebble she is on greens (gains `on`) WHILE it is still the large one (keeps
+   `now`) — that is the reward, the fill landing on the big pebble. Only when she moves on does it
+   lose `now` (shrink) and the next word gain it (grow), so the big pebble hands off. This holds the
+   state model that syncPebbles animates; if a win made the pebble small at the instant it greened,
+   the fill would never be seen on the large one. */
+test('on a win the pebble is large AND green at once, then hands the size off to the next word', async ({page}) => {
+  await open(page, '2026-08-01');
+  await page.evaluate(() => {
+    const a = window.__acorn;
+    a.state.words.lists = [{id:'h', name:'T', words:['because','friend','thought']}];
+    a.state.words.activeId = 'h';
+    const m = () => ({right:2, wrong:0, box:2, lastSeen:'2026-07-31'});
+    a.state.words.mastery = {because:m(), friend:m(), thought:m()};
+    a.state.words.sessions = []; a.save(); a.go('day'); a.start();
+  });
+  const cls = () => page.evaluate(() => {
+    const a = window.__acorn, S = a.session();
+    const at = w => { const d = [...document.querySelectorAll('.dots i')].find((_, k) => S.words[k] === w);
+      return d ? d.className : null; };
+    return {because: at('because'), friend: at('friend')};
+  });
+  // Win "because" — at the verdict beat its pebble is both large (now) and green (on).
+  await page.evaluate(() => { const a = window.__acorn, W = a.session();
+    if(W.stage === 'look') a.cover(); a.type('because'); a.check(); });
+  const won = await cls();
+  expect(won.because, 'the just-won pebble is still the large one').toContain('now');
+  expect(won.because, 'the just-won pebble has filled green').toContain('on');
+  // Move on — the big pebble hands off: "because" is green but no longer large; "friend" is large.
+  await page.evaluate(() => window.__acorn.next());
+  const moved = await cls();
+  expect(moved.because, 'the word she left is still green').toContain('on');
+  expect(moved.because.split(/\s+/), 'the word she left is no longer the large one').not.toContain('now');
+  expect(moved.friend, 'the next word is now the large one').toContain('now');
 });

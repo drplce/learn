@@ -13,7 +13,7 @@ touch the trigger again. David can retune the work or the cadence by editing thi
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: hourly
-last-run: 2026-08-01T06:59Z
+last-run: 2026-08-01T07:24Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -54,9 +54,14 @@ green. **13.30** greened the pebble on success (not arrival). **13.31** ditched 
 altogether (David, on device: the splits were still wrong — `to·ge·ther` — and a wrong break drawn
 under the word is worse than none). The word is shown whole now; the seam machinery is gone;
 `splitOf` survives only to SPEAK the pieces on a miss (offered to remove that too, awaiting his
-call). Open: (a) David to confirm the pebble set + the clean word on his phone; (b) his decision
-on whether the spoken word-in-parts on a miss should also go (same imperfect splits). HOT while
-either is open.
+call). **13.32** made the on-success fill a proper reward animation (David: "one of the main reward
+features"): size and fill are now orthogonal states, so a won pebble greens WHILE still large,
+then hands the size off to the next word as it grows into focus — driven by `syncPebbles()` via
+the Web Animations API (the row is HTML-rebuilt each render, so CSS transitions can't cross it).
+The adversarial pass caught a real bug in it (a plain-object word→element map collided with
+`__proto__`/`toLocaleString`); fixed with a Map. Open: (a) David to confirm the pebble set, the
+reward animation, and the clean word on his phone; (b) his decision on whether the spoken
+word-in-parts on a miss should also go (same imperfect splits). HOT while either is open.
 
 ---
 

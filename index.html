@@ -637,7 +637,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.31';
+var VERSION = '13.32';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2451,6 +2451,7 @@ function render(){
   else renderDone();
   fitScreen();
   restoreFocus();
+  syncPebbles();
 }
 
 /* main scrolls inside itself, so anything that does not fit is quietly cut in
@@ -2602,6 +2603,73 @@ function dotShape(w){
   return {r:r, x:x, y:y};
 }
 
+/* The pebble reward (WIN-3, David: "one of the main reward features"). The row is rebuilt from an
+   HTML string on every render, so CSS transitions across renders never fire on it — the animation
+   is driven here instead, once per render, by diffing this render against the last. It plays only
+   on a genuine change, so an incidental re-render (a resize, the hear-cue) never replays it.
+
+   Two moments, in the order she sees them:
+     1. On SUCCESS the pebble she is on has just gone green (see the render: it keeps `now`, so it
+        is still large, and gains `on`, so it is green). We tween its fill grey -> green and give
+        it one gentle swell — it fills WHILE it is still the big one, which is the reward.
+     2. When she MOVES ON, the word she just left loses `now` (CSS rest = small) and the next word
+        gains it (CSS rest = large). We tween the leaver 1.5 -> 1 and the newcomer 1 -> 1.5 at the
+        same time, so the big pebble hands off — one shrinks as the next grows into focus.
+   A second-time win (the dome appears) fades its lit dome in. Reduced motion shows the end state. */
+var _pebPrev = null;
+function pebVar(name){
+  try{ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }catch(e){ return ''; }
+}
+function syncPebbles(){
+  if(!W || screen !== 'day'){ _pebPrev = null; return; }
+  var dots = document.querySelectorAll('.dots i');
+  if(!dots.length){ _pebPrev = null; return; }
+  var cur = word(), prev = _pebPrev, corr = W.corr || {};
+  var reduce = false;
+  try{ reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
+  // dots[k] draws W.words[k]; map each word to the first pebble that draws it (as the row does).
+  // A Map, not a plain object — a word can be "__proto__" or "toLocaleString" (break.js fuzzes
+  // these), and those collide with Object.prototype on a {} lookup.
+  var byWord = new Map();
+  for(var k = 0; k < dots.length; k++){
+    var dwk = W.words[k]; if(dwk != null && !byWord.has(dwk)) byWord.set(dwk, dots[k]);
+  }
+  if(prev && !reduce){
+    var EASE = 'cubic-bezier(.22,.61,.36,1)';
+    // 1) The current word has just been spelled right — green it in while it is still large.
+    if(cur != null && W.done.indexOf(cur) >= 0 && prev.done.indexOf(cur) < 0){
+      var el0 = byWord.get(cur);
+      if(el0){
+        var base = el0.querySelector('.pb-base');
+        if(base){
+          var green = getComputedStyle(base).fill;          // the CSS target (deep rim if rooted)
+          var grey = pebVar('--line-2') || green;
+          base.animate([{fill: grey}, {fill: green}], {duration: 520, easing: EASE});
+        }
+        el0.animate([{transform: 'scale(1.5)'}, {transform: 'scale(1.6)', offset: .5},
+                     {transform: 'scale(1.5)'}], {duration: 560, easing: EASE});
+        // A second win roots the pebble: fade its lit dome in rather than snapping it on.
+        if((corr[cur] || 0) >= 2 && (prev.corr[cur] || 0) < 2){
+          var dome = el0.querySelector('.pb-dome');
+          if(dome) dome.animate([{opacity: 0}, {opacity: 1}], {duration: 520, easing: EASE});
+        }
+      }
+    }
+    // 2) She has moved on — hand the big pebble off: the one she left shrinks, the next grows.
+    if(prev.cur != null && prev.cur !== cur){
+      var leftEl = byWord.get(prev.cur);
+      if(leftEl)
+        leftEl.animate([{transform: 'scale(1.5)'}, {transform: 'scale(1)'}],
+                       {duration: 320, easing: EASE});
+      var newEl = cur != null ? byWord.get(cur) : null;
+      if(newEl)
+        newEl.animate([{transform: 'scale(1)'}, {transform: 'scale(1.5)'}],
+                      {duration: 320, easing: EASE});
+    }
+  }
+  _pebPrev = {cur: cur, done: W.done.slice(), corr: Object.assign({}, corr)};
+}
+
 function renderWord(){
   var w = word();
   header();
@@ -2626,8 +2694,13 @@ function renderWord(){
        is flat accent green, and an unmet dot is the flat faint blob it always was. Same seed,
        so the dome is the same shape, just smaller. */
     var rooted = ((W.corr || {})[dw] || 0) >= 2;
-    var state = W.done.indexOf(dw) >= 0 ? 'on' : (dw === w ? 'now' : '');
-    dots += '<i class="' + state + (rooted ? ' rooted' : '') + '"'
+    // Size and fill are independent: `now` (enlarged) marks the word she is ON; `on` (green)
+    // marks a word she has spelled right. A word can be both — the one she has just won and not
+    // yet moved on from, or a from-memory word she has won once and is now writing again — so it
+    // greens WHILE it is still large (the reward, WIN-3), and only shrinks when she moves on and
+    // the next pebble grows. syncPebbles() animates that hand-off; here we just set the states.
+    var cls = (W.done.indexOf(dw) >= 0 ? 'on' : '') + (dw === w ? ' now' : '') + (rooted ? ' rooted' : '');
+    dots += '<i class="' + cls.trim() + '"'
          + ' data-r="' + ds.r.toFixed(2) + '" data-x="' + ds.x.toFixed(2) + '">'
          + '<svg viewBox="0 0 ' + DOT_BOX + ' ' + DOT_BOX + '" aria-hidden="true">'
          + '<path class="pb-base" d="' + cellPath(dw, ds.x, ds.y, ds.r) + '"/>'
