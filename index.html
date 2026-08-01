@@ -37,6 +37,9 @@
   --surface:#FBF6EC; --surface-2:#FFFDF7; --ink:#3B4149; --ink-soft:#686E76;
   --line:rgba(59,65,73,.14); --line-2:rgba(59,65,73,.26);
   --acc:#35705A; --acc-ink:#FFFFFF; --acc-soft:#E4EFE8;
+  /* Two-tone pebble (WIN-3, David's pick B): a deep rim and a lighter dome, so a collected
+     word reads as a raised pebble rather than a flat blob. Brackets --acc either side. */
+  --acc-deep:#285442; --acc-lite:#5E9A82;
   --good:#3B795F; --retry:#A15D27;
   --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"Helvetica Neue",sans-serif;
 
@@ -75,6 +78,7 @@
     --surface:#22242A; --surface-2:#2A2D34; --ink:#E8E3D9; --ink-soft:#A9A49B;
     --line:rgba(232,227,217,.13); --line-2:rgba(232,227,217,.26);
     --acc:#7CC0A2; --acc-ink:#14231C; --acc-soft:#2C3A34;
+    --acc-deep:#579A7E; --acc-lite:#A6DCC2;                /* two-tone pebble, on the dark screen */
     --good:#7CC0A2; --retry:#DCA173;
     --shadow:0 1px 2px rgba(0,0,0,.2), 0 6px 18px rgba(0,0,0,.24);
   }
@@ -220,8 +224,10 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 .dots i{flex:none; width:calc(var(--t-sm) * var(--ornament)); height:calc(var(--t-sm) * var(--ornament));
         transition:transform var(--m-quick) var(--ease);}
 .dots i svg{display:block; width:100%; height:100%; overflow:visible;}
-.dots i path{fill:var(--line-2);}
-.dots i.on path, .dots i.now path{fill:var(--acc);}
+.dots i path{fill:var(--line-2);}                    /* an unmet dot: one flat faint blob */
+.dots i .pb-dome{display:none;}                      /* no dome until it is collected */
+.dots i.on .pb-base, .dots i.now .pb-base{fill:var(--acc-deep);}   /* collected: deep rim... */
+.dots i.on .pb-dome, .dots i.now .pb-dome{display:block; fill:var(--acc-lite);}  /* ...lit dome */
 .dots i.now{transform:scale(1.5);}
 
 /* The word she reads and the word she is shown afterwards must be the
@@ -646,7 +652,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.25';
+var VERSION = '13.26';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2617,10 +2623,16 @@ function renderWord(){
   var dots = '<div class="dots" aria-hidden="true">';
   for(var k = 0; k < W.plan; k++){
     var dw = W.words[k] || String(k), ds = dotShape(dw);   // ds.y is bbox-centred (see dotShape)
+    /* Two paths, base first (the tests and the map read the first path as THE outline): the
+       full blob, then a smaller concentric blob offset up and left — the lit dome of the
+       two-tone pebble (WIN-3). The dome shows only on a collected word; an unmet dot is the
+       flat faint blob it always was. Same seed, so the dome is the same shape, just smaller. */
     dots += '<i class="' + (k < done ? 'on' : k === done ? 'now' : '') + '"'
          + ' data-r="' + ds.r.toFixed(2) + '" data-x="' + ds.x.toFixed(2) + '">'
          + '<svg viewBox="0 0 ' + DOT_BOX + ' ' + DOT_BOX + '" aria-hidden="true">'
-         + '<path d="' + cellPath(dw, ds.x, ds.y, ds.r) + '"/></svg></i>';
+         + '<path class="pb-base" d="' + cellPath(dw, ds.x, ds.y, ds.r) + '"/>'
+         + '<path class="pb-dome" d="' + cellPath(dw, ds.x - ds.r * 0.10, ds.y - ds.r * 0.15, ds.r * 0.65) + '"/>'
+         + '</svg></i>';
   }
   dots += '</div>';
 
