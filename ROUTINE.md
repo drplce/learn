@@ -12,8 +12,8 @@ touch the trigger again. David can retune the work or the cadence by editing thi
 <!-- STATE — the routine reads these two values, and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: hourly
-last-run: 2026-08-01T02:54Z
+interval: 2h
+last-run: 2026-08-01T04:36Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -45,10 +45,11 @@ Never call `update_trigger` for cadence. The cadence lives here now. (The trigge
   FILE: correct anything stale (pacing numbers, scope, the NOT-NOW list, dates), fold in what has
   been learned, keep it tight. This file is the living document now — not the trigger prompt.
 
-**Currently open (keeps it HOT):** the WIN-3 pebble-depth pick — A sheen / B two-tone / C shadow
-/ D outline / flat (mockup sent; awaiting David's letter). The re-trace caption (ditched, 13.25)
-and the escape (kept strict: copy the whole word, 13.25) are settled. Clear the pebble line from
-here when David answers, and cool to daily if nothing else is open.
+**Currently open (keeps it HOT):** nothing. The WIN-3 pebbles are settled — two-tone (13.26),
+with the lit dome completing only on the second round through a word (13.27, David's refinement).
+The re-trace caption (ditched, 13.25) and the escape (strict copy, 13.25) are done too. No open
+user request; cooling by the ladder (2h → daily → weekly). If David asks for anything, jump
+straight back to hourly.
 
 ---
 
