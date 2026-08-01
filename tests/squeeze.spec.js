@@ -7,8 +7,9 @@
 // enough to count as tight, so the shed list ran to the end and took the sentence naming the
 // letter with it — a rust-coloured letter and no words anywhere on the screen.
 //
-// 13.20 removed the chips. Their split is a faint seam drawn under the word itself now (a
-// .seams overlay measured onto the word), which does not wrap and costs no row — so the whole
+// 13.20 removed the chips (their split became a faint seam drawn under the word), and 13.31
+// removed the seams too (the syllabifier still split some words wrong, and a wrong break shown
+// under the word is worse than none, David). Neither wraps or costs a row any more, so the whole
 // squeeze machinery went with them. What still has to hold is the thing the squeeze was
 // protecting: whatever the screen's size, she is never left with a marked letter and no words,
 // the word is never clipped, and the screen never scrolls sideways. fitScreen still sheds
@@ -45,8 +46,6 @@ async function checkAt(page, w, h, scale, word){
       verdictText: shown('.verdict') ? v.textContent.trim() : '',
       dots: on('.dots'),
       cramped: document.documentElement.hasAttribute('data-cramped'),
-      // The seam overlay drawn over the word, when the word has more than one syllable.
-      seams: !!m.querySelector('.tracew .seams, .word .seams'),
       clipped: m.scrollHeight > m.clientHeight + 1,
       sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
       // A miss re-traces now (WIN-1), so the word she is shown is in the trace box (.tracew), not
@@ -78,15 +77,14 @@ test.describe('the word and the verdict survive a tight screen', () => {
     expect(errorsOf(page)).toEqual([]);
   });
 
-  test('a roomy screen keeps its dots and its seams', async ({page}) => {
-    // Nothing is shed on a screen with room to spare — the pebbles and the syllable seam are
-    // both there, because shedding only fires when a screen genuinely will not fit.
+  test('a roomy screen keeps its dots', async ({page}) => {
+    // Nothing is shed on a screen with room to spare — the pebbles are there, because shedding
+    // only fires when a screen genuinely will not fit.
     await open(page, '2026-08-01');
     for(const [w, h] of [[390, 844], [412, 915]]){
       for(const scale of [0.9, 1]){
         const r = await checkAt(page, w, h, scale, 'beautiful');
         expect(r.dots, `${w}x${h} @${scale} lost the dots with room to spare`).toBe(true);
-        expect(r.seams, `${w}x${h} @${scale} lost the syllable seam with room to spare`).toBe(true);
         expect(r.clipped, `${w}x${h} @${scale} was cut off with room to spare`).toBe(false);
       }
     }

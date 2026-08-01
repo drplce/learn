@@ -135,16 +135,17 @@ test.describe('the reasons behind the design, not just the behaviour', () => {
     expect(r.text.toLowerCase(), 'the correct spelling was not shown').toContain('beautiful');
   });
 
-  test('§6 every word of more than one syllable is offered in pieces', async ({page}) => {
-    /* On the screen, not in the model. The pieces used to be a row of chips; since 13.20 they
-       are seams — a faint hairline drawn under each chunk of the word itself, the word left
-       whole and book-natural. So "offered in pieces" is now: the word is split into .sylseg
-       chunks that spell it, a .seams overlay is drawn over them, and a one-syllable word gets
-       neither. (The pieces are still SPOKEN — on a miss, and by the model here; speech.spec
-       covers the speaking.) */
+  test('§6 a word of more than one syllable can still be offered in pieces (spoken), the word shown whole', async ({page}) => {
+    /* The pieces are audio only now. They were a row of chips, then (13.20) faint seams drawn
+       under each chunk of the word; both are gone (13.31 — the syllabifier was still splitting
+       some words wrong, e.g. to·ge·ther, and a wrong break shown under the word is worse than
+       none, David). So the word on the screen is now shown WHOLE, with no visual split — but the
+       model can still break it into pieces to SPEAK on a miss (see speech.spec / what-she-hears).
+       This guards both halves: nothing is drawn under the word, and the split still exists for
+       the voice. */
     await open(page, '2026-08-01');
     for(const [word, want] of [['beautiful', 3], ['because', 2], ['remember', 3],
-                               ['different', 3], ['said', 0], ['rain', 0], ['went', 0]]){
+                               ['different', 3], ['said', 1], ['rain', 1], ['went', 1]]){
       const r = await page.evaluate(w => {
         const a = window.__acorn;
         const id = 's' + (++window.__nth || (window.__nth = 1));
@@ -153,21 +154,16 @@ test.describe('the reasons behind the design, not just the behaviour', () => {
         a.state.words.mastery = {}; a.state.words.sessions = [];
         a.save(); a.go('day'); if(!a.session()) a.start();
         const word = document.querySelector('.tracew');
-        const chunks = [...word.querySelectorAll('.sylseg')]
-          .filter(c => c.getClientRects().length > 0);
-        return {pieces: a.syllables(w),
-                chunks: chunks.map(c => c.textContent),
+        return {spoken: a.splitOf(w),
+                whole: (word.innerText || word.textContent || '').replace(/\s+/g, ''),
+                chunks: word.querySelectorAll('.sylseg').length,
                 seams: word.querySelectorAll('.seams').length};
       }, word);
-      expect(r.chunks.length, `"${word}" was split into ${r.chunks.length} chunks, wanted ${want}`)
-        .toBe(want);
-      if(want){
-        expect(r.chunks.join(''), `the chunks for "${word}" do not spell it`).toBe(word);
-        expect(r.seams, `"${word}" has its chunks but no seam drawn over them`).toBe(1);
-        expect(r.pieces.length, 'the chunks disagree with the split behind them').toBe(want);
-      } else {
-        expect(r.seams, `a one-syllable word "${word}" was given a seam`).toBe(0);
-      }
+      expect(r.chunks, `"${word}" still draws syllable chunks under the word`).toBe(0);
+      expect(r.seams, `"${word}" still draws a seam under the word`).toBe(0);
+      expect(r.whole.toLowerCase(), `"${word}" is not shown whole`).toBe(word);
+      expect(r.spoken.length, `the spoken split of "${word}" changed`).toBe(want);
+      if(want > 1) expect(r.spoken.join(''), `the spoken pieces of "${word}" do not spell it`).toBe(word);
     }
     expect(errorsOf(page)).toEqual([]);
   });

@@ -254,7 +254,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
    the correct word in its box (WIN-1), the slipped letter drawn in orange on the trace itself
    (.tracew .slip), so the marked-word styling is gone with it. */
 .word{
-  position:relative;                                  /* the .seams overlay is measured against this */
+  position:relative;
   text-align:center; font-weight:700; line-height:1.7;
   letter-spacing:.06em; word-spacing:.1em; margin:0; padding:var(--s3) 0; overflow-wrap:anywhere;
   font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (max(var(--wl,6), 12) * .8)), var(--t-3xl));}
@@ -319,18 +319,6 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
          background:transparent; color:transparent; -webkit-text-fill-color:transparent;
          caret-color:transparent; text-align:center; font:inherit;}
 .tracein:focus{outline:none;}
-
-/* The syllable seams. Each chunk of the word is wrapped in a .sylseg so its box can be
-   measured; the letters inside stay a hard, unbroken run, so the word reads whole and — this
-   is the point — innerText stays "because", not "be\ncause". The faint hand-drawn hairline
-   under each chunk is NOT baked into the markup (an SVG in the text run is what breaks
-   innerText); it is laid over the word from the measured chunk boxes by drawSeams(), one
-   .seams overlay per word. Not a tap target — the seam is a reading aid; a tap anywhere on
-   the word still replays the whole word, and a miss speaks the parts on its own. */
-.seams{position:absolute; left:0; top:0; width:100%; height:100%; overflow:visible;
-       pointer-events:none; color:var(--line-2);}
-.seams path{fill:none; stroke:currentColor; stroke-width:1.4; vector-effect:non-scaling-stroke;
-            stroke-linecap:round; stroke-linejoin:round;}
 
 /* overflow-wrap:anywhere because the praise carries her name, and a name with no
    break in it had nowhere to wrap: measured at 320px and her largest text, forty
@@ -607,11 +595,6 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 :root[data-cramped][data-stage=done] .headline{ font-size:var(--t-lg); margin:0; }
 /* The verdict is a caption; with this little room the word it captions wins. */
 :root[data-tight][data-stage=check] .verdict{ font-size:var(--t-sm); margin:0; }
-/* The syllable seams are an overlay measured from the word, not a row of their own — they do
-   not wrap and never need shrinking or shedding the way the old chip row did, so the two-rung
-   "squeeze before shed" machinery that existed for the chips is gone with them. On a genuinely
-   cramped screen (keyboard up in landscape) the overlay comes off, the word alone. */
-:root[data-cramped]:not([data-stage=parent]) .seams{ display:none; }
 /* The word is fitted to the width it has, which says nothing about height. With
    this little of that, its ceiling comes down — a smaller word she can see beats
    a bigger one cut off at the edge of the panel. */
@@ -654,7 +637,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.30';
+var VERSION = '13.31';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2377,7 +2360,6 @@ function fitViewport(){
   var top = (vv && W && screen === 'day') ? Math.max(0, Math.round(vv.offsetTop)) : 0;
   r.style.setProperty('--vvtop', top + 'px');
   if(top > 0) r.setAttribute('data-panned', ''); else r.removeAttribute('data-panned');
-  drawSeams();          // the word may have reflowed; re-measure the seams onto it
 }
 if(window.visualViewport){
   visualViewport.addEventListener('resize', fitViewport);
@@ -2468,7 +2450,6 @@ function render(){
   else if(W) renderWord();
   else renderDone();
   fitScreen();
-  drawSeams();          // measured over the laid-out word, after fitScreen may have shed rows
   restoreFocus();
 }
 
@@ -3640,101 +3621,17 @@ function blobPath(pts){
   return d + 'Z';
 }
 
-/* The syllable seams, shown the book way. The letters of the word stay together and read as
-   one word; a faint hand-drawn hairline sits under each chunk — a picture of where the word
-   breaks, not the word broken into blocks. (This replaces the green chips: the split is the
-   underline's job now.) Only drawn when the syllable split tiles the real word exactly, so
-   the letters she sees are always the word as written — never rebuilt from the lowercased,
-   punctuation-stripped syllabifier output. Returns character ranges over the real word. */
-function sylRanges(w){
-  var parts = splitOf(w);
-  if(parts.length < 2) return null;
-  if(parts.reduce(function(a, p){ return a + p.length; }, 0) !== w.length) return null;
-  /* A real Year 4/5 word tops out around fourteen letters and never wraps — the box shrinks
-     it to one line. A stress word past that (antidisestablishmentarianism) has to be allowed
-     to wrap, and a seam is a picture drawn under a chunk on one line: it cannot follow a chunk
-     that has broken across two. So beyond that length the word renders as plain, breakable
-     letters (no seams), which is exactly what it did before. Nothing she meets is this long. */
-  if(w.length > 16) return null;
-  var out = [], at = 0;
-  parts.forEach(function(p){ out.push({a: at, b: at + p.length, say: p}); at += p.length; });
-  return out;
-}
 /* Render `w` letter by letter — letterHtml(char, index) draws each one (a plain letter on the
-   read word, a lit span on the trace, a marked <b>/<u> on a miss) — grouping each syllable's
-   letters in a .sylseg so its box can be measured later. No SVG here on purpose: the seam is
-   laid over the word by drawSeams(), so the letters stay a clean run and innerText reads whole.
-   No usable split → just the letters, ungrouped (and no seams). */
+   read word, a lit span on the trace, a marked span on a miss). The word stays one clean run,
+   so its innerText reads whole for the harness and the screen-reader spellout. (This used to
+   group each syllable's letters in a .sylseg and lay a faint hairline "seam" under each chunk —
+   a picture of where the word breaks. Ditched 13.31: the syllabifier was still splitting some
+   words wrong, e.g. to·ge·ther for to·geth·er, and a wrong break shown under the word is worse
+   than none at all, David. The word now shows as itself, unbroken.) */
 function sylWord(w, letterHtml){
-  var ranges = sylRanges(w), i, html = '';
-  if(!ranges){
-    for(i = 0; i < w.length; i++) html += letterHtml(w[i], i);
-    return html;
-  }
-  ranges.forEach(function(r){
-    var seg = '';
-    for(var j = r.a; j < r.b; j++) seg += letterHtml(w[j], j);
-    html += '<span class="sylseg">' + seg + '</span>';
-  });
+  var html = '';
+  for(var i = 0; i < w.length; i++) html += letterHtml(w[i], i);
   return html;
-}
-/* One open, gently uneven stroke under a chunk, from a to b in the overlay's pixel space (the
-   caller has already inset the ends off the chunk box to leave the gap). The same seeded,
-   cornerless hand as the box, but an open line rather than the closed blob. */
-function sylSeamPath(a, b, y, seed){
-  var w = b - a;
-  if(w < 2) return '';
-  var rnd = seeded('seam' + seed), n = 5, amp = Math.min(1.8, w * 0.05), p = [], i;
-  for(i = 0; i <= n; i++) p.push([a + w * i / n, y + (rnd() - .5) * 2 * amp]);
-  var d = 'M' + p[0][0].toFixed(1) + ' ' + p[0][1].toFixed(1);
-  for(i = 1; i < n; i++){
-    var mx = (p[i][0] + p[i + 1][0]) / 2, my = (p[i][1] + p[i + 1][1]) / 2;
-    d += 'Q' + p[i][0].toFixed(1) + ' ' + p[i][1].toFixed(1) + ' ' + mx.toFixed(1) + ' ' + my.toFixed(1);
-  }
-  return d + 'L' + p[n][0].toFixed(1) + ' ' + p[n][1].toFixed(1);
-}
-/* Lay the syllable seams over the word. The .sylseg chunks are already in the markup (sylWord);
-   here each one's box is measured and a faint hairline drawn under it, all in one .seams overlay
-   appended to the word — measured, not baked in, so the word's own text stays a clean run for
-   innerText and the screen reader. A chunk that has wrapped to a second line (its top differs)
-   drops all the seams: a seam is a stripe under one line, and real words never wrap this far
-   (sylRanges guards the long ones off seams entirely). Re-run on every render and resize. */
-function drawSeams(){
-  ['.tracew', '.word'].forEach(function(sel){
-    var wordEl = el(sel);
-    if(!wordEl) return;
-    var old = wordEl.querySelector(':scope > svg.seams'); if(old) old.remove();
-    var segs = wordEl.querySelectorAll('.sylseg');
-    if(segs.length < 2) return;
-    var wr = wordEl.getBoundingClientRect();
-    if(!wr.width) return;
-    var fs = parseFloat(getComputedStyle(wordEl).fontSize) || 16;
-    var d = '', top0 = null, k;
-    for(k = 0; k < segs.length; k++){
-      var s = segs[k].getBoundingClientRect();
-      if(top0 === null) top0 = s.top;
-      else if(Math.abs(s.top - top0) > 1) return;          // a chunk wrapped: no seams at all
-      // The chunk's rect is the tight font box, so its bottom already sits at the descender
-      // line; drop the seam a hair below that to clear a y or g tail and read as an underline.
-      var y = (s.bottom - wr.top) + fs * 0.05;
-      /* The seam should read as "a line under THESE letters" — so it spans nearly the whole
-         chunk, with a clear, even break to the next one. A fixed inset (in em) at each end gives
-         a break of the same width between every pair of chunks, whatever their length; a chunk
-         too narrow to spare it (a one-letter syllable) keeps a proportional inset instead, so
-         its seam never inverts. The gap between two adjacent seams is inset + inset. */
-      var x0 = s.left - wr.left, x1 = s.right - wr.left;
-      var inset = Math.min(fs * 0.16, (x1 - x0) * 0.24);
-      d += sylSeamPath(x0 + inset, x1 - inset, y, segs[k].textContent + k);
-    }
-    if(!d) return;
-    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('class', 'seams');
-    svg.setAttribute('viewBox', '0 0 ' + Math.round(wr.width) + ' ' + Math.round(wr.height));
-    svg.setAttribute('preserveAspectRatio', 'none');
-    svg.setAttribute('aria-hidden', 'true');
-    svg.innerHTML = '<path d="' + d + '"/>';
-    wordEl.appendChild(svg);
-  });
 }
 
 /* One shared middle, one wedge of the turn for each spelling pattern, and inside a

@@ -77,16 +77,14 @@ test.describe('nothing is ever half shown', () => {
     const seen = await page.evaluate(() => {
       const vis = s => { const n = document.querySelector(s);
                          return !!n && !!n.getBoundingClientRect().height; };
-      // A near miss re-traces now (WIN-1): the word is back in its box (.tracew), the pieces are
-      // the seams drawn under it, and the way on is copying the word (the #type box) rather than
-      // a chevron. The seams ride on the word itself, so they cannot be shed out from under it.
+      // A near miss re-traces now (WIN-1): the word is back in its box (.tracew) and the way on
+      // is copying the word (the #type box) rather than a chevron. (The syllable seams that used
+      // to sit under the word are gone, 13.31 — nothing is drawn under it now.)
       return {word: vis('.marked') || vis('.word') || vis('.tracew'),
-              seams: !!document.querySelector('.tracew .seams, .word .seams'),
               wayon: !!document.querySelector('#act button') || !!document.querySelector('#type')};
     });
     // Whatever had to go, these did not.
     expect(seen.word, 'the word itself').toBe(true);
-    expect(seen.seams, 'the syllable pieces, drawn under the word').toBe(true);
     expect(seen.wayon, 'the way on').toBe(true);
   });
 

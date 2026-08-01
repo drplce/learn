@@ -357,10 +357,10 @@ test.describe('what she hears', () => {
 
   test('a piece of a word is never spoken faster than the whole word', async ({page}) => {
     await listen(page, AU);
-    // The chips that used to be tapped to hear a piece are gone (their split is a drawn seam
-    // now), so the pieces are heard the other way they always were: a miss speaks the whole
-    // word and then its pieces. The rate rule is the same one, checked across the settings —
-    // the slowest is where a fixed syllable rate used to invert it.
+    // The chips that used to be tapped to hear a piece are gone (and the seams that replaced
+    // them, 13.31), so the pieces are heard the other way they always were: a miss speaks the
+    // whole word and then its pieces. The rate rule is the same one, checked across the settings
+    // — the slowest is where a fixed syllable rate used to invert it.
     for(const rate of [0.7, 0.85, 0.95, 1.1]){
       await page.evaluate(r => { window.__acorn.state.settings.speechRate = r;
                                  window.__acorn.save(); }, rate);

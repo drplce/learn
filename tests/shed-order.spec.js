@@ -77,15 +77,14 @@ test.describe('what gets dropped when it will not fit', () => {
     /* The lesson itself. Whatever else has to go, not these.
 
        .syls used to be the last name on this list — the syllable chips, shed only once
-       everything above them had gone. The chips are gone now: the word's split is a seam
-       drawn under the word itself (a .seams overlay measured onto it), so there is no
-       separate row to shed and nothing to place on this list — the pieces cannot be shed
-       out from under the word because they ARE the word. The caption slot .supra is the
-       last thing to go, after the note and the dots. */
+       everything above them had gone. The chips are gone (their split became a seam drawn
+       under the word), and the seams are gone too now (13.31), so there is no syllable row of
+       any kind to shed. The caption slot .supra is the last thing to go, after the note and
+       the dots. */
     await open(page, '2026-08-01');
     const order = await page.evaluate(() => window.__acorn.shedOrder());
     const all = [...order.word, ...order.done];
-    for(const keep of ['.word', '.marked', '.spellin', '.cue', '.seams', '.sylseg'])
+    for(const keep of ['.word', '.marked', '.spellin', '.cue', '.seams', '.sylseg', '.syls'])
       expect(all, `${keep} is in the shed list`).not.toContain(keep);
     expect(order.word[order.word.length - 1],
       'the caption slot is not the last thing to go').toBe('.supra');

@@ -1230,9 +1230,10 @@ async function main(){
        to the end, and she was left looking at a rust-coloured letter in the middle of her
        word with not one word anywhere telling her why.
 
-       The chips are gone (13.20 — their split is a faint seam drawn under the word now, no
-       row of its own, so it cannot wrap and cannot be shed out from under the word), and the
-       two-rung squeeze with them. So the invariant is about order rather than outcome.
+       The chips are gone (13.20 — their split became a faint seam drawn under the word), and
+       the seams are gone too now (13.31 — the syllabifier still split some words wrong, and a
+       wrong break shown under the word is worse than none, David); the two-rung squeeze went
+       with the chips. So the invariant is about order rather than outcome.
        Deleting the caption is allowed when there is genuinely no room for it — a four-chunk
        word at 320px and 1.5x does not fit however small. What is not allowed is deleting it
        before the things below it in the shed list. If the verdict is gone, the note and the
@@ -1278,9 +1279,6 @@ async function main(){
                 word: on('.marked') || on('.word') || on('.tracew'),
                 note: shown('.note'),
                 dots: shown('.dots'),
-                // The seam over the word, when it has more than one syllable — it rides on the
-                // word, so it is there whenever the word is.
-                seams: !!m.querySelector('.tracew .seams, .word .seams'),
                 clipped: m.scrollHeight > m.clientHeight + 1,
                 sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
                 // Anything at all she can read, ignoring the buttons.

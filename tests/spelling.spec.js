@@ -136,29 +136,26 @@ test.describe('a word she has never met', () => {
     expect(attrs).toEqual({correct:'off', cap:'off', spell:'false', complete:'off'});
   });
 
-  test('a one-syllable word is not given a seam repeating itself', async ({page}) => {
+  test('a one-syllable word stands plain, no split drawn under it', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['said']);
     await expect(page.locator('.tracew')).toHaveText('said');
-    // Nothing to split, so no chunks and no seam overlay — the word stands plain.
+    // Nothing to split, and nothing is drawn under any word now (13.31) — the word stands plain.
     await expect(page.locator('.tracew .sylseg')).toHaveCount(0);
     await expect(page.locator('.tracew .seams')).toHaveCount(0);
   });
 
-  test('a multi-syllable word shows its parts as seams under the word', async ({page}) => {
+  test('a multi-syllable word is shown whole, its split kept for the voice only', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['because']);
-    // The split is a seam under each chunk now, not a row of chips. The word stays a whole,
-    // book-natural run — .tracew reads "because" — and its chunks are marked by .sylseg spans
-    // (so the seam overlay can be measured onto them) with one faint hairline each.
+    // The visual syllable split (chips, then faint seams) is gone (13.31 — the syllabifier still
+    // split some words wrong, e.g. to·ge·ther, and a wrong break drawn under the word is worse
+    // than none, David). The word is shown WHOLE — .tracew reads "because", with no chunks and
+    // no seam under it.
     await expect(page.locator('.tracew')).toHaveText('because');
-    const segs = page.locator('.tracew .sylseg');
-    await expect(segs).toHaveCount(2);
-    await expect(segs.first()).toHaveText('be');
-    await expect(segs.nth(1)).toHaveText('cause');
-    await expect(page.locator('.tracew .seams')).toHaveCount(1);
-    // The pieces are still spoken (on a miss, and by the model that drives it); speech.spec
-    // covers the speaking. Here: the model splits the word into the same two pieces.
+    await expect(page.locator('.tracew .sylseg')).toHaveCount(0);
+    await expect(page.locator('.tracew .seams')).toHaveCount(0);
+    // The split still exists for the spoken pieces (on a miss); speech.spec covers the speaking.
     expect(await page.evaluate(() => window.__acorn.splitOf('because'))).toEqual(['be', 'cause']);
   });
 });
@@ -1907,16 +1904,11 @@ test.describe('a long word stays whole', () => {
         }, {scale, w});
         const m = await page.evaluate(() => {
           const el = document.querySelector('.tracew');       // the traced word, shown to copy
-          // Count lines from the letters only. The word is a run of letter spans grouped into
-          // .sylseg chunks; the faint syllable seams are a separate .seams overlay sitting below
-          // the letters (a different vertical position by design), so a range over the whole
-          // element would count the seam row as a second line. Measure the chunk boxes instead —
-          // and for a one-syllable word (no chunks, no seams) fall back to the letters directly.
-          const chunks = [...el.querySelectorAll('.sylseg')];
-          const rects = chunks.length
-            ? chunks.flatMap(c => [...c.getClientRects()])
-            : (() => { const rg = document.createRange(); rg.selectNodeContents(el);
-                       return [...rg.getClientRects()]; })();
+          // Count lines from the letters. The word is a clean run of letter spans with nothing
+          // drawn under it (the syllable seams are gone, 13.31), so a range over the whole
+          // element measures the letters and only the letters.
+          const rg = document.createRange(); rg.selectNodeContents(el);
+          const rects = [...rg.getClientRects()];
           const tops = new Set(rects.map(r => Math.round(r.top)));
           return {lines: tops.size,
                   px: Math.round(parseFloat(getComputedStyle(el).fontSize)),
@@ -2128,17 +2120,16 @@ test.describe('reachable without a touchscreen', () => {
     await expect(page.locator('h1')).toHaveAccessibleName('Acorn');
   });
 
-  test('the syllable seams are decoration, not a control in her way', async ({page}) => {
+  test('there is no syllable control on the word screen, and the word keeps its spellout', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['because']);
-    // The chips were focusable buttons; the seams that replaced them are a reading aid drawn
-    // over the word, so they are hidden from assistive tech and are not tab stops or tap
-    // targets. Nothing on the word screen is a syllable control any more.
+    // The chips were focusable buttons; the seams that replaced them were a drawn reading aid;
+    // both are gone (13.31). Nothing on the word screen is a syllable control, and nothing is
+    // drawn under the word.
     await expect(page.locator('[data-syl], button.syl')).toHaveCount(0);
-    const overlay = page.locator('.tracew .seams');
-    await expect(overlay).toHaveCount(1);
-    await expect(overlay).toHaveAttribute('aria-hidden', 'true');
-    // The word itself still carries its spelling for a screen reader, unchanged by the seams.
+    await expect(page.locator('.tracew .seams')).toHaveCount(0);
+    await expect(page.locator('.tracew .sylseg')).toHaveCount(0);
+    // The word itself still carries its spelling for a screen reader.
     await expect(page.locator('.tracew')).toHaveAttribute('aria-label', 'b e c a u s e');
   });
 
@@ -2205,8 +2196,8 @@ test.describe('reachable without a touchscreen', () => {
       reachable.add(await page.evaluate(() =>
         document.activeElement.id || document.activeElement.className || document.activeElement.tagName));
     }
-    // WIN-4 took the speaker button, and 13.20 took the syllable chips (their split is a drawn
-    // seam now, not a control). The trace box she copies into is the one control on this stage,
+    // WIN-4 took the speaker button, and the syllable chips are gone (and the seams that briefly
+    // replaced them, 13.31). The trace box she copies into is the one control on this stage,
     // and it must be reachable by keyboard.
     expect([...reachable].join(' ')).toMatch(/type/);
   });

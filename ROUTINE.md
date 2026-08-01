@@ -13,7 +13,7 @@ touch the trigger again. David can retune the work or the cadence by editing thi
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: hourly
-last-run: 2026-08-01T06:44Z
+last-run: 2026-08-01T06:59Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -50,11 +50,13 @@ acted on two of his notes: **13.28** the enlarged pebble now follows the word sh
 behind after a miss), and **13.29** the lit dome now completes on the second time through a word
 *in the same sitting* (his clarification), not on a second separate day — replacing the
 mastery-box gate that made review words arrive pre-domed. Both shipped, teeth-checked, harnesses
-green. HOT until he has seen them on the phone (screenshots sent). **13.30** then acted on his answer
-"Pebble goes green on success": the word she is on stays the faint enlarged blob until she spells
-it right, then it fills — greens on success, not on arrival. All three pebble refinements (focus,
-dome=second-in-sitting, fill-on-success) are now shipped and teeth-checked; nothing else on the
-pebbles is open. HOT until David confirms the set on his phone.
+green. **13.30** greened the pebble on success (not arrival). **13.31** ditched the syllable underlining
+altogether (David, on device: the splits were still wrong — `to·ge·ther` — and a wrong break drawn
+under the word is worse than none). The word is shown whole now; the seam machinery is gone;
+`splitOf` survives only to SPEAK the pieces on a miss (offered to remove that too, awaiting his
+call). Open: (a) David to confirm the pebble set + the clean word on his phone; (b) his decision
+on whether the spoken word-in-parts on a miss should also go (same imperfect splits). HOT while
+either is open.
 
 ---
 

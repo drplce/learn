@@ -76,10 +76,11 @@ test.describe('tap targets', () => {
   });
 
   // (Until 13.20 there was a test here holding a one-letter syllable chip — "e·nough",
-  // "a·fraid" — to the 44px floor, the narrowest a tappable chunk could be. The chips are
-  // gone; the syllable split is a faint seam drawn under the word now, not a tap target, so
-  // there is no chunk to size. The seam being non-interactive is asserted in spelling.spec.js
-  // ("the syllable seams are decoration, not a control in her way").)
+  // "a·fraid" — to the 44px floor, the narrowest a tappable chunk could be. The chips became
+  // faint drawn seams (13.20), and those are gone too now (13.31 — the splits were still wrong
+  // often enough that a wrong break shown under the word was worse than none, David). There is
+  // no syllable control of any kind on the word screen; that is asserted in spelling.spec.js
+  // ("there is no syllable control on the word screen, and the word keeps its spellout").)
 
   test('every tappable thing is sized off the tap scale, not by its contents',
     async ({page}) => {
@@ -89,9 +90,9 @@ test.describe('tap targets', () => {
       await open(page, '2026-08-01');
       const held = await page.evaluate(() => {
         const sheet = [...document.styleSheets].find(s => !s.href);
-        // The syllable chips are gone (their split is a drawn seam under the word now, not a
-        // tappable pill), so the tappable things left are these, and each has to name --tap so
-        // its size cannot drift below the floor the next time a padding or a font changes.
+        // The syllable chips are gone (and the seams that replaced them, 13.31), so the tappable
+        // things left are these, and each has to name --tap so its size cannot drift below the
+        // floor the next time a padding or a font changes.
         const want = /^(\.quiet|\.seg button|\.chip|\.back|\.swatch)/;
         const seen = {};
         const walk = rules => {

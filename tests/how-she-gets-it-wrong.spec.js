@@ -57,9 +57,6 @@ async function ask(page, target, typed){
       look: traced ? [...traced.querySelectorAll('.slip')].map(s => s.textContent).join('') : '',
       shown: (traced || scr.querySelector('.word') || {}).textContent || '',
       screen: (scr.innerText || '').replace(/\s+/g, ' '),
-      // The syllable chunks the seams are drawn under (they come from the correct word's split,
-      // never from what she typed — the same guarantee the old chips had to meet).
-      chunks: [...scr.querySelectorAll('.sylseg')].map(c => c.textContent),
     };
   });
 }
@@ -115,9 +112,6 @@ test.describe('the mistakes she actually makes', () => {
         .toBe(target);
       expect(r.screen, `${kind}: her own spelling "${typed}" was on the screen`)
         .not.toContain(typed);
-      for(const c of r.chunks)
-        expect(typed.includes(c) && !target.includes(c), 'a syllable chunk came from her spelling')
-          .toBe(false);
     }
   });
 
