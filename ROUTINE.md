@@ -13,7 +13,7 @@ touch the trigger again. David can retune the work or the cadence by editing thi
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: hourly
-last-run: 2026-08-02T15:56Z
+last-run: 2026-08-02T17:33Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
