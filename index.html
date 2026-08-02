@@ -660,7 +660,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.42';
+var VERSION = '13.43';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -2002,14 +2002,8 @@ function start(one){
   var words;
   if(one){
     if(!canPractiseMore()) return false;   // she has had the day's extra allowance
-    var fresh = newPool(activeList());
-    if(fresh.length) words = [fresh[0]];
-    else {
-      var t = todayISO();
-      var due = metWords().filter(function(w){ return isDue(w, t); })
-                          .sort(function(a, b){ return overdueRatio(b, t) - overdueRatio(a, t); });
-      words = due.length ? [due[0]] : [];
-    }
+    var w = nextExtraWord();               // a new word to meet, else the most-due review, else none
+    words = w ? [w] : [];
   } else {
     words = buildSession(activeList(), todayISO());
   }
@@ -3088,10 +3082,11 @@ function renderDone(){
       + '<div class="tick" aria-hidden="true">✓</div>';
   /* The way on is a pebble that breathes, not a worded button (David) — the same organic blob she
      collects, larger, gently pulsing, an invitation with no text. It hands her ONE more word (13.41),
-     and only while she has not used up the day's extra allowance (settings.extraMax, David): once
-     she has had her extra, the pebble goes quiet and the finished garden is the whole screen. */
+     and only while she has not used up the day's extra allowance (settings.extraMax) AND there is a
+     word left to give — no new one to meet and nothing due for review means it simply does not
+     appear (David), rather than pulsing at a tap that would find nothing. */
   var mds = dotShape('more');
-  el('#act').innerHTML = (canPractise && canPractiseMore())
+  el('#act').innerHTML = (canPractiseMore() && nextExtraWord())
     ? '<button class="morepeb" id="again" aria-label="Practise a bit more">'
       + '<svg viewBox="0 0 ' + DOT_BOX + ' ' + DOT_BOX + '" aria-hidden="true">'
       + '<path d="' + cellPath('more', mds.x, mds.y, mds.r) + '"/></svg></button>'
@@ -4178,6 +4173,18 @@ function extrasToday(){
 }
 // She may still be handed one more word while she has not used up the day's extra allowance.
 function canPractiseMore(){ return extrasToday() < (S.settings.extraMax || 0); }
+// The word the pebble would hand her next: a new one to meet if there is one, otherwise the word
+// most due for review — and null if there is genuinely nothing more to give. The pebble uses this
+// to decide whether to appear at all (David: "should just not appear if no more"), and start(one)
+// uses it to pick the word, so the two can never disagree.
+function nextExtraWord(){
+  var fresh = newPool(activeList());
+  if(fresh.length) return fresh[0];
+  var t = todayISO();
+  var due = metWords().filter(function(w){ return isDue(w, t); })
+                      .sort(function(a, b){ return overdueRatio(b, t) - overdueRatio(a, t); });
+  return due.length ? due[0] : null;
+}
 /* Is the sitting we walked away from still the sitting to come back to? It is if it
    belongs to today and to the list she is still on, and every word in it still exists
    somewhere in the corpus. Anything a grown-up did that invalidates it — switching

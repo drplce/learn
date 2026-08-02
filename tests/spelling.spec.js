@@ -501,6 +501,27 @@ test.describe('finishing', () => {
     expect(r.stage).toBe('done');
   });
 
+  test('the pebble does not appear when there is no more word to give', async ({page}) => {
+    // David: it should just not appear if there is no more. She is on her own list, the last one,
+    // every word known well and just seen — so a new word to meet and a word due for review are
+    // both absent. The garden still shows; the pebble simply does not, allowance or no.
+    await open(page, '2026-08-01');
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'w', name:'Mine', words:['rain','boat']}];
+      a.state.words.activeId = 'w';
+      a.state.words.mastery = { rain:{right:8, wrong:0, box:6, lastSeen:'2026-08-01'},
+                                boat:{right:8, wrong:0, box:6, lastSeen:'2026-08-01'} };
+      a.state.words.sessions = [{date:'2026-08-01', list:'w', asked:2, words:2, firstTime:2,
+                                 fresh:[], grew:[], slipped:[], extra:false}];
+      a.save(); a.go('parent'); a.go('day');
+    });
+    await expect(page.locator('#screen .net')).toBeVisible();
+    await expect(page.locator('#again')).toHaveCount(0);
+    // And the allowance is untouched — it is hidden because there is nothing to give, not spent.
+    expect(await page.evaluate(() => window.__acorn.state.settings.extraMax)).toBe(1);
+  });
+
   test('walking away mid-session keeps the progress already earned', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['rain','boat']);
@@ -1209,7 +1230,10 @@ test.describe('how her screens use the room they have', () => {
       if(o.stage === 'write') a.cover();
       if(o.stage === 'nearly'){ a.cover(); a.type('sed'); a.check(); }
       if(o.stage === 'done'){
-        a.state.words.lists = [{id:'w2', name:'E', words:['rain']}];
+        // 'boat' is still to meet, so the "practise a bit more" pebble has something to offer and
+        // appears (since 13.43 it hides when there is nothing left to give) — the finished screen
+        // with its way on, which is what these layout tests are measuring.
+        a.state.words.lists = [{id:'w2', name:'E', words:['rain','boat']}];
         a.state.words.activeId = 'w2';
         a.state.words.mastery = {rain:{right:4, wrong:0, box:4, lastSeen:'2026-08-01'}};
         a.state.words.sessions = [{date:'2026-08-01', list:'w2', asked:1, words:1, right:1, firstTime:1}];
@@ -1691,7 +1715,10 @@ test.describe('she never has to scroll to answer', () => {
       if(o.stage === 'wild'){ a.cover(); a.type('zzz'); a.check(); }
       if(o.stage === 'right'){ a.cover(); a.type('because'); a.check(); }
       if(o.stage === 'done'){
-        a.state.words.lists = [{id:'w2', name:'E', words:['rain']}];
+        // 'boat' is still to meet, so the "practise a bit more" pebble has something to offer and
+        // appears (since 13.43 it hides when there is nothing left to give) — the finished screen
+        // with its way on, which is what these layout tests are measuring.
+        a.state.words.lists = [{id:'w2', name:'E', words:['rain','boat']}];
         a.state.words.activeId = 'w2';
         a.state.words.mastery = {rain:{right:4, wrong:0, box:4, lastSeen:'2026-08-01'}};
         a.state.words.sessions = [{date:'2026-08-01', list:'w2', asked:1, words:1, right:1, firstTime:1}];
@@ -2270,7 +2297,9 @@ test.describe('reachable without a touchscreen', () => {
 
   test('driven by keyboard, focus is never dropped to the document', async ({page}) => {
     await open(page, '2026-08-01');
-    await startOn(page, ['rain','boat']);
+    // Words left to meet, so the finished screen ends on the pebble (the one control that takes
+    // focus there) rather than nothing at all.
+    await startOn(page, ['rain','boat','said','went','rest','best','nest','test']);
     // Keyboard only. A tap deliberately turns this off — a focus ring
     // appearing from nowhere on a touchscreen is only noise — so a test that
     // clicks would be testing the touch path instead.
@@ -2351,7 +2380,8 @@ test.describe('the grown-ups screen hands her back a word', () => {
 
   test('a sitting she already finished is not silently restarted', async ({page}) => {
     await open(page, '2026-08-01');
-    await startOn(page, ['rain','boat']);
+    // Words left to meet, so the finished screen carries the pebble (a way to ask for more).
+    await startOn(page, ['rain','boat','said','went','rest','best','nest','test']);
     await finishSession(page);
     const before = await page.evaluate(() => window.__acorn.state.words.sessions.length);
     await page.evaluate(() => window.__acorn.go('parent'));

@@ -202,7 +202,9 @@ test.describe('the screen at the end of a sitting', () => {
   test('the way on is a named, breathing pebble, not a worded button', async ({page}) => {
     await page.emulateMedia({reducedMotion: 'no-preference'});
     await open(page, '2026-08-01');
-    await sit(page, ['rain', 'boat', 'said']);
+    // A list with words left to meet after the sitting, so the pebble has something to offer and
+    // appears — since 13.43 it hides when there is nothing more to give.
+    await sit(page, ['rain', 'boat', 'said', 'went', 'rest', 'best', 'nest', 'test']);
     const b = await page.evaluate(() => {
       const el = document.querySelector('#again');
       if(!el) return null;
@@ -232,9 +234,14 @@ test.describe('the screen at the end of a sitting', () => {
       await page.setViewportSize(vp);
       await open(page, '2026-08-01');
       for(const scale of [0.9, 1, 1.15, 1.3, 1.5]){
+        // Fresh each scale (mastery accumulates across a page otherwise), so every one is a just-
+        // finished first sitting with words still to meet — and the pebble is on the screen, its
+        // layout measured too.
         await page.evaluate(s => { window.__acorn.state.settings.textScale = s;
+                                   window.__acorn.state.words.mastery = {};
+                                   window.__acorn.state.words.sessions = [];
                                    window.__acorn.save(); }, scale);
-        await sit(page, ['rain', 'boat', 'said']);
+        await sit(page, ['rain', 'boat', 'said', 'went', 'rest', 'best', 'nest', 'test']);
         const cut = await page.evaluate(() => {
           const m = document.querySelector('main'), box = m.getBoundingClientRect();
           const out = [];
@@ -247,7 +254,7 @@ test.describe('the screen at the end of a sitting', () => {
           return [...new Set(out)];
         });
         expect(cut, `${vp.width}x${vp.height} at ${scale}x`).toEqual([]);
-        // The way on is always there.
+        // The way on is there while there is more to practise.
         await expect(page.locator('#again')).toBeVisible();
       }
     }

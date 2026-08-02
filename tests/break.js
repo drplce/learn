@@ -465,7 +465,10 @@ async function main(){
     const {page, ctx, errs} = await fresh(browser, '2026-08-01');
     await page.evaluate(() => {
       const a = window.__acorn;
-      a.state.words.lists = [{id:'w1', name:'T', words:['rain','boat','light']}];
+      // Words left to meet past the first sitting, so the finished screen carries the pebble — the
+      // control focus lands on. (Since 13.43 the pebble hides once nothing is left to give, which
+      // leaves the truly-done screen with no tab stop; that terminal state is out of scope here.)
+      a.state.words.lists = [{id:'w1', name:'T', words:['rain','boat','light','said','went','rest','best','test']}];
       a.state.words.activeId = 'w1'; a.state.words.mastery = {}; a.state.words.sessions = [];
       a.save(); a.go('day'); a.start();
     });
@@ -2279,11 +2282,13 @@ async function main(){
       const r = await page.evaluate(() => ({
         praised: (window.__spoke || []).some(t => /great effort/i.test(t)),
         finished: !window.__acorn.session(),
-        hasWayOn: !!document.querySelector('#again, .tick'),
+        // The finished screen is her garden (or the dead-end tick) — the pebble may or may not be
+        // there, since 13.43 it hides once there is nothing more to give.
+        finishedScreen: !!document.querySelector('#screen .net, #screen .tick'),
       }));
       const tag = readAloud ? 'read-aloud on' : 'read-aloud off';
       if(!r.finished){ bad('praise on finish', tag + ': the sitting did not reach the finished screen'); faults++; }
-      else if(!r.hasWayOn){ bad('praise on finish', tag + ': the finished screen did not render'); faults++; }
+      else if(!r.finishedScreen){ bad('praise on finish', tag + ': the finished screen did not render'); faults++; }
       else if(readAloud && !r.praised){ bad('praise on finish', 'read-aloud on, but "great effort" was never spoken'); faults++; }
       else if(!readAloud && r.praised){ bad('praise on finish', 'read-aloud OFF, but the praise was spoken at her anyway'); faults++; }
       else if(errs.length){ bad('praise on finish', tag + ': ' + errs.join(' | ')); faults++; }
