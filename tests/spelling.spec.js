@@ -449,6 +449,58 @@ test.describe('finishing', () => {
     expect(s.box).toBe(1);
   });
 
+  test('the practise pebble gives up to the day’s extra allowance, then rests', async ({page}) => {
+    // David: "enough for the day" is a grown-up setting, default 1 max extra. So after the day’s
+    // sitting the pebble hands her one more word, and once she has had it the pebble goes quiet.
+    await open(page, '2026-07-28');
+    await startOn(page, ['rain','boat','said','went','rest','best','nest','test']);
+    await finishSession(page);
+    await expect(page.locator('#again')).toBeVisible();          // one extra still to come
+    await page.locator('#again').click();
+    await finishSession(page);                                   // she takes it
+    await expect(page.locator('#again')).toHaveCount(0);         // and now it rests
+    await expect(page.locator('#screen .net')).toBeVisible();    // the garden is still the whole screen
+  });
+
+  test('the extra allowance is a grown-up setting, and zero turns the pebble off', async ({page}) => {
+    await open(page, '2026-07-28');
+    await page.evaluate(() => window.__acorn.go('parent'));
+    await expect(page.locator('[data-extra="1"]')).toBeVisible();
+    expect(await page.evaluate(() => window.__acorn.state.settings.extraMax)).toBe(1);   // default
+    await page.locator('[data-extra="-1"]').click();
+    expect(await page.evaluate(() => window.__acorn.state.settings.extraMax)).toBe(0);
+    // With it off, the finished screen carries no pebble — she is done for the day.
+    await startOn(page, ['rain','boat','said']);
+    await finishSession(page);
+    await expect(page.locator('#screen .net')).toBeVisible();
+    await expect(page.locator('#again')).toHaveCount(0);
+  });
+
+  test('opening the app after the day’s sitting lands on the finished screen, not a fresh load',
+    async ({page}) => {
+    // David: opening for a second session, or after finishing, should land on the completed screen
+    // with the map — not load the words again. The boot used to always build a session. No fixed
+    // day here, so the reload’s boot and her sessions share the real clock, which is the real case.
+    await open(page);
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'w', name:'T', words:['rain','boat','said','went','rest','best']}];
+      a.state.words.activeId = 'w'; a.state.words.mastery = {}; a.state.words.sessions = [];
+      a.save(); a.go('day'); if(!a.session()) a.start();
+      for(let g = 0; g < 40 && a.session(); g++){ const W = a.session();
+        if(W.stage === 'look'){ a.cover(); continue; }
+        if(W.stage === 'write'){ a.type(W.words[W.i]); a.check(); a.next(); continue; } a.next(); }
+    });
+    await page.reload();
+    await page.waitForFunction(() => !!window.__acorn);
+    const r = await page.evaluate(() => ({ session: !!window.__acorn.session(),
+      net: document.querySelectorAll('#screen .net').length,
+      stage: document.documentElement.getAttribute('data-stage') }));
+    expect(r.session, 'a fresh sitting was loaded instead of the finished screen').toBe(false);
+    expect(r.net, 'the finished garden did not render on reopen').toBeGreaterThan(0);
+    expect(r.stage).toBe('done');
+  });
+
   test('walking away mid-session keeps the progress already earned', async ({page}) => {
     await open(page, '2026-07-28');
     await startOn(page, ['rain','boat']);
