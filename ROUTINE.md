@@ -12,8 +12,8 @@ touch the trigger again. David can retune the work or the cadence by editing thi
 <!-- STATE — the routine reads these two values, and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: daily
-last-run: 2026-08-02T01:41Z
+interval: hourly
+last-run: 2026-08-02T14:45Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
