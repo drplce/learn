@@ -432,12 +432,21 @@ test.describe('finishing', () => {
       .toMatch(/\d+ known well/);
   });
 
-  test('she can choose to practise more', async ({page}) => {
+  test('the practise pebble gives one more word, not a whole fresh sitting', async ({page}) => {
+    // David, on device: tapping the "practise a bit more" pebble loaded an entire new session when
+    // what it should hand her is ONE more word — one more pebble to collect. A list with plenty of
+    // unmet words left after the first sitting, so a full session would be several.
     await open(page, '2026-07-28');
-    await startOn(page, ['rain','boat']);
+    await startOn(page, ['rain','boat','said','went','rest','best','nest','test','vest','zest']);
     await finishSession(page);
     await page.locator('#again').click();
-    expect(await page.evaluate(() => !!window.__acorn.session())).toBe(true);
+    const s = await page.evaluate(() => { const S = window.__acorn.session();
+      return S ? {plan: S.plan, len: S.words.length, box: window.__acorn.mastery(S.words[0]).box || 1} : null; });
+    expect(s, 'the pebble started nothing').not.toBeNull();
+    expect(s.len, 'the pebble loaded a whole sitting, not one more word').toBe(1);
+    expect(s.plan, 'the row of dots planned for more than the one word').toBe(1);
+    // And it is a new word to meet (box 1), which is what she is reaching for.
+    expect(s.box).toBe(1);
   });
 
   test('walking away mid-session keeps the progress already earned', async ({page}) => {

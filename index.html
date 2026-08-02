@@ -660,7 +660,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.40';
+var VERSION = '13.41';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1990,9 +1990,25 @@ function beginStage(word){
   return st;
 }
 
-function start(){
+/* `one` is the "practise a bit more" pebble on the finished screen (David): it hands her ONE more
+   word, not a whole fresh sitting — one more pebble to collect. A new word if there is one still to
+   meet (that is what she is reaching for), otherwise the word most due for review. The ordinary
+   start — landing on the app, or a grown-up handing her back — builds a full sitting as before. */
+function start(one){
   advanceList();
-  var words = buildSession(activeList(), todayISO());
+  var words;
+  if(one){
+    var fresh = newPool(activeList());
+    if(fresh.length) words = [fresh[0]];
+    else {
+      var t = todayISO();
+      var due = metWords().filter(function(w){ return isDue(w, t); })
+                          .sort(function(a, b){ return overdueRatio(b, t) - overdueRatio(a, t); });
+      words = due.length ? [due[0]] : [];
+    }
+  } else {
+    words = buildSession(activeList(), todayISO());
+  }
   if(!words.length) return false;
   W = {words:words, i:0, stage:'write', attempt:'', tries:0,
        // Which list, and which day, this sitting belongs to — so a grown-up who
@@ -4169,7 +4185,7 @@ document.addEventListener('click', function(ev){
   unlock();
 
   if((hit = t.closest('[data-go]'))){ go(hit.dataset.go); return; }
-  if(t.closest('#again')){ if(!start()) toast('Nothing to practise just now.'); return; }
+  if(t.closest('#again')){ if(!start(true)) toast('Nothing to practise just now.'); return; }
   // The verdict on a win is the tap target that skips the auto-advance wait; the
   // wordless chevron/tick after a miss (or at the end) carries her on. There is no
   // Cover button (the trace is the cover) and no Check button (return submits).
