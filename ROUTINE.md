@@ -12,8 +12,8 @@ touch the trigger again. David can retune the work or the cadence by editing thi
 <!-- STATE — the routine reads these two values, and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: daily
-last-run: 2026-08-02T22:33Z
+interval: weekly
+last-run: 2026-08-03T22:33Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -45,122 +45,77 @@ Never call `update_trigger` for cadence. The cadence lives here now. (The trigge
   FILE: correct anything stale (pacing numbers, scope, the NOT-NOW list, dates), fold in what has
   been learned, keep it tight. This file is the living document now — not the trigger prompt.
 
-**Currently open (keeps it HOT):** awaiting David's look at the pebble refinements. This pass
-acted on two of his notes: **13.28** the enlarged pebble now follows the word she is on (it fell
-behind after a miss), and **13.29** the lit dome now completes on the second time through a word
-*in the same sitting* (his clarification), not on a second separate day — replacing the
-mastery-box gate that made review words arrive pre-domed. Both shipped, teeth-checked, harnesses
-green. **13.30** greened the pebble on success (not arrival). **13.31** ditched the syllable underlining
-altogether (David, on device: the splits were still wrong — `to·ge·ther` — and a wrong break drawn
-under the word is worse than none). The word is shown whole now; the seam machinery is gone;
-`splitOf` survives only to SPEAK the pieces on a miss (offered to remove that too, awaiting his
-call). **13.32** made the on-success fill a proper reward animation (David: "one of the main reward
-features"): size and fill are now orthogonal states, so a won pebble greens WHILE still large,
-then hands the size off to the next word as it grows into focus — driven by `syncPebbles()` via
-the Web Animations API (the row is HTML-rebuilt each render, so CSS transitions can't cross it).
-The adversarial pass caught a real bug in it (a plain-object word→element map collided with
-`__proto__`/`toLocaleString`); fixed with a Map. Open: (a) David to confirm the pebble set, the
-reward animation, and the clean word on his phone. **13.33** dropped the spoken word-in-parts on
-a miss too (David: "Drop it too") — a miss now re-says the whole word, never its pieces. The
-syllabifier (`splitOf`/`SYLLABLES`/`syllables()`) is now VESTIGIAL: nothing the child sees or
-hears uses it; it survives only in the clip prefetch (warming part-clips never played) and the
-model-level research tests. A future tidy pass could tear it out entirely — flagged, not urgent,
-don't do it without a reason. Open: David to confirm the pebble reward, the clean word, and the
-word-only miss on his phone. **13.34** reviewed and tightened the win→next timing (all durations
-now in one `REWARD` object; fill/swell/hold/handoff trimmed, plus a new gentle word-rise on
-advance) and shipped an interactive timing PLAYGROUND artifact so David can dial the exact feel and
-report the numbers. **13.35** fixed a David-reported gap: after tracing a new word, the blind-write
-screen came up silent — now it announces the word again (`say(word())` on the trace→write
-transition), the same as landing on any word. (Also bumped the VERSION stamp, which had lagged at
-13.33 since the 13.34 commit didn't touch it.) Open: David to try the playground / feel the new
-timing on his phone and say whether the fill, the hold, the word-rise want nudging. HOT until he
-confirms the timing.
+**Currently open — all blocked on David, nothing actionable for me (cadence at the `weekly`
+floor).** The whole 13.36–13.43 arc is shipped, live on `main`, and green. What remains open is
+David's reaction, not work waiting to be done. A live message from him snaps the cadence back to
+`hourly` at once.
 
-**BIG OPEN THREAD — the end-of-session (DONE) map screen, reimagined wordless (David, live
-10:40–12:30Z).** A run of interactive prototype Artifacts (all in the session scratchpad, NOTHING
-built into the app yet): wordless concepts (bloom/harvest/quiet) → a physics "map you can touch"
-(drag pebbles, spring home) → a MERGE idea → THREADING to merge.
-  - **Settled model (David chose "reading 2"):** she MANUALLY threads rooted (well-known) pebbles
-    together with a hand-drawn ORGANIC thread into a persistent group ("stays linked", nothing
-    auto-sorts); at **ten** the group settles, draws tight, and RIPENS into one larger banked pebble
-    (extra corner + lit facet). Latest prototype: `scratchpad/grow.html` (artifact 942a45eb).
-  - **Awaiting David before ANY build:** (1) ladder? banks thread into a 9-cornered giant, or one
-    level; (2) undo? pull a pebble back out before ripen (ripen is permanent); (3) pace? one
-    necklace per evening or many — plus explicit go-ahead. **Do NOT build this into the app without
-    his approval** (asked, not answered — a cron firing is not approval).
-  - Build notes for when approved: turns the done-screen map from a fixed camera into a live physics
-    surface (a real engine change — do it BEHIND the existing map so nothing breaks); needs real
-    mastery data to pick which words are "deep enough"; reuse the coord fix (screen→viewBox via
-    getScreenCTM, not a naive rect ratio, or a letterboxed square viewBox makes every touch miss).
-  - **BATCH SHIPPED (13.37–13.40), the wordless-finish + pebble refinements.** David gave a batch of
-    requests (with a screenshot) and said "ship tonight"; worked top-down, pushed each increment:
-    - **13.37 wordless finished screen** ("clear all the text"): the map case renders only the
-      garden; the line and praise are gone from the screen. Dead end keeps its one sentence + tick.
-      Big test re-point: every visible-headline/praise assertion moved to #say (spoken/announced
-      channel, unchanged); the "announced == on screen" principle gained a conscious exception (the
-      picture is the visible counterpart on the wordless screen).
-    - **13.38 no on-device selection** (user-select:none + -webkit-touch-callout:none app-wide,
-      inputs keep it — fixes the blue highlight / press-hold callout on pebbles, mark, back) +
-      **progress pebbles 1.4× larger**. New tests/no-select.spec.js.
-    - **13.39 praise → "Great effort.", SPOKEN** (David: "just say great effort"). One line whatever
-      the evening; and it is now spoken via say() — a deliberate reversal of the old shown-not-spoken
-      call, because the wordless screen left nowhere to show it and "great effort" is two warm words
-      that don't carry the synthetic-sarcasm risk the old "Every one, first go." did. Count stays in
-      the live region only (never spoken to her, never drawn). Praise-varies tests retired.
-    - **13.40 the way on is a breathing pebble**, not a worded button — a --tap-xl blob pulsing at
-      --m-breath (a 4th ladder value); pulse rides the svg not the button so the hit box is stable.
-      Auto-open to the finished screen when the day's sitting is done already worked (go('day')).
-    - **TWO THINGS FLAGGED FOR DAVID, not built** (both need his product call, wrong to invent
-      overnight): (a) **bigger map / more ghosts** — runs straight into network.spec's deliberate
-      composition invariants (horizon fixed at 6+floor(met/5), cells fill ¼–⅓ of the frame, camera
-      stays close, one organism); a portrait frame and a deeper horizon both broke them. Which
-      invariant to relax is his. Only a small map-margin trim shipped. (b) **"pulse only until the
-      daily max, else hide"** — there is no daily-max concept, and her real save shows she does
-      several new-word sittings a day (4 on Jul 30), so hiding once reviews are caught up would cut
-      her off. Needs his definition. The pebble shows whenever there's anything to practise for now.
-    - **Step 3 (pool-physics map) — PROTOTYPE BUILT (18:46Z pass), awaiting David.** David: "Great
-      plan. Ship 1 to 6. Go. I'll check tomorrow." 1–6 shipped (13.37–13.40); item 5's bigger/fuller
-      map was the one blocked, and it is the SAME job as Step 3, so I built the Step 3 prototype he
-      was expecting for his check-in. `scratchpad/pool.html`, published artifact
-      f0a92335-3c27-4b0f-966f-523f0c6aa21d. It is the end-of-session map as a full-SCREEN pebble
-      pool: her word-pebbles (deep = known well) fill the whole screen (answers item 5's "bigger,
-      more ghosts"), she can drag any pebble and it bumps the others (pool physics — collisions
-      resolved over a few passes), they settle (damping), and a soft inward force makes them creep
-      back from the edges so none stick at the rim (his exact ask). Acorn's own blob code
-      (seeded/cellPoints/blobPath) ported verbatim; coord bug avoided by a 1:1 pixel viewBox
-      (pointer coords map straight, no getScreenCTM letterboxing). NOT in the app — prototype only,
-      per the standing "don't build the physics surface into the app without approval". Open for
-      David: does the feel/weight/settle work; should the pool be the whole finished screen (folding
-      in the wordless garden + the breathing "more" pebble), or a mode she enters; and the two
-      still-open batch decisions (which map invariant to relax if we DON'T go full-physics; the
-      "daily max" definition for the pebble).
-
-  - **STEP 1 SHIPPED (13.36).** David said "Yes prototype step 1" — the gentle whole-map arrival,
-    the safe no-rewrite first step. On a session end the whole garden she already has now settles in
-    from the middle out (.settling) while tonight's words swell in last (.arriving), so the map feels
-    alive as it forms — no interaction, nothing new to learn. Built into the REAL map's arrival.
-    Notable: had to move the arrival off a CSS transition onto the **Web Animations API** — a
+**Shipped and live (13.36–13.43), the wordless-finish + pebble batch.** David sent a batch (with a
+screenshot) and said "Ship 1 to 6. Go. I'll check tomorrow"; all shipped, teeth-checked, harnesses
+green:
+  - **13.36 — gentle whole-map arrival (Step 1).** On a session end the garden she already has
+    settles in from the middle out (`.settling`) while tonight's words swell in last (`.arriving`).
+    Built into the REAL map. Had to move it off a CSS transition onto the **Web Animations API**: a
     transition on freshly-built DOM is suppressed on first paint (transition-property lands in the
-    same recalc as the value change), so on a fast compositor the flourish silently jumped to the end
-    (this was latent in the ORIGINAL .arriving too — it only "worked" on real vsync hardware and was
-    invisible/untestable in headless). WAAPI plays reliably everywhere, is capturable, honours
-    reduced-motion by creating no animation at all, and let the tests assert real animation objects
-    (not just that the classes exist, which a frozen end state can't be told apart from). Filmstrip
-    captured (scratchpad/arrive-film.png). **Open: David to feel the gentle arrival on his phone and
-    say if the pace/feel is right before Steps 2+** (touch, thread, ripen — which need the physics
-    rewrite and his build approval per the three awaiting decisions above).
+    same recalc as the value change), so on a fast compositor the flourish jumped straight to the
+    end (latent in the original `.arriving` too — it only "worked" on real vsync hardware, invisible
+    in headless). WAAPI plays everywhere, is capturable, honours reduced-motion by creating no
+    animation, and lets tests assert real animation objects.
+  - **13.37 — wordless finished screen.** The map case renders only the garden; line and praise gone
+    from the screen. Dead end keeps its one sentence + tick. Every visible-headline/praise assertion
+    moved to `#say` (spoken/announced channel); the "announced == on screen" principle gained a
+    conscious exception (the picture is the visible counterpart).
+  - **13.38 — no on-device selection** (`user-select:none` + `-webkit-touch-callout:none` app-wide,
+    inputs keep it) fixes the blue highlight / press-hold callout on pebbles, mark, back; **progress
+    pebbles 1.4× larger**.
+  - **13.39 — praise → "Great effort.", SPOKEN** (David: "just say great effort"). One line whatever
+    the evening, spoken via `say()` — a deliberate reversal of the old shown-not-spoken call (the
+    wordless screen left nowhere to show it; the two warm words don't carry the synthetic-sarcasm
+    risk the old count line did). Count stays in the live region only.
+  - **13.40 — the way on is a breathing pebble**, not a worded button: a `--tap-xl` blob pulsing at
+    `--m-breath` (a 4th motion-ladder value); pulse rides the svg not the button so the hit box is
+    stable.
+  - **13.41–13.43 — the "practise a bit more" pebble, refined per three follow-ups.** It gives ONE
+    word, not a whole fresh sitting (`start(one)`); the daily allowance is a grown-up setting
+    (`extraMax`, default 1, 0 turns it off) with its own Settings section; opening the app for a
+    second sitting or after finishing lands straight on the finished screen, not a fresh load (boot
+    fix: `if(finishedToday() || !start()) render()`); and the pebble simply does not appear when
+    there is no next word to give (`canPractiseMore() && nextExtraWord()`). This CLOSED the two
+    decisions that were flagged for David at 13.40 — the "daily max" now has a definition (the
+    setting), and reopen-to-completed is done.
 
-**Cadence note (01:41Z, 2026-08-02):** second consecutive clean full pass on frozen code (unchanged
-since 13.40). Ran all three on the newly-rolled date (08-02, a real clock change — worth verifying):
-Playwright 580 pass; the one red was two-windows:155, a known parallel-load flake, confirmed green
-in isolation (audio-live passed this run — the two flakes just swapped); break clean across 36
-cases; sim in band. Everything still waits on David (Step 3 prototype reaction + the two flagged
-decisions). Second clean pass → COOLING another step: 2h → daily (the working baseline). Live
-messages are still answered at once and snap the cadence back to hourly the moment he wants to
-iterate. (Prior note 22:41Z: hourly → 2h — superseded.)
+**STILL genuinely open for David (his product calls — do NOT invent answers):**
+  1. **Feel the shipped set on his phone** — the gentle arrival (13.36), the wordless finish, the
+     breathing pebble, the reward timing — and say whether pace/feel wants nudging.
+  2. **Step 3 — the pool-physics map, PROTOTYPE ONLY** (`scratchpad/pool.html`, published artifact
+     `f0a92335-3c27-4b0f-966f-523f0c6aa21d`). The end-of-session map as a full-SCREEN pebble pool:
+     her word-pebbles (deep = known well) fill the screen, she drags one and it bumps the others
+     (collisions resolved over a few passes), they settle (damping), and a soft inward force makes
+     them creep back from the edges so none stick at the rim (his exact ask). Acorn's own blob code
+     (`seeded`/`cellPoints`/`blobPath`) ported verbatim; coord bug avoided with a 1:1 pixel viewBox
+     (pointer coords map straight, no `getScreenCTM` letterboxing). **NOT in the app — do NOT build
+     the physics surface in without his explicit approval** (a cron firing is not approval). Open:
+     does the feel/weight/settle work; should the pool BE the whole finished screen (folding in the
+     wordless garden + the breathing pebble) or a mode she enters.
+  3. **Bigger STATIC map** (only if we DON'T go full-physics) — a bigger/fuller map runs into
+     `network.spec`'s deliberate composition invariants (horizon fixed at 6+floor(met/5), cells fill
+     ¼–⅓ of the frame, camera stays close, one organism; a portrait frame and a deeper horizon both
+     broke them). Which invariant to relax is his call. Only a small map-margin trim shipped.
 
-(History of the pebble/word-screen work 13.28–13.35 above is settled and shipped; David's phone
-confirmation of that set is still nominally open but superseded by the active DONE-screen thread.)
+  Build notes for if/when the physics map is approved: it turns the done-screen map from a fixed
+  camera into a live physics surface (a real engine change — do it BEHIND the existing map so
+  nothing breaks); needs real mastery data to pick which words are "deep enough".
+
+**Vestigial, flagged not urgent:** the syllabifier (`splitOf`/`SYLLABLES`/`syllables()`) — nothing
+the child sees or hears uses it any more (13.31 dropped the underline, 13.33 dropped the spoken
+parts on a miss); it survives only in the clip prefetch and the model-level research tests. A future
+tidy pass could tear it out — don't, without a reason.
+
+**Cadence note (22:33Z, 2026-08-03):** third consecutive clean full pass on frozen code (unchanged
+since 13.43). Playwright 585 pass (no flakes this run); break clean across 37 cases; sim in band
+(first-go 84.2%, all 8 bands held). Everything waits on David. Clean pass → COOLING to the `weekly`
+floor and running this SELF-UPDATE. Live messages are answered at once and snap the cadence back to
+`hourly` the moment he wants to iterate.
 
 ---
 
