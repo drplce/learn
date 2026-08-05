@@ -13,7 +13,7 @@ touch the trigger again. David can retune the work or the cadence by editing thi
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: hourly
-last-run: 2026-08-05T07:57Z
+last-run: 2026-08-05T09:32Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -124,12 +124,12 @@ the child sees or hears uses it any more (13.31 dropped the underline, 13.33 dro
 parts on a miss); it survives only in the clip prefetch and the model-level research tests. A future
 tidy pass could tear it out — don't, without a reason.
 
-**Cadence note (08:xxZ, 2026-08-05):** was at the `weekly` floor (three clean frozen passes). David
-sent a live request this morning — her birthday flower — so cadence snaps back to `hourly` and a
-real change shipped (13.44). break clean across 37 cases; sim in band (first-go inside target, all 8
-bands held, learned 82.8%); Playwright green including the new birthday spec and the two updated
-guards. HOT while David is live today. (Prior note 22:33Z 2026-08-03: cooled to weekly on frozen
-code — superseded.)
+**Cadence note (09:32Z, 2026-08-05):** light pass — code frozen at 13.44 since this morning's
+full-green run (Playwright 589, break clean across 37 cases, sim in band: first-go inside target,
+all 8 bands held, learned 82.8%); working tree clean, no re-run needed on byte-identical code.
+Holding `hourly`: HOT because it's her birthday and David is live today (he confirmed the flower is
+keyed to 5 Aug each year). Will cool from tomorrow if he goes quiet. (Prior note 22:33Z 2026-08-03:
+cooled to weekly on frozen code — superseded when the birthday request came in and shipped 13.44.)
 
 ---
 
