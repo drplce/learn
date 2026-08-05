@@ -12,8 +12,8 @@ touch the trigger again. David can retune the work or the cadence by editing thi
 <!-- STATE — the routine reads these two values, and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: 2h
-last-run: 2026-08-05T10:32Z
+interval: daily
+last-run: 2026-08-05T12:33Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -124,13 +124,11 @@ the child sees or hears uses it any more (13.31 dropped the underline, 13.33 dro
 parts on a miss); it survives only in the clip prefetch and the model-level research tests. A future
 tidy pass could tear it out — don't, without a reason.
 
-**Cadence note (10:32Z, 2026-08-05):** the birthday flower (13.44) is shipped, confirmed by David
-(keyed to 5 Aug each year), and green — nothing open or actionable for me now. Code frozen since
-this morning's full-green run (Playwright 589, break clean across 37 cases, sim in band). Clean pass
-on frozen code → COOLING one step, `hourly → 2h`. This does not reduce responsiveness — a live
-message is answered at once and snaps the cadence straight back to `hourly`; it only spaces out the
-autonomous re-checks on unchanged code. (Prior note 09:32Z: held hourly right after the ship —
-superseded.)
+**Cadence note (12:33Z, 2026-08-05):** second clean pass on frozen code since the birthday ship —
+13.44 still byte-identical to this morning's full-green run (Playwright 589, break clean across 37
+cases, sim in band). Nothing open (David confirmed the flower, quiet since). COOLING one step,
+`2h → daily` (the working baseline). A live message is still answered at once and snaps the cadence
+back to `hourly`. (Prior note 10:32Z: hourly → 2h — superseded.)
 
 ---
 
