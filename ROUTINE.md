@@ -12,8 +12,8 @@ touch the trigger again. David can retune the work or the cadence by editing thi
 <!-- STATE — the routine reads these two values, and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: weekly
-last-run: 2026-08-03T22:33Z
+interval: hourly
+last-run: 2026-08-05T07:57Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -45,10 +45,23 @@ Never call `update_trigger` for cadence. The cadence lives here now. (The trigge
   FILE: correct anything stale (pacing numbers, scope, the NOT-NOW list, dates), fold in what has
   been learned, keep it tight. This file is the living document now — not the trigger prompt.
 
-**Currently open — all blocked on David, nothing actionable for me (cadence at the `weekly`
-floor).** The whole 13.36–13.43 arc is shipped, live on `main`, and green. What remains open is
-David's reaction, not work waiting to be done. A live message from him snaps the cadence back to
-`hourly` at once.
+**HOT (hourly) — David came back live on 2026-08-05: it's her birthday.** He asked for "a fun
+birthday message and maybe a little flower — just for the day". Shipped **13.44**: a once-a-year
+overlay above whatever screen she lands on — a coral flower (eight petals bloom staggered from a
+gold centre, drawn in inline SVG on the app's scales/easing) and "Happy birthday!", shown AND
+spoken (`say`), cleared by a tap or a ~7s safety timeout. Gated on the calendar day (`BIRTHDAY =
+'08-05'`, month-day) so it recurs every birthday and is invisible every other day — no dead date to
+remove. Auto-shown at boot only when `!navigator.webdriver`, so the whole Playwright suite is
+untouched by the fact that the real clock IS the day; the feature is reached in tests through the
+exposed `showBirthday()`/`isBirthday()`/`clearBirthday()`. New `tests/birthday.spec.js` (appears on
+the day + spoken, stays away otherwise, tap clears it, no double-stack); `scales.spec` and
+`shed-order` guards updated (flower sized in vw/vh not rem; the `.bday*` classes reached via a
+birthday sweep). All three harnesses green. **Open for David:** see it on her phone today. One
+choice flagged to him: it recurs every 5 Aug — say if he'd rather it were this year only.
+
+**Also still open — all blocked on David, nothing actionable for me.** The whole 13.36–13.43 arc is
+shipped, live on `main`, and green. What remains open there is David's reaction, not work waiting to
+be done.
 
 **Shipped and live (13.36–13.43), the wordless-finish + pebble batch.** David sent a batch (with a
 screenshot) and said "Ship 1 to 6. Go. I'll check tomorrow"; all shipped, teeth-checked, harnesses
@@ -111,11 +124,12 @@ the child sees or hears uses it any more (13.31 dropped the underline, 13.33 dro
 parts on a miss); it survives only in the clip prefetch and the model-level research tests. A future
 tidy pass could tear it out — don't, without a reason.
 
-**Cadence note (22:33Z, 2026-08-03):** third consecutive clean full pass on frozen code (unchanged
-since 13.43). Playwright 585 pass (no flakes this run); break clean across 37 cases; sim in band
-(first-go 84.2%, all 8 bands held). Everything waits on David. Clean pass → COOLING to the `weekly`
-floor and running this SELF-UPDATE. Live messages are answered at once and snap the cadence back to
-`hourly` the moment he wants to iterate.
+**Cadence note (08:xxZ, 2026-08-05):** was at the `weekly` floor (three clean frozen passes). David
+sent a live request this morning — her birthday flower — so cadence snaps back to `hourly` and a
+real change shipped (13.44). break clean across 37 cases; sim in band (first-go inside target, all 8
+bands held, learned 82.8%); Playwright green including the new birthday spec and the two updated
+guards. HOT while David is live today. (Prior note 22:33Z 2026-08-03: cooled to weekly on frozen
+code — superseded.)
 
 ---
 

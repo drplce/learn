@@ -241,6 +241,13 @@ test.describe('what gets dropped when it will not fit', () => {
                                  firstTime: 6, fresh: [], grew: [], slipped: []}];
       a.save(); a.go('parent'); sweep();
 
+      // Her birthday flower — a once-a-year overlay above whatever screen she is on,
+      // so its classes (.bday/.flower/.petal/.core/.seed/.prot/.bday-msg) are real,
+      // just gated to the day. Show it on the day and sweep, so they are not read as
+      // styled-but-dead.
+      a.setToday('2026-08-05'); a.showBirthday(); sweep();
+      a.clearBirthday(); sweep();     // .out is the fade it wears on the way out
+
       const decl = new Set();
       const sheet = [...document.styleSheets].find(s => !s.href);
       const walk = rules => { for(const x of rules){

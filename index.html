@@ -625,6 +625,38 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
   font-size:clamp(var(--t-xs), calc((min(100vw, 34rem) - 2 * var(--s4)) / (max(var(--wl,6), 12) * .8)),
                   var(--t-lg));}
 
+/* ---------- her birthday: a flower and a greeting, only on the day ----------
+   A once-a-year surprise (David). A full-screen overlay above the app: a flower
+   blooms, "Happy birthday!" — spoken and shown — and a tap (or a few seconds)
+   clears it back to her normal screen. The warm petal/gold/leaf colours are a
+   one-day thing, kept here rather than on the design tokens; everything else is
+   on the app's scales and easing, and the global reduced-motion rule below zeroes
+   the bloom to its end state. It rides above the toast (z-index 30). */
+.bday{ position:fixed; inset:0; z-index:40; display:flex; flex-direction:column;
+       align-items:center; justify-content:center; gap:var(--s5);
+       padding:calc(var(--s6) + env(safe-area-inset-top)) var(--s5)
+               calc(var(--s6) + env(safe-area-inset-bottom));
+       background:radial-gradient(circle at 50% 42%, var(--surface-2), var(--surface));
+       cursor:pointer; -webkit-user-select:none; user-select:none;
+       animation:bdayfade var(--m-quick) var(--ease); }
+.bday.out{ opacity:0; transition:opacity var(--m-quick) var(--ease); }
+.bday .flower{ width:min(60vw, 40vh); height:auto; transform-origin:50% 50%;
+               animation:bdaysway calc(var(--m-breath) * 2) var(--ease) var(--m-slow) infinite; }
+/* Petals fan out around the flower's centre (view-box origin 50,50) and each pops
+   from nothing, lightly staggered, so it opens like a bloom rather than appearing. */
+.bday .prot{ transform-box:view-box; transform-origin:center; }
+.bday .petal{ transform-box:view-box; transform-origin:center; fill:#EE9C82;
+              animation:bdaybloom var(--m-slow) var(--ease) backwards; }
+.bday .core{ fill:#F2B441; }
+.bday .seed{ fill:#B9791F; }
+.bday .bday-msg{ margin:0; font-size:var(--t-2xl); font-weight:700; color:var(--ink);
+                 text-align:center; line-height:1.1;
+                 animation:bdayrise var(--m-slow) var(--ease) var(--m-slow) backwards; }
+@keyframes bdayfade{ from{opacity:0;} to{opacity:1;} }
+@keyframes bdaybloom{ from{transform:scale(0);} to{transform:scale(1);} }
+@keyframes bdayrise{ from{opacity:0; transform:translateY(var(--s4));} to{opacity:1; transform:none;} }
+@keyframes bdaysway{ 0%,100%{transform:rotate(-2.5deg);} 50%{transform:rotate(2.5deg);} }
+
 /* Delays as well as durations. Killing only the duration left the finished
    screen's flourish fully choreographed: measured under reduce, the cells still
    arrived one at a time on their 0.18s, 0.38s, 0.58s… delays, so fourteen words
@@ -660,7 +692,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.43';
+var VERSION = '13.44';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -4157,6 +4189,56 @@ function toast(msg){
   clearTimeout(_toastT);
   _toastT = setTimeout(function(){ t.classList.remove('on'); }, 2200);
 }
+
+/* ---- her birthday: a flower and a greeting, only on the day (David) ----
+   A once-a-year surprise. Gated on the calendar day (month-day), so it lights up
+   every birthday and is invisible every other day — no dead date to clean up. It
+   is shown at boot on her real phone, and never under test automation
+   (navigator.webdriver), so the whole suite is untouched by the fact that today
+   happens to be the day. Additive by design: the overlay sits ABOVE the app and a
+   tap — or a few seconds — clears it, so if anything here ever fails, the spelling
+   app underneath is unharmed. Her name is never in it (the app never holds it). */
+var BIRTHDAY = '08-05';                         // month-day; her day
+function isBirthday(){ return todayISO().slice(5) === BIRTHDAY; }
+function flowerSVG(){
+  var petals = '', i;
+  for(i = 0; i < 8; i++){
+    // Each petal sits above the centre, then the whole group is rotated round it,
+    // so eight of them fan out evenly; the bloom is staggered a touch per petal.
+    petals += '<g class="prot" style="transform:rotate(' + (i * 45) + 'deg)">'
+           +    '<ellipse class="petal" cx="50" cy="27" rx="10" ry="20"'
+           +      ' style="animation-delay:' + (120 + i * 70) + 'ms"/>'
+           +  '</g>';
+  }
+  return '<svg class="flower" viewBox="0 0 100 100" width="220" height="220" aria-hidden="true">'
+       +   petals
+       +   '<circle class="core" cx="50" cy="50" r="12"/>'
+       +   '<circle class="seed" cx="46" cy="49" r="2"/>'
+       +   '<circle class="seed" cx="53" cy="47" r="2"/>'
+       +   '<circle class="seed" cx="50" cy="53" r="2"/>'
+       + '</svg>';
+}
+var _bdayT = null;
+function clearBirthday(){
+  var o = document.getElementById('bday');
+  if(!o) return;
+  if(_bdayT){ clearTimeout(_bdayT); _bdayT = null; }
+  o.classList.add('out');
+  setTimeout(function(){ if(o.parentNode) o.parentNode.removeChild(o); }, 320);
+}
+function showBirthday(){
+  if(!isBirthday()) return;
+  if(document.getElementById('bday')) return;   // already up — do not stack
+  var o = document.createElement('div');
+  o.id = 'bday'; o.className = 'bday';
+  o.setAttribute('role', 'img');
+  o.setAttribute('aria-label', 'Happy birthday!');
+  o.innerHTML = flowerSVG() + '<p class="bday-msg" aria-hidden="true">Happy birthday!</p>';
+  document.body.appendChild(o);
+  say('Happy birthday! Have a wonderful day.');
+  o.addEventListener('click', clearBirthday);
+  _bdayT = setTimeout(clearBirthday, 7000);      // a safety net; a tap clears it sooner
+}
 // Has she already finished a sitting on this list today? Keyed to the list,
 // because a grown-up pasting this week's words has given her a new task, not
 // more of the one she just completed.
@@ -4664,7 +4746,10 @@ loadClips(); render(); },
   // The map: how far the outlines reach, and the one outline every word carries
   // — the dots on her word screen are the same shapes from the same function.
   ghostAhead: ghostAhead, ghostWords: function(){ return Object.keys(ghostWords()); },
-  cellPath: cellPath, dotShape: dotShape
+  cellPath: cellPath, dotShape: dotShape,
+  // Her birthday greeting — exposed so a test can drive it on any date (the boot
+  // auto-show is suppressed under automation, so this is how the suite reaches it).
+  isBirthday: isBirthday, showBirthday: showBirthday, clearBirthday: clearBirthday
 };
 
 /* ---- boot: she opens the app ---- */
@@ -4676,6 +4761,9 @@ loadClips();
    completed screen with the map, not a fresh load of words). The pebble is there if she still has
    an extra left. A grown-up switching lists gives her a new task, so finishedToday is per-list. */
 if(finishedToday() || !start()) render();
+/* A flower and a greeting on her birthday, over whatever screen she lands on.
+   Never under test automation, so the suite is untouched (see showBirthday). */
+if(isBirthday() && !navigator.webdriver) showBirthday();
 })();
 </script>
 </body>
