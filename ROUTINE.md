@@ -12,8 +12,8 @@ touch the trigger again. David can retune the work or the cadence by editing thi
 <!-- STATE — the routine reads these two values, and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: hourly
-last-run: 2026-08-05T09:32Z
+interval: 2h
+last-run: 2026-08-05T10:32Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -124,12 +124,13 @@ the child sees or hears uses it any more (13.31 dropped the underline, 13.33 dro
 parts on a miss); it survives only in the clip prefetch and the model-level research tests. A future
 tidy pass could tear it out — don't, without a reason.
 
-**Cadence note (09:32Z, 2026-08-05):** light pass — code frozen at 13.44 since this morning's
-full-green run (Playwright 589, break clean across 37 cases, sim in band: first-go inside target,
-all 8 bands held, learned 82.8%); working tree clean, no re-run needed on byte-identical code.
-Holding `hourly`: HOT because it's her birthday and David is live today (he confirmed the flower is
-keyed to 5 Aug each year). Will cool from tomorrow if he goes quiet. (Prior note 22:33Z 2026-08-03:
-cooled to weekly on frozen code — superseded when the birthday request came in and shipped 13.44.)
+**Cadence note (10:32Z, 2026-08-05):** the birthday flower (13.44) is shipped, confirmed by David
+(keyed to 5 Aug each year), and green — nothing open or actionable for me now. Code frozen since
+this morning's full-green run (Playwright 589, break clean across 37 cases, sim in band). Clean pass
+on frozen code → COOLING one step, `hourly → 2h`. This does not reduce responsiveness — a live
+message is answered at once and snaps the cadence straight back to `hourly`; it only spaces out the
+autonomous re-checks on unchanged code. (Prior note 09:32Z: held hourly right after the ship —
+superseded.)
 
 ---
 
