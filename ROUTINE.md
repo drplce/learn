@@ -12,8 +12,8 @@ touch the trigger again. David can retune the work or the cadence by editing thi
 <!-- STATE — the routine reads these two values, and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: daily
-last-run: 2026-08-05T12:33Z
+interval: weekly
+last-run: 2026-08-06T12:37Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -45,21 +45,20 @@ Never call `update_trigger` for cadence. The cadence lives here now. (The trigge
   FILE: correct anything stale (pacing numbers, scope, the NOT-NOW list, dates), fold in what has
   been learned, keep it tight. This file is the living document now — not the trigger prompt.
 
-**HOT (hourly) — David came back live on 2026-08-05: it's her birthday.** He asked for "a fun
-birthday message and maybe a little flower — just for the day". Shipped **13.44**: a once-a-year
-overlay above whatever screen she lands on — a coral flower (eight petals bloom staggered from a
-gold centre, drawn in inline SVG on the app's scales/easing) and "Happy birthday!", shown AND
-spoken (`say`), cleared by a tap or a ~7s safety timeout. Gated on the calendar day (`BIRTHDAY =
-'08-05'`, month-day) so it recurs every birthday and is invisible every other day — no dead date to
-remove. Auto-shown at boot only when `!navigator.webdriver`, so the whole Playwright suite is
-untouched by the fact that the real clock IS the day; the feature is reached in tests through the
-exposed `showBirthday()`/`isBirthday()`/`clearBirthday()`. New `tests/birthday.spec.js` (appears on
-the day + spoken, stays away otherwise, tap clears it, no double-stack); `scales.spec` and
-`shed-order` guards updated (flower sized in vw/vh not rem; the `.bday*` classes reached via a
-birthday sweep). All three harnesses green. **Open for David:** see it on her phone today. One
-choice flagged to him: it recurs every 5 Aug — say if he'd rather it were this year only.
+**Shipped and settled (13.44) — her birthday flower.** David came live on 2026-08-05 (her birthday)
+and asked for "a fun birthday message and maybe a little flower — just for the day". Shipped a
+once-a-year overlay above whatever screen she lands on: a coral flower (eight petals bloom staggered
+from a gold centre, inline SVG on the app's scales/easing) and "Happy birthday!", shown AND spoken
+(`say`), cleared by a tap or a ~7s safety timeout. Gated on the calendar day (`BIRTHDAY = '08-05'`,
+month-day) so it recurs every birthday and is invisible every other day — no dead date to remove;
+David confirmed 5 Aug each year is what he wants. Auto-shown at boot only when `!navigator.webdriver`,
+so the Playwright suite is untouched by the real clock being the day; reached in tests through the
+exposed `showBirthday()`/`isBirthday()`/`clearBirthday()`. `tests/birthday.spec.js` covers it;
+`scales.spec` + `shed-order` guards updated (flower in vw/vh not rem; `.bday*` classes reached via a
+birthday sweep). Verified on the 2026-08-06 daily pass that the gate correctly switched the flower
+OFF the day after. Nothing open here.
 
-**Also still open — all blocked on David, nothing actionable for me.** The whole 13.36–13.43 arc is
+**Still open — all blocked on David, nothing actionable for me.** The whole 13.36–13.43 arc is
 shipped, live on `main`, and green. What remains open there is David's reaction, not work waiting to
 be done.
 
@@ -124,11 +123,14 @@ the child sees or hears uses it any more (13.31 dropped the underline, 13.33 dro
 parts on a miss); it survives only in the clip prefetch and the model-level research tests. A future
 tidy pass could tear it out — don't, without a reason.
 
-**Cadence note (12:33Z, 2026-08-05):** second clean pass on frozen code since the birthday ship —
-13.44 still byte-identical to this morning's full-green run (Playwright 589, break clean across 37
-cases, sim in band). Nothing open (David confirmed the flower, quiet since). COOLING one step,
-`2h → daily` (the working baseline). A live message is still answered at once and snaps the cadence
-back to `hourly`. (Prior note 10:32Z: hourly → 2h — superseded.)
+**Cadence note (12:37Z, 2026-08-06):** full daily pass, first since the clock rolled past her
+birthday — a real verification the date-gated flower switches off cleanly. Playwright 589 pass (no
+flakes); break clean across 37 cases (case 31, the two-windows storage-merge race, flagged red once
+then clean on an isolated re-run — the standing two-windows timing flake, and 13.44 touches no
+storage); sim in band. Code frozen at 13.44, nothing open (all pending items wait on David). Clean
+pass → COOLING to the `weekly` floor and running this SELF-UPDATE (birthday moved from HOT to
+settled). A live message is answered at once and snaps the cadence back to `hourly`. (Prior note
+12:33Z 2026-08-05: cooled to daily — superseded.)
 
 ---
 
