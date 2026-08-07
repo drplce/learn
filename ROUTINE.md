@@ -12,8 +12,8 @@ touch the trigger again. David can retune the work or the cadence by editing thi
 <!-- STATE — the routine reads these two values, and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: weekly
-last-run: 2026-08-06T12:37Z
+interval: hourly
+last-run: 2026-08-07T16:33Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -44,6 +44,24 @@ Never call `update_trigger` for cadence. The cadence lives here now. (The trigge
 - **SELF-UPDATE.** When you cool to `weekly` (the calm steady state), before saving, revise THIS
   FILE: correct anything stale (pacing numbers, scope, the NOT-NOW list, dates), fold in what has
   been learned, keep it tight. This file is the living document now — not the trigger prompt.
+
+**HOT (hourly) — David live 2026-08-07 with a new idea: pebbles as "sheep".** His concept: on the
+finished/garden screen the word-pebbles wander gently like sheep; the ones not yet locked into memory
+are strays at the edges, and as a word locks in it folds into the herd that sticks around the centre —
+so there's more life/wandering on screen. My read (sent to him): it works AND it's meaningful because
+it maps straight onto real mastery data (Leitner box / due / overdue) — herd = high box, strays = low
+box or due/slipped, folding-in = a word climbing a box. It's a natural evolution of the pool prototype
+(`scratchpad/pool.html`, artifact f0a92335) which already has wander/bump/settle/creep-from-edge.
+Cautions I flagged: keep it to the FINISHED screen (never the still one-task word screen), respect
+reduced-motion (freeze to a still arrangement), amble slowly, and make a straying sheep feel
+*fetchable* not *failed*. I posed the one scope fork and am AWAITING his answer before building:
+  1. **living map she watches** — finished screen comes alive (herd centre / strays edge), no new
+     interaction; safe, high-delight, reuses the physics. (My recommendation to prototype first.)
+  2. **herding game she plays** — tapping/gathering a stray IS the way into practising it; bigger,
+     changes how she starts words, and the engine must still decide which strays are "loose" so she
+     can't dodge the hard ones.
+  **Do NOT build into the app; prototype only, and only on his go-ahead** (a cron firing is not his
+  answer). Next: when he replies, build the living-herd prototype (#1) as a standalone artifact.
 
 **Shipped and settled (13.44) — her birthday flower.** David came live on 2026-08-05 (her birthday)
 and asked for "a fun birthday message and maybe a little flower — just for the day". Shipped a
