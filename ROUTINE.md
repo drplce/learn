@@ -12,8 +12,8 @@ touch the trigger again. David can retune the work or the cadence by editing thi
 <!-- STATE — the routine reads these two values, and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: daily
-last-run: 2026-08-07T20:32Z
+interval: hourly
+last-run: 2026-08-08T04:23Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -45,7 +45,7 @@ Never call `update_trigger` for cadence. The cadence lives here now. (The trigge
   FILE: correct anything stale (pacing numbers, scope, the NOT-NOW list, dates), fold in what has
   been learned, keep it tight. This file is the living document now — not the trigger prompt.
 
-**HOT (hourly) — David live 2026-08-07 with a new idea: pebbles as "sheep".** His concept: on the
+**HOT (hourly) — the "sheep" idea; David chose #2, prototype built 2026-08-08.** His concept: on the
 finished/garden screen the word-pebbles wander gently like sheep; the ones not yet locked into memory
 are strays at the edges, and as a word locks in it folds into the herd that sticks around the centre —
 so there's more life/wandering on screen. My read (sent to him): it works AND it's meaningful because
@@ -56,12 +56,26 @@ Cautions I flagged: keep it to the FINISHED screen (never the still one-task wor
 reduced-motion (freeze to a still arrangement), amble slowly, and make a straying sheep feel
 *fetchable* not *failed*. I posed the one scope fork and am AWAITING his answer before building:
   1. **living map she watches** — finished screen comes alive (herd centre / strays edge), no new
-     interaction; safe, high-delight, reuses the physics. (My recommendation to prototype first.)
+     interaction; safe, high-delight, reuses the physics.
   2. **herding game she plays** — tapping/gathering a stray IS the way into practising it; bigger,
      changes how she starts words, and the engine must still decide which strays are "loose" so she
      can't dodge the hard ones.
-  **Do NOT build into the app; prototype only, and only on his go-ahead** (a cron firing is not his
-  answer). Next: when he replies, build the living-herd prototype (#1) as a standalone artifact.
+  **David chose #2 (2026-08-08), "but wanting to iterate to get there."** So the destination is the
+  game; the road there starts from the living herd. **PROTOTYPE BUILT + PUBLISHED** (2026-08-08):
+  `scratchpad/sheep.html`, artifact `744f2325-c7c7-406d-b23e-501757f0bfff`. It's the finished-screen
+  flock as a full-screen SVG: deep pebbles = the herd (known well) ambling loosely around the middle;
+  pale, outlined pebbles = strays (low box) wandering the edges, held there by a soft outward drift;
+  a slow per-sheep heading gives the amble. **The #2 taste:** tap a stray → it locks in (pale→deep),
+  trots into the herd, "strays out" counter ticks down. In the real game that tap is where she'd
+  spell the word; here it stands in for getting it right. Built on the pool prototype's ported blob
+  code + physics (`seeded`/`cellPoints`/`blobPath`, edge-repel, cohesion, collisions, 1:1 px
+  viewBox). Reduced-motion: no wander forces, it settles to a near-still arrangement. NOT in the app.
+  **Open for David:** feel the amble/weight on his phone; does the herd-vs-stray split read; is
+  tapping-to-gather the right verb. Iteration notes for when he reacts — (a) the flock drifts a touch
+  low-left over time (cohesion vs 30-body collisions); tighten the centre pull or clamp the herd
+  centroid if it bothers him. (b) next real step toward #2 is wiring the tap to open that word to
+  spell (an APP change — needs his explicit approval, do NOT build in without it). (c) which
+  network.spec invariant to relax still applies if any of this lands in the real finished screen.
 
 **Shipped and settled (13.44) — her birthday flower.** David came live on 2026-08-05 (her birthday)
 and asked for "a fun birthday message and maybe a little flower — just for the day". Shipped a
