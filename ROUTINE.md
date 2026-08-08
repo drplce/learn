@@ -13,7 +13,7 @@ touch the trigger again. David can retune the work or the cadence by editing thi
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: hourly
-last-run: 2026-08-08T04:41Z
+last-run: 2026-08-08T05:05Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -78,9 +78,17 @@ reduced-motion (freeze to a still arrangement), amble slowly, and make a strayin
   any moment most of the flock is still and only a few are moving. Longer graze, rarer/slower walks,
   looser herd (grazing room, less collision jostle), a fence-turn so they veer off the edge rather
   than push into it, and the gather sets a brief trot to the middle. Verified gentle (avg ~4px/s, no
-  darting), collect works, no errors; republished to the same artifact URL. Awaiting his reaction.
-  Iteration notes for when he reacts — (a) the earlier low-left drift is much reduced by the looser
-  herd; keep an eye on it. (b) next real step toward #2 is wiring the tap to open that word to
+  darting), collect works, no errors; republished to the same artifact URL.
+  **Iteration 3 (2026-08-08): strays weren't reading as "out", + "is the physics engine right for a
+  herd?" (David).** He was right — the pool/collision engine is wrong for a herd. Rebuilt on BOIDS:
+  the herd flocks (cohesion toward the flock's centre of mass + alignment to its average heading +
+  personal-space de-overlap); a STRAY is a sheep NOT in the flock — no cohesion/alignment, a soft
+  outward push keeps it out in the open field around the herd. Gathering a stray flips it to herd, so
+  it gains cohesion and flows in. Also halved the pebble size (r 10+len·1.0) for a bigger canvas.
+  Measured: compact herd (~56px spread), strays clearly out (nearest ~145px from the herd), motion
+  gentle (~4.7px/s), gather works, no errors. Republished to the same artifact URL. Awaiting reaction.
+  Iteration notes — (a) the earlier low-left drift is gone with the flocking centroid. (b) next real
+  step toward #2 is wiring the tap to open that word to
   spell (an APP change — needs his explicit approval, do NOT build in without it). (c) which
   network.spec invariant to relax still applies if any of this lands in the real finished screen.
 
