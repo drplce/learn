@@ -13,7 +13,7 @@ touch the trigger again. David can retune the work or the cadence by editing thi
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: hourly
-last-run: 2026-08-08T05:05Z
+last-run: 2026-08-08T05:35Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -86,9 +86,19 @@ reduced-motion (freeze to a still arrangement), amble slowly, and make a strayin
   outward push keeps it out in the open field around the herd. Gathering a stray flips it to herd, so
   it gains cohesion and flows in. Also halved the pebble size (r 10+len·1.0) for a bigger canvas.
   Measured: compact herd (~56px spread), strays clearly out (nearest ~145px from the herd), motion
-  gentle (~4.7px/s), gather works, no errors. Republished to the same artifact URL. Awaiting reaction.
-  Iteration notes — (a) the earlier low-left drift is gone with the flocking centroid. (b) next real
-  step toward #2 is wiring the tap to open that word to
+  gentle (~4.7px/s), gather works, no errors. Republished to the same artifact URL.
+  **Iteration 4 (2026-08-08): roaming herd + levels of stray (David).** Two asks: (1) the herd
+  shouldn't be anchored to the centre — "out of the HERD" is the meaning, not "out of the centre"; so
+  the flock now ROAMS as a body (a shared slowly-drifting `flockHead`, turned back from the walls),
+  and strays sit relative to the moving herd centroid, not the screen. (2) LEVELS of stray, from the
+  real word mechanic. Mapped to the Leitner boxes (confirmed KNOWN_BOX=5, MAX_BOX=7, acquiring=box<=1):
+  herd = box>=5 (deep), near-stray = box 3-4 (mid, hugs the flock at ~0.24·min), far-stray = box<=2
+  (pale+outline, out at the edge ~0.44·min). Two visible tiers, as he asked. Tap now promotes ONE
+  tier (far→near→herd), i.e. one Leitner box's worth of "got it right", so a far stray takes two taps
+  to come home — the levels made tangible. Verified: herd roams (~40px/4s), tiers distinct (near ~96px
+  / far ~170px from herd), motion calm (~8px/s), tiered gather works, no errors. Republished (same URL).
+  Awaiting reaction. Tuning knobs offered: roam pace, herd tightness, how far the far ring sits.
+  Iteration notes — next real step toward #2 is wiring the tap to open that word to
   spell (an APP change — needs his explicit approval, do NOT build in without it). (c) which
   network.spec invariant to relax still applies if any of this lands in the real finished screen.
 
