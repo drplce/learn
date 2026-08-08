@@ -13,7 +13,7 @@ touch the trigger again. David can retune the work or the cadence by editing thi
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: hourly
-last-run: 2026-08-08T04:23Z
+last-run: 2026-08-08T04:41Z
 ```
 
 The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
@@ -71,9 +71,16 @@ reduced-motion (freeze to a still arrangement), amble slowly, and make a strayin
   code + physics (`seeded`/`cellPoints`/`blobPath`, edge-repel, cohesion, collisions, 1:1 px
   viewBox). Reduced-motion: no wander forces, it settles to a near-still arrangement. NOT in the app.
   **Open for David:** feel the amble/weight on his phone; does the herd-vs-stray split read; is
-  tapping-to-gather the right verb. Iteration notes for when he reacts — (a) the flock drifts a touch
-  low-left over time (cohesion vs 30-body collisions); tighten the centre pull or clamp the herd
-  centroid if it bothers him. (b) next real step toward #2 is wiring the tap to open that word to
+  tapping-to-gather the right verb.
+  **Iteration 2 (2026-08-08): "move more sheeply rather than wobble" (David).** Replaced the
+  per-frame heading noise (the wobble) with a graze/walk rhythm: each sheep stands and grazes a good
+  while, then picks ONE heading and ambles a few steps, turning smoothly, then grazes again — so at
+  any moment most of the flock is still and only a few are moving. Longer graze, rarer/slower walks,
+  looser herd (grazing room, less collision jostle), a fence-turn so they veer off the edge rather
+  than push into it, and the gather sets a brief trot to the middle. Verified gentle (avg ~4px/s, no
+  darting), collect works, no errors; republished to the same artifact URL. Awaiting his reaction.
+  Iteration notes for when he reacts — (a) the earlier low-left drift is much reduced by the looser
+  herd; keep an eye on it. (b) next real step toward #2 is wiring the tap to open that word to
   spell (an APP change — needs his explicit approval, do NOT build in without it). (c) which
   network.spec invariant to relax still applies if any of this lands in the real finished screen.
 
