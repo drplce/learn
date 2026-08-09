@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-08T09:32Z
+last-run: 2026-08-09T17:10Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -185,14 +185,14 @@ the child sees or hears uses it any more (13.31 dropped the underline, 13.33 dro
 parts on a miss); it survives only in the clip prefetch and the model-level research tests. A future
 tidy pass could tear it out — don't, without a reason.
 
-**Cadence note (12:37Z, 2026-08-06):** full daily pass, first since the clock rolled past her
-birthday — a real verification the date-gated flower switches off cleanly. Playwright 589 pass (no
-flakes); break clean across 37 cases (case 31, the two-windows storage-merge race, flagged red once
-then clean on an isolated re-run — the standing two-windows timing flake, and 13.44 touches no
-storage); sim in band. Code frozen at 13.44, nothing open (all pending items wait on David). Clean
-pass → COOLING to the `weekly` floor and running this SELF-UPDATE (birthday moved from HOT to
-settled). A live message is answered at once and snaps the cadence back to `hourly`. (Prior note
-12:33Z 2026-08-05: cooled to daily — superseded.)
+**Cadence note (17:10Z, 2026-08-09):** FIRST pass on the new daily cron (David changed the trigger
+from hourly to daily at 17:00 UTC / 1:00am AWST — see §1). App frozen at 13.44; all three green —
+Playwright 589 (no flakes), break clean across 37 cases, sim in band (learned 83.5%, all 8 bands
+held). HOLDING `daily` rather than cooling to weekly: the sheep prototype is an open thread awaiting
+David's reaction (iterations 1–4, artifact 744f2325), which the ladder counts as "open". Active
+iteration with him is live/real-time; the cron is just the daily health check now. (Prior note
+12:37Z 2026-08-06: had cooled to weekly on frozen code with nothing open — superseded when the sheep
+thread opened and the cron moved to daily.)
 
 ---
 
