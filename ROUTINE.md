@@ -1,9 +1,10 @@
 # Acorn — autonomous routine
 
-This file is the standing instruction for the hourly trigger. The trigger fires **every hour**
-with one line ("Read ROUTINE.md and follow it") and never changes. Everything about *what* to do
-and *how often* lives here, version-controlled and editable as a normal file — so nobody has to
-touch the trigger again. David can retune the work or the cadence by editing this file.
+This file is the standing instruction for the daily trigger. The trigger fires **once a day at
+17:00 UTC (1:00am AWST, Perth)** with one line ("Read ROUTINE.md and follow it"). David changed it
+from hourly to daily on 2026-08-09. Everything about *what* to do and *how often* lives here,
+version-controlled and editable as a normal file. David can retune the work or the cadence by
+editing this file; he alone changes the trigger's schedule itself (the routine never touches it).
 
 ---
 
@@ -16,31 +17,35 @@ interval: daily
 last-run: 2026-08-08T09:32Z
 ```
 
-The trigger fires hourly, but you only do a **full pass** as often as `interval` says. On each
-firing:
+The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
+`weekly` interval most daily firings are skipped. On each firing:
 
 1. Read `interval` and `last-run` above. Run `date -u +"%Y-%m-%dT%H:%MZ"` for now.
-2. Hours per interval: `hourly`=1, `2h`=2, `daily`=24, `weekly`=168.
-3. **If less than that many hours have passed since `last-run`:** you are firing on an off-hour.
-   Say one line — `not due (interval=X, Nh since last run, next due ~HH:MMZ)` — and **end the
-   turn**. Do not run the harnesses, do not read the app, do not touch the repo or the trigger.
+2. Hours per interval: `daily`=24, `weekly`=168. (`hourly`/`2h` are retired — see the ladder.)
+3. **If less than that many hours have passed since `last-run`:** you are firing early (an
+   off-day). Say one line — `not due (interval=X, Nh since last run)` — and **end the turn**. Do
+   not run the harnesses, do not read the app, do not touch the repo or the trigger.
 4. **Otherwise you are due:** do a full pass (sections 3–7 below). At the **end** of the pass,
    set `last-run` to the current time, re-decide `interval` per the ladder (section 2), rewrite
    both STATE lines, and commit ROUTINE.md together with whatever else the pass changed.
 
-Never call `update_trigger` for cadence. The cadence lives here now. (The trigger stays hourly.)
+Never call `update_trigger` yourself. The cadence lives here now, and the trigger is a fixed daily
+pointer — only David changes its schedule (he set it to daily at 17:00 UTC on 2026-08-09).
 
 ---
 
 ## 2. CADENCE LADDER — how to set `interval` at the end of a pass
 
-- **HOT → `hourly`.** Set hourly whenever there is an open request from David (a new feature,
-  new words added to a list, a reported bug), OR this pass found or fixed a real defect. Stay
-  hourly while anything is open or defects keep turning up.
-- **COOLING → one step slower.** When a pass is clean — all three harnesses green, nothing
-  found, nothing open — step the interval ONE level slower: `hourly`→`2h`→`daily`→`weekly`.
-- **FLOOR.** `daily` is the working baseline; `weekly` is the calm floor. (The 2h
-  active-development floor ended 2026-07-31.)
+- **Baseline → `daily`.** The trigger fires daily, so `daily` means "check on every firing". Keep
+  it `daily` whenever there is an open thread with David (a new feature, new words, a reported bug,
+  a prototype awaiting his reaction) OR a pass found/fixed a defect — i.e. whenever a daily health
+  check still earns its keep.
+- **COOLING → `weekly`.** When a pass is clean — all three harnesses green, nothing found, nothing
+  open — and the code has been frozen a while, step to `weekly` (skip ~6 daily firings between
+  passes). Step back to `daily` the moment something opens.
+- **FLOOR.** `daily` is the working baseline; `weekly` is the calm floor. (The old sub-daily rungs
+  `hourly`/`2h` are retired — they needed the hourly trigger; active iteration with David now
+  happens live, in real time, not through the cron.)
 - **SELF-UPDATE.** When you cool to `weekly` (the calm steady state), before saving, revise THIS
   FILE: correct anything stale (pacing numbers, scope, the NOT-NOW list, dates), fold in what has
   been learned, keep it tight. This file is the living document now — not the trigger prompt.
