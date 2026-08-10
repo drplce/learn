@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-09T17:10Z
+last-run: 2026-08-10T17:13Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -185,14 +185,13 @@ the child sees or hears uses it any more (13.31 dropped the underline, 13.33 dro
 parts on a miss); it survives only in the clip prefetch and the model-level research tests. A future
 tidy pass could tear it out — don't, without a reason.
 
-**Cadence note (17:10Z, 2026-08-09):** FIRST pass on the new daily cron (David changed the trigger
-from hourly to daily at 17:00 UTC / 1:00am AWST — see §1). App frozen at 13.44; all three green —
-Playwright 589 (no flakes), break clean across 37 cases, sim in band (learned 83.5%, all 8 bands
-held). HOLDING `daily` rather than cooling to weekly: the sheep prototype is an open thread awaiting
-David's reaction (iterations 1–4, artifact 744f2325), which the ladder counts as "open". Active
-iteration with him is live/real-time; the cron is just the daily health check now. (Prior note
-12:37Z 2026-08-06: had cooled to weekly on frozen code with nothing open — superseded when the sheep
-thread opened and the cron moved to daily.)
+**Cadence note (17:13Z, 2026-08-10):** second clean pass on the daily cron. App frozen at 13.44;
+all three green — Playwright 589 (no flakes), break clean across 37 cases, sim in band (learned
+83.5%, all 8 bands held). Still HOLDING `daily`: the sheep prototype (iterations 1–4, artifact
+744f2325) is an open thread awaiting David — quiet ~2 days but genuinely his to react to. If he is
+still quiet at the next daily firing, COOL to `weekly` (the thread will be clearly dormant, and the
+app is stable/green). A live message snaps it back and is handled in real time regardless. (Prior
+note 17:10Z 2026-08-09: first daily-cron pass — superseded.)
 
 ---
 
