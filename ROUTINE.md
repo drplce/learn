@@ -79,8 +79,14 @@ reviews Acorn's index.html only); it's built live with David for now.
     liked the energy but wanted a gentler start ramping faster; done — early rounds now have fewer
     choices (3 orbs) and a slow rise, speed climbs each round (`0.16 + (round-1)·0.06`, capped),
     round-up cue "Round N — faster!". Republished (same artifact URL).
-  - **Still open with David (design):** how many rounds close out a level/session; the overall
-    dashboard (proposed a 12×12 grid heatmap that fills as she masters facts — literally *144*); and
+  - **Dashboard MOCK BUILT** (`scratchpad/grid.html`, artifact f4c30baf): the 12×12 grid (all 144
+    cells) filling as she masters facts, with a **Treasure ↔ Heatmap toggle** to answer David's "does
+    a heatmap work or is it not fun" — Treasure (dim→green→gold collection, never red) reads as a
+    reward; Heatmap (cold→warm two-colour) is clearer-for-a-grownup but muddy/report-like. Mock data
+    paints a believable mid-journey (easy tables gold, hard core 6/7/8/12 dim). Per-table % bars
+    below for the grown-up read. Progress "72 mastered · 102 known · 144".
+  - **Still open with David (design):** how many rounds close out a level/session (proposed: goal-
+    filled path-stones, ~2–3 min each, not a fixed count); and
     "how hard can the pace go" (answer: acquisition can be pushed to ~4–6 weeks, but durability is
     calendar-bound by spacing — front-load acquisition, extend reinforcement; ~80–85% success is the
     guardrail; frequency > duration).
