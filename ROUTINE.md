@@ -50,6 +50,35 @@ pointer — only David changes its schedule (he set it to daily at 17:00 UTC on 
   FILE: correct anything stale (pacing numbers, scope, the NOT-NOW list, dates), fold in what has
   been learned, keep it tight. This file is the living document now — not the trigger prompt.
 
+**NEW PROJECT (live, 2026-08-11) — a times-tables app, sibling to Acorn.** David wants a SECOND app
+for his daughter: multiplication tables, deliberately GAMIFIED / arcade-reward (the opposite of
+Acorn's calm — different subject, different needs). Agreed architecture: **same repo, its own
+subfolder + own URL + own home-screen icon** (e.g. `tables/`), Acorn's `index.html`/`ROUTINE.md`
+untouched; reuse Acorn's proven bones by COPYING (TTS, data-survival, tokens, blob art, test
+harness) — there's no runtime backend to share (all on-device). Two rules carry over: never her name
+in code, never an API key. **This times-tables app is OUT of the daily Acorn harness pass** (the cron
+reviews Acorn's index.html only); it's built live with David for now.
+  - **Pace agreed to design:** 144 facts, 142 days left in the year. Aggressive — ~70 days to learn
+    all, ~70 to cement. Reuse the Leitner engine (per-fact `{seen,right,wrong,lastSeen,box}` keyed
+    `"7x8"`, commutative pairs shared, ~80–85% success targeting). Phase 1 (acquisition, compressed
+    spacing, easy anchors ×2/×5/×10 first → hard core ×6/×7/×8 last); Phase 2 (fluency: expanding
+    `BOX_DAYS` intervals + a speed goal + interleaving).
+  - **Game direction:** "more games than casinoy". Five game ideas floated (Streak, Blast, Dash,
+    Table Bosses, Vault); five names (Nugget, Bolt, Comet, Zap, Pip). David picked **Blast** first
+    (easiest to build + juicy; I flagged Dash *feels* easy but is costly — running character + scroll).
+  - **Blast PROTOTYPE BUILT + PUBLISHED** (`scratchpad/blast.html`, artifact
+    82f248dc-8ca5-4b4e-8bc4-22328aac19aa): prompt `11 × 12`, answer-orbs rise, tap the right one →
+    coin burst + combo multiplier + jackpot every 5; wrong is kind ("not that one"); distractors are
+    real near-misses (144=12², 121=11², off-by-a-table). Coin/round/best-streak HUD. Verified: logic
+    works (coins scale with combo), no errors, dual-theme. Placeholder name "Nugget".
+  - **Also on the table:** a Duolingo-style **path of stones** (each stone = a lesson/cluster of
+    facts = the acquisition schedule made visible) AND a meta where **the games upgrade as she
+    progresses** (clear stones/tables → unlock faster waves, new modes, skins, the Prize Spin, boss
+    fights). Iterate the games around her as she plays.
+  - **Open for David:** react to the Blast feel; confirm name + the 70/70 pace shape; then I scaffold
+    the real `tables/` app (fact-engine + Blast playable + a first path). Do NOT scaffold into the app
+    without his go-ahead beyond the prototype.
+
 **HOT (hourly) — the "sheep" idea; David chose #2, prototype built 2026-08-08.** His concept: on the
 finished/garden screen the word-pebbles wander gently like sheep; the ones not yet locked into memory
 are strays at the edges, and as a word locks in it folds into the herd that sticks around the centre —
