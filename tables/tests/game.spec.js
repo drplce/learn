@@ -4,7 +4,7 @@
 // pays, a wrong answer never costs her anything, and nothing on screen ever calls
 // her wrong. Everything else is decoration.
 const {test, expect} = require('@playwright/test');
-const {open, errorsOf, answer, playStone, seed} = require('./helpers');
+const {open, errorsOf, answer, playLevel, seed} = require('./helpers');
 
 test.describe('opening it', () => {
 
@@ -13,7 +13,7 @@ test.describe('opening it', () => {
     await expect(page.locator('#home')).toHaveClass(/on/);
     // The first thing offered is the check, not a wall of tables.
     expect(await page.locator('#go').innerText()).toMatch(/what you know/i);
-    await expect(page.locator('#path .stone')).toHaveCount(1);
+    await expect(page.locator('#path .level')).toHaveCount(1);
     expect(errorsOf(page)).toEqual([]);
   });
 
@@ -22,12 +22,12 @@ test.describe('opening it', () => {
     const p = await page.evaluate(() => {
       const a = window.__144;
       return {
-        n: a.STONES.length,
+        n: a.LEVELS.length,
         order: a.TABLE_ORDER,
-        firstTable: a.STONES[0].table,
-        bosses: a.STONES.filter(s => s.kind === 'boss').length,
+        firstTable: a.LEVELS[0].table,
+        bosses: a.LEVELS.filter(s => s.kind === 'boss').length,
         // every one of the 78 real facts is introduced exactly once
-        introduced: a.STONES.filter(s => s.kind === 'learn')
+        introduced: a.LEVELS.filter(s => s.kind === 'learn')
                             .reduce((s, x) => s.concat(x.facts), []),
       };
     });
@@ -41,6 +41,77 @@ test.describe('opening it', () => {
 
 });
 
+test.describe('the look of it', () => {
+
+  test('the path carries no words at all — a level is a shape and a light', async ({page}) => {
+    await open(page);
+    await page.evaluate(() => { window.__144.state.prog.cleared = 6;
+      window.__144.state.prog.placed = true; window.__144.render(); });
+    await page.waitForTimeout(200);
+    const txt = (await page.locator('#path').innerText()).replace(/\s+/g, '');
+    expect(txt).toBe('');                              // not a label, not a number, nothing
+    // and it is still readable to something that cannot see: every node is named
+    const named = await page.evaluate(() => [...document.querySelectorAll('#path .level')]
+      .every(b => (b.getAttribute('aria-label') || '').length > 0));
+    expect(named).toBe(true);
+    expect(await page.locator('#path .level').count()).toBeGreaterThan(4);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
+  test('the path meanders instead of running straight down', async ({page}) => {
+    await open(page);
+    await page.evaluate(() => { window.__144.state.prog.cleared = 6;
+      window.__144.state.prog.placed = true; window.__144.render(); });
+    await page.waitForTimeout(200);
+    const xs = await page.evaluate(() => [...document.querySelectorAll('#path .level')]
+      .map(b => Math.round(b.getBoundingClientRect().left)));
+    expect(new Set(xs).size).toBeGreaterThan(2);       // not one column
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(60);
+    // and the wire is drawn through them
+    expect(await page.locator('#wire .seg').count()).toBeGreaterThan(3);
+  });
+
+  test('every bubble in a round is the same colour, and the colour changes as rounds climb', async ({page}) => {
+    await open(page);
+    await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
+    await page.click('#go');
+    await page.waitForTimeout(250);
+    const read = () => page.evaluate(() => {
+      const orbs = [...document.querySelectorAll('.orb')];
+      return {colours: [...new Set(orbs.map(o => getComputedStyle(o).borderTopColor))],
+              round: window.__144.sitting().round,
+              inside: getComputedStyle(orbs[0]).backgroundImage};
+    });
+    const r1 = await read();
+    // one colour for the whole round: colour can never hint at the right answer
+    expect(r1.colours.length).toBe(1);
+    // dark inside, lit outside — a ring, not a filled tile
+    expect(r1.inside).toMatch(/radial-gradient/);
+
+    for(let i = 0; i < 5; i++){ await answer(page, true); await page.waitForTimeout(280); }
+    const r2 = await read();
+    expect(r2.round).toBeGreaterThan(r1.round);
+    expect(r2.colours.length).toBe(1);                 // still one colour…
+    expect(r2.colours[0]).not.toBe(r1.colours[0]);     // …but a different one
+  });
+
+  test('the bubbles are round', async ({page}) => {
+    await open(page);
+    await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
+    await page.click('#go');
+    await page.waitForTimeout(250);
+    const s = await page.evaluate(() => {
+      const o = document.querySelector('.orb'), c = getComputedStyle(o);
+      const r = o.getBoundingClientRect();
+      return {radius: c.borderRadius, w: Math.round(r.width), h: Math.round(r.height)};
+    });
+    expect(s.radius).toMatch(/50%/);
+    expect(s.w).toBe(s.h);                             // a circle, not a rounded square
+    expect(s.w).toBeGreaterThanOrEqual(48);            // still a comfortable tap target
+  });
+
+});
+
 test.describe('the first-open check', () => {
 
   test('it asks each fact once — a miss moves on instead of asking again', async ({page}) => {
@@ -49,7 +120,7 @@ test.describe('the first-open check', () => {
     await page.waitForTimeout(150);
     const goal = await page.evaluate(() => window.__144.sitting().goal);
     // get every single one wrong: it must still end after exactly `goal` answers
-    const n = await playStone(page, {wrongEvery: 1});
+    const n = await playLevel(page, {wrongEvery: 1});
     expect(n).toBe(goal);
     expect(await page.evaluate(() => window.__144.state.prog.placed)).toBe(true);
     expect(errorsOf(page)).toEqual([]);
@@ -59,7 +130,7 @@ test.describe('the first-open check', () => {
     await open(page);
     await page.click('#go');
     await page.waitForTimeout(150);
-    await playStone(page);                                  // all correct
+    await playLevel(page);                                  // all correct
     const boxes = await page.evaluate(() =>
       Object.keys(window.__144.state.facts).map(k => window.__144.state.facts[k].box));
     expect(boxes.length).toBeGreaterThan(10);
@@ -71,7 +142,7 @@ test.describe('the first-open check', () => {
   test('the check is never the thing standing between her and playing', async ({page}) => {
     await open(page);
     const cue = await page.evaluate(() => {
-      window.__144.start(window.__144.placementStone());
+      window.__144.start(window.__144.placementLevel());
       return document.getElementById('cue').textContent;
     });
     expect(cue).toMatch(/nothing to get wrong/i);
@@ -79,21 +150,21 @@ test.describe('the first-open check', () => {
 
 });
 
-test.describe('playing a stone', () => {
+test.describe('playing a level', () => {
 
   test('clearing one moves her along the path and lights it up', async ({page}) => {
     await open(page);
     await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
-    const before = await page.evaluate(() => window.__144.stoneIndex());
+    const before = await page.evaluate(() => window.__144.levelIndex());
     await page.click('#go');
     await page.waitForTimeout(200);
-    await playStone(page);
+    await playLevel(page);
     await expect(page.locator('#clear')).toHaveClass(/on/);
-    const after = await page.evaluate(() => window.__144.stoneIndex());
+    const after = await page.evaluate(() => window.__144.levelIndex());
     expect(after).toBe(before + 1);
     await page.click('#clearHome');
     await page.waitForTimeout(300);
-    await expect(page.locator('#path .stone.done')).not.toHaveCount(0);
+    await expect(page.locator('#path .level.done')).not.toHaveCount(0);
     expect(errorsOf(page)).toEqual([]);
   });
 
@@ -160,7 +231,7 @@ test.describe('playing a stone', () => {
     await page.waitForTimeout(200);
     const early = await page.evaluate(() => document.querySelectorAll('.orb').length);
     expect(early).toBe(3);                             // fewer choices while she finds her feet
-    // The ramp has to arrive inside a single stone, so it steps every 4 answers.
+    // The ramp has to arrive inside a single level, so it steps every 4 answers.
     for(let i = 0; i < 5; i++){ await answer(page, true); await page.waitForTimeout(280); }
     const later = await page.evaluate(() => ({orbs: document.querySelectorAll('.orb').length,
       round: window.__144.sitting().round}));
@@ -205,14 +276,14 @@ test.describe('what the app remembers', () => {
     await open(page);
     await seed(page, {'6x7': {box: 5}});
     await page.evaluate(() => { window.__144.state.power.watts = 321;
-      window.__144.state.prog.cleared = 3; window.__144.state.buddy.shell = 'pink';
+      window.__144.state.prog.cleared = 3; window.__144.state.buddy.shell = 'magenta';
       window.__144.save(); });
     await page.reload();
     await page.waitForFunction(() => !!window.__144);
     const s = await page.evaluate(() => ({w: window.__144.state.power.watts,
       cleared: window.__144.state.prog.cleared, shell: window.__144.state.buddy.shell,
       box: window.__144.state.facts['6x7'].box}));
-    expect(s).toEqual({w: 321, cleared: 3, shell: 'pink', box: 5});
+    expect(s).toEqual({w: 321, cleared: 3, shell: 'magenta', box: 5});
   });
 
   test('junk in storage cannot brick it', async ({page}) => {
@@ -232,7 +303,7 @@ test.describe('what the app remembers', () => {
       expect(s.c).toBeGreaterThanOrEqual(0);
       expect(s.c).toBeLessThanOrEqual(100);
       expect(s.cleared).toBeGreaterThanOrEqual(0);
-      expect(s.shell).toBe('teal');                    // an offered colour, not whatever was stored
+      expect(s.shell).toBe('cyan');                    // an offered colour, not whatever was stored
       expect(s.keys).not.toContain('99x99');           // not a real fact
       expect(s.keys.every(k => /^([1-9]|1[0-2])x([1-9]|1[0-2])$/.test(k))).toBe(true);
     }
@@ -308,13 +379,13 @@ test.describe('her buddy and its power', () => {
     await open(page);
     await page.evaluate(() => window.__144.go('power'));
     await page.waitForTimeout(200);
-    await page.click('[data-shell="purple"]');
+    await page.click('[data-shell="violet"]');
     await page.waitForTimeout(200);
-    expect(await page.evaluate(() => window.__144.state.buddy.shell)).toBe('purple');
+    expect(await page.evaluate(() => window.__144.state.buddy.shell)).toBe('violet');
     await page.reload();
     await page.waitForFunction(() => !!window.__144);
     expect(await page.evaluate(() =>
-      getComputedStyle(document.documentElement).getPropertyValue('--shell').trim())).toBe('#b26bd8');
+      getComputedStyle(document.documentElement).getPropertyValue('--shell').trim())).toBe('#B15CFF');
   });
 
 });

@@ -27,8 +27,8 @@ function errorsOf(page){ return page.__errors || []; }
 async function answer(page, right){
   return page.evaluate(r => window.__144.answer(r), right !== false);
 }
-// Play the current stone to its goal. Returns how many answers it took.
-async function playStone(page, {wrongEvery = 0} = {}){
+// Play the current level to its goal. Returns how many answers it took.
+async function playLevel(page, {wrongEvery = 0} = {}){
   let n = 0;
   for(let guard = 0; guard < 120; guard++){
     const st = await page.evaluate(() => {
@@ -53,4 +53,4 @@ async function seed(page, facts){
     a.save(); a.render();
   }, facts);
 }
-module.exports = {APP, open, errorsOf, answer, playStone, seed};
+module.exports = {APP, open, errorsOf, answer, playLevel, seed};

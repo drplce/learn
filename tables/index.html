@@ -8,7 +8,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="144">
-<meta name="theme-color" content="#211E30">
+<meta name="theme-color" content="#0B0614">
 <meta name="description" content="Times tables, at speed.">
 <!-- Its own home-screen tile, next to this page. iOS needs a real opaque PNG
      (it composites transparency to black and applies its own rounded mask). -->
@@ -19,23 +19,32 @@
    deliberately opposite personality: Acorn is a quiet library, 144 is an
    arcade. Same maker's care, same never-blame rule, opposite energy.
 
-   Skin: "Neon Pop" — chunky tactile shapes (the clay extrude: a hard
-   0 5px 0 shadow under everything you can press) in electric colour on dark
-   slate. Everything is deliberately UNDER-dressed at level 1: the look, the
+   Skin: hard NEON on a near-black violet ground — a K-pop stage, not a toy
+   box. Answer bubbles are round, dark inside, ringed in light; every bubble in
+   a round wears the SAME colour (--rc) so colour can never hint at which one is
+   right, and the colour changes as the rounds climb. The path carries no words
+   at all. Everything is deliberately UNDER-dressed at level 1: the look, the
    sounds and the buddy all unlock richness as she climbs, so the game visibly
    gets better as she does.
    ========================================================================== */
 :root{
-  --bg:#211E30; --bg2:#2A2740; --bg3:#332F4A;
-  --ink:#F3EEFB; --ink-soft:#A79FC0; --line:rgba(167,159,192,.22);
+  /* Near-black violet ground so the neon has something to burn against. */
+  --bg:#0B0614; --bg2:#150C24; --bg3:#231539;
+  --ink:#F6F0FF; --ink-soft:#9C8CC4; --line:rgba(156,140,196,.26);
 
-  --teal:#1be3c6; --teal-d:#0c8f7c; --pink:#ff3d8b; --pink-d:#c31e66;
-  --yellow:#f4cf1f; --yellow-d:#cba713;
-  --watt:#4FE3FF; --watt-d:#1a94c4;          /* power: the currency */
-  --gold:#F4C445; --gold-d:#c79412;          /* mastery */
+  /* The neon set. One is chosen per round and every bubble in that round wears
+     it, so no answer can be told from another by its colour. */
+  --n-magenta:#FF2D95; --n-cyan:#22E6FF; --n-violet:#B15CFF;
+  --n-lime:#B4FF3A;    --n-gold:#FFC93A;
+  --rc:var(--n-magenta);                     /* the round's colour, set in JS */
+
+  --teal:#22E6FF; --teal-d:#0e7f9a; --pink:#FF2D95; --pink-d:#b3175f;
+  --yellow:#FFC93A; --yellow-d:#c4901a;
+  --watt:#22E6FF; --watt-d:#0e7f9a;          /* power: the currency */
+  --gold:#FFC93A; --gold-d:#c4901a;          /* mastery */
 
   /* the buddy's shell — she picks this */
-  --shell:#17c4ab; --shell-hi:#4ff5d8; --shell-lo:#0c8f7c;
+  --shell:#22E6FF; --shell-hi:#9DF6FF; --shell-lo:#0d7d97;
 
   --t-xs:.75rem; --t-sm:.875rem; --t-md:1rem; --t-lg:1.125rem; --t-xl:1.375rem;
   --t-2xl:1.75rem; --t-3xl:2.25rem; --t-4xl:3.25rem;
@@ -57,21 +66,28 @@ body{
 }
 button{font-family:inherit; color:inherit; border:0; background:none; padding:0; cursor:pointer;}
 
-#app{position:absolute; inset:0; display:flex; flex-direction:column;
+/* Two soft blooms burning in from the top corners — the stage lights. Cheap
+   (two gradients, no elements) and it stops the dark from reading as flat. */
+body::before{content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background:
+    radial-gradient(80% 55% at 8% -8%,  rgba(255,45,149,.22), transparent 70%),
+    radial-gradient(80% 55% at 96% -4%, rgba(34,230,255,.18), transparent 70%),
+    radial-gradient(120% 70% at 50% 108%, rgba(177,92,255,.16), transparent 72%);}
+#app{position:absolute; inset:0; display:flex; flex-direction:column; z-index:1;
      padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
 
 /* ---------- the HUD: power, charge, the buddy button ---------- */
 #hud{display:flex; align-items:center; gap:var(--s3); padding:var(--s3) var(--s4) var(--s2);}
 .watts{display:flex; align-items:center; gap:6px; font-size:var(--t-lg); font-weight:900;}
-.watts .n{color:var(--watt);}
-.bolt{width:17px; height:17px; background:var(--watt); flex:none;
-      box-shadow:0 0 10px rgba(79,227,255,.7);
+.watts .n{color:var(--n-cyan); text-shadow:0 0 12px color-mix(in srgb,var(--n-cyan) 70%, transparent);}
+.bolt{width:17px; height:17px; background:var(--n-cyan); flex:none;
+      filter:drop-shadow(0 0 7px var(--n-cyan));
       clip-path:polygon(58% 0,10% 55%,45% 55%,42% 100%,90% 42%,55% 42%);}
 #hud .grow{flex:1;}
 .hudbtn{width:var(--tap); height:var(--tap); border-radius:var(--r-md); background:var(--bg2);
         display:flex; align-items:center; justify-content:center; font-size:var(--t-lg);
-        box-shadow:0 3px 0 rgba(0,0,0,.35);}
-.hudbtn:active{transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.35);}
+        border:1.5px solid var(--line); box-shadow:inset 0 0 12px rgba(0,0,0,.5);}
+.hudbtn:active{transform:scale(.94);}
 
 /* the buddy button doubles as the charge gauge */
 #buddybtn{position:relative; width:52px; height:52px; border-radius:30%; overflow:hidden;
@@ -87,10 +103,10 @@ button{font-family:inherit; color:inherit; border:0; background:none; padding:0;
   background:#fff; filter:blur(.7px);}
 #buddybtn .beye.l{left:14px;} #buddybtn .beye.r{right:14px;}
 #chargewrap{flex:1; max-width:132px;}
-#chargebar{height:9px; border-radius:var(--r-pill); background:#100f18; overflow:hidden;
+#chargebar{height:9px; border-radius:var(--r-pill); background:#0a0512; overflow:hidden;
   box-shadow:inset 0 1px 3px rgba(0,0,0,.7);}
 #chargefill{height:100%; border-radius:var(--r-pill); width:100%;
-  background:linear-gradient(90deg,var(--watt-d),var(--watt)); box-shadow:0 0 10px rgba(79,227,255,.55);
+  background:linear-gradient(90deg,#0e7f9a,var(--n-cyan)); box-shadow:0 0 12px var(--n-cyan);
   transition:width var(--m-slow) var(--ease);}
 #chargetxt{font-size:10.5px; color:var(--ink-soft); font-weight:700; margin-top:3px;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
@@ -101,65 +117,92 @@ main{flex:1; position:relative; overflow:hidden;}
 .screen.on{display:flex;}
 .scroll{flex:1; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;}
 
-/* ---------- HOME: the path of stones (an electric circuit she lights up) ---------- */
-#path{padding:var(--s4) 0 var(--s6);}
-/* The wire runs down a fixed column and the nodes sit ON it, so the run of
-   stones reads as one circuit she is lighting up rather than a list. */
-.stone{position:relative; display:flex; align-items:center; gap:var(--s4);
-  padding:var(--s2) var(--s4) var(--s2) var(--s3); min-height:82px;}
-.stone .wire{position:absolute; left:calc(var(--s3) + 33px); top:0; bottom:0; width:5px; margin-left:-2.5px;
-  background:var(--bg3); z-index:0;}
-.stone.done .wire{background:linear-gradient(var(--gold),var(--gold-d)); box-shadow:0 0 10px rgba(244,196,69,.5);}
-.stone .node{position:relative; z-index:1; width:66px; height:66px; flex:none; border-radius:34%;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  background:var(--bg2); box-shadow:0 5px 0 rgba(0,0,0,.4); color:var(--ink-soft);}
-.stone .node .num{font-size:var(--t-lg); font-weight:900; line-height:1;}
-.stone .node .kind{font-size:9px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; opacity:.75;}
-.stone.done .node{background:linear-gradient(160deg,#ffe08a,var(--gold)); color:#4a3708;
-  box-shadow:0 5px 0 var(--gold-d), 0 0 18px rgba(244,196,69,.35);}
-.stone.now .node{background:linear-gradient(160deg,#4ff5d8,var(--teal)); color:#03302a;
-  box-shadow:0 5px 0 var(--teal-d), 0 0 22px rgba(30,230,200,.5);
-  animation:pop-in var(--m-breath) ease-in-out infinite;}
-.stone.boss .node{border-radius:26%;}
-.stone.boss.now .node{background:linear-gradient(160deg,#ff85b6,var(--pink)); box-shadow:0 5px 0 var(--pink-d), 0 0 22px rgba(255,61,139,.5); color:#3a041f;}
-.stone .lbl{flex:1; z-index:1; min-width:0;}
-.stone .lbl .t{display:block; font-size:var(--t-md); font-weight:800;}
-.stone .lbl .s{display:block; font-size:var(--t-xs); color:var(--ink-soft); font-weight:700;
-  margin-top:3px; line-height:1.4;}
-.stone.locked{opacity:.45;}
-.stone.now .lbl .t{color:var(--teal);}
-.stone .pack{z-index:1; font-size:22px; flex:none; filter:drop-shadow(0 3px 4px rgba(0,0,0,.5));}
+/* ---------- HOME: the path of levels — a neon wire she lights up ----------
+   It meanders down the screen and carries NO WORDS at all: a level's state is
+   its shape and its light, which a nine-year-old reads faster than a label. */
+#path{position:relative; width:100%;}
+#wire{position:absolute; inset:0; width:100%; height:100%; pointer-events:none;}
+#wire .glowseg{fill:none; stroke-linecap:round; stroke-width:12; opacity:.28;}
+#wire .glowseg.done{stroke:var(--n-gold); filter:blur(4px);}
+#wire .glowseg.todo{stroke:none;}
+#wire .seg{fill:none; stroke-linecap:round; stroke-width:4;}
+#wire .seg.todo{stroke:var(--bg3);}
+#wire .seg.done{stroke:var(--n-gold);}
+
+.level{position:absolute; width:64px; height:64px; margin:-32px 0 0 -32px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; padding:0;
+  background:radial-gradient(circle at 50% 40%, rgba(16,7,30,.92), #07030E 74%);
+  border:3px solid var(--bg3); box-shadow:inset 0 0 14px rgba(0,0,0,.6);}
+.level svg{width:24px; height:24px; display:block;}
+.level .nib{fill:var(--bg3);}
+/* cleared: a solid lit bead threaded on the wire */
+.level.done{border-color:#ffe9a8;
+  background:radial-gradient(circle at 50% 36%, #fff6d8, var(--n-gold) 60%, #b8830f);
+  box-shadow:0 0 16px var(--n-gold), 0 0 42px color-mix(in srgb, var(--n-gold) 45%, transparent);}
+.level.done .nib{fill:#7a5407;}
+/* where she is now: the brightest thing on the screen, and breathing */
+.level.now{border-color:var(--n-cyan); border-width:4px;
+  box-shadow:0 0 20px var(--n-cyan), 0 0 54px color-mix(in srgb, var(--n-cyan) 55%, transparent),
+    inset 0 0 22px color-mix(in srgb, var(--n-cyan) 28%, transparent);
+  animation:levelbreathe var(--m-breath) ease-in-out infinite;}
+.level.now .nib{fill:#fff; filter:drop-shadow(0 0 5px var(--n-cyan));}
+/* still ahead of her: there, but unlit */
+.level.locked{opacity:.72; border-color:#3a2560;}
+.level.locked .nib{fill:#4b3277;}
+/* a boss is bigger and wears the magenta */
+.level.boss{width:78px; height:78px; margin:-39px 0 0 -39px;}
+.level.boss svg{width:30px; height:30px;}
+.level.boss.now{border-color:var(--n-magenta);
+  box-shadow:0 0 22px var(--n-magenta), 0 0 58px color-mix(in srgb, var(--n-magenta) 55%, transparent),
+    inset 0 0 24px color-mix(in srgb, var(--n-magenta) 28%, transparent);}
+.level.boss.now .nib{fill:#fff; filter:drop-shadow(0 0 6px var(--n-magenta));}
+/* the reward markers hanging off the wire */
+.pack{position:absolute; width:28px; height:28px; margin:-14px 0 0 -14px; pointer-events:none;}
+.pack svg{width:100%; height:100%; filter:drop-shadow(0 0 7px var(--n-lime));}
+.pack .nib{fill:var(--n-lime);}
+@keyframes levelbreathe{0%,100%{transform:scale(1);} 50%{transform:scale(1.07);}}
 
 #gostrip{padding:var(--s3) var(--s4) var(--s4);}
 .bigbtn{display:block; width:100%; padding:var(--s4); border-radius:var(--r-lg);
-  font-size:var(--t-xl); font-weight:900; letter-spacing:.01em;
-  background:linear-gradient(var(--teal),#12b79e); color:#03302a;
-  box-shadow:0 6px 0 var(--teal-d), 0 0 26px rgba(30,230,200,.35);}
-.bigbtn:active{transform:translateY(3px); box-shadow:0 3px 0 var(--teal-d);}
-.bigbtn.pink{background:linear-gradient(var(--pink),#e02a76); color:#fff; box-shadow:0 6px 0 var(--pink-d), 0 0 26px rgba(255,61,139,.3);}
+  font-size:var(--t-xl); font-weight:900; letter-spacing:.02em; text-transform:uppercase;
+  color:#06121a; background:linear-gradient(180deg,#8CF3FF,var(--n-cyan) 55%,#12b6d6);
+  box-shadow:0 0 24px var(--n-cyan), 0 0 60px color-mix(in srgb,var(--n-cyan) 40%, transparent),
+    inset 0 -4px 10px rgba(0,40,60,.35), inset 0 4px 8px rgba(255,255,255,.5);}
+.bigbtn:active{transform:translateY(2px) scale(.995);}
+.bigbtn.pink{color:#fff; background:linear-gradient(180deg,#FF7ABC,var(--n-magenta) 55%,#c2136c);
+  box-shadow:0 0 24px var(--n-magenta), 0 0 60px color-mix(in srgb,var(--n-magenta) 40%, transparent),
+    inset 0 -4px 10px rgba(60,0,30,.35), inset 0 4px 8px rgba(255,255,255,.45);}
 .bigbtn small{display:block; font-size:var(--t-sm); font-weight:700; opacity:.8; margin-top:2px;}
 
 /* ---------- PLAY: Blast ---------- */
 #goal{padding:0 var(--s4); }
 #goalbar{height:8px; border-radius:var(--r-pill); background:var(--bg2); overflow:hidden;}
 #goalfill{height:100%; width:0%; border-radius:var(--r-pill);
-  background:linear-gradient(90deg,var(--teal),var(--gold)); transition:width var(--m-quick) var(--ease);}
-#combolbl{height:18px; text-align:center; font-size:var(--t-sm); font-weight:900; color:var(--gold);
-  letter-spacing:.05em; opacity:0; transition:opacity var(--m-quick);}
+  background:linear-gradient(90deg, color-mix(in srgb,var(--rc) 55%, #000), var(--rc));
+  box-shadow:0 0 10px var(--rc); transition:width var(--m-quick) var(--ease);}
+#combolbl{height:18px; text-align:center; font-size:var(--t-sm); font-weight:900; color:#fff;
+  letter-spacing:.09em; opacity:0; transition:opacity var(--m-quick);
+  text-shadow:0 0 10px var(--rc), 0 0 26px var(--rc);}
 #combolbl.on{opacity:1;}
 #prompt{text-align:center; font-weight:900; padding:var(--s2) 0 0;
-  font-size:clamp(2rem, 13vw, 3.4rem); line-height:1.05;}
-#prompt i{font-style:normal; opacity:.5; font-size:.5em; vertical-align:.12em;}
+  font-size:clamp(2rem, 13vw, 3.4rem); line-height:1.05; color:#fff;
+  text-shadow:0 0 12px var(--rc), 0 0 34px color-mix(in srgb, var(--rc) 60%, transparent);
+  transition:text-shadow var(--m-quick) var(--ease);}
+#prompt i{font-style:normal; opacity:.55; font-size:.5em; vertical-align:.12em; color:var(--rc);}
 #field{position:relative; flex:1; overflow:hidden; touch-action:manipulation;}
+/* A bubble is a lit ring with the dark inside showing through — and every bubble
+   in a round wears the SAME colour (--rc), so colour can never hint at which one
+   is right. The colour changes when the round does. */
 .orb{position:absolute; display:flex; align-items:center; justify-content:center;
-  width:74px; height:74px; margin:-37px 0 0 -37px; border-radius:30%;
-  font-size:var(--t-xl); font-weight:900; color:#03302a;
-  background:linear-gradient(var(--teal),#12b79e);
-  box-shadow:0 5px 0 var(--teal-d), 0 0 16px rgba(30,230,200,.3);
+  width:78px; height:78px; margin:-39px 0 0 -39px; border-radius:50%;
+  font-size:var(--t-xl); font-weight:900;
+  color:#fff; text-shadow:0 0 10px var(--rc), 0 0 22px color-mix(in srgb,var(--rc) 70%, transparent);
+  background:radial-gradient(circle at 50% 42%, rgba(14,6,26,.86), #07030E 72%);
+  border:3px solid var(--rc);
+  box-shadow:0 0 16px var(--rc),
+             0 0 44px color-mix(in srgb, var(--rc) 42%, transparent),
+             inset 0 0 22px color-mix(in srgb, var(--rc) 26%, transparent);
   will-change:transform;}
-.orb.b{background:linear-gradient(var(--pink),#e02a76); color:#3a041f; box-shadow:0 5px 0 var(--pink-d), 0 0 16px rgba(255,61,139,.3);}
-.orb.c{background:linear-gradient(var(--yellow),#e0bb15); color:#4a3d05; box-shadow:0 5px 0 var(--yellow-d), 0 0 16px rgba(244,207,31,.3);}
-.orb.d{background:linear-gradient(#9ad8ff,#4aa8e8); color:#04283a; box-shadow:0 5px 0 #2b7fb8, 0 0 16px rgba(120,190,255,.3);}
 .orb.pop{animation:orbpop .3s var(--ease) forwards;}
 .orb.bad{animation:orbbad .38s var(--ease);}
 @keyframes orbpop{to{transform:translate(var(--x),var(--y)) scale(1.55); opacity:0;}}
@@ -167,15 +210,15 @@ main{flex:1; position:relative; overflow:hidden;}
   25%{transform:translate(calc(var(--x) - 8px),var(--y));}
   75%{transform:translate(calc(var(--x) + 8px),var(--y));}}
 .spark{position:absolute; width:14px; height:14px; margin:-7px 0 0 -7px; pointer-events:none;
-  background:var(--watt); box-shadow:0 0 10px rgba(79,227,255,.9);
+  background:var(--rc); filter:drop-shadow(0 0 7px var(--rc));
   clip-path:polygon(58% 0,10% 55%,45% 55%,42% 100%,90% 42%,55% 42%); will-change:transform,opacity;}
 #flash{position:absolute; inset:0; pointer-events:none; opacity:0;
-  background:radial-gradient(circle at 50% 62%, rgba(79,227,255,.5), transparent 62%);}
+  background:radial-gradient(circle at 50% 62%, color-mix(in srgb,var(--rc) 45%, transparent), transparent 62%);}
 #flash.on{animation:flash .45s var(--ease);}
 @keyframes flash{0%{opacity:.55;} 100%{opacity:0;}}
 #jack{position:absolute; left:0; right:0; top:34%; text-align:center; pointer-events:none;
-  font-size:var(--t-3xl); font-weight:900; color:var(--gold); opacity:0;
-  text-shadow:0 3px 0 var(--gold-d);}
+  font-size:var(--t-3xl); font-weight:900; color:#fff; opacity:0; letter-spacing:.06em;
+  text-shadow:0 0 14px var(--n-gold), 0 0 40px var(--n-magenta), 0 0 70px var(--n-magenta);}
 #jack.on{animation:jackpop 1s var(--ease);}
 @keyframes jackpop{0%{opacity:0; transform:scale(.6);} 25%{opacity:1; transform:scale(1.1);}
   70%{opacity:1; transform:scale(1);} 100%{opacity:0; transform:scale(1.04) translateY(-14px);}}
@@ -184,12 +227,15 @@ main{flex:1; position:relative; overflow:hidden;}
 
 /* ---------- clear card ---------- */
 #clear{position:absolute; inset:0; display:none; flex-direction:column; align-items:center;
-  justify-content:center; gap:var(--s3); background:rgba(33,30,48,.96); z-index:5; padding:var(--s5);}
+  justify-content:center; gap:var(--s3); z-index:5; padding:var(--s5);
+  background:radial-gradient(90% 60% at 50% 40%, rgba(60,12,60,.96), rgba(11,6,20,.98));}
 #clear.on{display:flex;}
-#clear .big{font-size:var(--t-3xl); font-weight:900; color:var(--gold); text-align:center;}
+#clear .big{font-size:var(--t-3xl); font-weight:900; color:#fff; text-align:center; letter-spacing:.02em;
+  text-shadow:0 0 14px var(--n-gold), 0 0 44px var(--n-magenta);}
 #clear .row{display:flex; gap:var(--s5); margin:var(--s2) 0 var(--s3);}
 #clear .row div{text-align:center;}
-#clear .row .v{font-size:var(--t-2xl); font-weight:900; color:var(--watt);}
+#clear .row .v{font-size:var(--t-2xl); font-weight:900; color:var(--n-cyan);
+  text-shadow:0 0 12px color-mix(in srgb,var(--n-cyan) 70%, transparent);}
 #clear .row .k{font-size:var(--t-xs); color:var(--ink-soft); font-weight:700;}
 
 /* ---------- POWER ROOM: the buddy + her 144 grid ---------- */
@@ -234,10 +280,10 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
   font-size:9.5px; font-weight:800;}
 #grid .hd{color:var(--ink-soft); font-weight:900; font-size:10px;}
 #grid .lv0{background:var(--bg2); color:var(--ink-soft); opacity:.5;}
-#grid .lv1{background:#2b5c50; color:#cfeee4;}
-#grid .lv2{background:var(--teal); color:#03302a;}
-#grid .lv3{background:linear-gradient(160deg,#ffe08a,var(--gold)); color:#4a3708;
-  box-shadow:0 0 0 1px rgba(244,196,69,.45);}
+#grid .lv1{background:#2a1848; color:#c9b6ee;}
+#grid .lv2{background:#0f5d70; color:#c8f6ff; box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--n-cyan) 55%, transparent);}
+#grid .lv3{background:linear-gradient(160deg,#fff0bd,var(--n-gold)); color:#5a3f04;
+  box-shadow:0 0 8px color-mix(in srgb,var(--n-gold) 70%, transparent);}
 .legend{display:flex; flex-wrap:wrap; gap:var(--s3); margin-top:var(--s3);
   font-size:var(--t-xs); color:var(--ink-soft); font-weight:700;}
 .legend span{display:flex; align-items:center; gap:5px;}
@@ -250,13 +296,15 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 .tbl .n{width:26px; text-align:right; color:var(--ink-soft);}
 .tbl .bar{flex:1; height:8px; border-radius:var(--r-pill); background:var(--bg2); overflow:hidden;}
 .tbl .bar i{display:block; height:100%; border-radius:var(--r-pill);
-  background:linear-gradient(90deg,var(--teal),var(--gold));}
+  background:linear-gradient(90deg,var(--n-cyan),var(--n-gold)); box-shadow:0 0 8px color-mix(in srgb,var(--n-cyan) 45%, transparent);}
 .tbl .p{width:34px; color:var(--ink-soft);}
 
 /* ---------- toast ---------- */
 #toast{position:absolute; left:50%; bottom:calc(var(--s5) + env(safe-area-inset-bottom));
   transform:translateX(-50%); padding:var(--s3) var(--s4); border-radius:var(--r-md);
-  background:var(--ink); color:var(--bg); font-size:var(--t-sm); font-weight:800; z-index:30;
+  background:var(--bg2); color:var(--ink); border:1.5px solid var(--n-cyan);
+  box-shadow:0 0 18px color-mix(in srgb,var(--n-cyan) 45%, transparent);
+  font-size:var(--t-sm); font-weight:800; z-index:30;
   opacity:0; pointer-events:none; transition:opacity var(--m-quick) var(--ease); max-width:86vw; text-align:center;}
 #toast.on{opacity:.97;}
 
@@ -341,9 +389,9 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
         <div id="grid"></div>
         <div class="legend">
           <span><i style="background:var(--bg2);opacity:.5"></i>not yet</span>
-          <span><i style="background:#2b5c50"></i>learning</span>
-          <span><i style="background:var(--teal)"></i>known</span>
-          <span><i style="background:linear-gradient(160deg,#ffe08a,var(--gold))"></i>mastered</span>
+          <span><i style="background:#2a1848"></i>learning</span>
+          <span><i style="background:#0f5d70"></i>known</span>
+          <span><i style="background:linear-gradient(160deg,#fff0bd,var(--n-gold))"></i>mastered</span>
         </div>
 
         <h3 class="sec">by table</h3>
@@ -361,7 +409,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.0';
+var VERSION = '1.1';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -395,16 +443,16 @@ var MAX_BOX = 7, KNOWN_BOX = 5;
    ========================================================= */
 var KEY = '144.v1';
 var SHELLS = [
-  {id:'teal',   c:'#17c4ab', hi:'#4ff5d8', lo:'#0c8f7c'},
-  {id:'pink',   c:'#ff3d8b', hi:'#ff85b6', lo:'#c31e66'},
-  {id:'yellow', c:'#f4cf1f', hi:'#ffe98a', lo:'#c9a10c'},
-  {id:'blue',   c:'#4f8fe0', hi:'#9cc4f5', lo:'#2b62ab'},
-  {id:'purple', c:'#b26bd8', hi:'#dcaef0', lo:'#7e3fa6'}
+  {id:'cyan',   c:'#22E6FF', hi:'#9DF6FF', lo:'#0d7d97'},
+  {id:'magenta',c:'#FF2D95', hi:'#FF8DC4', lo:'#a8135f'},
+  {id:'violet', c:'#B15CFF', hi:'#DCB4FF', lo:'#6d2bb0'},
+  {id:'lime',   c:'#B4FF3A', hi:'#DDFF9B', lo:'#6f9e12'},
+  {id:'gold',   c:'#FFC93A', hi:'#FFE79B', lo:'#b5860c'}
 ];
 var S;
 function fresh(){
   return {
-    buddy:{name:'', shell:'teal'},
+    buddy:{name:'', shell:'cyan'},
     facts:bare(null),
     power:{watts:0, charge:100, at:Date.now()},
     prog:{cleared:0, placed:false, startedOn:todayISO(), lastDay:'', sessions:0, days:0},
@@ -475,7 +523,7 @@ function metCount(){ var n=0; for(var k in S.facts) if(S.facts[k].seen>0) n++; r
    exactly the right shape. Every table ends in a boss.
    ========================================================= */
 var TABLE_ORDER = [2,5,10,1,11,3,4,9,6,7,8,12];
-var STONES = (function(){
+var LEVELS = (function(){
   var seen = {}, out = [];
   TABLE_ORDER.forEach(function(t){
     var news = [];
@@ -492,18 +540,18 @@ function goalOf(st){
   if(st.kind==='learn') return st.facts.length*2;            // each one, twice
   return st.kind==='boss' ? 15 : 12;
 }
-function stoneLabel(st){
+function levelLabel(st){
   if(st.kind==='placement') return {t:'What do you know?', s:'a quick look — nothing to get wrong'};
   if(st.kind==='learn') return {t:st.table+'× · new facts', s:st.facts.map(pretty).join('  ')};
   if(st.kind==='mix')   return {t:st.table+'× · mix it up', s:'everything so far, jumbled'};
   return {t:st.table+'× BOSS', s:'the whole table, no help'};
 }
 function pretty(k){ var p=k.split('x'); return p[0]+'×'+p[1]; }
-function stoneIndex(){ return Math.min(S.prog.cleared, STONES.length-1); }
+function levelIndex(){ return Math.min(S.prog.cleared, LEVELS.length-1); }
 
 /* The placement round: one fact from every table plus the classic hard ones,
    so ten minutes of her actual knowledge replaces a guess about it. */
-function placementStone(){
+function placementLevel(){
   var f = [key(2,6),key(5,7),key(10,8),key(3,4),key(11,9),key(4,7),
            key(6,7),key(7,8),key(8,9),key(6,8),key(7,9),key(12,12),key(9,9),key(6,9)];
   return {kind:'placement', table:0, facts:f};
@@ -676,36 +724,74 @@ function renderHud(){
   el('#buddybtn').style.opacity = 0.55 + Math.min(0.45, S.power.charge/100*0.45);
 }
 
-/* ---------- home: the path ---------- */
+/* ---------- home: the path ----------
+   Drawn in real pixels rather than laid out by the flow, because the wire has to
+   pass exactly through the middle of every level and a meander cannot be
+   expressed in a stack of rows. Nodes carry no text: a dot for done, a play
+   triangle for here, a small ring for what is still ahead. */
+var ROW = 88, MEANDER = 0.28, WAVE = 0.62;
+function levelXY(i, w){
+  return {x: w/2 + Math.sin(i*WAVE)*(w*MEANDER), y: 54 + i*ROW};
+}
+var NIB = {
+  done: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle class="nib" cx="12" cy="12" r="6"/></svg>',
+  now:  '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="nib" d="M8 5.2 19 12 8 18.8Z"/></svg>',
+  lock: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle class="nib" cx="12" cy="12" r="4.6"/></svg>',
+  boss: '<svg viewBox="0 0 30 30" aria-hidden="true"><path class="nib" d="M15 3.5 18.6 11l8.2 1-6 5.8 1.5 8.1L15 22l-7.3 3.9 1.5-8.1-6-5.8 8.2-1Z"/></svg>',
+  pack: '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="nib" d="M14 2 5 13.4h5.3L9.4 22 19 10.2h-5.4Z"/></svg>'
+};
 function renderHome(){
-  var idx = stoneIndex(), html='', from=Math.max(0, idx-4), to=Math.min(STONES.length, idx+9);
-  if(!S.prog.placed){
-    var pl=stoneLabel(placementStone());
-    html += '<div class="stone now"><span class="wire"></span>'
-         +  '<span class="node"><span class="num">?</span><span class="kind">start</span></span>'
-         +  '<span class="lbl"><span class="t">'+esc(pl.t)+'</span><span class="s">'+esc(pl.s)+'</span></span></div>';
-  } else {
-    for(var i=from;i<to;i++){
-      var st=STONES[i], lb=stoneLabel(st);
-      var cls = i<idx ? 'done' : i===idx ? 'now' : 'locked';
-      var pack = (i>0 && (i+1)%5===0) ? '<span class="pack">🔋</span>' : '';
-      html += '<div class="stone '+cls+' '+st.kind+'"><span class="wire"></span>'
-           +  '<span class="node"><span class="num">'+(i<idx?'★':(i+1))+'</span>'
-           +  '<span class="kind">'+(st.kind==='learn'?'new':st.kind==='mix'?'mix':'boss')+'</span></span>'
-           +  '<span class="lbl"><span class="t">'+esc(lb.t)+'</span><span class="s">'+esc(lb.s)+'</span></span>'
-           +  pack+'</div>';
-    }
+  var host = el('#path');
+  var w = host.clientWidth || el('#home').clientWidth || 360;
+  var idx = levelIndex();
+  var from, to, nodes;
+  if(!S.prog.placed){ from = 0; to = 1; nodes = [{kind:'placement', state:'now'}]; }
+  else {
+    from = Math.max(0, idx-3); to = Math.min(LEVELS.length, idx+10);
+    nodes = [];
+    for(var i=from;i<to;i++) nodes.push({kind:LEVELS[i].kind, state: i<idx?'done':i===idx?'now':'locked', i:i});
   }
-  el('#path').innerHTML = html;
+  var n = nodes.length;
+  host.style.height = (54 + (n-1)*ROW + 80) + 'px';
+
+  // the wire: one segment per gap, so each can be lit or dark on its own
+  var segs='';
+  for(var s=0;s<n-1;s++){
+    var a=levelXY(s,w), b2=levelXY(s+1,w), my=(a.y+b2.y)/2;
+    // a cubic with horizontal-ish control points reads as a lazy S rather than a kink
+    var d='M'+a.x.toFixed(1)+' '+a.y.toFixed(1)
+        +'C'+a.x.toFixed(1)+' '+my.toFixed(1)+' '+b2.x.toFixed(1)+' '+my.toFixed(1)
+        +' '+b2.x.toFixed(1)+' '+b2.y.toFixed(1);
+    var lit = nodes[s].state==='done' && nodes[s+1].state!=='locked' ? 'done' : 'todo';
+    segs += '<path class="glowseg '+lit+'" d="'+d+'"/><path class="seg '+lit+'" d="'+d+'"/>';
+  }
+  var html = '<svg id="wire" aria-hidden="true">'+segs+'</svg>';
+
+  nodes.forEach(function(nd, k){
+    var p = levelXY(k, w), boss = nd.kind==='boss';
+    var nib = nd.state==='done' ? NIB.done : nd.state==='now' ? (boss?NIB.boss:NIB.now)
+                                           : (boss?NIB.boss:NIB.lock);
+    var label = nd.state==='now' ? 'Play this level' : nd.state==='done' ? 'Level done' : 'Level to come';
+    html += '<button class="level '+nd.state+(boss?' boss':'')+'" '
+         +  (nd.state==='now' ? 'id="nowlevel" ' : 'disabled ')
+         +  'style="left:'+p.x.toFixed(1)+'px; top:'+p.y.toFixed(1)+'px" '
+         +  'aria-label="'+label+'">'+nib+'</button>';
+    // a power pack hanging off the wire every fifth level
+    if(nd.i !== undefined && (nd.i+1)%5===0){
+      html += '<span class="pack" style="left:'+(p.x + (Math.sin(k*WAVE)>0?-46:46)).toFixed(1)
+           +  'px; top:'+(p.y-4).toFixed(1)+'px">'+NIB.pack+'</span>';
+    }
+  });
+  host.innerHTML = html;
+
   var b=el('#go');
   if(!S.prog.placed){ b.innerHTML='⚡ Let’s see what you know<small>about two minutes</small>'; b.className='bigbtn'; }
   else {
-    var st=STONES[stoneIndex()], lb=stoneLabel(st);
-    b.innerHTML = (st.kind==='boss'?'👑 ':'⚡ ')+'Play<small>'+esc(lb.t)+'</small>';
+    var st=LEVELS[idx];
+    b.innerHTML = (st.kind==='boss' ? '👑 Boss' : '⚡ Play')+'<small>'+st.table+'×</small>';
     b.className = 'bigbtn'+(st.kind==='boss'?' pink':'');
   }
-  // keep the current stone in view
-  var now=el('#path .stone.now');
+  var now=el('#path .level.now');
   if(now && now.scrollIntoView) try{ now.scrollIntoView({block:'center'}); }catch(e){}
 }
 
@@ -760,11 +846,21 @@ function renderPower(){
    ========================================================= */
 var FW=0, FH=0, orbs=[], raf=null;
 function fieldSize(){ var r=el('#field').getBoundingClientRect(); FW=r.width; FH=r.height; }
+
+/* One neon per round, worn by every bubble in it. Two answers can never be told
+   apart by colour — only by the number on them — and the whole stage changes hue
+   as she climbs, which is most of what makes the rounds feel like they escalate. */
+var ROUND_COLOURS = ['--n-magenta','--n-cyan','--n-violet','--n-lime','--n-gold'];
+function paintRound(){
+  var v = getComputedStyle(document.documentElement)
+            .getPropertyValue(ROUND_COLOURS[(W.round-1) % ROUND_COLOURS.length]).trim();
+  document.documentElement.style.setProperty('--rc', v);
+}
 var reduce=false;
 try{ reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
 
-function start(stone){
-  W = {stone:stone, pool:stone.facts.slice(), done:0, goal:goalOf(stone),
+function start(level){
+  W = {level:level, pool:level.facts.slice(), done:0, goal:goalOf(level),
        combo:0, best:0, round:1, watts:0, charge:0, per:bare(null), asked:0, cur:null};
   el('#clear').classList.remove('on');
   screen='play'; render();
@@ -773,8 +869,9 @@ function start(stone){
   if(!raf) raf=requestAnimationFrame(frame);
 }
 function next(){
+  paintRound();
   orbs.forEach(function(o){ if(o.el.parentNode) o.el.remove(); }); orbs=[];
-  var st=W.stone;
+  var st=W.level;
   var pool;
   if(st.kind==='placement')   pool = st.facts.filter(function(k){ return !W.per[k]; });   // one look each
   else if(st.kind==='learn')  pool = st.facts.filter(function(k){ return (W.per[k]||0) < 2; });
@@ -792,11 +889,11 @@ function next(){
   var nOpt = W.round<2 ? 3 : 4;
   var vals = distractors(a,b,nOpt-1).concat([a*b]);
   for(var i=vals.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var tmp=vals[i]; vals[i]=vals[j]; vals[j]=tmp; }
-  var pad=52, gap=(FW-pad*2)/Math.max(1,(vals.length-1)), cls=['','b','c','d'];
+  var pad=52, gap=(FW-pad*2)/Math.max(1,(vals.length-1));
   var speed = reduce ? 0 : Math.min(0.95, 0.16+(W.round-1)*0.07) + Math.min(W.combo,12)*0.008;
   vals.forEach(function(v,i){
-    var e=document.createElement('div'); e.className='orb '+cls[i%4]; e.textContent=v;
-    var x=pad+gap*i+(Math.random()*20-10), y=FH*0.72+Math.random()*(FH*0.22);
+    var e=document.createElement('div'); e.className='orb'; e.textContent=v;
+    var x=pad+gap*i+(Math.random()*20-10), y=FH*0.60+Math.random()*(FH*0.26);
     e.style.setProperty('--x', x+'px'); e.style.setProperty('--y', y+'px');
     e.style.transform='translate('+x+'px,'+y+'px)';
     el('#field').appendChild(e);
@@ -804,7 +901,7 @@ function next(){
     e.addEventListener('pointerdown', function(ev){ ev.preventDefault(); tap(o); });
     orbs.push(o);
   });
-  el('#cue').textContent = W.stone.kind==='placement' ? 'just have a go — nothing to get wrong here' : '';
+  el('#cue').textContent = W.level.kind==='placement' ? 'just have a go — nothing to get wrong here' : '';
   paintGoal();
 }
 function frame(){
@@ -831,7 +928,7 @@ function paintCombo(){
 }
 function tap(o){
   if(!W || o.dead) return;
-  var placing = W.stone.kind==='placement';
+  var placing = W.level.kind==='placement';
   if(o.ok){
     o.dead=true; o.el.classList.add('pop');
     record(W.cur.k, true, placing);
@@ -844,9 +941,9 @@ function tap(o){
     sparks(o.x, o.y, 5+mult*2);
     paintCombo(); paintGoal(); renderHud();
     if(W.combo>0 && W.combo%5===0) jackpot();
-    if(W.asked%4===0){ W.round++; el('#cue').textContent='Round '+W.round+' — faster! ⚡'; sfxTick(); }
+    if(W.asked%4===0){ W.round++; paintRound(); el('#cue').textContent='Round '+W.round+' — faster! ⚡'; sfxTick(); }
     else el('#cue').textContent = pick(['Nice!','Boom!','Yes!','Pow!','Got it!']);
-    if(W.done>=W.goal){ setTimeout(clearStone, 420); return; }
+    if(W.done>=W.goal){ setTimeout(clearLevel, 420); return; }
     setTimeout(next, 260);
   } else {
     o.el.classList.add('bad'); setTimeout(function(){ o.el.classList.remove('bad'); }, 380);
@@ -857,7 +954,7 @@ function tap(o){
       // cannot do yet must not turn into being asked it again and again.
       W.per[W.cur.k]=(W.per[W.cur.k]||0)+1; W.done++; W.asked++; paintGoal();
       el('#cue').textContent = 'no worries — that one goes on the list';
-      if(W.done>=W.goal){ setTimeout(clearStone, 500); save(); return; }
+      if(W.done>=W.goal){ setTimeout(clearLevel, 500); save(); return; }
       setTimeout(next, 750);
     } else {
       el('#cue').textContent = 'not that one — have another look';
@@ -886,15 +983,15 @@ function jackpot(){
   var j=el('#jack'); j.classList.remove('on'); void j.offsetWidth; j.classList.add('on');
   addWatts(5); W.watts+=5; sfxJack(); sparks(FW/2, FH*0.42, 14); renderHud();
 }
-function clearStone(){
-  var wasPlacement = W.stone.kind==='placement';
+function clearLevel(){
+  var wasPlacement = W.level.kind==='placement';
   addWatts(25); W.watts+=25; addCharge(15); W.charge+=15;
   if(wasPlacement){
     S.prog.placed = true;
     // Skip ahead past the tables she already owns: the first stone that still
     // has something to teach her is where she starts.
     var i=0;
-    while(i<STONES.length-1 && STONES[i].facts.every(function(k){ var f=S.facts[k]; return f && f.box>=4; })) i++;
+    while(i<LEVELS.length-1 && LEVELS[i].facts.every(function(k){ var f=S.facts[k]; return f && f.box>=4; })) i++;
     S.prog.cleared = i;
   } else {
     S.prog.cleared++;
@@ -905,7 +1002,7 @@ function clearStone(){
   sfxClear(); save();
 
   el('#clearBig').textContent = wasPlacement ? 'Great — now we know!' :
-    (W.stone.kind==='boss' ? '👑 '+W.stone.table+'× conquered!' : 'Stone cleared!');
+    (W.level.kind==='boss' ? '👑 '+W.level.table+'× conquered!' : 'Level cleared!');
   el('#clearWatts').textContent = W.watts;
   el('#clearCharge').textContent = Math.min(100,Math.round(W.charge))+'%';
   el('#clear').classList.add('on');
@@ -924,10 +1021,11 @@ document.addEventListener('pointerdown', unlock, {once:false});
 
 document.addEventListener('click', function(ev){
   var t=ev.target, hit;
-  if(t.closest('#go')){ start(S.prog.placed ? STONES[stoneIndex()] : placementStone()); return; }
+  if(t.closest('#go') || t.closest('#nowlevel')){
+    start(S.prog.placed ? LEVELS[levelIndex()] : placementLevel()); return; }
   if(t.closest('#buddybtn')){ go('power'); return; }
   if(t.closest('#backHome') || t.closest('#clearHome')){ el('#clear').classList.remove('on'); go('home'); return; }
-  if(t.closest('#clearOn')){ start(STONES[stoneIndex()]); return; }
+  if(t.closest('#clearOn')){ start(LEVELS[levelIndex()]); return; }
   if(t.closest('#soundbtn')){ S.set.sound=!S.set.sound; save(); renderHud();
     if(S.set.sound) sfxRight(0); return; }
   if((hit=t.closest('[data-shell]'))){ S.buddy.shell=hit.dataset.shell; save(); renderPower(); renderHud(); sfxTick(); return; }
@@ -942,7 +1040,10 @@ el('#nameinput').addEventListener('keydown', function(e){ if(e.key==='Enter') th
 el('#nameinput').addEventListener('blur', function(){
   S.buddy.name=this.value.slice(0,14); save(); this.classList.remove('on'); renderPower(); });
 
-addEventListener('resize', function(){ if(screen==='play') fieldSize(); });
+addEventListener('resize', function(){
+  if(screen==='play') fieldSize();
+  if(screen==='home') renderHome();          // the wire is drawn in real pixels
+});
 document.addEventListener('visibilitychange', function(){
   if(!document.hidden){ settleCharge(); save(); renderHud(); if(screen==='power') renderPower(); }
 });
@@ -954,7 +1055,7 @@ window.__144 = {
   save:save, load:load, sane:sane,
   setToday:function(d){ _today=d; render(); },
   todayISO:todayISO, dayDiff:dayDiff, key:key, distractors:distractors, pickFact:pickFact,
-  STONES:STONES, stoneIndex:stoneIndex, goalOf:goalOf, placementStone:placementStone,
+  LEVELS:LEVELS, levelIndex:levelIndex, goalOf:goalOf, placementLevel:placementLevel,
   TABLE_ORDER:TABLE_ORDER, BOX_DAYS:BOX_DAYS, KNOWN_BOX:KNOWN_BOX,
   wakingHoursBetween:wakingHoursBetween, settleCharge:settleCharge, buddyStage:buddyStage,
   level:level, metCount:metCount,

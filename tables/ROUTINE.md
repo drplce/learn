@@ -41,9 +41,22 @@ an hour**:
 - `trig_01HefKdLo17wPJx3S21fN94N` — the temporary offset twin, at **:35** past each hour
 
 **Sprint rules (they matter — nobody is watching):**
-- **Tests and robustness ONLY.** Work section 5's numbered queue in order. No new features, no
-  visual redesign, no product or design decisions, no changes to how the game *feels* — those are
-  David's calls and he is asleep. Bug fixes are in scope; taste changes are not.
+- **Tests, robustness, and the VISUAL BRIEF below.** David added the brief at 17:45Z and said
+  *"Happy for you to take the lead… Continue, don't stop and I'll review in the morning"* — so the
+  neon restyle IS authorised work this sprint, alongside section 5's queue. Everything else still
+  needs him: no new game modes, no new features, no changes to the engine's pace or the reward
+  economy, nothing that changes what she is being taught.
+
+**🎨 VISUAL BRIEF (David, 2026-08-11 17:45Z) — "push a little more neon, KPop Demon Hunters":**
+- Hard neon stage look: near-black violet ground, saturated magenta / cyan / violet / lime / gold,
+  everything glowing. Confident and loud, never muddy.
+- **Bubbles are round** (not rounded squares), **dark inside with a neon outline** — a lit ring, not
+  a filled tile.
+- **All bubbles in a round share ONE colour** so no answer looks different from another (that
+  difference would be a tell). The colour changes between rounds.
+- **The path has NO TEXT at all** — purely graphic nodes — and it **meanders** rather than running
+  straight.
+- The word is **"levels"**, not "stones", everywhere: UI, code and tests.
 - **Every pass must end green and pushed.** Run the harness, add a test for anything fixed, and
   teeth-check it (inject the regression, watch it fail, revert). One small verified increment per
   pass beats a big unverified one.
