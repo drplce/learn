@@ -133,6 +133,31 @@ test.describe('the look of it', () => {
     expect(s.w).toBeGreaterThanOrEqual(48);            // still a comfortable tap target
   });
 
+  test('on the smallest phone the sum and the bubbles share one screen', async ({page}) => {
+    // On an iPhone SE the sum sat at the top of the screen and the bubbles rose
+    // from the bottom, with half a screen of nothing between them — her eyes had
+    // to travel the whole phone to play. And a bubble grazed the right edge.
+    await page.setViewportSize({width: 375, height: 667});
+    await open(page);
+    await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
+    await page.click('#go');
+    await page.waitForTimeout(300);
+    const s = await page.evaluate(() => {
+      const f = document.getElementById('field').getBoundingClientRect();
+      const p = document.getElementById('prompt').getBoundingClientRect();
+      const orbs = [...document.querySelectorAll('.orb')].map(o => o.getBoundingClientRect());
+      return {fh: f.height,
+        inField: p.top >= f.top && p.bottom <= f.bottom,
+        gap: Math.min(...orbs.map(o => o.top)) - p.bottom,
+        inset: Math.min(...orbs.map(o => Math.min(o.left - f.left, f.right - o.right)))};
+    });
+    expect(s.inField, 'the sum is not over the play area').toBe(true);
+    expect(s.gap, 'a void opened up between the sum and the bubbles')
+      .toBeLessThan(s.fh * 0.35);
+    expect(s.gap).toBeGreaterThan(0);                  // and they do not overlap
+    expect(s.inset, 'a bubble is grazing the edge of the phone').toBeGreaterThanOrEqual(12);
+  });
+
 });
 
 test.describe('the first-open check', () => {

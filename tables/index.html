@@ -184,7 +184,8 @@ main{flex:1; position:relative; overflow:hidden;}
   letter-spacing:.09em; opacity:0; transition:opacity var(--m-quick);
   text-shadow:0 0 10px var(--rc), 0 0 26px var(--rc);}
 #combolbl.on{opacity:1;}
-#prompt{text-align:center; font-weight:900; padding:var(--s2) 0 0;
+#prompt{position:absolute; left:0; right:0; top:22%; z-index:2; pointer-events:none;
+  text-align:center; font-weight:900;
   font-size:clamp(2rem, 13vw, 3.4rem); line-height:1.05; color:#fff;
   text-shadow:0 0 12px var(--rc), 0 0 34px color-mix(in srgb, var(--rc) 60%, transparent);
   transition:text-shadow var(--m-quick) var(--ease);}
@@ -343,9 +344,9 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
     <section class="screen" id="play">
       <div id="goal"><div id="goalbar"><div id="goalfill"></div></div></div>
       <div id="combolbl"></div>
-      <div id="prompt"></div>
       <div id="field">
         <div id="flash"></div>
+        <div id="prompt"></div>
         <div id="jack">JACKPOT!</div>
         <div id="cue"></div>
       </div>
@@ -409,7 +410,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.3';
+var VERSION = '1.4';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -983,11 +984,11 @@ function next(){
   var nOpt = W.round<2 ? 3 : 4;
   var vals = distractors(a,b,nOpt-1).concat([a*b]);
   for(var i=vals.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var tmp=vals[i]; vals[i]=vals[j]; vals[j]=tmp; }
-  var pad=52, gap=(FW-pad*2)/Math.max(1,(vals.length-1));
+  var pad=58, gap=(FW-pad*2)/Math.max(1,(vals.length-1));
   var speed = reduce ? 0 : Math.min(0.95, 0.16+(W.round-1)*0.07) + Math.min(W.combo,12)*0.008;
   vals.forEach(function(v,i){
     var e=document.createElement('div'); e.className='orb'; e.textContent=v;
-    var x=pad+gap*i+(Math.random()*20-10), y=FH*0.60+Math.random()*(FH*0.26);
+    var x=pad+gap*i+(Math.random()*12-6), y=FH*0.62+Math.random()*(FH*0.24);
     e.style.setProperty('--x', x+'px'); e.style.setProperty('--y', y+'px');
     e.style.transform='translate('+x+'px,'+y+'px)';
     el('#field').appendChild(e);
