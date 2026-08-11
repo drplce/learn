@@ -15,23 +15,58 @@ routine returns the favour.
 <!-- STATE — the routine reads these two values and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: daily
-last-run: 2026-08-10T18:00Z
+interval: 30m
+last-run: 2026-08-11T17:39Z
 ```
 
-The trigger fires once a day (18:00 UTC / 2am AWST). On each firing:
+On each firing:
 
 1. Read `interval` and `last-run`. Run `date -u +"%Y-%m-%dT%H:%MZ"` for now.
-2. Hours per interval: `daily`=24, `weekly`=168.
+2. Hours per interval: `30m`=0.5, `hourly`=1, `daily`=24, `weekly`=168.
 3. **If less than that has passed:** say one line — `not due (interval=X, Nh since last run)` — and
    **end the turn**. Do not run the harness, do not touch the repo.
 4. **Otherwise:** do a full pass (sections 4–7). At the end, set `last-run` to now, re-decide
    `interval` per the ladder, rewrite both STATE lines, and commit this file with the work.
 
-Never change the trigger's schedule — only David does that.
+Never change the trigger schedules on your own initiative — only David does that. The one exception
+is the sprint clean-up below, which he asked for explicitly.
+
+### ⏱ SPRINT WINDOW — a 30-minute cadence for the night of 2026-08-11 → 12
+
+David set this before going to sleep: *"Setup the cron for auto test improve overnight… every 30min
+for tonight."* The scheduler will not go below hourly, so it is **two hourly triggers offset by half
+an hour**:
+
+- `trig_01LXB8qHcSRnnSTWnp8TPvY4` — the main 144 trigger, at **:05** past each hour
+- `trig_01HefKdLo17wPJx3S21fN94N` — the temporary offset twin, at **:35** past each hour
+
+**Sprint rules (they matter — nobody is watching):**
+- **Tests and robustness ONLY.** Work section 5's numbered queue in order. No new features, no
+  visual redesign, no product or design decisions, no changes to how the game *feels* — those are
+  David's calls and he is asleep. Bug fixes are in scope; taste changes are not.
+- **Every pass must end green and pushed.** Run the harness, add a test for anything fixed, and
+  teeth-check it (inject the regression, watch it fail, revert). One small verified increment per
+  pass beats a big unverified one.
+- **If a defect is found in the app, fix it** — that is the point of the night. Note it clearly so
+  David can read what changed over breakfast.
+- **If nothing safe is left to do, say so and stop.** Do not invent work to look busy, and do not
+  start refactoring a working app at 3am.
+
+**Closing the sprint — the first pass at or after `2026-08-11T23:00Z` (7am AWST) MUST:**
+1. set `interval` back to `daily`;
+2. delete the twin trigger `trig_01HefKdLo17wPJx3S21fN94N` (it is temporary — use `CronDelete` /
+   `delete_trigger`);
+3. set the main trigger `trig_01LXB8qHcSRnnSTWnp8TPvY4` back to `0 18 * * *`;
+4. write a short summary of the night's work in the cadence note, and delete this SPRINT WINDOW
+   block so the file stops describing a night that has passed.
+
+Do the same clean-up early if section 5's queue is finished and the app is green — a spinning loop
+with nothing to do is worse than a quiet one.
 
 ## 2. CADENCE LADDER
 
+- **`30m` / `hourly`** only when David has explicitly asked for a sprint (see the SPRINT WINDOW
+  above). Never set these on your own initiative; hand back to `daily` when the sprint closes.
 - **`daily`** while anything is open: a request from David, a defect found this pass, or the app
   still young enough that daily eyes earn their keep. This is the baseline while she is playing it.
 - **`weekly`** once a pass is clean, nothing is open, and the code has been frozen a while.
