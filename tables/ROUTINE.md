@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: 30m
-last-run: 2026-08-11T21:18Z
+last-run: 2026-08-11T22:19Z
 ```
 
 On each firing:
@@ -155,7 +155,7 @@ composites transparency to black). Storage key `144.v1`.
 npx playwright test -c tables/playwright.config.js
 ```
 
-39 tests at v1.4. **Add a test for every defect fixed, and verify it fails on the broken version**
+42 tests at v1.5. **Add a test for every defect fixed, and verify it fails on the broken version**
 (inject the regression, watch it fail, revert). Extend the suite each pass with new adversarial
 cases — the tests are what make an autonomous loop safe.
 
@@ -171,12 +171,19 @@ bands** (code defects — enforced, exits non-zero) from **the PLAN's own target
 reported loudly, *never* silently relaxed by lowering them). Run it after any change to the engine,
 the ladder or the level goals. It is slow (~2 min); that is fine.
 
-1. **The software keyboard over the naming field** in the power room (Acorn had real trouble here).
-2. **The level-clear card** is the least-tested screen: prove the numbers on it match what she
+1. **The level-clear card** is the least-tested screen: prove the numbers on it match what she
    actually earned, and that "keep going" cannot start a level she has already cleared.
-3. **Sound**: prove the mute really silences everything (the synth is fired from several places).
+2. **Sound**: prove the mute really silences everything (the synth is fired from several places).
 
 **Done, and now guarded — do not undo these:**
+- **Naming the buddy** (v1.5): the only place in the app she types. Names are trimmed going in and
+  coming out of storage, so a field of spaces cannot leave the heading blank; clearing it hands back
+  "her buddy". Her name is displayed with `textContent`, never as markup. The field opens above the
+  keyboard line (top 45% of the screen). *Checked and NOT a defect:* the Acorn keyboard trap — the
+  document being left scrolled up — cannot happen here, because `body` is `position:fixed` and the
+  panes scroll internally, so the page itself never scrolls. The `scrollTo(0,0)` on blur is
+  insurance for real iOS (no headless browser opens a keyboard); do not write a test that fakes a
+  scrollable document to "prove" it — one was tried and it passed for the wrong reason.
 - **The play screen on a small phone** (v1.4, in `game.spec.js` "the look of it"): at 375×667 the
   sum must live *inside* the field, the gap between it and the highest bubble must stay under a
   third of the field, and no bubble may come within 12px of the edge. Layout that reads fine at
@@ -221,14 +228,21 @@ leave 144 looking better than it found it. Rules of engagement:
 - **Everything must survive `prefers-reduced-motion`** (show the end state, don't run the show) and
   keep tap targets ≥48px.
 - **The known list, most valuable first** (keep it pruned and re-ordered as things get done):
-  1. The buddy cube's "lit from within" read is weak at HUD size (52px) — it looks like a plain
-     rounded square there.
-  2. The power room and the level-clear card got less neon than the rest of the app.
-  3. The level-clear moment could be a proper stage flare rather than a card.
-  4. The number type could be more of a hero (weight, spacing, a subtle stage shadow).
-  5. Round-to-round transitions: the hue currently snaps; a fast wipe or pulse would sell it.
-  6. *(done v1.4 — the prompt now floats inside the field, so the empty middle is gone. What is
-     left in that space is still bare: drifting sparks or a faint stage floor would fill it.)*
+  1. The power room and the level-clear card got less neon than the rest of the app.
+  2. The level-clear moment could be a proper stage flare rather than a card.
+  3. The number type could be more of a hero (weight, spacing, a subtle stage shadow).
+  4. Round-to-round transitions: the hue currently snaps; a fast wipe or pulse would sell it.
+  5. *(v1.4 — the prompt now floats inside the field, so the empty middle is gone. What is left in
+     that space is still bare: drifting sparks or a faint stage floor would fill it.)*
+  6. *(v1.5 — the buddy is glass now at both sizes: dark body, her colour in the rim, a bright core
+     breathing inside. Shell swatches still show her colour flat and pale; they could show the same
+     lit-glass read so the picker matches what she gets.)*
+
+  **How to look at the buddy** (it cost this pass half an hour): it bobs and its core breathes, so a
+  plain screenshot catches a random frame and can look dead. Pause `animation` on `.bigcube` and
+  force `.glow/.fil` to `opacity:1; transform:scale(1.04)` for the peak, and `.42/.9` for the dim —
+  and judge both. A Playwright element screenshot times out on the bobbing cube ("element is not
+  stable") until the animation is off.
 
 ## 7. METHOD
 
@@ -282,6 +296,14 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-11, 22:08–22:19Z (sprint pass 5):** the naming field and the buddy (v1.5). Drove the
+  naming flow for real: a name of nothing but spaces stuck, leaving the heading blank instead of
+  falling back — fixed, trimmed both on the way in and out of storage, teeth-checked. The keyboard
+  worry itself turned out to be a non-defect and the reasoning is written down in §5 rather than
+  guarded by a test that would have passed for the wrong reason. Then the visual job: the buddy cube
+  was a pale tile at both sizes with the retired clay extrude still on the HUD one, so the light
+  inside it never read. It is glass now — dark body, her colour in the rim, a bright core breathing
+  through. 42 pass.
 - **2026-08-11, 20:40–21:18Z (sprint pass 4):** the visual job (v1.4). Shot the real screens at
   iPhone SE and 13 and looked: on the SE the sum sat at the very top, the bubbles rose from the
   bottom, and over half the screen was dead air between them — her eyes had to cross the whole
