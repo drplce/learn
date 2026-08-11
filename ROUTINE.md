@@ -58,11 +58,13 @@ untouched; reuse Acorn's proven bones by COPYING (TTS, data-survival, tokens, bl
 harness) — there's no runtime backend to share (all on-device). Two rules carry over: never her name
 in code, never an API key. **This times-tables app is OUT of the daily Acorn harness pass** (the cron
 reviews Acorn's index.html only); it's built live with David for now.
-  - **Pace agreed to design:** 144 facts, 142 days left in the year. Aggressive — ~70 days to learn
-    all, ~70 to cement. Reuse the Leitner engine (per-fact `{seen,right,wrong,lastSeen,box}` keyed
-    `"7x8"`, commutative pairs shared, ~80–85% success targeting). Phase 1 (acquisition, compressed
-    spacing, easy anchors ×2/×5/×10 first → hard core ×6/×7/×8 last); Phase 2 (fluency: expanding
-    `BOX_DAYS` intervals + a speed goal + interleaving).
+  - **Pace LOCKED (David, harder option):** 144 facts, ~142 days left in 2026. **45-day acquisition
+    sprint, aiming ≥2 short sessions/day**, then ~97 days reinforcement. Guardrail = ~80–85% success
+    (engine eases if she dips; frequency > duration is the accelerator). Reuse the Leitner engine
+    (per-fact `{seen,right,wrong,lastSeen,box}` keyed `"7x8"`, commutative pairs shared). Phase 1
+    (acquisition, compressed spacing, easy anchors ×2/×5/×10 first → hard core ×6/×7/×8 last); Phase 2
+    (fluency: expanding `BOX_DAYS` intervals + a speed goal + interleaving). Dashboard shows the race:
+    a real days-left-to-Dec-31 COUNTDOWN + a count-UP to 144 known (David's ask).
   - **Game direction:** "more games than casinoy". Five game ideas floated (Streak, Blast, Dash,
     Table Bosses, Vault); five names (Nugget, Bolt, Comet, Zap, Pip). David picked **Blast** first
     (easiest to build + juicy; I flagged Dash *feels* easy but is costly — running character + scroll).
