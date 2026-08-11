@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: 30m
-last-run: 2026-08-11T17:39Z
+last-run: 2026-08-11T18:35Z
 ```
 
 On each firing:
@@ -165,19 +165,20 @@ anything done here. Run it if a change could plausibly reach it; otherwise trust
 Gaps worth closing when there is time — **this is the queue for the first few passes**, most
 valuable first:
 
-1. **A simulation of the 45-day plan** (`tables/tests/sim.js`, modelled on Acorn's). Drive the real
-   engine with modelled learners: does she reach all 144 inside the sprint at ~80–85% first-go, at
-   ~2 sessions a day? This is the one check that can tell us the *plan* is wrong rather than the
-   code, and nothing currently covers it. Report the real numbers.
-2. **Two windows open at once** (Acorn's hardest-won lesson): a second tab must not clobber the
+**`node tables/tests/sim.js`** — the pacing simulation (BUILT 2026-08-11). 8 modelled learners,
+142 days, 2 sessions a day, driving the real picker and the real Leitner boxes. It splits **HEALTH
+bands** (code defects — enforced, exits non-zero) from **the PLAN's own targets** (David's claims —
+reported loudly, *never* silently relaxed by lowering them). Run it after any change to the engine,
+the ladder or the level goals. It is slow (~2 min); that is fine.
+
+1. **Two windows open at once** (Acorn's hardest-won lesson): a second tab must not clobber the
    first's watts/charge/progress.
-3. **A full disk / quota failure mid-answer** — `save()` swallows it, but prove the sitting survives
+2. **A full disk / quota failure mid-answer** — `save()` swallows it, but prove the sitting survives
    and nothing is silently lost.
-4. **A clock jumped forwards and backwards mid-session** — the charge maths is guarded, but prove a
+3. **A clock jumped forwards and backwards mid-session** — the charge maths is guarded, but prove a
    day-boundary jump mid-stone cannot double-count or wipe progress.
-5. **The software keyboard over the naming field** in the power room (Acorn had real trouble here).
-6. **Screenshot the real screens** at iPhone SE and 13, and LOOK — the field's empty middle while
-   tiles rise, and whether the ramp reads as exciting rather than stressful.
+4. **The software keyboard over the naming field** in the power room (Acorn had real trouble here).
+5. **Screenshot the real screens** at iPhone SE and 13, and LOOK (see also §6a).
 
 ## 6. WHAT TO REVIEW — rotate, don't always do the first one
 
@@ -231,6 +232,14 @@ every meaningful change — Pages deploys automatically. Bump `VERSION` when she
 Table Bosses, Vault), multiplayer, accounts, anything that needs a server.
 
 **Open with David (do not invent answers):**
+- **⚠ THE PLAN'S TARGETS ARE NOT MET, and the likely cause is a product decision.** `sim.js` says
+  ~38/78 facts reach "known well" by day 142 against a target of 74 — though 65/78 reach box 3+ and
+  the average box is 4.6, so she gets *close* on most and stalls on the last step plus a hard core.
+  The likeliest cause: **144 only ever TESTS a fact, it never teaches one.** A fact she has never
+  met is a guess between three bubbles; Acorn by contrast shows her the word before asking her to
+  produce it. Options for him, none of them mine to pick: a brief "here it is" moment when a fact
+  is first met; lowering what "known well" means (`KNOWN_BOX`, currently 5); more sessions a day; or
+  accepting a slower finish. **Do not close this by lowering the numbers in sim.js.**
 - His deeper play-test of Blast (feel, pace, reward).
 - Whether the daily accessory idea returns now that the buddy is a cube (currently colour only).
 - Which unlock lands at Lv15 beyond the buddy's filament.
@@ -265,6 +274,11 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-11, 18:14–18:35Z (first sprint pass):** built `tests/sim.js` and it immediately found a
+  real defect — the path dead-ended after ~48 levels (about three weeks) and she replayed the last
+  boss for a hundred days while nothing stuck. Fixed with phase 2 (300 review levels over all 78
+  facts, boss every fifth; no new mechanics). Added a teeth-checked test so the ladder can never
+  dead-end again. 28 pass. Also raised the plan-targets finding above for David.
 - **2026-08-11, v1.1 (live, with David):** the neon restyle in full (see §4 house style) — round
   dark-inside bubbles with one colour per round, stage-lit ground, wordless meandering path,
   stones→levels rename. 4 new tests hold the brief; 27 pass. Also: 45-day plan locked at
