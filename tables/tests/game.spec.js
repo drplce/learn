@@ -21,22 +21,45 @@ test.describe('opening it', () => {
     await open(page);
     const p = await page.evaluate(() => {
       const a = window.__144;
+      const acq = a.LEVELS.filter(s => s.phase !== 2);
       return {
         n: a.LEVELS.length,
+        acq: acq.length,
         order: a.TABLE_ORDER,
         firstTable: a.LEVELS[0].table,
-        bosses: a.LEVELS.filter(s => s.kind === 'boss').length,
+        bosses: acq.filter(s => s.kind === 'boss').length,
         // every one of the 78 real facts is introduced exactly once
-        introduced: a.LEVELS.filter(s => s.kind === 'learn')
-                            .reduce((s, x) => s.concat(x.facts), []),
+        introduced: acq.filter(s => s.kind === 'learn')
+                       .reduce((s, x) => s.concat(x.facts), []),
       };
     });
     expect(p.order[0]).toBe(2);                       // an anchor table, not the 7s
     expect(p.firstTable).toBe(2);
-    expect(p.bosses).toBe(12);                        // one per table
+    expect(p.bosses).toBe(12);                        // one per table, in acquisition
     expect(p.introduced.length).toBe(78);             // 12x12 is 144 cells but 78 facts
     expect(new Set(p.introduced).size).toBe(78);      // and none twice
-    expect(p.n).toBeGreaterThan(40);
+    expect(p.acq).toBeGreaterThan(40);
+  });
+
+  test('the path does not dead-end: there is a phase 2 to carry the rest of the year', async ({page}) => {
+    // tests/sim.js caught her replaying the last boss for a hundred days once
+    // acquisition ran out — about three weeks in, at two sittings a day — while
+    // nothing new ever stuck. The ladder has to outlast the plan.
+    await open(page);
+    const p = await page.evaluate(() => {
+      const a = window.__144;
+      const acq = a.LEVELS.filter(s => s.phase !== 2);
+      const rev = a.LEVELS.filter(s => s.phase === 2);
+      return {acq: acq.length, rev: rev.length, total: a.LEVELS.length,
+              // review draws on everything, so the weak-first picker can reach any fact
+              widest: Math.max.apply(null, rev.map(s => s.facts.length)),
+              kinds: [...new Set(rev.map(s => s.kind))].sort()};
+    });
+    // the plan is 142 days at ~2 sessions a day: the path must have that many levels
+    expect(p.total).toBeGreaterThanOrEqual(284);
+    expect(p.rev).toBeGreaterThan(p.acq);
+    expect(p.widest).toBe(78);                        // review can reach every fact
+    expect(p.kinds).toEqual(['boss', 'mix']);         // no new mechanics, just more of them
   });
 
 });

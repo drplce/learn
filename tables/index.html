@@ -521,8 +521,21 @@ function metCount(){ var n=0; for(var k in S.facts) if(S.facts[k].seen>0) n++; r
    facts than the last (12, 11, 10 … 1), so the hard tables
    are mostly review by the time she gets there — which is
    exactly the right shape. Every table ends in a boss.
+
+   PHASE 2 matters as much as phase 1. Acquisition is only 48
+   levels — about three weeks at two sittings a day — and the
+   plan runs to the end of the year. Without a phase 2 the path
+   dead-ends: tests/sim.js caught her replaying the last boss
+   for a hundred days while nothing new ever stuck, because
+   reaching "known well" takes five clean retrievals and the
+   learn levels only ask for two. So the ladder keeps going,
+   drawing on every fact she has met, and the weak-first picker
+   decides what she actually sees.
    ========================================================= */
 var TABLE_ORDER = [2,5,10,1,11,3,4,9,6,7,8,12];
+var ALL_FACTS = (function(){
+  var out=[]; for(var a=1;a<=12;a++) for(var b=a;b<=12;b++) out.push(key(a,b)); return out;
+})();
 var LEVELS = (function(){
   var seen = {}, out = [];
   TABLE_ORDER.forEach(function(t){
@@ -533,6 +546,20 @@ var LEVELS = (function(){
     var boss=[]; for(var b2=1;b2<=12;b2++) boss.push(key(t,b2));
     out.push({kind:'boss', table:t, facts:boss});
   });
+  // ---- phase 2: keeping it, for the rest of the year ----
+  // Review over everything she has met, with a table boss every fifth level so
+  // there is still something to conquer. Two a day for the remaining ~120 days,
+  // plus slack, so the path never runs out on her.
+  var REVIEW = 300, hard = [6,7,8,12,9,4,3,11];        // the ones worth revisiting most
+  for(var r=0;r<REVIEW;r++){
+    if(r % 5 === 4){
+      var t2 = hard[(r/5|0) % hard.length], bf=[];
+      for(var c=1;c<=12;c++) bf.push(key(t2,c));
+      out.push({kind:'boss', table:t2, facts:bf, phase:2});
+    } else {
+      out.push({kind:'mix', table:hard[r % hard.length], facts:ALL_FACTS.slice(), phase:2});
+    }
+  }
   return out;
 })();
 function goalOf(st){
@@ -1059,6 +1086,9 @@ window.__144 = {
   TABLE_ORDER:TABLE_ORDER, BOX_DAYS:BOX_DAYS, KNOWN_BOX:KNOWN_BOX,
   wakingHoursBetween:wakingHoursBetween, settleCharge:settleCharge, buddyStage:buddyStage,
   level:level, metCount:metCount,
+  // The mastery move itself, so tests/sim.js can run months of the REAL Leitner
+  // engine (and the real weak-first picker) without touching the animations.
+  record:record, mastery:mastery,
   screen:function(){ return screen; }, go:go, render:render,
   sitting:function(){ return W; },
   start:start,
