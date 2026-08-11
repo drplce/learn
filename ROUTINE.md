@@ -92,7 +92,15 @@ reviews Acorn's index.html only); it's built live with David for now.
     "how hard can the pace go" (answer: acquisition can be pushed to ~4–6 weeks, but durability is
     calendar-bound by spacing — front-load acquisition, extend reinforcement; ~80–85% success is the
     guardrail; frequency > duration).
-  - **Open for David:** react to the Blast feel; confirm the 70/70 (or harder) pace shape; then I scaffold
+  - **GUI STYLE — 4-look board BUILT** (`scratchpad/styles.html`, artifact 22295bad). David's refs:
+    a chunky-tactile clay puzzle game + a neon low-poly runner; his instinct "pastel shapes / neon
+    colour". He asked for **four completely different** looks, **NOT like Acorn or Duolingo**, and
+    everything (visual/gameplay/sound) must **leave room to upgrade as she levels** (visual locks &
+    opens at Lv X). Built: **1 Pastel Clay** (soft, extruded clay tiles), **2 Neon Night** (dark,
+    glowing gem orbs, particles), **3 Neon Pop** (his hybrid — clay shapes + electric colour; my
+    lean), **4 Retro Pixel** (8-bit, scanlines, chiptune). Each panel shows prompt + 3 answer tiles +
+    coin + palette + a "🔓 grows: Lv1→Lv15→Lv30→Lv45" unlock path. Awaiting his pick (or a mix).
+  - **Open for David:** pick a GUI look (or mix); react to the Blast feel; then I scaffold
     the real `tables/` app (fact-engine + Blast playable + a first path). Do NOT scaffold into the app
     without his go-ahead beyond the prototype.
 
