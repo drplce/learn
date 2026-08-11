@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-11T18:00Z
+last-run: 2026-08-10T18:00Z
 ```
 
 The trigger fires once a day (18:00 UTC / 2am AWST). On each firing:
@@ -102,9 +102,22 @@ cases — the tests are what make an autonomous loop safe.
 Acorn's suite (`npx playwright test` from the root) must stay green too, and should be untouched by
 anything done here. Run it if a change could plausibly reach it; otherwise trust the separation.
 
-Gaps worth closing when there is time: two windows open at once, a full disk mid-answer, a clock
-jumped forwards/backwards mid-session, the software keyboard over the naming field, and a
-simulation of the 45-day plan (does a modelled learner actually reach 144 in time, at ~80–85%?).
+Gaps worth closing when there is time — **this is the queue for the first few passes**, most
+valuable first:
+
+1. **A simulation of the 45-day plan** (`tables/tests/sim.js`, modelled on Acorn's). Drive the real
+   engine with modelled learners: does she reach all 144 inside the sprint at ~80–85% first-go, at
+   ~2 sessions a day? This is the one check that can tell us the *plan* is wrong rather than the
+   code, and nothing currently covers it. Report the real numbers.
+2. **Two windows open at once** (Acorn's hardest-won lesson): a second tab must not clobber the
+   first's watts/charge/progress.
+3. **A full disk / quota failure mid-answer** — `save()` swallows it, but prove the sitting survives
+   and nothing is silently lost.
+4. **A clock jumped forwards and backwards mid-session** — the charge maths is guarded, but prove a
+   day-boundary jump mid-stone cannot double-count or wipe progress.
+5. **The software keyboard over the naming field** in the power room (Acorn had real trouble here).
+6. **Screenshot the real screens** at iPhone SE and 13, and LOOK — the field's empty middle while
+   tiles rise, and whether the ramp reads as exciting rather than stressful.
 
 ## 6. WHAT TO REVIEW — rotate, don't always do the first one
 
