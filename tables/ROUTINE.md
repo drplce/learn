@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: 30m
-last-run: 2026-08-11T18:35Z
+last-run: 2026-08-11T19:20Z
 ```
 
 On each firing:
@@ -171,14 +171,17 @@ bands** (code defects — enforced, exits non-zero) from **the PLAN's own target
 reported loudly, *never* silently relaxed by lowering them). Run it after any change to the engine,
 the ladder or the level goals. It is slow (~2 min); that is fine.
 
-1. **Two windows open at once** (Acorn's hardest-won lesson): a second tab must not clobber the
-   first's watts/charge/progress.
-2. **A full disk / quota failure mid-answer** — `save()` swallows it, but prove the sitting survives
+1. **A full disk / quota failure mid-answer** — `save()` swallows it, but prove the sitting survives
    and nothing is silently lost.
-3. **A clock jumped forwards and backwards mid-session** — the charge maths is guarded, but prove a
+2. **A clock jumped forwards and backwards mid-session** — the charge maths is guarded, but prove a
    day-boundary jump mid-stone cannot double-count or wipe progress.
-4. **The software keyboard over the naming field** in the power room (Acorn had real trouble here).
-5. **Screenshot the real screens** at iPhone SE and 13, and LOOK (see also §6a).
+3. **The software keyboard over the naming field** in the power room (Acorn had real trouble here).
+4. **Screenshot the real screens** at iPhone SE and 13, and LOOK (see also §6a).
+
+**Done, and now guarded — do not undo these:**
+- **Two windows** (v1.2): saves carry a monotonic `rev` and merge instead of overwriting; `render()`
+  must NEVER call `save()` (that was the actual bug — progress depended on a paint, and two windows
+  raced each other through storage events). `tests/twowindows.spec.js` holds all of it.
 
 ## 6. WHAT TO REVIEW — rotate, don't always do the first one
 
@@ -274,6 +277,11 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-11, 19:10–19:20Z (sprint pass 2):** two-windows data safety (v1.2). Found that
+  `render()` called `save()`, so her progress persisted only as a side effect of painting and two
+  open windows raced through storage events. Saves now attach to state changes; writes merge on a
+  `rev` instead of overwriting; an open window catches up via `storage`. 4 new tests, the key one
+  simulating a phone that was asleep so the event never arrived. 32 pass.
 - **2026-08-11, 18:14–18:35Z (first sprint pass):** built `tests/sim.js` and it immediately found a
   real defect — the path dead-ended after ~48 levels (about three weeks) and she replayed the last
   boss for a hundred days while nothing stuck. Fixed with phase 2 (300 review levels over all 78
