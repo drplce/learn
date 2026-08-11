@@ -41,39 +41,25 @@ an hour**:
 - `trig_01HefKdLo17wPJx3S21fN94N` — the temporary offset twin, at **:35** past each hour
 
 **Sprint rules (they matter — nobody is watching):**
-- **Tests, robustness, and the VISUAL BRIEF below.** David added the brief at 17:45Z and said
-  *"Happy for you to take the lead… Continue, don't stop and I'll review in the morning"* — so the
-  neon restyle IS authorised work this sprint, alongside section 5's queue. Everything else still
-  needs him: no new game modes, no new features, no changes to the engine's pace or the reward
-  economy, nothing that changes what she is being taught.
-
-**🎨 VISUAL BRIEF (David, 2026-08-11 17:45Z) — "push a little more neon, KPop Demon Hunters":**
-- Hard neon stage look: near-black violet ground, saturated magenta / cyan / violet / lime / gold,
-  everything glowing. Confident and loud, never muddy.
-- **Bubbles are round** (not rounded squares), **dark inside with a neon outline** — a lit ring, not
-  a filled tile.
-- **All bubbles in a round share ONE colour** so no answer looks different from another (that
-  difference would be a tell). The colour changes between rounds.
-- **The path has NO TEXT at all** — purely graphic nodes — and it **meanders** rather than running
-  straight.
-- The word is **"levels"**, not "stones", everywhere: UI, code and tests.
-
-**Brief DELIVERED in v1.1** (17:45–18:05Z): neon palette + stage blooms, round dark-inside bubbles
-ringed in light with one colour per round (rotating `ROUND_COLOURS` → `--rc`, which the prompt, goal
-bar, sparks and flash all follow), a pixel-drawn meandering wire with wordless nodes (gold bead /
-breathing cyan play ring / unlit ring / magenta boss star, all aria-labelled), the lit level tappable,
-and the full stones→levels rename. Four tests now hold the brief. **Still worth doing on this:**
-the play field's middle is still emptyish while bubbles rise (they now start at 60% instead of 72%,
-but consider whether the prompt should sit lower or the field be shorter); the buddy cube's
-"lit from within" read is weak at HUD size; and the power room + clear card could take more of the
-neon treatment than they got.
+- **In scope: tests, robustness, VISUAL POLISH (§6a), and improving this routine itself (§8).**
+  David: *"Happy for you to take the lead… Continue, don't stop and I'll review in the morning"*
+  and *"Also add visual updates to the cron task. And self improvement."* — so the loop is expected
+  to make the app look better and get better at its own job, not only to guard it.
+- **Out of scope without him:** new game modes or features, changes to the engine's pace, the
+  Leitner numbers, the reward economy, or anything that changes *what she is taught*. Also: never
+  reinvent the house style — refine inside it (§4).
 - **Every pass must end green and pushed.** Run the harness, add a test for anything fixed, and
   teeth-check it (inject the regression, watch it fail, revert). One small verified increment per
   pass beats a big unverified one.
-- **If a defect is found in the app, fix it** — that is the point of the night. Note it clearly so
-  David can read what changed over breakfast.
+- **Every pass leaves a trail.** Screenshot before and after any visual change, log it in §9, and
+  keep the diff small enough that he can undo one thing without losing the rest.
+- **If a defect is found in the app, fix it** — that is the point of the night.
 - **If nothing safe is left to do, say so and stop.** Do not invent work to look busy, and do not
   start refactoring a working app at 3am.
+
+The visual brief that started this (2026-08-11 17:45Z — *"push a little more neon, KPop Demon
+Hunters"*) was **delivered in v1.1**; it now lives on as the house style in §4 and the standing
+polish job in §6a. Do not re-do it; continue it.
 
 **Closing the sprint — the first pass at or after `2026-08-11T23:00Z` (7am AWST) MUST:**
 1. set `interval` back to `daily`;
@@ -120,9 +106,25 @@ composites transparency to black). Storage key `144.v1`.
 
 **The design decisions, so they are not re-litigated:**
 - **Name:** 144 (12×12 = the whole job).
-- **Skin:** "Neon Pop" — chunky tactile shapes (the `0 5px 0` clay extrude) in electric colour on
-  dark slate, `ui-rounded` numerals. Everything starts deliberately under-dressed and unlocks
-  richness with her level, so *the game visibly gets better as she does*.
+- **Skin — the HOUSE STYLE (v1.1, David's brief; refine it, do not reinvent it):**
+  hard neon on a near-black violet ground — a K-pop stage, not a toy box.
+  - Ground `--bg #0B0614`, with stage-light blooms burning in from the top corners. Never grey,
+    never muddy; if something looks washed out the answer is more contrast, not more colour.
+  - The neon set is fixed: `--n-magenta --n-cyan --n-violet --n-lime --n-gold`. Adding a sixth hue
+    needs a reason; a new *shade* of an existing one is fine.
+  - **Light does the work.** Glow and rings, not fills and drop-shadows. The old clay extrude
+    (`0 5px 0`) is retired — do not bring it back.
+  - **One colour per round.** Every answer bubble in a round wears `--rc`, which rotates through
+    `ROUND_COLOURS` as rounds climb; the prompt, goal bar, sparks and flash follow it. Colour must
+    never distinguish one answer from another — that would be a tell.
+  - Answer bubbles are **circles, dark inside, ringed in light**; tap targets stay ≥48px.
+  - **The path carries no words at all** — state is shape and light (gold bead = done, breathing
+    cyan ring = here, unlit ring = ahead, magenta star = boss) — and it meanders. Wordless does
+    not mean nameless: every node keeps an `aria-label`.
+  - `ui-rounded` numerals; numbers are the hero content and should always be the brightest thing
+    after the action button.
+  - Everything starts deliberately under-dressed and unlocks richness with her level, so *the game
+    visibly gets better as she does*.
 - **Currency: watts ⚡** — earned on right answers, and they charge the buddy. The charge drains
   across her waking day (12h battery) and **pauses overnight** (07:00–20:00 local is "awake").
 - **The buddy:** a sealed glossy rounded cube, lit from within. At level 1 it has **no face at
@@ -181,6 +183,7 @@ valuable first:
 
 1. **Game feel.** Is the ramp right? Does the reward land? Screenshot the real screens in Chromium
    at iPhone SE and 13, and LOOK. Motion honours `prefers-reduced-motion`.
+
 2. **The words she reads.** Never blame; never guilt about the battery; singular/plural agreement.
 3. **The engine.** Does weak-first actually surface her gaps? Is she inside 80–85%? Do the
    distractors stay plausible at the top of the table (11×12 vs 121, 132, 144)?
@@ -189,6 +192,34 @@ valuable first:
 5. **Robustness.** Corrupt storage, absurd clocks, long absences, quota failures.
 6. **The unlock ladder.** The promise is that the game gets better as she climbs. Is the next
    unlock actually built, or is the ladder now a bluff?
+
+
+### 6a. VISUAL POLISH — a standing job, every pass (David, 2026-08-11)
+
+*"Also add visual updates to the cron task."* So the loop is not only a guard dog: each pass should
+leave 144 looking better than it found it. Rules of engagement:
+
+- **Refine inside the house style (§4); never reinvent it.** If a change would need David to
+  re-approve the look, it is too big — write it in §9 as a proposal instead and leave the code alone.
+- **Look before you touch.** Screenshot the actual screens (iPhone SE 375px *and* 13, dark; the app
+  has no light mode) and name what is wrong in words before changing anything. "It feels off" is not
+  a diagnosis.
+- **One or two improvements per pass, screenshotted before and after.** Small and reversible beats
+  ambitious. Bump `VERSION` when she would notice.
+- **The bar: would a nine-year-old say "whoa"?** Not "is this tasteful". Loud, generous, alive —
+  but never harsh, never seizure-bright, never so busy the numbers are hard to read. Legibility
+  always wins a fight with atmosphere.
+- **Everything must survive `prefers-reduced-motion`** (show the end state, don't run the show) and
+  keep tap targets ≥48px.
+- **The known list, most valuable first** (keep it pruned and re-ordered as things get done):
+  1. The play field's middle is emptyish while bubbles rise — try the prompt lower, or a shorter
+     field, or something alive in the gap (drifting sparks, a faint stage floor).
+  2. The buddy cube's "lit from within" read is weak at HUD size (52px) — it looks like a plain
+     rounded square there.
+  3. The power room and the level-clear card got less neon than the rest of the app.
+  4. The level-clear moment could be a proper stage flare rather than a card.
+  5. The number type could be more of a hero (weight, spacing, a subtle stage shadow).
+  6. Round-to-round transitions: the hue currently snaps; a fast wipe or pulse would sell it.
 
 ## 7. METHOD
 
@@ -203,5 +234,43 @@ Table Bosses, Vault), multiplayer, accounts, anything that needs a server.
 - His deeper play-test of Blast (feel, pace, reward).
 - Whether the daily accessory idea returns now that the buddy is a cube (currently colour only).
 - Which unlock lands at Lv15 beyond the buddy's filament.
+
+## 8. SELF-IMPROVEMENT — the loop gets better at its own job (David, 2026-08-11)
+
+*"And self improvement."* Every pass ends by improving the machinery, not just the app. Five
+minutes, every time:
+
+1. **Leave the harness stronger than you found it.** Add at least one new adversarial case per pass
+   even when nothing broke — the suite is what makes an unwatched loop safe, and a suite that stops
+   growing is a suite going stale. Every fix gets a test, teeth-checked (inject the regression,
+   watch it fail, revert).
+2. **Rewrite this file as you learn.** Re-order the queues by what actually turned out to matter,
+   delete items that are done or were never real, and fold in techniques that worked (and traps
+   that caught you) so the next pass starts where this one finished. Stale instructions are worse
+   than none: they get followed.
+3. **Improve the instructions that misled you.** If something here sent you the wrong way, or was
+   ambiguous at 3am, fix the wording — that is the highest-leverage edit available.
+4. **Log it in §9** so David can read the trajectory in one place instead of reconstructing it from
+   commits.
+5. **Watch for the loop's own failure modes** — these are the real risks of an unwatched agent, and
+   catching one in yourself is worth more than any feature:
+   - **Churn:** changing something back and forth across passes. Check §9 before "fixing" anything.
+   - **Gold-plating:** polishing what is already fine while something plainly broken waits.
+   - **Drift:** decisions accumulating away from David's brief without him ever agreeing to them.
+   - **Tests that assert implementation** (a class name, a pixel) instead of behaviour she can feel.
+   - **Padding:** work invented to look productive. An honest "nothing needed doing, here is why" is
+     a better pass than a busy one.
+
+## 9. LOG — what each pass actually changed
+
+Newest first. One or two lines each; enough that David can skim a week in a minute.
+
+- **2026-08-11, v1.1 (live, with David):** the neon restyle in full (see §4 house style) — round
+  dark-inside bubbles with one colour per round, stage-lit ground, wordless meandering path,
+  stones→levels rename. 4 new tests hold the brief; 27 pass. Also: 45-day plan locked at
+  ~2 sessions/day, and the overnight sprint set up.
+- **2026-08-11, v1.0 (live, with David):** first build — Blast, the Leitner engine over 78 facts,
+  the placement check, watts + the 12h charge that pauses overnight, the buddy cube, the power room
+  grid, synthesised sound. 23 tests, teeth-checked. Acorn verified untouched (589 green).
 
 Check `git log` first, then continue.
