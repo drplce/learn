@@ -129,7 +129,16 @@ reviews Acorn's index.html only); it's built live with David for now.
     final questions → then BUILD the real `tables/` app + a build/refine/auto-improve loop **like
     Acorn's** (its own tests + its own routine/cron, separate from Acorn's). Neon Pop skin · Blast core
     · watts currency + 12h charge · path home · power-room grid · the cube buddy.
-  - **Open for David:** pick a cube (A/B/C); then final Qs, then I build v1. Blast deeper-review still open.
+  - **BUDDY FINAL (David, 2026-08-11): option B "Neon Device", with a Level-1 twist — NO dark face
+    plate.** Level 1 is a sealed glossy rounded cube (no feet) with the light glowing from INSIDE,
+    up *through* the shell: a soft blurred bloom + a dim filament line where the eyes will boot, gloss
+    highlight above the glow so it reads as subsurface. Colour is the only Lv1 customisation (5 shells,
+    live-switching via CSS vars). Evolution: Asleep(glow) → Lv15 Filament → Lv30 Awake(eyes) → Lv45
+    Buddy. Rebuilt + published (artifact 87367345, `scratchpad/buddy.html`).
+  - **Session note:** David switched the model to **Opus 5** for the build sprint (my recommendation:
+    Opus 5 for build/auto-improve, drop back for calm daily maintenance).
+  - **Open for David:** answer final build Qs (starting tables/placement, division y/n, sound default,
+    overnight charge drain, confirm `tables/` URL + name handling) → then I build v1 for tomorrow AM.
     the real `tables/` app (fact-engine + Blast playable + a first path). Do NOT scaffold into the app
     without his go-ahead beyond the prototype.
 
