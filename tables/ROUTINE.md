@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: 30m
-last-run: 2026-08-11T19:20Z
+last-run: 2026-08-11T20:15Z
 ```
 
 On each firing:
@@ -171,14 +171,16 @@ bands** (code defects — enforced, exits non-zero) from **the PLAN's own target
 reported loudly, *never* silently relaxed by lowering them). Run it after any change to the engine,
 the ladder or the level goals. It is slow (~2 min); that is fine.
 
-1. **A full disk / quota failure mid-answer** — `save()` swallows it, but prove the sitting survives
-   and nothing is silently lost.
-2. **A clock jumped forwards and backwards mid-session** — the charge maths is guarded, but prove a
-   day-boundary jump mid-stone cannot double-count or wipe progress.
-3. **The software keyboard over the naming field** in the power room (Acorn had real trouble here).
-4. **Screenshot the real screens** at iPhone SE and 13, and LOOK (see also §6a).
+1. **The software keyboard over the naming field** in the power room (Acorn had real trouble here).
+2. **Screenshot the real screens** at iPhone SE and 13, and LOOK (see also §6a).
+3. **The level-clear card** is the least-tested screen: prove the numbers on it match what she
+   actually earned, and that "keep going" cannot start a level she has already cleared.
+4. **Sound**: prove the mute really silences everything (the synth is fired from several places).
 
 **Done, and now guarded — do not undo these:**
+- **A full disk and a jumping clock** (v1.3, `tests/robust.spec.js`): `rev` must only advance after a
+  write LANDS — advancing it on a failed write made this window think it was ahead of storage, so a
+  full disk plus a stale window ate her progress.
 - **Two windows** (v1.2): saves carry a monotonic `rev` and merge instead of overwriting; `render()`
   must NEVER call `save()` (that was the actual bug — progress depended on a paint, and two windows
   raced each other through storage events). `tests/twowindows.spec.js` holds all of it.
@@ -277,6 +279,10 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-11, 20:09–20:15Z (sprint pass 3):** robustness (v1.3). Six new tests for a full disk and
+  a jumping clock; one found a real interaction bug (a failed write advanced `rev`, disabling the
+  merge that protects her from a stale window). The rest passed as written, which is itself worth
+  knowing. 38 pass.
 - **2026-08-11, 19:10–19:20Z (sprint pass 2):** two-windows data safety (v1.2). Found that
   `render()` called `save()`, so her progress persisted only as a side effect of painting and two
   open windows raced through storage events. Saves now attach to state changes; writes merge on a
