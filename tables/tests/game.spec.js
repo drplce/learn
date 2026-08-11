@@ -436,6 +436,70 @@ test.describe('her buddy and its power', () => {
       getComputedStyle(document.documentElement).getPropertyValue('--shell').trim())).toBe('#B15CFF');
   });
 
+  test('she can name it, rename it, and un-name it back to something friendly', async ({page}) => {
+    // The one place in the whole app where she types. A name of nothing but
+    // spaces used to stick, leaving the heading blank instead of falling back.
+    await open(page);
+    await page.evaluate(() => window.__144.go('power'));
+    await page.waitForTimeout(150);
+    const name = () => page.locator('#buddyName').innerText();
+
+    await page.click('#nameit');
+    await page.type('#nameinput', '  Zap  ');
+    await page.press('#nameinput', 'Enter');
+    await page.waitForTimeout(150);
+    expect(await page.evaluate(() => window.__144.state.buddy.name)).toBe('Zap');  // trimmed
+    expect(await name()).toBe('Zap');
+
+    // it survives a reload, because it is hers
+    await page.reload();
+    await page.waitForFunction(() => !!window.__144);
+    await page.evaluate(() => window.__144.go('power'));
+    await page.waitForTimeout(150);
+    expect(await name()).toBe('Zap');
+
+    // and clearing it hands back the friendly default, not a blank line
+    await page.click('#nameit');
+    await page.fill('#nameinput', '   ');
+    await page.press('#nameinput', 'Enter');
+    await page.waitForTimeout(150);
+    expect(await page.evaluate(() => window.__144.state.buddy.name)).toBe('');
+    expect((await name()).trim()).toBe('her buddy');
+    expect(errorsOf(page)).toEqual([]);
+  });
+
+  test('a name is shown as her words, never run as markup', async ({page}) => {
+    await open(page);
+    await page.evaluate(() => window.__144.go('power'));
+    await page.waitForTimeout(150);
+    await page.click('#nameit');
+    await page.fill('#nameinput', '<b>hi</b>');
+    await page.press('#nameinput', 'Enter');
+    await page.waitForTimeout(150);
+    expect(await page.locator('#buddyName').innerText()).toBe('<b>hi</b>');
+    expect(await page.locator('#buddyName b').count()).toBe(0);
+  });
+
+  test('the naming field is not hidden under a software keyboard', async ({page}) => {
+    // The keyboard covers roughly the bottom 45% of an iPhone. The field must sit
+    // above that line when it opens, or she types blind. (Whether the *document*
+    // gets pushed up cannot be tested here — no headless browser opens a real
+    // keyboard — so that one is handled defensively in the blur handler.)
+    await page.setViewportSize({width: 375, height: 667});
+    await open(page);
+    await page.evaluate(() => window.__144.go('power'));
+    await page.waitForTimeout(150);
+    await page.click('#nameit');
+    await page.waitForTimeout(150);
+    const r = await page.evaluate(() => {
+      const b = document.getElementById('nameinput').getBoundingClientRect();
+      return {bottom: b.bottom, h: innerHeight, on: document.activeElement.id};
+    });
+    expect(r.on, 'tapping "name it" did not put the cursor in the field').toBe('nameinput');
+    expect(r.bottom, 'the field opens under where the keyboard will be')
+      .toBeLessThan(r.h * 0.55);
+  });
+
 });
 
 test.describe('sound', () => {
