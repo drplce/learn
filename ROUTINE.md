@@ -117,7 +117,19 @@ reviews Acorn's index.html only); it's built live with David for now.
     charge/battery bar depletes over ~12h and she plays to top it up (Tamagotchi-style care loop that
     naturally drives ~2×/day). KINDNESS caution to hold: low charge = peacefully asleep/dim, never
     sad/dying/guilt-tripping. buddy.html rebuilt to this (artifact 87367345).
-  - **Open for David:** react to the buddy + Blast feel; then I scaffold
+  - **Buddy = ROUNDED CUBE, no feet** (David, ref: a red rounded-cube robot w/ pale face-plate). Start
+    state: just the cube + a pulsing glow-LINE where the eyes will go (no face). **Level-1 customisation
+    = colour only** (while it charges); face + more unlock as it boots. **3 cube options mocked**
+    (`scratchpad/buddy-options.html`, artifact 609a1e79): A Soft Silicone (matte toy, pale plate), B
+    Neon Device (glossy, dark screen, neon line), C Glass Bevel (premium). Awaiting his pick.
+  - **STRUCTURE agreed: Option 1 "power room"** — Home = the electric stepping-stone path; the 144 grid
+    lives behind the buddy as its "power room" (grid = the watts that charge it); path & grid are two
+    views of one progress (clearing a stone lights its grid cells).
+  - **PLAN: v1 ships tomorrow morning (2026-08-12).** Process David set: he picks a cube → I ask any
+    final questions → then BUILD the real `tables/` app + a build/refine/auto-improve loop **like
+    Acorn's** (its own tests + its own routine/cron, separate from Acorn's). Neon Pop skin · Blast core
+    · watts currency + 12h charge · path home · power-room grid · the cube buddy.
+  - **Open for David:** pick a cube (A/B/C); then final Qs, then I build v1. Blast deeper-review still open.
     the real `tables/` app (fact-engine + Blast playable + a first path). Do NOT scaffold into the app
     without his go-ahead beyond the prototype.
 
