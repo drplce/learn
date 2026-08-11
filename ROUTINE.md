@@ -75,7 +75,16 @@ reviews Acorn's index.html only); it's built live with David for now.
     facts = the acquisition schedule made visible) AND a meta where **the games upgrade as she
     progresses** (clear stones/tables → unlock faster waves, new modes, skins, the Prize Spin, boss
     fights). Iterate the games around her as she plays.
-  - **Open for David:** react to the Blast feel; confirm name + the 70/70 pace shape; then I scaffold
+  - **Name chosen: "144"** (David, 2026-08-11 — the number of facts / 12²). Blast iteration: David
+    liked the energy but wanted a gentler start ramping faster; done — early rounds now have fewer
+    choices (3 orbs) and a slow rise, speed climbs each round (`0.16 + (round-1)·0.06`, capped),
+    round-up cue "Round N — faster!". Republished (same artifact URL).
+  - **Still open with David (design):** how many rounds close out a level/session; the overall
+    dashboard (proposed a 12×12 grid heatmap that fills as she masters facts — literally *144*); and
+    "how hard can the pace go" (answer: acquisition can be pushed to ~4–6 weeks, but durability is
+    calendar-bound by spacing — front-load acquisition, extend reinforcement; ~80–85% success is the
+    guardrail; frequency > duration).
+  - **Open for David:** react to the Blast feel; confirm the 70/70 (or harder) pace shape; then I scaffold
     the real `tables/` app (fact-engine + Blast playable + a first path). Do NOT scaffold into the app
     without his go-ahead beyond the prototype.
 
