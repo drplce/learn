@@ -110,6 +110,13 @@ reviews Acorn's index.html only); it's built live with David for now.
     now a real Acorn seeded-blob pebble (ported `seeded`/`cellPoints`/`blobPath`) with 3-D dome +
     extruded side + gloss + glow; added **daily accessory unlocks** (hat/specs/bow ready, crown/cap/
     phones locked "tomorrow/Day 4/5" — tap to dress her; the daily reason to come back, habit hook).
+    **REVISED AGAIN (David, refs: a white pod-robot):** organic blob "doesn't work" — went back to a
+    clean SMOOTH white pod (like the robot ref) with a dark glossy face-SCREEN that is **BLANK at the
+    start — no eyes/face, just the shape charging**; the screen boots on (Waking→Awake→Buddy face) as
+    she levels. **CURRENCY = watts/⚡ (electric), not coins** (David): right answers make power; a
+    charge/battery bar depletes over ~12h and she plays to top it up (Tamagotchi-style care loop that
+    naturally drives ~2×/day). KINDNESS caution to hold: low charge = peacefully asleep/dim, never
+    sad/dying/guilt-tripping. buddy.html rebuilt to this (artifact 87367345).
   - **Open for David:** react to the buddy + Blast feel; then I scaffold
     the real `tables/` app (fact-engine + Blast playable + a first path). Do NOT scaffold into the app
     without his go-ahead beyond the prototype.
