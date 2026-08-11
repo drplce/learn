@@ -422,7 +422,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.5';
+var VERSION = '1.6';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -748,7 +748,14 @@ function settleCharge(){
   }
 }
 function addWatts(n){ S.power.watts += n; }
-function addCharge(pct){ S.power.charge = Math.min(100, S.power.charge + pct); }
+// Returns what actually landed, which is not what was asked for once the battery
+// is full — the clear card counts this, so it can never claim a charge she did
+// not get.
+function addCharge(pct){
+  var was = S.power.charge;
+  S.power.charge = Math.min(100, was + pct);
+  return S.power.charge - was;
+}
 function level(){ return S.prog.cleared + 1; }
 function buddyStage(){ var l=S.prog.cleared; return l>=45 ? 3 : l>=30 ? 2 : l>=15 ? 1 : 0; }
 
@@ -1043,7 +1050,7 @@ function tap(o){
     W.per[W.cur.k]=(W.per[W.cur.k]||0)+1;
     W.combo++; W.best=Math.max(W.best,W.combo);
     var mult=1+Math.floor(W.combo/3), got=mult;
-    addWatts(got); W.watts+=got; addCharge(2); W.charge+=2;
+    addWatts(got); W.watts+=got; W.charge += addCharge(2);
     W.done++; W.asked++;
     sfxRight(W.combo);
     sparks(o.x, o.y, 5+mult*2);
@@ -1094,7 +1101,7 @@ function jackpot(){
 }
 function clearLevel(){
   var wasPlacement = W.level.kind==='placement';
-  addWatts(25); W.watts+=25; addCharge(15); W.charge+=15;
+  addWatts(25); W.watts+=25; W.charge += addCharge(15);
   if(wasPlacement){
     S.prog.placed = true;
     // Skip ahead past the tables she already owns: the first stone that still
@@ -1113,7 +1120,9 @@ function clearLevel(){
   el('#clearBig').textContent = wasPlacement ? 'Great — now we know!' :
     (W.level.kind==='boss' ? '👑 '+W.level.table+'× conquered!' : 'Level cleared!');
   el('#clearWatts').textContent = W.watts;
-  el('#clearCharge').textContent = Math.min(100,Math.round(W.charge))+'%';
+  // A full battery earns "full", not a deflating 0% after a good sitting.
+  el('#clearCharge').textContent = W.charge < 0.5 && S.power.charge >= 100
+    ? 'full ⚡' : Math.round(W.charge)+'%';
   el('#clear').classList.add('on');
   orbs.forEach(function(o){ if(o.el.parentNode) o.el.remove(); }); orbs=[];
   renderHud();
