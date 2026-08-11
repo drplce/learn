@@ -32,6 +32,12 @@ The trigger fires once a day, but you only do a **full pass** as often as `inter
 Never call `update_trigger` yourself. The cadence lives here now, and the trigger is a fixed daily
 pointer — only David changes its schedule (he set it to daily at 17:00 UTC on 2026-08-09).
 
+**This file governs ACORN only** (`/index.html`, `/tests/`). Since 2026-08-11 the repo also holds
+**144**, the times-tables app in `tables/` — it has its own `tables/ROUTINE.md`, its own harness
+(`npx playwright test -c tables/playwright.config.js`) and its own daily trigger at 18:00 UTC. An
+Acorn pass must not touch `tables/`, and 144's pass must not touch Acorn. Two apps, one repo,
+strictly separate routines.
+
 ---
 
 ## 2. CADENCE LADDER — how to set `interval` at the end of a pass
