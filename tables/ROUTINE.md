@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: 30m
-last-run: 2026-08-11T20:15Z
+last-run: 2026-08-11T21:18Z
 ```
 
 On each firing:
@@ -155,7 +155,7 @@ composites transparency to black). Storage key `144.v1`.
 npx playwright test -c tables/playwright.config.js
 ```
 
-23 tests at v1.0. **Add a test for every defect fixed, and verify it fails on the broken version**
+39 tests at v1.4. **Add a test for every defect fixed, and verify it fails on the broken version**
 (inject the regression, watch it fail, revert). Extend the suite each pass with new adversarial
 cases — the tests are what make an autonomous loop safe.
 
@@ -172,12 +172,15 @@ reported loudly, *never* silently relaxed by lowering them). Run it after any ch
 the ladder or the level goals. It is slow (~2 min); that is fine.
 
 1. **The software keyboard over the naming field** in the power room (Acorn had real trouble here).
-2. **Screenshot the real screens** at iPhone SE and 13, and LOOK (see also §6a).
-3. **The level-clear card** is the least-tested screen: prove the numbers on it match what she
+2. **The level-clear card** is the least-tested screen: prove the numbers on it match what she
    actually earned, and that "keep going" cannot start a level she has already cleared.
-4. **Sound**: prove the mute really silences everything (the synth is fired from several places).
+3. **Sound**: prove the mute really silences everything (the synth is fired from several places).
 
 **Done, and now guarded — do not undo these:**
+- **The play screen on a small phone** (v1.4, in `game.spec.js` "the look of it"): at 375×667 the
+  sum must live *inside* the field, the gap between it and the highest bubble must stay under a
+  third of the field, and no bubble may come within 12px of the edge. Layout that reads fine at
+  390×844 can strand her eyes at either end of an SE.
 - **A full disk and a jumping clock** (v1.3, `tests/robust.spec.js`): `rev` must only advance after a
   write LANDS — advancing it on a failed write made this window think it was ahead of storage, so a
   full disk plus a stale window ate her progress.
@@ -218,14 +221,14 @@ leave 144 looking better than it found it. Rules of engagement:
 - **Everything must survive `prefers-reduced-motion`** (show the end state, don't run the show) and
   keep tap targets ≥48px.
 - **The known list, most valuable first** (keep it pruned and re-ordered as things get done):
-  1. The play field's middle is emptyish while bubbles rise — try the prompt lower, or a shorter
-     field, or something alive in the gap (drifting sparks, a faint stage floor).
-  2. The buddy cube's "lit from within" read is weak at HUD size (52px) — it looks like a plain
+  1. The buddy cube's "lit from within" read is weak at HUD size (52px) — it looks like a plain
      rounded square there.
-  3. The power room and the level-clear card got less neon than the rest of the app.
-  4. The level-clear moment could be a proper stage flare rather than a card.
-  5. The number type could be more of a hero (weight, spacing, a subtle stage shadow).
-  6. Round-to-round transitions: the hue currently snaps; a fast wipe or pulse would sell it.
+  2. The power room and the level-clear card got less neon than the rest of the app.
+  3. The level-clear moment could be a proper stage flare rather than a card.
+  4. The number type could be more of a hero (weight, spacing, a subtle stage shadow).
+  5. Round-to-round transitions: the hue currently snaps; a fast wipe or pulse would sell it.
+  6. *(done v1.4 — the prompt now floats inside the field, so the empty middle is gone. What is
+     left in that space is still bare: drifting sparks or a faint stage floor would fill it.)*
 
 ## 7. METHOD
 
@@ -279,6 +282,12 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-11, 20:40–21:18Z (sprint pass 4):** the visual job (v1.4). Shot the real screens at
+  iPhone SE and 13 and looked: on the SE the sum sat at the very top, the bubbles rose from the
+  bottom, and over half the screen was dead air between them — her eyes had to cross the whole
+  phone to play, and a bubble grazed the right edge. The prompt now floats inside the play field at
+  22% and bubbles spawn inset (`pad` 52→58) and a little higher. One new test, teeth-checked
+  against the old layout — it fails on all three counts. 39 pass.
 - **2026-08-11, 20:09–20:15Z (sprint pass 3):** robustness (v1.3). Six new tests for a full disk and
   a jumping clock; one found a real interaction bug (a failed write advanced `rev`, disabling the
   merge that protects her from a stale window). The rest passed as written, which is itself worth
