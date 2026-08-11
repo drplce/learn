@@ -57,6 +57,16 @@ an hour**:
 - **The path has NO TEXT at all** — purely graphic nodes — and it **meanders** rather than running
   straight.
 - The word is **"levels"**, not "stones", everywhere: UI, code and tests.
+
+**Brief DELIVERED in v1.1** (17:45–18:05Z): neon palette + stage blooms, round dark-inside bubbles
+ringed in light with one colour per round (rotating `ROUND_COLOURS` → `--rc`, which the prompt, goal
+bar, sparks and flash all follow), a pixel-drawn meandering wire with wordless nodes (gold bead /
+breathing cyan play ring / unlit ring / magenta boss star, all aria-labelled), the lit level tappable,
+and the full stones→levels rename. Four tests now hold the brief. **Still worth doing on this:**
+the play field's middle is still emptyish while bubbles rise (they now start at 60% instead of 72%,
+but consider whether the prompt should sit lower or the field be shorter); the buddy cube's
+"lit from within" read is weak at HUD size; and the power room + clear card could take more of the
+neon treatment than they got.
 - **Every pass must end green and pushed.** Run the harness, add a test for anything fixed, and
   teeth-check it (inject the regression, watch it fail, revert). One small verified increment per
   pass beats a big unverified one.
