@@ -100,7 +100,14 @@ reviews Acorn's index.html only); it's built live with David for now.
     glowing gem orbs, particles), **3 Neon Pop** (his hybrid — clay shapes + electric colour; my
     lean), **4 Retro Pixel** (8-bit, scanlines, chiptune). Each panel shows prompt + 3 answer tiles +
     coin + palette + a "🔓 grows: Lv1→Lv15→Lv30→Lv45" unlock path. Awaiting his pick (or a mix).
-  - **Open for David:** pick a GUI look (or mix); react to the Blast feel; then I scaffold
+  - **GUI STYLE CHOSEN: Neon Pop** (David, 2026-08-11) — clay/tactile chunky shapes with electric
+    colour on dark slate; starts near-flat and unlocks glow/shimmer/arcs/pulse as she levels.
+  - **MASCOT concept BUILT** (`scratchpad/buddy.html`, artifact 87367345): David wants a little
+    character, "for now an egg/pebble (like Acorn) that hatches/grows/gets booted up in future."
+    Through-line: Acorn grows a seed; 144 boots a bot. Lv1 = a dormant glowing pebble-pod (sleepy
+    eye, gold charging core, idle bob) → Lv15 Spark (wakes) → Lv30 Booted (little bot w/ eyes+arms+
+    feet) → Lv45 Champ (gold + crown). She can name it. Neon Pop skin. Awaiting his reaction.
+  - **Open for David:** react to the buddy + Blast feel; then I scaffold
     the real `tables/` app (fact-engine + Blast playable + a first path). Do NOT scaffold into the app
     without his go-ahead beyond the prototype.
 
