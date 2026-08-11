@@ -106,7 +106,10 @@ reviews Acorn's index.html only); it's built live with David for now.
     character, "for now an egg/pebble (like Acorn) that hatches/grows/gets booted up in future."
     Through-line: Acorn grows a seed; 144 boots a bot. Lv1 = a dormant glowing pebble-pod (sleepy
     eye, gold charging core, idle bob) → Lv15 Spark (wakes) → Lv30 Booted (little bot w/ eyes+arms+
-    feet) → Lv45 Champ (gold + crown). She can name it. Neon Pop skin. Awaiting his reaction.
+    feet) → Lv45 Champ (gold + crown). She can name it. Neon Pop skin. **Iterated (David):** body is
+    now a real Acorn seeded-blob pebble (ported `seeded`/`cellPoints`/`blobPath`) with 3-D dome +
+    extruded side + gloss + glow; added **daily accessory unlocks** (hat/specs/bow ready, crown/cap/
+    phones locked "tomorrow/Day 4/5" — tap to dress her; the daily reason to come back, habit hook).
   - **Open for David:** react to the buddy + Blast feel; then I scaffold
     the real `tables/` app (fact-engine + Blast playable + a first path). Do NOT scaffold into the app
     without his go-ahead beyond the prototype.
