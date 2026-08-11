@@ -409,7 +409,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.1';
+var VERSION = '1.2';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -456,7 +456,8 @@ function fresh(){
     facts:bare(null),
     power:{watts:0, charge:100, at:Date.now()},
     prog:{cleared:0, placed:false, startedOn:todayISO(), lastDay:'', sessions:0, days:0},
-    set:{sound:true}
+    set:{sound:true},
+    rev:0
   };
 }
 function num(v, lo, hi, dflt){
@@ -499,6 +500,7 @@ function sane(raw){
     if(typeof raw.prog.lastDay==='string'  && /^\d{4}-\d\d-\d\d$/.test(raw.prog.lastDay))  t.prog.lastDay=raw.prog.lastDay;
   }
   if(raw.set && typeof raw.set==='object') t.set.sound = raw.set.sound !== false;
+  t.rev = Math.round(num(raw.rev, 0, 1e12, 0));
   return t;
 }
 function load(){
@@ -506,10 +508,67 @@ function load(){
   try{ raw = JSON.parse(localStorage.getItem(KEY) || 'null'); }catch(e){}
   S = sane(raw);
 }
+
+/* ---- two windows on the same phone ----
+   The realistic failure is not two people playing at once: it is a tab left
+   open on the sofa that writes its stale idea of the world over everything she
+   did since, and nobody notices until the progress is gone. So a write is not
+   a blind overwrite. Every save carries a `rev`; if storage has moved on since
+   we last read it, we merge instead of stamping, taking the better of the two
+   for anything that can only be earned. Learning is never rolled back. */
+function betterFact(mine, theirs){
+  if(!mine) return theirs;
+  if(!theirs) return mine;
+  // more retrievals is the more recent truth; the box breaks a tie
+  if(theirs.seen > mine.seen) return theirs;
+  if(theirs.seen === mine.seen && theirs.box > mine.box) return theirs;
+  return mine;
+}
+function mergeState(mine, theirs){
+  var out = mine, k;
+  var keys = Object.create(null);
+  for(k in mine.facts)   keys[k] = 1;
+  for(k in theirs.facts) keys[k] = 1;
+  var facts = bare(null);
+  for(k in keys) facts[k] = betterFact(mine.facts[k], theirs.facts[k]);
+  out.facts = facts;
+  // watts and levels are earned: never hand back what either window banked
+  out.power.watts  = Math.max(mine.power.watts,  theirs.power.watts);
+  out.prog.cleared = Math.max(mine.prog.cleared, theirs.prog.cleared);
+  out.prog.days    = Math.max(mine.prog.days,    theirs.prog.days);
+  out.prog.sessions= Math.max(mine.prog.sessions,theirs.prog.sessions);
+  out.prog.placed  = mine.prog.placed || theirs.prog.placed;
+  if((theirs.prog.lastDay||'') > (out.prog.lastDay||'')) out.prog.lastDay = theirs.prog.lastDay;
+  // the charge belongs to whichever window touched it last
+  if(theirs.power.at > mine.power.at){ out.power.charge = theirs.power.charge; out.power.at = theirs.power.at; }
+  // preferences are not earned, so the window doing the writing wins
+  out.rev = Math.max(mine.rev||0, theirs.rev||0);
+  return out;
+}
 // A full disk or a private-mode quota must never throw mid-answer.
 function save(){
-  try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){}
+  try{
+    var onDisk = null;
+    try{ onDisk = JSON.parse(localStorage.getItem(KEY) || 'null'); }catch(e){}
+    if(onDisk && Math.round(Number(onDisk.rev)||0) > (S.rev||0)) S = mergeState(S, sane(onDisk));
+    S.rev = (S.rev||0) + 1;
+    localStorage.setItem(KEY, JSON.stringify(S));
+  }catch(e){}
 }
+/* And the other way round: a window that is merely open should not sit on a
+   stale number while she plays in another one. */
+addEventListener('storage', function(ev){
+  if(ev.key && ev.key !== KEY) return;
+  var incoming = null;
+  try{ incoming = JSON.parse(ev.newValue || localStorage.getItem(KEY) || 'null'); }catch(e){}
+  if(!incoming) return;
+  if(Math.round(Number(incoming.rev)||0) <= (S.rev||0)) return;
+  // Mid-question, adopting a new state under her feet would be worse than being
+  // slightly behind; the merge on the next save will pick it up either way.
+  if(W) { S = mergeState(S, sane(incoming)); return; }
+  S = mergeState(S, sane(incoming));
+  applyShell(); render();
+});
 function mastery(k){ return S.facts[k] || (S.facts[k]={box:0, right:0, wrong:0, seen:0, last:''}); }
 function metCount(){ var n=0; for(var k in S.facts) if(S.facts[k].seen>0) n++; return n; }
 
@@ -723,7 +782,6 @@ function render(){
   renderHud();
   if(screen==='home') renderHome();
   if(screen==='power') renderPower();
-  save();
 }
 
 function shell(){ return SHELLS.filter(function(s){return s.id===S.buddy.shell;})[0] || SHELLS[0]; }
@@ -970,6 +1028,7 @@ function tap(o){
     if(W.combo>0 && W.combo%5===0) jackpot();
     if(W.asked%4===0){ W.round++; paintRound(); el('#cue').textContent='Round '+W.round+' — faster! ⚡'; sfxTick(); }
     else el('#cue').textContent = pick(['Nice!','Boom!','Yes!','Pow!','Got it!']);
+    save();                                   // her answer is banked now, not at the next paint
     if(W.done>=W.goal){ setTimeout(clearLevel, 420); return; }
     setTimeout(next, 260);
   } else {
@@ -1110,6 +1169,7 @@ load();
 settleCharge();
 applyShell();
 render();
+save();                                        // persist the settled charge and the rev
 })();
 </script>
 </body>

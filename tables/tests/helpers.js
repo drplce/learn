@@ -53,4 +53,16 @@ async function seed(page, facts){
     a.save(); a.render();
   }, facts);
 }
-module.exports = {APP, open, errorsOf, answer, playLevel, seed};
+// Open WITHOUT clearing storage — for the two-windows tests, where the second
+// window must find the first one's data exactly as she left it.
+async function openRaw(page){
+  const errors = [];
+  page.on('pageerror', e => errors.push('pageerror: ' + e.message));
+  page.on('console', m => { if(m.type() === 'error' && !/Failed to load resource/i.test(m.text()))
+    errors.push('console: ' + m.text()); });
+  page.__errors = errors;
+  await page.goto(APP);
+  await page.waitForFunction(() => !!window.__144);
+  return page;
+}
+module.exports = {APP, open, openRaw, errorsOf, answer, playLevel, seed};
