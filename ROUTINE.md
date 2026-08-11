@@ -13,8 +13,8 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
 <!-- STATE — the routine reads these two values, and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: daily
-last-run: 2026-08-10T17:13Z
+interval: weekly
+last-run: 2026-08-11T17:31Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -148,7 +148,9 @@ reviews Acorn's index.html only); it's built live with David for now.
     the real `tables/` app (fact-engine + Blast playable + a first path). Do NOT scaffold into the app
     without his go-ahead beyond the prototype.
 
-**HOT (hourly) — the "sheep" idea; David chose #2, prototype built 2026-08-08.** His concept: on the
+**OPEN (awaiting David, not actionable here) — the "sheep" idea; he chose #2, prototype built
+2026-08-08.** (Was "HOT/hourly" when the trigger fired hourly; those rungs are retired — see §2.)
+His concept: on the
 finished/garden screen the word-pebbles wander gently like sheep; the ones not yet locked into memory
 are strays at the edges, and as a word locks in it folds into the herd that sticks around the centre —
 so there's more life/wandering on screen. My read (sent to him): it works AND it's meaningful because
@@ -283,13 +285,16 @@ the child sees or hears uses it any more (13.31 dropped the underline, 13.33 dro
 parts on a miss); it survives only in the clip prefetch and the model-level research tests. A future
 tidy pass could tear it out — don't, without a reason.
 
-**Cadence note (17:13Z, 2026-08-10):** second clean pass on the daily cron. App frozen at 13.44;
-all three green — Playwright 589 (no flakes), break clean across 37 cases, sim in band (learned
-83.5%, all 8 bands held). Still HOLDING `daily`: the sheep prototype (iterations 1–4, artifact
-744f2325) is an open thread awaiting David — quiet ~2 days but genuinely his to react to. If he is
-still quiet at the next daily firing, COOL to `weekly` (the thread will be clearly dormant, and the
-app is stable/green). A live message snaps it back and is handled in real time regardless. (Prior
-note 17:10Z 2026-08-09: first daily-cron pass — superseded.)
+**Cadence note (17:31Z, 2026-08-11):** third clean pass on the daily cron, and the day a SIBLING APP
+arrived — David had me build **144** (times tables) in `tables/`, with its own routine, harness and
+daily trigger at 18:00Z. Acorn itself is untouched by that work and was re-verified as part of it.
+All three green: Playwright 589 (run this evening on the frozen bytes while proving the two apps are
+separate), break clean across 37 cases, sim in band (learned 83.5%, all 8 bands held). Acorn's code
+has not changed since 13.44 on 2026-08-05.
+COOLING `daily → weekly`: nothing here is actionable. The sheep thread is David's to react to (and
+he has clearly pivoted to 144 for now), and a daily pass on six-day-frozen code only adds noise on a
+night when 144's pass is the one doing real work. A live message snaps this back to `daily` and is
+answered in real time regardless. (Prior note 17:13Z 2026-08-10 — superseded.)
 
 ---
 
