@@ -491,7 +491,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.10';
+var VERSION = '1.11';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -539,6 +539,7 @@ function fresh(){
     power:{watts:0, charge:100, at:Date.now()},
     prog:{cleared:0, placed:false, startedOn:todayISO(), lastDay:'', sessions:0, days:0},
     set:{sound:true, dials:0},
+    sit:null,           // a level part-finished: {i, done, asked, round}
     rev:0
   };
 }
@@ -586,6 +587,20 @@ function sane(raw){
     t.set.sound = raw.set.sound !== false;
     t.set.dials = Math.round(num(raw.set.dials, 0, 1e6, 0));   // how often she has used the line
   }
+  // A level she is part-way through. Bounded hard: a corrupt `done` must never be
+  // able to clear a level she has not played.
+  if(raw.sit && typeof raw.sit==='object'){
+    var si = Math.round(num(raw.sit.i, 0, 4999, -1));
+    if(si >= 0 && si < LEVELS.length){
+      var cap = goalOf(LEVELS[si]);
+      t.sit = {i:si,
+        k: typeof raw.sit.k === 'string' ? raw.sit.k.slice(0,24) : '',
+        done:  Math.round(num(raw.sit.done,  0, cap-1, 0)),   // never a finished level
+        asked: Math.round(num(raw.sit.asked, 0, 500, 0)),
+        round: Math.round(num(raw.sit.round, 1, 40, 1))};
+      if(t.sit.done <= 0) t.sit = null;
+    }
+  }
   t.rev = Math.round(num(raw.rev, 0, 1e12, 0));
   return t;
 }
@@ -631,6 +646,9 @@ function mergeState(mine, theirs){
   // count of how often she has used the number line, which is experience like any
   // other and must not go backwards, or the hint would come back after it retired
   out.set.dials = Math.max(mine.set.dials||0, theirs.set.dials||0);
+  // a part-finished level: keep whichever window got further, never roll her back
+  if(theirs.sit && (!out.sit || theirs.sit.i > out.sit.i ||
+     (theirs.sit.i === out.sit.i && theirs.sit.done > out.sit.done))) out.sit = theirs.sit;
   out.rev = Math.max(mine.rev||0, theirs.rev||0);
   return out;
 }
@@ -962,7 +980,11 @@ function renderHome(){
   var from, to, nodes;
   if(!S.prog.placed){ from = 0; to = 1; nodes = [{kind:'placement', state:'now'}]; }
   else {
-    from = Math.max(0, idx-3); to = Math.min(LEVELS.length, idx+10);
+    // Show the chain she has actually lit, not a three-node window. With only three
+    // finished nodes ever drawn, the current level sat fourth from the top every
+    // single session and the path looked frozen — David, 2026-08-12: "the path
+    // appears to be stuck as level 4", at level 15. The gold has to accumulate.
+    from = Math.max(0, idx-40); to = Math.min(LEVELS.length, idx+8);
     nodes = [];
     for(var i=from;i<to;i++) nodes.push({kind:LEVELS[i].kind, state: i<idx?'done':i===idx?'now':'locked', i:i});
   }
@@ -1006,8 +1028,12 @@ function renderHome(){
   if(!S.prog.placed){ b.innerHTML='⚡ Let’s see what you know<small>about two minutes</small>'; b.className='bigbtn'; }
   else {
     var st=LEVELS[idx];
+    // The path carries no words by design, so the button is where she finds out
+    // where she is — and whether last night moved her at all.
+    var part = (S.sit && S.sit.i === idx && S.sit.done > 0)
+             ? ' · ' + S.sit.done + '/' + goalOf(st) + ' done' : '';
     b.innerHTML = (st.kind==='boss' ? '👑 Boss' : st.kind==='recall' ? '🎯 Fill the gap' : '⚡ Play')
-               + '<small>'+st.table+'×</small>';
+               + '<small>level '+level()+' · '+st.table+'×'+part+'</small>';
     b.className = 'bigbtn'+(st.kind==='boss'?' pink':'')+(st.kind==='recall'?' lime':'');
   }
   var now=el('#path .level.now');
@@ -1078,9 +1104,22 @@ function paintRound(){
 var reduce=false;
 try{ reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
 
+/* What a level IS, not merely where it sits in the list. The ladder has already
+   been rewritten once under her (v1.8 inserted the fill-the-gap levels), and a
+   part-finished level must never be resumed onto a different one. */
+function sitKey(level){ return level.kind + ':' + (level.table || 0) + ':' + level.facts.length; }
 function start(level){
   W = {level:level, pool:level.facts.slice(), done:0, goal:goalOf(level),
        combo:0, best:0, round:1, watts:0, charge:0, per:bare(null), asked:0, cur:null};
+  // Carry on where she left off. A ten-year-old plays in bursts — five answers, put
+  // the phone down, come back later — and a level that starts from nothing every
+  // time is a level she can never finish. Her answers always counted towards the
+  // boxes and her watts; it was only the level's own counter that was thrown away.
+  // The combo is NOT restored: a streak is something she is in the middle of.
+  if(level.kind !== 'placement' && S.sit && S.sit.i === levelIndex() &&
+     S.sit.k === sitKey(level) && S.sit.done < W.goal){
+    W.done = S.sit.done; W.asked = S.sit.asked; W.round = S.sit.round;
+  }
   el('#clear').classList.remove('on');
   screen='play'; render();
   fieldSize();
@@ -1283,6 +1322,8 @@ function score(right, x, y, node, cls){
       el('#cue').textContent = gap ? 'Round '+W.round+' ⚡' : 'Round '+W.round+' — faster! ⚡';
     }
     else el('#cue').textContent = pick(['Nice!','Boom!','Yes!','Pow!','Got it!']);
+    if(W.level.kind !== 'placement' && W.done < W.goal)
+      S.sit = {i:levelIndex(), k:sitKey(W.level), done:W.done, asked:W.asked, round:W.round};
     save();                                   // her answer is banked now, not at the next paint
     if(W.done>=W.goal){ setTimeout(clearLevel, 420); return; }
     setTimeout(next, gap ? 380 : 260);
@@ -1338,6 +1379,7 @@ function clearLevel(){
   } else {
     S.prog.cleared++;
   }
+  S.sit = null;                                // finished: nothing to come back to
   var t=todayISO();
   if(S.prog.lastDay!==t){ S.prog.lastDay=t; S.prog.days++; S.prog.sessions=1; }
   else S.prog.sessions++;
