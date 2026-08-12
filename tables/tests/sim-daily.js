@@ -44,10 +44,28 @@
  *              massed day *feels* like it worked — and the app's boxes rise
  *              accordingly, which is exactly the trap worth showing.
  *
- * A third number, `durable`, recounts "known" strictly and honestly from the
- * REAL engine's own records: a fact counts only if its real box ≥ KNOWN_BOX
- * *and* it has been answered right on at least KNOWN_BOX DIFFERENT DAYS. No
- * target is lowered anywhere in this file; `durable` is an EXTRA, harder bar.
+ * TWO EXTRA MEASURES, because "known" turned out to be cheap to hit. Neither
+ * relaxes anything — both are HARDER bars, reported alongside David's targets:
+ *
+ *   durable — the real engine's own records, recounted strictly: box ≥ KNOWN_BOX
+ *             *and* answered right on at least KNOWN_BOX DIFFERENT DAYS.
+ *   recall  — the learner model's own strength, summed over all 78 facts: how
+ *             many she could produce today with no bubbles to choose from. The
+ *             app cannot measure this, which is the whole point.
+ *
+ * WHY "known" is cheap: a miss keeps the question up until it lands (the app's
+ * real, kind behaviour) and `record` moves the box on every attempt. So one
+ * presentation is +1 box if she gets it first go and net 0 if she misses once —
+ * boxes drift upward for anything asked regularly and only fall on a fact she is
+ * actually shown and misses twice. And `pickFact` stops choosing facts in high
+ * boxes, so a box-5 fact tends never to be tested again: the count is a ratchet.
+ * `known` therefore means "asked about five times and mostly landed", not "knows
+ * it". Read `known` next to `recall`, never on its own.
+ *
+ * THREE REVIEW CHOOSERS are compared, because the plan's part (b) — interleaved
+ * old facts — turns out to be the whole ballgame, and the app cannot currently
+ * do it (see the picker diagnostic printed first). They are 'real', 'window' and
+ * 'due'; each is documented where it is defined.
  *
  *   node tables/tests/sim-daily.js
  *
@@ -127,12 +145,17 @@ function runLearner(cfg){
   }
 
   /* ---- who chooses the interleaved review facts ----
-   * 'real' = the app's own pickFact, unmodified: what she would get today.
-   * 'due'  = a PROPOSAL that does not exist in the app — the plainest possible
-   *          Leitner choice: whatever is furthest past its own box interval,
-   *          lowest box breaks ties, never the same fact twice in a row. It
-   *          still uses the real boxes and the real BOX_DAYS. It is here only to
-   *          answer "would the plan work if the picker spread review out?".   */
+   * 'real'   = the app's own pickFact over everything she has met. What she
+   *            would actually get today.
+   * 'window' = the app's own pickFact, unchanged, but over a TABLE-SIZED pool
+   *            that rotates each sitting — which is what the app's `mix` and
+   *            `boss` levels already do. Nothing new has to be invented for
+   *            this one; it is a scheduling choice, not a code change.
+   * 'due'    = a PROPOSAL that does not exist in the app — the plainest possible
+   *            Leitner choice: whatever is furthest past its own box interval,
+   *            lowest box breaks ties, never the same fact twice in a row. It
+   *            still uses the real boxes and the real BOX_DAYS. It is here only
+   *            to answer "would the plan work if review were spread out?".   */
   let lastDue = null, todayIso = '';
   function pickDue(pool){
     let best = null, bestW = -1e9;
@@ -203,7 +226,15 @@ function runLearner(cfg){
     return right;
   }
 
-  /* ---- day 0: the real first-open placement check, then (c)'s seeding ---- */
+  /* ---- day 0: the real first-open placement check, then (c)'s seeding ----
+   * Set the clock FIRST. `__144.reset()` does not clear `_today`, so without
+   * this the second and later learners stamp their day-0 records with the date
+   * the PREVIOUS learner finished on — a date in the future — and every one of
+   * those facts then looks "not due" for the whole run and is never chosen.
+   * (sim.js has the same hole for its 14 placement facts; it is not this file's
+   * to fix, but it is worth knowing when the two are read together.)          */
+  todayIso = new Date(2026, 7, 11).toISOString().slice(0, 10);
+  a.setToday(todayIso);
   (function placement(){
     const lv = a.placementLevel();
     lv.facts.forEach(k => {
@@ -219,8 +250,11 @@ function runLearner(cfg){
   for(let x = 1; x <= 12; x++) for(let y = x; y <= 12; y++){
     if(!seeded(x, y)) continue;
     const k = a.key(x, y);
-    a.record(k, true, true);                          // box 4 — the engine's own
-    if(rnd() < 0.5) a.record(k, true, false);         // some already at 5
+    a.record(k, true, true);                          // box 4 — the engine's own rule
+    // seedBox: where "she already owns this" should start. 4 is what the app's
+    // placement check actually does; 5 would mean a demonstrated fact counts as
+    // known immediately. It turns out to matter more than the whole daily dose.
+    if(cfg.seedBox === 5 || (cfg.seedBox !== 4 && rnd() < 0.5)) a.record(k, true, false);
     // solid means solid: years of school have given these many separate days of
     // practice, so they sit on a high floor and do not evaporate over the year.
     mem[k] = {s: 0.72 + 0.16 * rnd(), day: 0, days: 6, rDay: 0};
@@ -264,8 +298,20 @@ function runLearner(cfg){
 
     for(let sess = 0; sess < cfg.sessions; sess++){
       // the pool of old facts: everything she has met, minus today's target
-      const pool = Object.keys(facts()).filter(k =>
+      let pool = Object.keys(facts()).filter(k =>
         facts()[k].seen > 0 && targets.indexOf(k) < 0);
+      if(cfg.chooser === 'window'){
+        // one table at a time, rotating each sitting — the app's own `mix`/`boss`
+        // shape, which is the only thing that keeps pickFact's pool small enough
+        // for it to behave.
+        const t = a.TABLE_ORDER[(day * cfg.sessions + sess) % a.TABLE_ORDER.length];
+        const win = [];
+        for(let b = 1; b <= 12; b++){
+          const k = a.key(t, b);
+          if(pool.indexOf(k) >= 0) win.push(k);
+        }
+        if(win.length) pool = win;
+      }
 
       // The dose is CONSTANT across the year: during the 45-day sprint it is
       // target reps + interleaved review; once every fact has been introduced
@@ -299,7 +345,7 @@ function runLearner(cfg){
     }
     perDay.push({day, answers: dayAnswers, firstGo: dayAsked ? dayRight / dayAsked : 1});
     if(day === 45) at45 = snapshot();
-    if([1, 15, 30, 45, 60, 90, 120, cfg.days].indexOf(day) >= 0){
+    if([1, 15, 30, 45, 60, 75, 90, 105, 120, cfg.days].indexOf(day) >= 0){
       const sn = snapshot();
       trace.push({day, known: sn.known, durable: sn.durable, recall: sn.recall});
     }
@@ -405,9 +451,10 @@ function runLearner(cfg){
   console.log('    extra misses is enough to make a fact permanently the pick. Interleaved review');
   console.log('    over a wide pool is therefore not something the app can currently do.\n');
 
-  /* ---- the two choosers, so the plan can be judged apart from that bug ---- */
+  /* ---- three choosers, so the plan can be judged apart from that bug ---- */
   const CHOOSERS = [
-    ['real picker (the app as it is today)', 'real'],
+    ['real picker, whole-table pool (the app as it is today)', 'real'],
+    ['real picker, one table at a time (a SCHEDULING change only)', 'window'],
     ['spread-review chooser (a PROPOSAL — does not exist in the app)', 'due'],
   ];
 
@@ -529,9 +576,26 @@ function runLearner(cfg){
   console.log('    (note: "progress keeps moving" holds by ' + (knownEnd - known45).toFixed(1)
     + ' facts — a flat line passes this band, which is worth knowing.)');
 
-  /* ---- SENSITIVITY: reps on the target × old facts interleaved ---- */
+  /* ---- SENSITIVITY (iii): where "she already knows this" is seeded.
+     Not a dose knob at all — a bookkeeping one — and it moves the day-45
+     number more than any amount of practice does. ---- */
+  console.log('\n  SEEDING SENSITIVITY — what box the ×1 ×2 ×5 ×10 facts start in:');
+  for(const sb of [4, 5]){
+    for(const [label, chooser] of CHOOSERS){
+      const rs = await run(Object.assign({}, NOMINAL, {model: 'spaced', chooser, seedBox: sb}),
+        GRID_ABIL);
+      console.log('    box ' + sb + ', ' + label.replace(/ \(.*/, '').padEnd(38)
+        + ' known ' + avg(rs, r => r.at45.known).toFixed(1) + '@45  '
+        + avgKnown(rs).toFixed(1) + '@142   unaided recall '
+        + avg(rs, r => r.end.recall).toFixed(1) + '@142');
+    }
+  }
+  console.log('    (the app\'s placement check seeds box 4. The nominal runs above are half 4,'
+    + ' half 5.)');
+
+  /* ---- SENSITIVITY (i) and (ii): reps on the target × old facts interleaved ---- */
   const REPS = [4, 6, 8, 12, 16, 20];
-  const INTER = [0, 4, 8, 12, 16, 24];
+  const INTER = [0, 4, 8, 12, 24];
   console.log('\n  SENSITIVITY — honest model, ' + GRID_ABIL.length
             + ' learners spanning the ability range.');
   console.log('  Each cell: known@45 → known@142 (avg /78) and answers a session.');
@@ -548,6 +612,7 @@ function runLearner(cfg){
         row.push({reps, inter,
           k45: avg(rs, r => r.at45.known), kEnd: avgKnown(rs),
           durEnd: avg(rs, r => r.end.durable), recEnd: avg(rs, r => r.end.recall),
+          rec45: avg(rs, r => r.at45.recall),
           perSess: avg(rs, r => r.answersPerSession), firstGo: avg(rs, r => r.firstGo),
           worstEnd: Math.min(...rs.map(r => r.end.known))});
       }
@@ -559,42 +624,54 @@ function runLearner(cfg){
     grids[chooser] = cells;
 
     // what each knob is worth, in isolation
-    console.log('   target reps → known@142 (averaged over interleave):  '
-      + REPS.map(r => r + ': ' + avg(cells.filter(c => c.reps === r), c => c.kEnd).toFixed(1)).join('   '));
-    console.log('   old facts   → known@142 (averaged over reps):        '
-      + INTER.map(i => i + ': ' + avg(cells.filter(c => c.inter === i), c => c.kEnd).toFixed(1)).join('   '));
-    console.log('   old facts   → unaided recall@142:                    '
-      + INTER.map(i => i + ': ' + avg(cells.filter(c => c.inter === i), c => c.recEnd).toFixed(1)).join('   '));
+    const byR = (f, sel) => REPS.map(r => r + ': ' + avg(cells.filter(c => c.reps === r), sel).toFixed(1)).join('   ');
+    const byI = (f, sel) => INTER.map(i => i + ': ' + avg(cells.filter(c => c.inter === i), sel).toFixed(1)).join('   ');
+    console.log('   target reps → known@45   ' + byR(0, c => c.k45));
+    console.log('   target reps → known@142  ' + byR(0, c => c.kEnd));
+    console.log('   old facts   → known@45   ' + byI(0, c => c.k45));
+    console.log('   old facts   → known@142  ' + byI(0, c => c.kEnd));
+    console.log('   old facts   → recall@45  ' + byI(0, c => c.rec45)
+      + '     (unaided, and where interleaving actually shows up)');
+    console.log('   old facts   → recall@142 ' + byI(0, c => c.recEnd));
 
-    const hit = cells.filter(c => c.k45 >= 60 && c.kEnd >= 74);
-    const shortHit = hit.filter(c => c.perSess <= 26).sort((x, y) => x.perSess - y.perSess);
-    console.log('   MINIMUM DOSE hitting ≥60@45 AND ≥74@142:');
-    if(!shortHit.length){
-      console.log('     none of the ' + cells.length + ' doses tried, inside a short sitting (≤26).');
-      if(hit.length) console.log('     cheapest that hits them at all: ' + hit[0].reps + ' reps + '
-        + hit[0].inter + ' old, ' + hit[0].perSess.toFixed(0) + ' answers a session.');
-    } else {
-      const c = shortHit[0];
+    // A sitting must also be a sitting: the HEALTH band is 6–26 answers, so a
+    // dose that produces 4 answers a session does not count as hitting anything.
+    const playable = cells.filter(c => c.perSess >= 6 && c.perSess <= 26);
+    const cheapest = (sel, label) => {
+      const ok = playable.filter(sel).sort((x, y) => x.perSess - y.perSess);
+      console.log('   MINIMUM PLAYABLE DOSE ' + label + ':');
+      if(!ok.length){
+        console.log('     none of the ' + cells.length + ' doses tried.');
+        return;
+      }
+      const c = ok[0];
       console.log('     ' + c.reps + ' reps of the target + ' + c.inter + ' old facts a day → '
         + c.perSess.toFixed(1) + ' answers a session, first-go ' + pct(c.firstGo));
       console.log('     known ' + c.k45.toFixed(1) + '@45, ' + c.kEnd.toFixed(1) + '@142; durable '
-        + c.durEnd.toFixed(1) + '; unaided recall ' + c.recEnd.toFixed(1) + '; slowest learner '
-        + c.worstEnd + '/78');
-      console.log('     ' + shortHit.length + ' of ' + cells.length
-        + ' doses clear both targets while keeping the sitting short.');
-    }
+        + c.durEnd.toFixed(1) + '@142; unaided recall ' + c.rec45.toFixed(1) + '@45, '
+        + c.recEnd.toFixed(1) + '@142; slowest learner ' + c.worstEnd + '/78');
+      console.log('     (' + ok.length + ' of ' + playable.length + ' playable doses qualify)');
+    };
+    // David's targets, exactly as stated — the app's own box measure.
+    cheapest(c => c.k45 >= 60 && c.kEnd >= 74, 'hitting ≥60@45 AND ≥74@142 (the stated targets)');
+    // The same question asked of what she can actually produce. NOT a relaxation
+    // of anything: an extra, harder bar, because the box measure is cheap to hit.
+    cheapest(c => c.recEnd >= 60, 'reaching unaided recall ≥60/78 by day 142');
   }
 
   if(errors.length) console.log('\n  page errors: ' + errors.join(' | '));
 
   /* ---- the verdict, stated plainly ---- */
-  const realPlan = planOf(primary.real.spaced), duePlan = planOf(primary.due.spaced);
-  console.log('\n  VERDICT at the nominal dose, on the honest learner model:');
-  console.log('    as the app is today   : ' + realPlan.map(p => p[2]).join('  ')
-    + '   → ' + realPlan.filter(p => p[1]).length + '/3 targets');
-  console.log('    with review spread out: ' + duePlan.map(p => p[2]).join('  ')
-    + '   → ' + duePlan.filter(p => p[1]).length + '/3 targets');
-  console.log('    sim.js, same targets, the ladder in the app: 35.0/78 @45, 38.5/78 @142 → 0/3');
+  console.log('\n  VERDICT at the nominal dose, on the honest learner model'
+    + ' (known@45, known@142, slowest@142, and unaided recall@142):');
+  CHOOSERS.forEach(([label, chooser]) => {
+    const rs = primary[chooser].spaced, p = planOf(rs);
+    console.log('    ' + label.replace(/ \(.*/, '').padEnd(40) + p.map(x => x[2]).join('  ')
+      + '   recall ' + avg(rs, r => r.end.recall).toFixed(1) + '/78'
+      + '   → ' + p.filter(x => x[1]).length + '/3 targets');
+  });
+  console.log('    ' + 'sim.js, the ladder shipped today'.padEnd(40)
+    + '35.0/78  38.5/78  22/78   recall n/a   → 0/3 targets');
   console.log('\n  Read tables/tests/SIM-DAILY.md before changing anything. Do NOT close any of');
   console.log('  this by lowering the targets, and do not trust the box model on its own.\n');
 
