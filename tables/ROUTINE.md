@@ -66,7 +66,7 @@ taught — the one finding that needs David is still open at the top of §7.
 
 ## 3. WHO THIS IS FOR
 
-The same one child as Acorn: nine, dyslexic, on an iPhone, by touch. **144 is deliberately the
+The same one child as Acorn: **ten** (birthday 5 August), dyslexic, on an iPhone, by touch. **144 is deliberately the
 opposite personality to Acorn** — Acorn is a quiet library, 144 is an arcade: loud, rewarding,
 gamified. What it inherits is not the look but the *soul*:
 
