@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-12T16:30Z
+last-run: 2026-08-12T17:25Z
 ```
 
 On each firing:
@@ -172,6 +172,28 @@ anything done here. Run it if a change could plausibly reach it; otherwise trust
 Gaps worth closing when there is time — **this is the queue for the first few passes**, most
 valuable first:
 
+**⚠⚠ `sim.js` CURRENTLY EXITS NON-ZERO, AND THAT IS THE HONEST RESULT (v1.10).**
+One health band fails: *first-go sits in a workable band (70–95%)* — it reads 95.1%.
+Do **not** widen the band, and do not tune the picker to squeeze under it. Here is what
+actually happened, so nobody re-derives it at 3am:
+
+Repairing the picker (v1.10) let the modelled learner reach **78/78 known by day 45**, and every
+one of David's plan targets now passes. But the model then saturates: every fact sits at box 7 by
+the sprint's end, so there is nothing hard left to surface and 95% first-go is the *correct* answer
+rather than a defect. Two bands now contradict each other for the same reason.
+
+The cause is that **"known well" is too cheap**, which a background analysis found independently:
+a miss keeps the question up until it lands, and `record` moves the box on the attempt that lands,
+so a presentation is net +1 or 0. Hammer a new fact a dozen times tonight and it is "known well"
+tonight, having never once been recalled on a second day. That is a **product decision about what
+counts as knowing it** (candidates: promote a box at most once per day per fact; only promote when
+the FIRST attempt is right; separate "met" from "retained"), so it is David's, and it is open at the
+top of §7. Until he rules, the red band is information, not a bug to be silenced.
+
+Also known, and not yet fixed: `__144.reset()` does not clear the test clock, so in `sim.js`
+learners after the first stamp day-0 records with a future date and those facts look "never due"
+all year. Fix that before trusting any per-learner spread.
+
 **⚠ What `sim.js` does NOT model (v1.8):** it treats a fill-the-gap answer as no harder than a
 bubble tap, because the modelled learner has one ability number. A missing-factor question is
 plainly harder, so the improvement it reports for the gap levels is the OPTIMISTIC end. Teaching it
@@ -189,6 +211,14 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
    builds up across a sitting (combo, round colour, the pool) is only ever tested one level deep.
 
 **Done, and now guarded — do not undo these:**
+- **What she actually gets asked** (v1.10, `tests/picker.spec.js`): `pickFact` must be a weighted
+  choice, never an argmax. It was scoring every fact and taking the single highest, with
+  `f.wrong` (a lifetime tally, no ceiling) multiplied by 2.4 — so over a realistic 78-fact pool it
+  returned **five** distinct facts in a thousand picks and never asked the other **seventy-three**,
+  all year, invisibly. Weak-first is a BIAS, NOT A MONOPOLY: every fact keeps a floor of 1, a miss
+  *rate* and a low box raise the odds, unmet facts are heavily favoured, and no fact repeats
+  back-to-back. If a future change makes the picker sharper, check the spread before shipping — the
+  tests carry the measured ratios and the thresholds sit clear of them on purpose.
 - **Fill the gap** (v1.8, `tests/recall.spec.js`): the pad is constant, a gap level drills the same
   facts as the learn level before it, both sides of the gap get asked, a right key pays double, a
   wrong key costs nothing and leaves the question up, unmet facts are never asked, the pad goes away
@@ -279,7 +309,23 @@ every meaningful change — Pages deploys automatically. Bump `VERSION` when she
 Table Bosses, Vault), multiplayer, accounts, anything that needs a server.
 
 **Open with David (do not invent answers):**
-- **⚠ THE PLAN'S TARGETS ARE NOT MET, and the likely cause is a product decision.** `sim.js` says
+- **⚠ WHAT COUNTS AS KNOWING IT (new, 2026-08-12, and now the only thing in the way).** With the
+  picker repaired (v1.10) and fill-the-gap shipped (v1.8), every one of the plan's targets passes in
+  simulation — 78/78 by day 45. That is not the good news it looks like: the model saturates because
+  a fact can reach "known well" inside one sitting. `record` moves the box on the attempt that
+  lands, and a miss simply keeps the question up until it does, so twelve reps tonight can carry a
+  brand-new fact to box 7 tonight without it ever being recalled on a second day. Nothing measures
+  whether she still has it tomorrow. Candidates, none of them mine to pick: promote a box at most
+  once per day per fact; only promote when the FIRST attempt is right; or keep the boxes and add a
+  separate "retained" measure (recalled cleanly on a later day) as the real scoreboard. This is also
+  why a health band in `sim.js` is red — see §5.
+- **(CLOSED 2026-08-12) The plan's targets were not being met, and the cause was a code defect after
+  all, not a product decision:** the picker was asking five facts and ignoring seventy-three (§5).
+  The old diagnosis on file — that 144 only ever *tests* a fact and never *teaches* one — was
+  half right, and David's fill-the-gap level answered that half. Kept here because the reasoning
+  matters: the finding was raised for David rather than fixed unilaterally, and the fix turned out
+  to be five lines of arithmetic underneath it.
+- **~~THE PLAN'S TARGETS ARE NOT MET~~ (superseded, see above).** `sim.js` says
   ~38/78 facts reach "known well" by day 142 against a target of 74 — though 65/78 reach box 3+ and
   the average box is 4.6, so she gets *close* on most and stalls on the last step plus a hard core.
   The likeliest cause: **144 only ever TESTS a fact, it never teaches one.** A fact she has never
@@ -321,6 +367,14 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-12, later (David, live):** **v1.9 the number line** — David replaced the twelve-key pad
+  with a bare slider ("loads with nothing showing, touch it and shows what is selected, drag to the
+  right spot and then release to enter"), which is the anti-elimination idea taken all the way. Also
+  fixed a real Reduce-Motion layout defect the tests exposed (bubbles never rise, so they sat in the
+  bottom third). **The suite now runs on one worker** — every `file://` page shares one
+  localStorage, so parallel tests were clearing each other's storage and the two-windows
+  data-safety test failed about one run in eight looking exactly like a real defect. Then **v1.10
+  the picker repair** (see §5): five facts in a thousand picks, seventy-three never asked. 67 tests.
 - **2026-08-12, 16:30Z (David, live — the voice brief):** voice mode is **parked** for now. What came
   out of it instead: a diagnostic (`tables/voice-check.html`) run on her real phone, which found that
   iOS streams a number as it hears it ("fifty six" → 50 → 56) and would have scored five right
