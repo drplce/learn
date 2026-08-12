@@ -491,7 +491,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.9';
+var VERSION = '1.10';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -757,22 +757,36 @@ function placementLevel(){
    ========================================================= */
 var _lastKey = null;
 function pickFact(pool){
-  var t = todayISO(), best=null, bestW=-1e9;
-  for(var i=0;i<pool.length;i++){
-    var k = pool[i], f = S.facts[k];
-    var w = Math.random()*1.2;
-    if(!f || !f.seen){ w += 3.2; }
+  // Weighted choice, not winner-takes-all. This used to score every fact and take
+  // the single highest, with only a small random jitter — so the strongest signal
+  // decided the whole year. Two things compounded: `f.wrong` was a LIFETIME tally
+  // with no ceiling (one fact missed eight times over months outscored the entire
+  // table), and even after bounding that, an argmax over a 78-fact pool still
+  // handed 997 of 1000 questions to the lowest-box facts. Measured: five distinct
+  // facts in a thousand picks, seventy-three never asked at all. Invisible in
+  // play, and it silently capped how much she could ever learn.
+  //
+  // Weak-first has to be a bias, not a monopoly: every fact keeps a floor, and the
+  // ones she is shaky on simply come up more often.
+  var t = todayISO(), ws = [], tot = 0, i, k, f;
+  var eligible = pool.length > 1 ? pool.filter(function(x){ return x !== _lastKey; }) : pool;
+  for(i=0;i<eligible.length;i++){
+    k = eligible[i]; f = S.facts[k];
+    var w = 1;                                          // everyone stays in the running
+    if(!f || !f.seen){ w += 10; }                       // never met: the most urgent thing there is
     else {
-      w += f.wrong*2.4;                                 // the ones she misses come back
-      w -= (f.box||1)*0.7;                              // the ones she owns step aside
+      var tries = (f.right||0) + (f.wrong||0);
+      w += (tries ? (f.wrong||0)/tries : 0) * 5;        // the ones she gets wrong come back
+      w += Math.max(0, KNOWN_BOX - (f.box||1)) * 0.9;   // the ones she owns step aside
       var gap = f.last ? dayDiff(t, f.last) : 99;
-      if(gap >= (BOX_DAYS[f.box]||0)) w += 1.8;         // due
+      if(gap >= (BOX_DAYS[f.box]||0)) w += 2;           // due
     }
-    if(k===_lastKey) w -= 6;
-    if(w>bestW){ bestW=w; best=k; }
+    ws.push(w); tot += w;
   }
-  _lastKey = best;
-  return best;
+  var r = Math.random() * tot;
+  for(i=0;i<eligible.length;i++){ r -= ws[i]; if(r <= 0){ _lastKey = eligible[i]; return _lastKey; } }
+  _lastKey = eligible[eligible.length-1];
+  return _lastKey;
 }
 /* The wrong answers are the mistakes children actually make: a neighbour in the
    table, a swapped square, an off-by-one row. Spotting the odd one out is not
