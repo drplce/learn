@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-12T18:05Z
+last-run: 2026-08-12T17:39Z
 ```
 
 On each firing:
