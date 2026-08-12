@@ -59,7 +59,8 @@ test.describe('opening it', () => {
     expect(p.total).toBeGreaterThanOrEqual(284);
     expect(p.rev).toBeGreaterThan(p.acq);
     expect(p.widest).toBe(78);                        // review can reach every fact
-    expect(p.kinds).toEqual(['boss', 'mix']);         // no new mechanics, just more of them
+    // mix, boss, and filling the gap — the three kinds of work, no NEW mechanics
+    expect(p.kinds).toEqual(['boss', 'mix', 'recall']);
   });
 
 });

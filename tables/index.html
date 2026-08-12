@@ -153,6 +153,12 @@ main{flex:1; position:relative; overflow:hidden;}
 /* still ahead of her: there, but unlit */
 .level.locked{opacity:.72; border-color:#3a2560;}
 .level.locked .nib{fill:#4b3277;}
+/* fill-the-gap levels wear the lime, and a hexagon rather than a bead */
+.level.recall.now{border-color:var(--n-lime);
+  box-shadow:0 0 20px var(--n-lime), 0 0 54px color-mix(in srgb, var(--n-lime) 55%, transparent),
+    inset 0 0 22px color-mix(in srgb, var(--n-lime) 28%, transparent);}
+.level.recall.now .nib{fill:#fff; filter:drop-shadow(0 0 5px var(--n-lime));}
+.level.recall.locked .nib{fill:#5a7a2f;}
 /* a boss is bigger and wears the magenta */
 .level.boss{width:78px; height:78px; margin:-39px 0 0 -39px;}
 .level.boss svg{width:30px; height:30px;}
@@ -176,6 +182,9 @@ main{flex:1; position:relative; overflow:hidden;}
 .bigbtn.pink{color:#fff; background:linear-gradient(180deg,#FF7ABC,var(--n-magenta) 55%,#c2136c);
   box-shadow:0 0 24px var(--n-magenta), 0 0 60px color-mix(in srgb,var(--n-magenta) 40%, transparent),
     inset 0 -4px 10px rgba(60,0,30,.35), inset 0 4px 8px rgba(255,255,255,.45);}
+.bigbtn.lime{color:#0d1a05; background:linear-gradient(180deg,#D6FF9E,var(--n-lime) 55%,#5fae14);
+  box-shadow:0 0 24px var(--n-lime), 0 0 60px color-mix(in srgb,var(--n-lime) 40%, transparent),
+    inset 0 -4px 10px rgba(20,50,0,.35), inset 0 4px 8px rgba(255,255,255,.5);}
 .bigbtn small{display:block; font-size:var(--t-sm); font-weight:700; opacity:.8; margin-top:2px;}
 
 /* ---------- PLAY: Blast ---------- */
@@ -231,7 +240,7 @@ main{flex:1; position:relative; overflow:hidden;}
   color:var(--ink-soft); font-size:var(--t-sm); font-weight:700; min-height:20px; padding:0 var(--s4);}
 
 /* ---------- clear card ---------- */
-#clear{position:absolute; inset:0; display:none; flex-direction:column; align-items:center;
+#clear{position:absolute; inset:0; z-index:5; display:none; flex-direction:column; align-items:center;
   justify-content:center; gap:var(--s3); z-index:5; padding:var(--s5);
   background:radial-gradient(90% 60% at 50% 40%, rgba(60,12,60,.96), rgba(11,6,20,.98));}
 #clear.on{display:flex;}
@@ -242,6 +251,32 @@ main{flex:1; position:relative; overflow:hidden;}
 #clear .row .v{font-size:var(--t-2xl); font-weight:900; color:var(--n-cyan);
   text-shadow:0 0 12px color-mix(in srgb,var(--n-cyan) 70%, transparent);}
 #clear .row .k{font-size:var(--t-xs); color:var(--ink-soft); font-weight:700;}
+
+/* ---------- the gap keypad ----------
+   Twelve keys, the same twelve on every question, in the same places. That is
+   the whole point: with four rising bubbles the wrong answers are near-misses
+   she can reason against, so the game quietly teaches elimination. A constant
+   pad carries no information at all — it is a keyboard, not a multiple choice,
+   and the only way through it is to know the number. */
+#pad{position:absolute; left:0; right:0; bottom:2%; display:none;
+  grid-template-columns:repeat(4, 1fr); gap:10px; padding:0 14px; z-index:3;}
+#pad.on{display:grid;}
+#pad button{height:56px; border-radius:16px; font-size:1.35rem; font-weight:900;
+  color:#fff; background:radial-gradient(circle at 50% 30%, rgba(255,255,255,.09), rgba(8,3,15,.9) 72%);
+  border:2px solid color-mix(in srgb, var(--rc) 70%, transparent);
+  box-shadow:0 0 12px color-mix(in srgb, var(--rc) 30%, transparent),
+    inset 0 0 14px color-mix(in srgb, var(--rc) 12%, transparent);
+  text-shadow:0 0 10px color-mix(in srgb, var(--rc) 65%, transparent);}
+#pad button:active{transform:scale(.94);}
+#pad button.bad{animation:padshake .34s;}
+@keyframes padshake{0%,100%{transform:translateX(0);}25%{transform:translateX(-6px);}
+  75%{transform:translateX(6px);}}
+/* With a pad at the bottom the sum belongs just above it, not up at the top of
+   the screen with a third of the phone empty in between. */
+#play.gap #prompt{top:44%;}
+#prompt .gap{display:inline-block; min-width:1.1em; color:var(--rc);
+  border-bottom:5px solid var(--rc); line-height:.9;
+  text-shadow:0 0 16px var(--rc);}
 
 /* ---------- POWER ROOM: the buddy + her 144 grid ---------- */
 #power .scroll{padding:var(--s4);}
@@ -359,6 +394,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
       <div id="field">
         <div id="flash"></div>
         <div id="prompt"></div>
+        <div id="pad" aria-label="the numbers one to twelve"></div>
         <div id="jack">JACKPOT!</div>
         <div id="cue"></div>
       </div>
@@ -422,7 +458,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.7';
+var VERSION = '1.8';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -623,7 +659,13 @@ var LEVELS = (function(){
   TABLE_ORDER.forEach(function(t){
     var news = [];
     for(var b=1;b<=12;b++){ var k=key(t,b); if(!seen[k]){ seen[k]=1; news.push(k); } }
-    for(var i=0;i<news.length;i+=4) out.push({kind:'learn', table:t, facts:news.slice(i,i+4)});
+    for(var i=0;i<news.length;i+=4){
+      var chunk = news.slice(i,i+4);
+      out.push({kind:'learn',  table:t, facts:chunk});
+      // Straight after meeting them, the same facts with the gap on the other
+      // side. Same numbers, harder question, no options to work backwards from.
+      out.push({kind:'recall', table:t, facts:chunk.slice()});
+    }
     out.push({kind:'mix',  table:t, facts:Object.keys(seen).slice()});
     var boss=[]; for(var b2=1;b2<=12;b2++) boss.push(key(t,b2));
     out.push({kind:'boss', table:t, facts:boss});
@@ -638,6 +680,8 @@ var LEVELS = (function(){
       var t2 = hard[(r/5|0) % hard.length], bf=[];
       for(var c=1;c<=12;c++) bf.push(key(t2,c));
       out.push({kind:'boss', table:t2, facts:bf, phase:2});
+    } else if(r % 5 === 2){
+      out.push({kind:'recall', table:hard[r % hard.length], facts:ALL_FACTS.slice(), phase:2});
     } else {
       out.push({kind:'mix', table:hard[r % hard.length], facts:ALL_FACTS.slice(), phase:2});
     }
@@ -647,12 +691,14 @@ var LEVELS = (function(){
 function goalOf(st){
   if(st.kind==='placement') return st.facts.length;          // one go at each
   if(st.kind==='learn') return st.facts.length*2;            // each one, twice
+  if(st.kind==='recall') return 10;                          // effortful; a short dose
   return st.kind==='boss' ? 15 : 12;
 }
 function levelLabel(st){
   if(st.kind==='placement') return {t:'What do you know?', s:'a quick look — nothing to get wrong'};
   if(st.kind==='learn') return {t:st.table+'× · new facts', s:st.facts.map(pretty).join('  ')};
   if(st.kind==='mix')   return {t:st.table+'× · mix it up', s:'everything so far, jumbled'};
+  if(st.kind==='recall') return {t:st.table+'× · fill the gap', s:'no answers to pick from'};
   return {t:st.table+'× BOSS', s:'the whole table, no help'};
 }
 function pretty(k){ var p=k.split('x'); return p[0]+'×'+p[1]; }
@@ -853,7 +899,8 @@ var NIB = {
   now:  '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="nib" d="M8 5.2 19 12 8 18.8Z"/></svg>',
   lock: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle class="nib" cx="12" cy="12" r="4.6"/></svg>',
   boss: '<svg viewBox="0 0 30 30" aria-hidden="true"><path class="nib" d="M15 3.5 18.6 11l8.2 1-6 5.8 1.5 8.1L15 22l-7.3 3.9 1.5-8.1-6-5.8 8.2-1Z"/></svg>',
-  pack: '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="nib" d="M14 2 5 13.4h5.3L9.4 22 19 10.2h-5.4Z"/></svg>'
+  pack: '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="nib" d="M14 2 5 13.4h5.3L9.4 22 19 10.2h-5.4Z"/></svg>',
+  recall: '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="nib" d="M12 2.6 20.1 7.3v9.4L12 21.4 3.9 16.7V7.3Z"/></svg>'
 };
 function renderHome(){
   var host = el('#path');
@@ -883,11 +930,14 @@ function renderHome(){
   var html = '<svg id="wire" aria-hidden="true">'+segs+'</svg>';
 
   nodes.forEach(function(nd, k){
-    var p = levelXY(k, w), boss = nd.kind==='boss';
-    var nib = nd.state==='done' ? NIB.done : nd.state==='now' ? (boss?NIB.boss:NIB.now)
-                                           : (boss?NIB.boss:NIB.lock);
-    var label = nd.state==='now' ? 'Play this level' : nd.state==='done' ? 'Level done' : 'Level to come';
-    html += '<button class="level '+nd.state+(boss?' boss':'')+'" '
+    var p = levelXY(k, w), boss = nd.kind==='boss', gap = nd.kind==='recall';
+    var shape = boss ? NIB.boss : gap ? NIB.recall : null;
+    var nib = nd.state==='done' ? NIB.done
+            : nd.state==='now' ? (shape || NIB.now)
+            : (shape || NIB.lock);
+    var label = (nd.state==='now' ? 'Play this level' : nd.state==='done' ? 'Level done' : 'Level to come')
+              + (gap ? ' — fill the gap' : boss ? ' — boss' : '');
+    html += '<button class="level '+nd.state+(boss?' boss':'')+(gap?' recall':'')+'" '
          +  (nd.state==='now' ? 'id="nowlevel" ' : 'disabled ')
          +  'style="left:'+p.x.toFixed(1)+'px; top:'+p.y.toFixed(1)+'px" '
          +  'aria-label="'+label+'">'+nib+'</button>';
@@ -903,8 +953,9 @@ function renderHome(){
   if(!S.prog.placed){ b.innerHTML='⚡ Let’s see what you know<small>about two minutes</small>'; b.className='bigbtn'; }
   else {
     var st=LEVELS[idx];
-    b.innerHTML = (st.kind==='boss' ? '👑 Boss' : '⚡ Play')+'<small>'+st.table+'×</small>';
-    b.className = 'bigbtn'+(st.kind==='boss'?' pink':'');
+    b.innerHTML = (st.kind==='boss' ? '👑 Boss' : st.kind==='recall' ? '🎯 Fill the gap' : '⚡ Play')
+               + '<small>'+st.table+'×</small>';
+    b.className = 'bigbtn'+(st.kind==='boss'?' pink':'')+(st.kind==='recall'?' lime':'');
   }
   var now=el('#path .level.now');
   if(now && now.scrollIntoView) try{ now.scrollIntoView({block:'center'}); }catch(e){}
@@ -990,6 +1041,7 @@ function next(){
   var pool;
   if(st.kind==='placement')   pool = st.facts.filter(function(k){ return !W.per[k]; });   // one look each
   else if(st.kind==='learn')  pool = st.facts.filter(function(k){ return (W.per[k]||0) < 2; });
+  else if(st.kind==='recall') pool = st.facts.filter(met);      // never a fact she has not met
   else                        pool = W.pool;
   if(!pool || !pool.length) pool = st.facts;
   var k = pickFact(pool), p=k.split('x').map(Number);
@@ -997,6 +1049,9 @@ function next(){
   var a=p[0], b=p[1];
   if(Math.random()<0.5){ var t=a; a=b; b=t; }
   W.cur={k:k, a:a, b:b};
+  if(st.kind==='recall') return askGap(a, b);
+  el('#pad').classList.remove('on');
+  el('#play').classList.remove('gap');
   el('#prompt').innerHTML = a+' <i>×</i> '+b;
 
   // Gentle on-ramp, then it climbs — and the climb has to fit INSIDE one stone
@@ -1019,6 +1074,44 @@ function next(){
   el('#cue').textContent = W.level.kind==='placement' ? 'just have a go — nothing to get wrong here' : '';
   paintGoal();
 }
+// Has she ever actually met this fact? Asking for a missing factor she has never
+// seen is not recall, it is counting up in eights — slow, and it teaches the
+// wrong thing.
+function met(k){ var f = S.facts[k]; return !!(f && f.seen > 0); }
+
+/* One of "8 × ? = 56" or "? × 7 = 56". The product is on screen because that is
+   the question; the missing factor never is. Answers are always 1–12, which is
+   why a fixed pad works — and why this is the mode voice will land in first. */
+function askGap(a, b){
+  var gapFirst = Math.random() < 0.5;
+  W.cur.want = gapFirst ? a : b;
+  W.cur.gapFirst = gapFirst;
+  el('#prompt').innerHTML = (gapFirst ? '<span class="gap">?</span> <i>×</i> ' + b
+                                      : a + ' <i>×</i> <span class="gap">?</span>')
+                          + ' <i>=</i> ' + (a*b);
+  var pad = el('#pad');
+  if(!pad.firstChild){
+    var html = '';
+    for(var n=1;n<=12;n++) html += '<button type="button" data-n="'+n+'">'+n+'</button>';
+    pad.innerHTML = html;
+    pad.addEventListener('click', function(ev){
+      var b2 = ev.target.closest('button[data-n]');
+      if(b2) padTap(Number(b2.dataset.n), b2);
+    });
+  }
+  pad.classList.add('on');
+  el('#play').classList.add('gap');
+  el('#cue').textContent = '';
+  paintGoal();
+}
+function padTap(n, btn){
+  if(!W || !W.cur || W.cur.done) return;
+  var right = (n === W.cur.want);
+  if(right){ W.cur.done = true; }
+  var r = btn.getBoundingClientRect(), f = el('#field').getBoundingClientRect();
+  score(right, r.left - f.left + r.width/2, r.top - f.top, btn);
+}
+
 function frame(){
   for(var i=0;i<orbs.length;i++){
     var o=orbs[i]; if(o.dead) continue;
@@ -1043,26 +1136,38 @@ function paintCombo(){
 }
 function tap(o){
   if(!W || o.dead) return;
-  var placing = W.level.kind==='placement';
-  if(o.ok){
-    o.dead=true; o.el.classList.add('pop');
+  if(o.ok) o.dead = true;
+  score(o.ok, o.x, o.y, o.el, o.ok ? 'pop' : 'bad');
+}
+/* One place where an answer is judged, whatever she answered it with — a rising
+   bubble, a key on the gap pad, and a spoken number later. The reward, the
+   Leitner move and the words she reads must not drift apart per input. */
+function score(right, x, y, node, cls){
+  var placing = W.level.kind==='placement', gap = W.level.kind==='recall';
+  if(right){
+    if(node && cls) node.classList.add(cls);
     record(W.cur.k, true, placing);
     W.per[W.cur.k]=(W.per[W.cur.k]||0)+1;
     W.combo++; W.best=Math.max(W.best,W.combo);
-    var mult=1+Math.floor(W.combo/3), got=mult;
+    // Filling the gap is the harder ask, so it pays double. The payout is how the
+    // app says "this one matters" without a word of instruction.
+    var mult=1+Math.floor(W.combo/3), got=mult*(gap?2:1);
     addWatts(got); W.watts+=got; W.charge += addCharge(2);
     W.done++; W.asked++;
     sfxRight(W.combo);
-    sparks(o.x, o.y, 5+mult*2);
+    sparks(x, y, 5+mult*2);
     paintCombo(); paintGoal(); renderHud();
     if(W.combo>0 && W.combo%5===0) jackpot();
-    if(W.asked%4===0){ W.round++; paintRound(); el('#cue').textContent='Round '+W.round+' — faster! ⚡'; sfxTick(); }
+    if(W.asked%4===0){
+      W.round++; paintRound(); sfxTick();
+      el('#cue').textContent = gap ? 'Round '+W.round+' ⚡' : 'Round '+W.round+' — faster! ⚡';
+    }
     else el('#cue').textContent = pick(['Nice!','Boom!','Yes!','Pow!','Got it!']);
     save();                                   // her answer is banked now, not at the next paint
     if(W.done>=W.goal){ setTimeout(clearLevel, 420); return; }
-    setTimeout(next, 260);
+    setTimeout(next, gap ? 380 : 260);
   } else {
-    o.el.classList.add('bad'); setTimeout(function(){ o.el.classList.remove('bad'); }, 380);
+    if(node){ node.classList.add('bad'); setTimeout(function(){ node.classList.remove('bad'); }, 380); }
     record(W.cur.k, false, placing);
     W.combo=0; paintCombo(); sfxWrong();
     if(placing){
@@ -1073,7 +1178,8 @@ function tap(o){
       if(W.done>=W.goal){ setTimeout(clearLevel, 500); save(); return; }
       setTimeout(next, 750);
     } else {
-      el('#cue').textContent = 'not that one — have another look';
+      el('#cue').textContent = gap ? 'not that one — the gap is still there'
+                                   : 'not that one — have another look';
     }
     save();
   }
@@ -1124,6 +1230,8 @@ function clearLevel(){
   el('#clearCharge').textContent = W.charge < 0.5 && S.power.charge >= 100
     ? 'full ⚡' : Math.round(W.charge)+'%';
   el('#clear').classList.add('on');
+  el('#pad').classList.remove('on');
+  el('#play').classList.remove('gap');
   orbs.forEach(function(o){ if(o.el.parentNode) o.el.remove(); }); orbs=[];
   renderHud();
 }
@@ -1196,6 +1304,14 @@ window.__144 = {
   // answer the current question the way she does: right, or with a real wrong tap
   answer:function(right){
     if(!W || !W.cur) return false;
+    if(W.level.kind==='recall'){
+      var want = W.cur.want;
+      var n = right !== false ? want : (want === 12 ? 11 : want + 1);
+      var b = document.querySelector('#pad button[data-n="'+n+'"]');
+      if(!b) return false;
+      padTap(n, b);
+      return true;
+    }
     for(var i=0;i<orbs.length;i++){
       var o=orbs[i];
       if(o.dead) continue;
