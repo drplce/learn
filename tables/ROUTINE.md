@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-12T17:25Z
+last-run: 2026-08-12T18:05Z
 ```
 
 On each firing:
@@ -211,6 +211,19 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
    builds up across a sitting (combo, round colour, the pool) is only ever tested one level deep.
 
 **Done, and now guarded — do not undo these:**
+- **She plays in BURSTS** (v1.11, `tests/progress.spec.js`). This is the most important thing on this
+  list about how she actually uses it. A level used to restart from zero whenever she left it, so a
+  12-answer mix or a 15-answer boss could never be finished in the six-answer sittings she really
+  does — she had 983 watts banked against 14 levels cleared. `S.sit` now remembers the part-finished
+  level and `start()` resumes it, keyed to what the level IS (`sitKey`: kind + table + fact count),
+  not merely its index, because the ladder has already been renumbered under her once (v1.8). A
+  stored count is clamped below the goal so corrupt storage can never finish a level for her; the
+  further-along sitting wins a merge; the combo is deliberately NOT restored.
+  **If you ever change level goals or the ladder's shape, re-read this first.**
+- **The path has to visibly grow** (v1.11): it drew only three finished nodes above the current one,
+  so the level she was on sat fourth from the top every session and David reported it as "stuck as
+  level 4" while on level 15. It now draws the whole lit chain (40 back, 8 ahead). The path stays
+  wordless — the LEVEL NUMBER lives on the Play button instead, with how much of the level is done.
 - **What she actually gets asked** (v1.10, `tests/picker.spec.js`): `pickFact` must be a weighted
   choice, never an argmax. It was scoring every fact and taking the single highest, with
   `f.wrong` (a lifetime tally, no ceiling) multiplied by 2.4 — so over a realistic 78-fact pool it
@@ -367,6 +380,13 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-12, evening (David, live — "the path appears to be stuck as level 4"):** he was on level
+  15. Two real defects (v1.11): the path only ever drew three beads of history, so his position never
+  appeared to move; and **a level restarted from zero every time he left it**, which is why 983 watts
+  had bought only 14 cleared levels. Levels now resume, the chain grows, and the Play button names
+  the level. Diagnosis worth keeping: his screenshot was matched against rendered states until one
+  agreed exactly (cleared=14) — that is how "stuck at 4" turned out to be "always drawn fourth".
+  8 tests, 5 teeth-checked. 75 pass.
 - **2026-08-12, later (David, live):** **v1.9 the number line** — David replaced the twelve-key pad
   with a bare slider ("loads with nothing showing, touch it and shows what is selected, drag to the
   right spot and then release to enter"), which is the anti-elimination idea taken all the way. Also
