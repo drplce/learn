@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-12T00:06Z
+last-run: 2026-08-12T16:30Z
 ```
 
 On each firing:
@@ -121,6 +121,22 @@ composites transparency to black). Storage key `144.v1`.
   Lv30 eyes, Lv45 fully booted. Level-1 customisation is **colour only**; more unlocks later.
 - **Structure:** Home is the **path** of stones (an electric circuit she lights up). The **144
   grid** lives in the **power room** behind the buddy — the grid *is* the power she has banked.
+- **Two kinds of question, and the difference is the point:**
+  - **Blast (bubbles)** carries the volume and the fun. But with four rising answers the wrong
+    ones are near-misses she can reason against, so it quietly trains *elimination* — a 25% guess
+    is always on the table.
+  - **Fill the gap (v1.8, David's brief)** removes the options: it shows the product and hides a
+    factor (`8 × ? = 56` / `? × 7 = 56`), so the answer is **always 1–12** and she answers on a pad
+    of **the same twelve keys, in the same places, on every question**. That constancy is the whole
+    design — a pad carries no information, so there is nothing to eliminate against. It is a
+    keyboard, not a multiple choice. **Never shuffle the pad, never hide keys, never grey one out.**
+    Ten answers a level, paying **double** (harder ask, and the payout says "this one matters"),
+    lime hexagon on the path, and it only ever asks for facts she has **already met** — a missing
+    factor she has never seen is counting practice, not recall.
+  - **Every set of new facts is followed by a gap level over exactly those facts** (David: *"ensure
+    that we're hammering the same numbers as the other level for the day"*). Do not decouple them.
+  - Answers 1–12 are also the easiest possible target for speech recognition, which is why voice
+    lands here first when it lands.
 - **The game:** Blast — answers rise, she taps the right one. Gentle first round (3 tiles, slow),
   ramping every 4 answers within a stone. Distractors are real near-misses (neighbours in the
   table, swapped squares, off-by-one rows), never random noise.
@@ -128,6 +144,8 @@ composites transparency to black). Storage key `144.v1`.
   12×12 is 144 cells but **78 facts** — 7×8 and 8×7 share one record and both cells light up
   together (a lesson, not just a saving). Weak-first picking: unseen and missed facts come back,
   owned ones step aside, due beats not-due, never the same fact twice in a row.
+- **The ladder now** (v1.8): 72 acquisition levels — 24 learn, 24 fill-the-gap, 12 mix, 12 boss —
+  which is ~36 days at two sittings a day, then 300 phase-2 levels (60 of them gaps). 372 total.
 - **The plan:** 144 facts, **45-day acquisition sprint** then ~97 days of reinforcement, aiming
   **≥2 short sessions a day**. Tables arrive anchors-first (`TABLE_ORDER 2,5,10,1,11,3,4,9,6,7,8,12`);
   because facts are shared both ways round, each later table introduces fewer new ones (12,11,…,1),
@@ -154,6 +172,12 @@ anything done here. Run it if a change could plausibly reach it; otherwise trust
 Gaps worth closing when there is time — **this is the queue for the first few passes**, most
 valuable first:
 
+**⚠ What `sim.js` does NOT model (v1.8):** it treats a fill-the-gap answer as no harder than a
+bubble tap, because the modelled learner has one ability number. A missing-factor question is
+plainly harder, so the improvement it reports for the gap levels is the OPTIMISTIC end. Teaching it
+a lower first-go rate on `recall` levels is the most valuable next change to it — and do not quote
+its gap-level numbers to David without this caveat attached.
+
 **`node tables/tests/sim.js`** — the pacing simulation (BUILT 2026-08-11). 8 modelled learners,
 142 days, 2 sessions a day, driving the real picker and the real Leitner boxes. It splits **HEALTH
 bands** (code defects — enforced, exits non-zero) from **the PLAN's own targets** (David's claims —
@@ -165,6 +189,13 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
    builds up across a sitting (combo, round colour, the pool) is only ever tested one level deep.
 
 **Done, and now guarded — do not undo these:**
+- **Fill the gap** (v1.8, `tests/recall.spec.js`): the pad is constant, a gap level drills the same
+  facts as the learn level before it, both sides of the gap get asked, a right key pays double, a
+  wrong key costs nothing and leaves the question up, unmet facts are never asked, the pad goes away
+  when the clear card comes up (it has a higher z-index than `#field`, so it would paint over it),
+  and on a 375px screen the sum sits just above the pad rather than at the top of the phone.
+  Scoring for every input goes through one `score()` function — bubbles, pad, and voice later —
+  so the reward, the Leitner move and the words she reads cannot drift apart per input.
 - **The level-clear card** (v1.6, `tests/clearcard.spec.js`): the card counted the charge it *asked
   for* rather than the charge that *landed*, so a nearly-full battery was told it gained 31% when it
   took 2. `addCharge` returns what it actually added; the sitting counts that. A full battery reads
@@ -290,6 +321,15 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-12, 16:30Z (David, live — the voice brief):** voice mode is **parked** for now. What came
+  out of it instead: a diagnostic (`tables/voice-check.html`) run on her real phone, which found that
+  iOS streams a number as it hears it ("fifty six" → 50 → 56) and would have scored five right
+  answers out of ten as wrong; and then **v1.8, fill the gap** — David's own idea and the best one in
+  the brief, because a 1–12 answer space kills elimination without needing a microphone at all. Six
+  new tests plus the layout guard; `sim.js` known-well jumps 36 → 57 of 78 (caveat in §5). The voice
+  findings worth keeping: continuous recognition survived a whole round from one tap with no
+  restarts, `Karen / en-AU` is the voice, and `speechSynthesis` does not reliably fire `onend` on
+  iOS — never gate a flow on it.
 - **2026-08-12, 00:11Z (David, live):** *"Ditch the word 'her' throughout."* The app now says
   "buddy", "the 144" and "pick its colour" — including the `aria-label`s — and a copy sweep in
   `game.spec.js` keeps it that way (teeth-checked). Also fixed a leftover "Stone cleared!" in the
