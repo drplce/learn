@@ -1,0 +1,430 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>144 — voice check</title>
+<!--
+  A throwaway diagnostic, not part of 144. It answers the questions about voice
+  mode that cannot be answered from a desktop, because they are all about what
+  THIS phone does in THIS configuration:
+
+    1. Does SpeechRecognition exist and start at all in Safari on iOS?
+    2. Does it still work when the app has been added to the Home Screen?
+       (Standalone mode is historically where the microphone breaks.)
+    3. Can it keep going for a whole round from ONE tap, or does iOS make us
+       ask for a new tap after every answer? Rapid-fire dies if it does.
+    4. Do interim results stream, so we can react the instant she says a number
+       instead of waiting for her to stop talking?
+    5. How long, in real milliseconds, from question to heard-number?
+    6. Does the recogniser hear the app's own spoken question and score it as
+       her answer? ("eight times seven" -> hears "seven")
+    7. Does starting the microphone duck or cut off the spoken question?
+
+  How to run it: tap "spoken round" and answer the ten questions out loud.
+  Then tap "silent round" and do the same with the questions only shown, not
+  spoken — the difference between the two rounds is what tells us whether the
+  app's own voice is getting in the way. Then tap Copy and paste the report.
+
+  Worth doing twice: once in Safari, once from the Home Screen icon. And once
+  more with the phone in Airplane Mode, which tells us whether iOS is quietly
+  sending her voice to a server to recognise it.
+-->
+<style>
+  :root{ --bg:#0B0614; --card:#160C22; --line:#2E1B44; --ink:#F3ECFF; --soft:#A99BC4;
+         --ok:#8CFF4E; --warn:#FFC93A; --bad:#FF3D7F; --cyan:#22E6FF; }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html{ font-size:17px; -webkit-text-size-adjust:100%; }
+  body{ margin:0; padding:1rem calc(1rem + env(safe-area-inset-left)) 3rem; background:var(--bg);
+        color:var(--ink); font-family:ui-rounded,system-ui,-apple-system,sans-serif; }
+  h1{ font-size:1.35rem; margin:.2rem 0 .4rem; }
+  p{ margin:.4rem 0; color:var(--soft); font-size:.9rem; line-height:1.5; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:1rem;
+         padding:.85rem; margin:.8rem 0; }
+  button{ font:inherit; font-weight:800; color:#08040f; background:var(--cyan); border:0;
+          border-radius:.8rem; padding:0 1rem; height:56px; min-width:48px; width:100%;
+          margin:.3rem 0; }
+  button.ghost{ background:transparent; color:var(--ink); border:1.5px solid var(--line); }
+  button:disabled{ opacity:.45; }
+  #q{ font-size:2.6rem; font-weight:900; text-align:center; margin:.4rem 0 .2rem;
+      letter-spacing:.02em; min-height:3rem; }
+  #heard{ text-align:center; font-size:1.1rem; font-weight:800; color:var(--cyan);
+          min-height:1.6rem; }
+  #dot{ display:block; width:14px; height:14px; border-radius:50%; background:#3a2b52;
+        margin:.5rem auto; }
+  #dot.live{ background:var(--bad); box-shadow:0 0 14px var(--bad); animation:p 1.1s infinite; }
+  @keyframes p{ 50%{ opacity:.35; } }
+  pre{ white-space:pre-wrap; word-break:break-word; font-size:.72rem; line-height:1.45;
+       background:#0d0718; border:1px solid var(--line); border-radius:.7rem; padding:.7rem;
+       color:var(--soft); max-height:20rem; overflow:auto; }
+  .k{ color:var(--soft); font-size:.78rem; font-weight:700; }
+  .v{ font-weight:800; }
+  .ok{ color:var(--ok); } .warn{ color:var(--warn); } .bad{ color:var(--bad); }
+  .row{ display:flex; justify-content:space-between; gap:.6rem; padding:.2rem 0; }
+</style>
+
+<h1>144 — voice check</h1>
+<p>Ten questions per round. Say the answer out loud, normally. Nothing here is saved
+anywhere and nothing is sent anywhere by this page.</p>
+
+<div class="card" id="env"></div>
+
+<div class="card">
+  <div id="q">—</div>
+  <span id="dot"></span>
+  <div id="heard">&nbsp;</div>
+  <button id="spoken">🔊 spoken round (questions read out)</button>
+  <button id="silent" class="ghost">👀 silent round (questions shown only)</button>
+  <button id="stop" class="ghost" disabled>stop</button>
+</div>
+
+<div class="card">
+  <div class="row"><span class="k">report</span><span class="k" id="state">idle</span></div>
+  <pre id="out">Run a round, then tap Copy.</pre>
+  <button id="copy" class="ghost">Copy the report</button>
+</div>
+
+<script>
+/* ---------- environment, before anything is touched ---------- */
+var SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+var standalone = (function(){
+  try{
+    if(typeof navigator.standalone === 'boolean') return navigator.standalone;
+    return matchMedia('(display-mode: standalone)').matches;
+  }catch(e){ return null; }
+})();
+var env = {
+  when: new Date().toISOString(),
+  ua: navigator.userAgent,
+  standalone: standalone,
+  href: location.href,
+  recognition: !!SR,
+  synthesis: !!window.speechSynthesis,
+  voices: 0, auVoice: null,
+  online: navigator.onLine
+};
+function paintEnv(){
+  var rows = [
+    ['added to Home Screen', env.standalone === null ? 'unknown' : (env.standalone ? 'YES — this is the risky one' : 'no, this is a Safari tab')],
+    ['SpeechRecognition', env.recognition ? 'present' : 'MISSING — voice mode is impossible here'],
+    ['speech synthesis', env.synthesis ? 'present' : 'missing'],
+    ['voices installed', env.voices + (env.auVoice ? ' (using ' + env.auVoice + ')' : '')],
+    ['network', env.online ? 'online' : 'OFFLINE (good — this tells us if recognition needs it)']
+  ];
+  document.getElementById('env').innerHTML = rows.map(function(r){
+    var cls = /MISSING|impossible/.test(r[1]) ? 'bad' : /risky|unknown/.test(r[1]) ? 'warn' : 'ok';
+    return '<div class="row"><span class="k">' + r[0] + '</span><span class="v ' + cls + '">' + r[1] + '</span></div>';
+  }).join('');
+}
+function loadVoices(){
+  try{
+    var vs = speechSynthesis.getVoices() || [];
+    env.voices = vs.length;
+    var au = vs.filter(function(v){ return /en[-_]AU/i.test(v.lang); });
+    var pick = au[0] || vs.filter(function(v){ return /^en/i.test(v.lang); })[0] || vs[0];
+    voice = pick || null;
+    env.auVoice = pick ? (pick.name + ' / ' + pick.lang) : null;
+  }catch(e){}
+  paintEnv();
+}
+var voice = null;
+paintEnv();
+loadVoices();
+if(window.speechSynthesis) speechSynthesis.onvoiceschanged = loadVoices;
+
+/* ---------- the questions ---------- */
+// The hard half of the table, which is what voice mode is actually for.
+var FACTS = [[8,7],[6,8],[7,9],[12,7],[6,7],[9,8],[4,7],[11,12],[6,6],[9,9]];
+function words(n){                                   // "eight times seven"
+  var W = ['zero','one','two','three','four','five','six','seven','eight','nine','ten',
+           'eleven','twelve'];
+  return W[n] || String(n);
+}
+
+/* ---------- number parsing: what she said -> an integer ---------- */
+var ONES = {zero:0,oh:0,nought:0,one:1,two:2,to:2,too:2,three:3,four:4,for:4,five:5,six:6,
+            seven:7,eight:8,ate:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,
+            fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19};
+var TENS = {twenty:20,thirty:30,forty:40,fourty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90};
+// Returns the first number-like thing in the text, or null.
+function parseNumber(text){
+  if(!text) return null;
+  var t = (' ' + text.toLowerCase() + ' ').replace(/[^a-z0-9\s-]/g, ' ').replace(/-/g, ' ');
+  t = t.replace(/\ba hundred\b/g, ' one hundred ');
+  // Nobody says "one hundred and forty four" out loud in a maths drill; she says
+  // "one forty four". Only the answers above a hundred can be said that way, and
+  // there are only eight of them (108, 110, 120, 121, 132, 144…), so read a
+  // leading "one" followed by more number words as the hundred it obviously is.
+  t = t.replace(/\bone\s+(oh\s+\w+|ten|eleven|twelve|thir|twenty|thirty|forty|fourty|fifty)/g,
+                function(m, rest){ return ' one hundred ' + rest.replace(/^oh\s+/, ''); });
+  var digits = t.match(/\s(\d{1,3})\s/);
+  var digitAt = digits ? digits.index : -1, digitVal = digits ? Number(digits[1]) : null;
+  var parts = t.trim().split(/\s+/);
+  var wordVal = null, wordAt = -1, i = 0, at = t.indexOf(parts[0]);
+  while(i < parts.length){
+    var w = parts[i], v = null, here = t.indexOf(' ' + w + ' ', at > 0 ? at - 1 : 0);
+    if(w === 'hundred' || w === 'and'){ i++; continue; }
+    if(ONES.hasOwnProperty(w)){
+      v = ONES[w];
+      // "one hundred (and) forty four"
+      if(parts[i+1] === 'hundred'){
+        var rest = 0, j = i + 2;
+        while(j < parts.length && parts[j] === 'and') j++;
+        if(j < parts.length && TENS.hasOwnProperty(parts[j])){
+          rest = TENS[parts[j]]; j++;
+          if(j < parts.length && ONES.hasOwnProperty(parts[j])){ rest += ONES[parts[j]]; j++; }
+        } else if(j < parts.length && ONES.hasOwnProperty(parts[j])){ rest = ONES[parts[j]]; j++; }
+        v = v * 100 + rest; i = j;
+      } else i++;
+    } else if(TENS.hasOwnProperty(w)){
+      v = TENS[w]; i++;
+      if(i < parts.length && ONES.hasOwnProperty(parts[i]) && ONES[parts[i]] < 10){ v += ONES[parts[i]]; i++; }
+    } else { i++; continue; }
+    wordVal = v; wordAt = here; break;
+  }
+  // Whichever form came first in what she said — words or digits.
+  if(wordVal !== null && digitVal !== null) return (wordAt >= 0 && wordAt < digitAt) ? wordVal : digitVal;
+  if(wordVal !== null) return wordVal;
+  return digitVal;
+}
+// The pairs a recogniser famously swaps. Not scored either way — re-asked.
+function confusable(heard, want){
+  var pairs = [[16,60],[14,40],[15,50],[17,70],[18,80],[19,90]];
+  for(var i=0;i<pairs.length;i++){
+    var a = pairs[i][0], b = pairs[i][1];
+    if((heard===a && want===b) || (heard===b && want===a)) return true;
+  }
+  return false;
+}
+
+window.parseNumber = parseNumber;   // the check page exposes this so it can be tested
+
+/* ---------- the run ---------- */
+var log = [], run = null, rec = null, speaking = false;
+function say(text){                                   // resolves when it has finished speaking
+  return new Promise(function(done){
+    if(!window.speechSynthesis) return done(false);
+    try{
+      speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(text);
+      if(voice) u.voice = voice;
+      u.lang = (voice && voice.lang) || 'en-AU';
+      u.rate = 1;
+      speaking = true;
+      u.onend = function(){ speaking = false; done(true); };
+      u.onerror = function(){ speaking = false; done(false); };
+      speechSynthesis.speak(u);
+      // iOS sometimes never fires onend; do not hang the round on it.
+      setTimeout(function(){ if(speaking){ speaking = false; note('tts-no-onend'); done(false); } }, 4000);
+    }catch(e){ speaking = false; done(false); }
+  });
+}
+function note(what, extra){
+  log.push({t: Math.round(performance.now()), what: what, extra: extra === undefined ? null : extra});
+}
+function setState(s){ document.getElementById('state').textContent = s; }
+function dot(on){ document.getElementById('dot').classList.toggle('live', !!on); }
+
+// One recogniser for the whole round, restarted whenever iOS ends it.
+function startRec(){
+  if(!SR) return false;
+  rec = new SR();
+  rec.lang = 'en-AU';
+  rec.continuous = true;
+  rec.interimResults = true;
+  try{ rec.maxAlternatives = 3; }catch(e){}
+  rec.onstart = function(){ note('rec.start'); dot(true); };
+  rec.onaudiostart = function(){ note('rec.audiostart'); };
+  rec.onspeechstart = function(){ note('rec.speechstart'); };
+  rec.onspeechend = function(){ note('rec.speechend'); };
+  rec.onnomatch = function(){ note('rec.nomatch'); };
+  rec.onerror = function(e){
+    note('rec.error', e.error || 'unknown');
+    if(run) run.errors.push(e.error || 'unknown');
+  };
+  rec.onend = function(){
+    note('rec.end');
+    dot(false);
+    if(!run || run.finished) return;
+    run.ends++;
+    // The whole question: can we get going again WITHOUT another tap from her?
+    try{ rec.start(); run.restarts++; note('rec.restarted-without-a-tap'); }
+    catch(e){ run.restartFailed++; note('rec.restart-threw', String(e && e.name || e)); }
+  };
+  rec.onresult = function(ev){
+    var txt = '', isFinal = false;
+    for(var i = ev.resultIndex; i < ev.results.length; i++){
+      txt += ev.results[i][0].transcript;
+      if(ev.results[i].isFinal) isFinal = true;
+    }
+    handleHeard(txt, isFinal);
+  };
+  try{ rec.start(); return true; }
+  catch(e){ note('rec.start-threw', String(e && e.name || e)); return false; }
+}
+
+function handleHeard(txt, isFinal){
+  if(!run || !run.q) return;
+  var now = performance.now();
+  var q = run.q;
+  note(isFinal ? 'final' : 'interim', txt);
+  document.getElementById('heard').textContent = '“' + txt.trim() + '”';
+
+  // Did it hear the app's own question rather than her?
+  if(speaking || (now - q.spokenAt) < 250){
+    if(/times|what|equals/i.test(txt)){ run.echo++; note('ECHO — heard our own question'); return; }
+  }
+  if(q.firstResultAt === null) q.firstResultAt = now;
+
+  var n = parseNumber(txt);
+  if(n === null) return;
+  if(q.settled) return;
+  // Ignore the question read back to us — unless that number IS the answer.
+  if(n !== q.want && (n === q.a || n === q.b)){ note('heard-the-question-number', n); return; }
+
+  q.settled = true;
+  q.heard = n;
+  q.raw = txt.trim();
+  q.heardAt = now;
+  q.ms = Math.round(now - q.readyAt);
+  q.right = (n === q.want);
+  q.ambiguous = !q.right && confusable(n, q.want);
+  note('SETTLED', n + (q.right ? ' (right)' : q.ambiguous ? ' (confusable pair)' : ' (not the answer)'));
+  document.getElementById('heard').textContent =
+    (q.right ? '✓ ' : q.ambiguous ? '≈ ' : '· ') + n + '  (' + q.ms + 'ms)';
+  setTimeout(nextQuestion, 450);
+}
+
+function nextQuestion(){
+  if(!run || run.finished) return;
+  if(run.q) run.done.push(run.q);
+  if(run.done.length >= FACTS.length) return finish();
+  var f = FACTS[run.done.length];
+  var q = {a:f[0], b:f[1], want:f[0]*f[1], settled:false, heard:null, raw:null,
+           readyAt:0, spokenAt:0, firstResultAt:null, heardAt:0, ms:null,
+           right:false, ambiguous:false};
+  run.q = q;
+  document.getElementById('q').textContent = run.mode === 'silent' ? (f[0] + ' × ' + f[1]) : '🔊';
+  document.getElementById('heard').innerHTML = '&nbsp;';
+  setState('question ' + (run.done.length + 1) + ' of ' + FACTS.length);
+  note('question', f[0] + 'x' + f[1]);
+
+  if(run.mode === 'spoken'){
+    q.spokenAt = performance.now();
+    say(words(f[0]) + ' times ' + words(f[1])).then(function(){
+      q.spokenAt = performance.now();
+      q.readyAt = performance.now();
+      // A beat, so the tail of our own voice is not mistaken for her answer.
+      setTimeout(function(){ if(run && !run.finished) note('listening'); }, 120);
+    });
+  } else {
+    q.readyAt = performance.now();
+  }
+  // Nothing said for a long while: move on rather than sit there.
+  setTimeout(function(){
+    if(run && !run.finished && run.q === q && !q.settled){
+      q.timedOut = true; note('timed-out');
+      nextQuestion();
+    }
+  }, 12000);
+}
+
+function begin(mode){
+  if(!SR){ setState('no SpeechRecognition on this browser'); report(); return; }
+  log = [];
+  run = {mode:mode, done:[], q:null, finished:false, ends:0, restarts:0, restartFailed:0,
+         echo:0, errors:[], startedAt: Date.now()};
+  document.getElementById('spoken').disabled = true;
+  document.getElementById('silent').disabled = true;
+  document.getElementById('stop').disabled = false;
+  setState('starting…');
+  note('round-start', mode);
+  // Both the microphone and the voice have to be unlocked inside this same tap.
+  var started = startRec();
+  run.recStarted = started;
+  if(mode === 'spoken'){
+    say('ready').then(function(){ nextQuestion(); });
+  } else {
+    nextQuestion();
+  }
+}
+function finish(){ stop(true); }
+function stop(complete){
+  if(!run) return;
+  run.finished = true;
+  if(run.q && !run.q.settled && run.q.heard === null && !run.q.timedOut) run.done.push(run.q);
+  try{ rec && rec.stop(); }catch(e){}
+  try{ speechSynthesis.cancel(); }catch(e){}
+  dot(false);
+  document.getElementById('q').textContent = complete ? 'done' : 'stopped';
+  document.getElementById('spoken').disabled = false;
+  document.getElementById('silent').disabled = false;
+  document.getElementById('stop').disabled = true;
+  setState(complete ? 'round finished' : 'stopped');
+  report();
+}
+
+/* ---------- the report ---------- */
+var reports = [];
+function report(){
+  var qs = run ? run.done : [];
+  var answered = qs.filter(function(q){ return q.heard !== null; });
+  var right = answered.filter(function(q){ return q.right; });
+  var amb = answered.filter(function(q){ return q.ambiguous; });
+  var times = answered.map(function(q){ return q.ms; }).sort(function(a,b){ return a-b; });
+  var median = times.length ? times[Math.floor(times.length/2)] : null;
+  var lines = [];
+  lines.push('144 voice check — ' + new Date().toISOString());
+  lines.push('round: ' + (run ? run.mode : '—'));
+  lines.push('home screen app: ' + (env.standalone === null ? 'unknown' : env.standalone));
+  lines.push('recognition present: ' + env.recognition + '   started: ' + (run ? run.recStarted : '—'));
+  lines.push('voice used: ' + (env.auVoice || 'none'));
+  lines.push('');
+  lines.push('questions asked: ' + qs.length);
+  lines.push('answers heard:   ' + answered.length + '   (nothing heard on ' + (qs.length - answered.length) + ')');
+  lines.push('heard correctly: ' + right.length);
+  lines.push('confusable pair: ' + amb.length + '   (16/60, 14/40 and friends)');
+  lines.push('median question-to-heard: ' + (median === null ? '—' : median + 'ms'));
+  lines.push('');
+  lines.push('recogniser stopped on its own: ' + (run ? run.ends : '—') + ' times');
+  lines.push('restarted with no new tap:     ' + (run ? run.restarts : '—'));
+  lines.push('restart refused (needed a tap): ' + (run ? run.restartFailed : '—'));
+  lines.push('heard our own spoken question: ' + (run ? run.echo : '—') + ' times');
+  lines.push('errors: ' + (run && run.errors.length ? run.errors.join(', ') : 'none'));
+  lines.push('');
+  lines.push('per question:');
+  qs.forEach(function(q, i){
+    lines.push('  ' + (i+1) + '. ' + q.a + '×' + q.b + ' = ' + q.want +
+      '  heard: ' + (q.heard === null ? (q.timedOut ? 'nothing (timed out)' : 'nothing') : q.heard) +
+      (q.ms ? '  ' + q.ms + 'ms' : '') +
+      (q.raw ? '  raw: "' + q.raw + '"' : ''));
+  });
+  lines.push('');
+  lines.push('event log:');
+  log.forEach(function(e){
+    lines.push('  ' + String(e.t).padStart(6) + '  ' + e.what + (e.extra === null ? '' : '  ' + e.extra));
+  });
+  lines.push('');
+  lines.push('ua: ' + env.ua);
+  var text = lines.join('\n');
+  reports.push(text);
+  document.getElementById('out').textContent = reports.join('\n\n' + '='.repeat(40) + '\n\n');
+}
+
+document.getElementById('spoken').addEventListener('click', function(){ begin('spoken'); });
+document.getElementById('silent').addEventListener('click', function(){ begin('silent'); });
+document.getElementById('stop').addEventListener('click', function(){ stop(false); });
+document.getElementById('copy').addEventListener('click', function(){
+  var text = document.getElementById('out').textContent;
+  function fallback(){
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); }catch(e){}
+    document.body.removeChild(ta);
+  }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){ setState('copied'); }, fallback);
+  } else { fallback(); setState('copied'); }
+});
+addEventListener('online',  function(){ env.online = true;  paintEnv(); });
+addEventListener('offline', function(){ env.online = false; paintEnv(); });
+</script>
