@@ -252,26 +252,55 @@ main{flex:1; position:relative; overflow:hidden;}
   text-shadow:0 0 12px color-mix(in srgb,var(--n-cyan) 70%, transparent);}
 #clear .row .k{font-size:var(--t-xs); color:var(--ink-soft); font-weight:700;}
 
-/* ---------- the gap keypad ----------
-   Twelve keys, the same twelve on every question, in the same places. That is
-   the whole point: with four rising bubbles the wrong answers are near-misses
-   she can reason against, so the game quietly teaches elimination. A constant
-   pad carries no information at all — it is a keyboard, not a multiple choice,
-   and the only way through it is to know the number. */
-#pad{position:absolute; left:0; right:0; bottom:2%; display:none;
-  grid-template-columns:repeat(4, 1fr); gap:10px; padding:0 14px; z-index:3;}
-#pad.on{display:grid;}
-#pad button{height:56px; border-radius:16px; font-size:1.35rem; font-weight:900;
-  color:#fff; background:radial-gradient(circle at 50% 30%, rgba(255,255,255,.09), rgba(8,3,15,.9) 72%);
-  border:2px solid color-mix(in srgb, var(--rc) 70%, transparent);
-  box-shadow:0 0 12px color-mix(in srgb, var(--rc) 30%, transparent),
-    inset 0 0 14px color-mix(in srgb, var(--rc) 12%, transparent);
-  text-shadow:0 0 10px color-mix(in srgb, var(--rc) 65%, transparent);}
-#pad button:active{transform:scale(.94);}
-#pad button.bad{animation:padshake .34s;}
-@keyframes padshake{0%,100%{transform:translateX(0);}25%{transform:translateX(-6px);}
+/* ---------- the number line ----------
+   David, 2026-08-12: "instead of the 12 boxes how about a slider and number line.
+   Loads with nothing showing, touch it and shows what is selected, drag to the
+   right spot and then release to enter."
+
+   Which is the anti-elimination idea taken all the way: the twelve keys at least
+   showed her twelve numerals, and a bare line shows her nothing at all. There is
+   no option to rule out because there are no options on the screen — she has to
+   arrive at the number, and only then does it appear, under her thumb.
+
+   The one thing this must never do is take an answer she did not mean. So: the
+   value snaps to a stop, it is drawn big and ABOVE the finger (a thumb covers
+   what is under it), and dragging well below the line cancels instead of
+   answering. */
+#dial{position:absolute; left:0; right:0; bottom:4%; z-index:3; display:none;
+  padding:0 22px; touch-action:none; -webkit-user-select:none; user-select:none;}
+#dial.on{display:block;}
+#dialtrack{position:relative; height:64px; display:flex; align-items:center;}
+/* the line itself: present, so she knows where to reach, but silent */
+#dialtrack::before{content:''; position:absolute; left:0; right:0; height:8px;
+  border-radius:999px; background:linear-gradient(#2C1A44, #1B0F2C);
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.07),
+    0 0 12px color-mix(in srgb, var(--rc) 14%, transparent);}
+#dialfill{position:absolute; left:0; height:8px; width:0; border-radius:999px;
+  background:linear-gradient(90deg, color-mix(in srgb, var(--rc) 40%, transparent), var(--rc));
+  box-shadow:0 0 14px var(--rc); opacity:0; transition:opacity var(--m-press);}
+#dialthumb{position:absolute; width:34px; height:34px; margin-left:-17px; border-radius:50%;
+  background:radial-gradient(circle at 50% 35%, #fff, var(--rc) 62%, color-mix(in srgb, var(--rc) 40%, #08040f));
+  box-shadow:0 0 18px var(--rc), 0 0 44px color-mix(in srgb, var(--rc) 45%, transparent);
+  opacity:0; transform:scale(.6); transition:opacity var(--m-press), transform var(--m-press);}
+#dial.live #dialfill{opacity:1;}
+#dial.live #dialthumb{opacity:1; transform:scale(1);}
+/* the number she is choosing, well clear of her finger */
+#dialread{position:absolute; bottom:78px; width:74px; margin-left:-37px; text-align:center;
+  font-size:2.6rem; font-weight:900; color:#fff; line-height:1; opacity:0;
+  text-shadow:0 0 14px var(--rc), 0 0 38px var(--rc); pointer-events:none;
+  transition:opacity var(--m-press);}
+#dial.live #dialread{opacity:1;}
+#dial.cancel #dialread{opacity:.35;}
+#dial.cancel #dialthumb{box-shadow:none; background:#3a2b52;}
+#dialhint{text-align:center; font-size:var(--t-xs); font-weight:800; color:var(--ink-soft);
+  letter-spacing:.04em; transition:opacity var(--m-quick);}
+#dial.live #dialhint{opacity:0;}
+#dial.shake #dialthumb{animation:dialshake .34s;}
+
+/* the shake a wrong answer gets, on a bubble or on the dial */
+@keyframes dialshake{0%,100%{transform:translateX(0);}25%{transform:translateX(-6px);}
   75%{transform:translateX(6px);}}
-/* With a pad at the bottom the sum belongs just above it, not up at the top of
+/* With the line at the bottom the sum belongs just above it, not up at the top of
    the screen with a third of the phone empty in between. */
 #play.gap #prompt{top:44%;}
 #prompt .gap{display:inline-block; min-width:1.1em; color:var(--rc);
@@ -394,7 +423,11 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
       <div id="field">
         <div id="flash"></div>
         <div id="prompt"></div>
-        <div id="pad" aria-label="the numbers one to twelve"></div>
+        <div id="dial" aria-label="drag to the answer">
+          <div id="dialread"></div>
+          <div id="dialtrack"><div id="dialfill"></div><div id="dialthumb"></div></div>
+          <div id="dialhint">touch the line</div>
+        </div>
         <div id="jack">JACKPOT!</div>
         <div id="cue"></div>
       </div>
@@ -458,7 +491,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.8';
+var VERSION = '1.9';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -505,7 +538,7 @@ function fresh(){
     facts:bare(null),
     power:{watts:0, charge:100, at:Date.now()},
     prog:{cleared:0, placed:false, startedOn:todayISO(), lastDay:'', sessions:0, days:0},
-    set:{sound:true},
+    set:{sound:true, dials:0},
     rev:0
   };
 }
@@ -549,7 +582,10 @@ function sane(raw){
     if(typeof raw.prog.startedOn==='string' && /^\d{4}-\d\d-\d\d$/.test(raw.prog.startedOn)) t.prog.startedOn=raw.prog.startedOn;
     if(typeof raw.prog.lastDay==='string'  && /^\d{4}-\d\d-\d\d$/.test(raw.prog.lastDay))  t.prog.lastDay=raw.prog.lastDay;
   }
-  if(raw.set && typeof raw.set==='object') t.set.sound = raw.set.sound !== false;
+  if(raw.set && typeof raw.set==='object'){
+    t.set.sound = raw.set.sound !== false;
+    t.set.dials = Math.round(num(raw.set.dials, 0, 1e6, 0));   // how often she has used the line
+  }
   t.rev = Math.round(num(raw.rev, 0, 1e12, 0));
   return t;
 }
@@ -591,7 +627,10 @@ function mergeState(mine, theirs){
   if((theirs.prog.lastDay||'') > (out.prog.lastDay||'')) out.prog.lastDay = theirs.prog.lastDay;
   // the charge belongs to whichever window touched it last
   if(theirs.power.at > mine.power.at){ out.power.charge = theirs.power.charge; out.power.at = theirs.power.at; }
-  // preferences are not earned, so the window doing the writing wins
+  // preferences are not earned, so the window doing the writing wins — except the
+  // count of how often she has used the number line, which is experience like any
+  // other and must not go backwards, or the hint would come back after it retired
+  out.set.dials = Math.max(mine.set.dials||0, theirs.set.dials||0);
   out.rev = Math.max(mine.rev||0, theirs.rev||0);
   return out;
 }
@@ -1050,7 +1089,7 @@ function next(){
   if(Math.random()<0.5){ var t=a; a=b; b=t; }
   W.cur={k:k, a:a, b:b};
   if(st.kind==='recall') return askGap(a, b);
-  el('#pad').classList.remove('on');
+  el('#dial').classList.remove('on', 'live');
   el('#play').classList.remove('gap');
   el('#prompt').innerHTML = a+' <i>×</i> '+b;
 
@@ -1063,7 +1102,10 @@ function next(){
   var speed = reduce ? 0 : Math.min(0.95, 0.16+(W.round-1)*0.07) + Math.min(W.combo,12)*0.008;
   vals.forEach(function(v,i){
     var e=document.createElement('div'); e.className='orb'; e.textContent=v;
-    var x=pad+gap*i+(Math.random()*12-6), y=FH*0.62+Math.random()*(FH*0.24);
+    // With motion off they never rise, so they must spawn where they would have
+    // been read — not parked in the bottom third with the sum a screen away.
+    var y = reduce ? FH*0.44+Math.random()*(FH*0.16) : FH*0.62+Math.random()*(FH*0.24);
+    var x=pad+gap*i+(Math.random()*12-6);
     e.style.setProperty('--x', x+'px'); e.style.setProperty('--y', y+'px');
     e.style.transform='translate('+x+'px,'+y+'px)';
     el('#field').appendChild(e);
@@ -1089,28 +1131,92 @@ function askGap(a, b){
   el('#prompt').innerHTML = (gapFirst ? '<span class="gap">?</span> <i>×</i> ' + b
                                       : a + ' <i>×</i> <span class="gap">?</span>')
                           + ' <i>=</i> ' + (a*b);
-  var pad = el('#pad');
-  if(!pad.firstChild){
-    var html = '';
-    for(var n=1;n<=12;n++) html += '<button type="button" data-n="'+n+'">'+n+'</button>';
-    pad.innerHTML = html;
-    pad.addEventListener('click', function(ev){
-      var b2 = ev.target.closest('button[data-n]');
-      if(b2) padTap(Number(b2.dataset.n), b2);
-    });
-  }
-  pad.classList.add('on');
+  armDial();
   el('#play').classList.add('gap');
   el('#cue').textContent = '';
   paintGoal();
 }
-function padTap(n, btn){
-  if(!W || !W.cur || W.cur.done) return;
-  var right = (n === W.cur.want);
-  if(right){ W.cur.done = true; }
-  var r = btn.getBoundingClientRect(), f = el('#field').getBoundingClientRect();
-  score(right, r.left - f.left + r.width/2, r.top - f.top, btn);
+
+/* ---- the number line ----
+   Twelve stops, half a step in from each end so 1 and 12 are not pinned to the
+   edge of the phone. Nothing is shown until she touches it; the number appears
+   under her thumb (well above it, actually) and only counts when she lets go. */
+var DIAL_STOPS = 12, _dialOn = false, _dialN = 0, _dialCancel = false;
+function dialGeom(){
+  var t = el('#dialtrack').getBoundingClientRect();
+  return {left:t.left, w:t.width, top:t.top, h:t.height, step:t.width/DIAL_STOPS};
 }
+function dialValue(clientX){
+  var g = dialGeom();
+  var i = Math.floor((clientX - g.left) / g.step);
+  return Math.max(1, Math.min(DIAL_STOPS, i + 1));
+}
+function paintDial(n){
+  var g = dialGeom(), x = (n - 0.5) * g.step;
+  el('#dialthumb').style.left = x + 'px';
+  el('#dialfill').style.width = x + 'px';
+  var r = el('#dialread');
+  r.style.left = x + 'px';
+  r.textContent = n;
+}
+function armDial(){
+  var d = el('#dial');
+  d.classList.add('on');
+  d.classList.remove('live', 'cancel', 'shake');
+  el('#dialhint').textContent = (S.set.dials||0) < 12 ? 'touch the line' : '';
+  _dialOn = false; _dialN = 0; _dialCancel = false;
+}
+function dialDown(ev){
+  if(!W || W.level.kind !== 'recall' || !W.cur || W.cur.done) return;
+  ev.preventDefault();
+  _dialOn = true; _dialCancel = false;
+  el('#dial').classList.add('live');
+  _dialN = dialValue(ev.clientX);
+  paintDial(_dialN);
+  sfxTick();
+}
+function dialMove(ev){
+  if(!_dialOn) return;
+  ev.preventDefault();
+  var n = dialValue(ev.clientX);
+  // Well below the line means "not that, let me start again" — the iOS way out.
+  var g = dialGeom(), away = ev.clientY - (g.top + g.h);
+  var cancel = away > 64;
+  if(cancel !== _dialCancel){ _dialCancel = cancel; el('#dial').classList.toggle('cancel', cancel);
+    el('#dialhint').textContent = cancel ? 'let go to start again' : ''; }
+  if(n !== _dialN){ _dialN = n; paintDial(n); sfxTick(); }
+}
+function dialUp(ev){
+  if(!_dialOn) return;
+  if(ev) ev.preventDefault();
+  _dialOn = false;
+  var d = el('#dial');
+  if(_dialCancel){                                   // she changed her mind; nothing counts
+    d.classList.remove('live', 'cancel');
+    el('#dialhint').textContent = (S.set.dials||0) < 12 ? 'touch the line' : '';
+    return;
+  }
+  var n = _dialN;
+  if(!n || !W || !W.cur || W.cur.done) return;
+  var right = (n === W.cur.want);
+  if(right){ W.cur.done = true; S.set.dials = (S.set.dials||0) + 1; }
+  var g = dialGeom(), f = el('#field').getBoundingClientRect();
+  if(right){ d.classList.remove('live'); }
+  else {
+    d.classList.add('shake');
+    setTimeout(function(){ d.classList.remove('shake', 'live');
+      el('#dialhint').textContent = (S.set.dials||0) < 12 ? 'touch the line' : ''; }, 360);
+  }
+  score(right, (g.left - f.left) + (n - 0.5) * g.step, (g.top - f.top) + g.h / 2, null);
+}
+(function bindDial(){
+  var t = el('#dialtrack');
+  t.addEventListener('pointerdown', dialDown);
+  addEventListener('pointermove', dialMove, {passive:false});
+  addEventListener('pointerup', dialUp);
+  addEventListener('pointercancel', function(){ _dialOn = false;
+    el('#dial').classList.remove('live','cancel'); });
+})();
 
 function frame(){
   for(var i=0;i<orbs.length;i++){
@@ -1230,7 +1336,7 @@ function clearLevel(){
   el('#clearCharge').textContent = W.charge < 0.5 && S.power.charge >= 100
     ? 'full ⚡' : Math.round(W.charge)+'%';
   el('#clear').classList.add('on');
-  el('#pad').classList.remove('on');
+  el('#dial').classList.remove('on', 'live');
   el('#play').classList.remove('gap');
   orbs.forEach(function(o){ if(o.el.parentNode) o.el.remove(); }); orbs=[];
   renderHud();
@@ -1307,9 +1413,9 @@ window.__144 = {
     if(W.level.kind==='recall'){
       var want = W.cur.want;
       var n = right !== false ? want : (want === 12 ? 11 : want + 1);
-      var b = document.querySelector('#pad button[data-n="'+n+'"]');
-      if(!b) return false;
-      padTap(n, b);
+      _dialOn = true; _dialCancel = false; _dialN = n;
+      el('#dial').classList.add('live'); paintDial(n);
+      dialUp(null);
       return true;
     }
     for(var i=0;i<orbs.length;i++){

@@ -21,7 +21,15 @@ const executablePath = findChromium();
 
 module.exports = defineConfig({
   testDir: './tests',
-  fullyParallel: true,
+  // ONE worker, deliberately. The app is opened from file://, and every file://
+  // page shares one localStorage — so two tests running at once clear and write
+  // each other's storage. That showed up as the two-windows data-safety test
+  // failing about one run in eight with "the stale window ate her watts", which
+  // reads like a real defect in the merge and is not one. A flaky red in an
+  // unwatched loop is worse than a slower suite: the whole point of these tests is
+  // that a failure means something. Costs ~50 seconds.
+  workers: 1,
+  fullyParallel: false,
   reporter: [['list']],
   projects: [{
     name: 'chromium-phone',

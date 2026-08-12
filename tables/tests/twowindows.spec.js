@@ -35,6 +35,12 @@ test.describe('two windows', () => {
       window.__144.save();
     });
 
+    // Check the ground truth before the interesting bit, so a failure below can
+    // only mean the merge let her down — not that something else moved the disk.
+    const onDisk = await b.evaluate(() => JSON.parse(localStorage.getItem('144.v1')));
+    expect(onDisk && onDisk.power.watts,
+      'precondition lost: storage did not hold the newest work before the stale write').toBe(260);
+
     // and now the stale window writes — a tap on anything is enough
     await b.evaluate(() => { window.__144.state.set.sound = false; window.__144.save(); });
 

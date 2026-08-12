@@ -139,24 +139,44 @@ test.describe('the look of it', () => {
     // from the bottom, with half a screen of nothing between them — her eyes had
     // to travel the whole phone to play. And a bubble grazed the right edge.
     await page.setViewportSize({width: 375, height: 667});
-    await open(page);
-    await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
-    await page.click('#go');
-    await page.waitForTimeout(300);
-    const s = await page.evaluate(() => {
-      const f = document.getElementById('field').getBoundingClientRect();
-      const p = document.getElementById('prompt').getBoundingClientRect();
-      const orbs = [...document.querySelectorAll('.orb')].map(o => o.getBoundingClientRect());
-      return {fh: f.height,
-        inField: p.top >= f.top && p.bottom <= f.bottom,
-        gap: Math.min(...orbs.map(o => o.top)) - p.bottom,
-        inset: Math.min(...orbs.map(o => Math.min(o.left - f.left, f.right - o.right)))};
-    });
-    expect(s.inField, 'the sum is not over the play area').toBe(true);
-    expect(s.gap, 'a void opened up between the sum and the bubbles')
-      .toBeLessThan(s.fh * 0.35);
-    expect(s.gap).toBeGreaterThan(0);                  // and they do not overlap
-    expect(s.inset, 'a bubble is grazing the edge of the phone').toBeGreaterThanOrEqual(12);
+    // Both motion settings. With motion OFF the bubbles never rise, so wherever
+    // they spawn is where she reads them — that layout has to hold too, and it is
+    // also the deterministic one to measure.
+    for(const motion of ['no-preference', 'reduce']){
+      await page.emulateMedia({reducedMotion: motion});
+      await open(page);
+      await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
+      await page.click('#go');
+      await page.waitForTimeout(120);
+      if(motion !== 'reduce'){
+        // Wait for the bubbles to have actually started climbing rather than for a
+        // stopwatch — on a loaded machine the frame loop can be starved, and then
+        // this measures a moment that never reaches her eyes.
+        await page.evaluate(() => { window.__spawnTop = Math.min(
+          ...[...document.querySelectorAll('.orb')].map(o => o.getBoundingClientRect().top)); });
+        await page.waitForFunction(() => {
+          const os = [...document.querySelectorAll('.orb')];
+          if(!os.length) return false;
+          return Math.min(...os.map(o => o.getBoundingClientRect().top)) <= window.__spawnTop - 30;
+        }, null, {timeout: 4000});
+      }
+      const s = await page.evaluate(() => {
+        const f = document.getElementById('field').getBoundingClientRect();
+        const p = document.getElementById('prompt').getBoundingClientRect();
+        const orbs = [...document.querySelectorAll('.orb')].map(o => o.getBoundingClientRect());
+        return {fh: f.height, still: matchMedia('(prefers-reduced-motion: reduce)').matches,
+          inField: p.top >= f.top && p.bottom <= f.bottom,
+          gap: Math.min(...orbs.map(o => o.top)) - p.bottom,
+          inset: Math.min(...orbs.map(o => Math.min(o.left - f.left, f.right - o.right)))};
+      });
+      expect(s.still, 'the motion setting did not take').toBe(motion === 'reduce');
+      expect(s.inField, `[${motion}] the sum is not over the play area`).toBe(true);
+      expect(s.gap, `[${motion}] a void opened up between the sum and the bubbles`)
+        .toBeLessThan(s.fh * 0.35);
+      expect(s.gap, `[${motion}] the sum and the bubbles overlap`).toBeGreaterThan(0);
+      expect(s.inset, `[${motion}] a bubble is grazing the edge of the phone`)
+        .toBeGreaterThanOrEqual(12);
+    }
   });
 
 });
