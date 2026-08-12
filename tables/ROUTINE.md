@@ -15,8 +15,8 @@ routine returns the favour.
 <!-- STATE — the routine reads these two values and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: 30m
-last-run: 2026-08-11T22:19Z
+interval: daily
+last-run: 2026-08-12T00:06Z
 ```
 
 On each firing:
@@ -28,54 +28,36 @@ On each firing:
 4. **Otherwise:** do a full pass (sections 4–7). At the end, set `last-run` to now, re-decide
    `interval` per the ladder, rewrite both STATE lines, and commit this file with the work.
 
-Never change the trigger schedules on your own initiative — only David does that. The one exception
-is the sprint clean-up below, which he asked for explicitly.
+Never change the trigger schedules on your own initiative — only David does that. (The one exception
+was the overnight sprint's own clean-up, which he asked for explicitly; it is done — see below.)
 
-### ⏱ SPRINT WINDOW — a 30-minute cadence for the night of 2026-08-11 → 12
+### The overnight sprint of 2026-08-11 → 12 — closed 2026-08-12T00:06Z
 
-David set this before going to sleep: *"Setup the cron for auto test improve overnight… every 30min
-for tonight."* The scheduler will not go below hourly, so it is **two hourly triggers offset by half
-an hour**:
+David asked for a 30-minute cadence for one night (*"Setup the cron for auto test improve
+overnight… every 30min for tonight"*), run as two hourly triggers offset by half an hour. It ran six
+passes, v1.0 → v1.6, and is now closed: the twin trigger is deleted and the main one is back to
+daily at 18:00Z. **What it found, in order — every area probed turned up a real defect:**
 
-- `trig_01LXB8qHcSRnnSTWnp8TPvY4` — the main 144 trigger, at **:05** past each hour
-- `trig_01HefKdLo17wPJx3S21fN94N` — the temporary offset twin, at **:35** past each hour
+1. The path **dead-ended** after ~48 levels; she would have replayed one boss for a hundred days.
+2. `render()` called `save()`, so her progress persisted **as a side effect of painting**, and two
+   open windows raced each other.
+3. A **failed write still advanced `rev`**, which disabled the merge that protects her from a stale
+   window — a full disk plus an old tab would have eaten an evening.
+4. On an **iPhone SE** the sum and the bubbles sat at opposite ends of the screen.
+5. A buddy name of **nothing but spaces** stuck, leaving the heading blank.
+6. The **clear card counted the charge it asked for, not the charge that landed** — a nearly-full
+   battery was told it gained 31% when it took 2.
 
-**Sprint rules (they matter — nobody is watching):**
-- **In scope: tests, robustness, VISUAL POLISH (§6a), and improving this routine itself (§8).**
-  David: *"Happy for you to take the lead… Continue, don't stop and I'll review in the morning"*
-  and *"Also add visual updates to the cron task. And self improvement."* — so the loop is expected
-  to make the app look better and get better at its own job, not only to guard it.
-- **Out of scope without him:** new game modes or features, changes to the engine's pace, the
-  Leitner numbers, the reward economy, or anything that changes *what she is taught*. Also: never
-  reinvent the house style — refine inside it (§4).
-- **Every pass must end green and pushed.** Run the harness, add a test for anything fixed, and
-  teeth-check it (inject the regression, watch it fail, revert). One small verified increment per
-  pass beats a big unverified one.
-- **Every pass leaves a trail.** Screenshot before and after any visual change, log it in §9, and
-  keep the diff small enough that he can undo one thing without losing the rest.
-- **If a defect is found in the app, fix it** — that is the point of the night.
-- **If nothing safe is left to do, say so and stop.** Do not invent work to look busy, and do not
-  start refactoring a working app at 3am.
-
-The visual brief that started this (2026-08-11 17:45Z — *"push a little more neon, KPop Demon
-Hunters"*) was **delivered in v1.1**; it now lives on as the house style in §4 and the standing
-polish job in §6a. Do not re-do it; continue it.
-
-**Closing the sprint — the first pass at or after `2026-08-11T23:00Z` (7am AWST) MUST:**
-1. set `interval` back to `daily`;
-2. delete the twin trigger `trig_01HefKdLo17wPJx3S21fN94N` (it is temporary — use `CronDelete` /
-   `delete_trigger`);
-3. set the main trigger `trig_01LXB8qHcSRnnSTWnp8TPvY4` back to `0 18 * * *`;
-4. write a short summary of the night's work in the cadence note, and delete this SPRINT WINDOW
-   block so the file stops describing a night that has passed.
-
-Do the same clean-up early if section 5's queue is finished and the app is green — a spinning loop
-with nothing to do is worse than a quiet one.
+None of these were visible in ordinary play, and all six would have quietly cost her something. The
+suite went 23 → 47 tests, every fix teeth-checked. Two visual passes came with it (the play field on
+a small phone, and the buddy becoming glass at both sizes). Nothing was changed about what she is
+taught — the one finding that needs David is still open at the top of §7.
 
 ## 2. CADENCE LADDER
 
-- **`30m` / `hourly`** only when David has explicitly asked for a sprint (see the SPRINT WINDOW
-  above). Never set these on your own initiative; hand back to `daily` when the sprint closes.
+- **`30m` / `hourly`** only when David has explicitly asked for a sprint (the last one is written up
+  in §1). Never set these on your own initiative; hand back to `daily` when the sprint closes, and
+  delete any temporary twin trigger that was created for it.
 - **`daily`** while anything is open: a request from David, a defect found this pass, or the app
   still young enough that daily eyes earn their keep. This is the baseline while she is playing it.
 - **`weekly`** once a pass is clean, nothing is open, and the code has been frozen a while.
@@ -155,7 +137,7 @@ composites transparency to black). Storage key `144.v1`.
 npx playwright test -c tables/playwright.config.js
 ```
 
-42 tests at v1.5. **Add a test for every defect fixed, and verify it fails on the broken version**
+47 tests at v1.6. **Add a test for every defect fixed, and verify it fails on the broken version**
 (inject the regression, watch it fail, revert). Extend the suite each pass with new adversarial
 cases — the tests are what make an autonomous loop safe.
 
@@ -171,11 +153,16 @@ bands** (code defects — enforced, exits non-zero) from **the PLAN's own target
 reported loudly, *never* silently relaxed by lowering them). Run it after any change to the engine,
 the ladder or the level goals. It is slow (~2 min); that is fine.
 
-1. **The level-clear card** is the least-tested screen: prove the numbers on it match what she
-   actually earned, and that "keep going" cannot start a level she has already cleared.
-2. **Sound**: prove the mute really silences everything (the synth is fired from several places).
+1. **Sound**: prove the mute really silences everything (the synth is fired from several places).
+2. **A whole evening, end to end**: several levels in a row without reloading — the state that
+   builds up across a sitting (combo, round colour, the pool) is only ever tested one level deep.
 
 **Done, and now guarded — do not undo these:**
+- **The level-clear card** (v1.6, `tests/clearcard.spec.js`): the card counted the charge it *asked
+  for* rather than the charge that *landed*, so a nearly-full battery was told it gained 31% when it
+  took 2. `addCharge` returns what it actually added; the sitting counts that. A full battery reads
+  "full ⚡", never a deflating 0%. The test with the teeth is the near-full battery one — a test that
+  starts at 10% passes either way, because nothing clamps.
 - **Naming the buddy** (v1.5): the only place in the app she types. Names are trimmed going in and
   coming out of storage, so a field of spaces cannot leave the heading blank; clearing it hands back
   "her buddy". Her name is displayed with `textContent`, never as markup. The field opens above the
@@ -296,6 +283,14 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-11 23:08 – 2026-08-12 00:06Z (sprint pass 6, and the close):** the level-clear card (v1.6). It
+  counted the charge it asked for rather than the charge that landed, so a nearly-full battery was
+  told it gained 31% when it took 2 — the one screen that makes her a promise was the one getting the
+  number wrong. `addCharge` now reports what it actually added, and a full battery reads "full ⚡"
+  instead of 0%. Five tests for the card, including that "keep going" moves her on rather than
+  restarting what she just cleared; the near-full one is the one with teeth. `sim.js` re-run and
+  unchanged. 47 pass. Then closed the sprint: cadence back to `daily`, twin trigger deleted, main
+  trigger back to 18:00Z, and the night written up in §1.
 - **2026-08-11, 22:08–22:19Z (sprint pass 5):** the naming field and the buddy (v1.5). Drove the
   naming flow for real: a name of nothing but spaces stuck, leaving the heading blank instead of
   falling back — fixed, trimmed both on the way in and out of storage, teeth-checked. The keyboard
