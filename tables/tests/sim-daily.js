@@ -67,6 +67,19 @@
  * do it (see the picker diagnostic printed first). They are 'real', 'window' and
  * 'due'; each is documented where it is defined.
  *
+ * TWO WARNINGS ABOUT READING EITHER FILE.
+ *
+ *   1. Say which VERSION you measured. On 2026-08-12 v1.8 added the fill-the-gap
+ *      levels, and `sim.js` went from ~38/78 known by day 142 to ~55/78 — the
+ *      same script, the same targets, a different app. (Measured deliberately:
+ *      the pre-v1.8 `index.html` five times, the v1.8 one fifteen times.) The
+ *      ~38 in ROUTINE §7 was true when written and is now stale.
+ *   2. The modelled learners share one page and therefore ONE `Math.random`
+ *      stream — the engine's picker uses it — so they are correlated samples,
+ *      not eight independent children. Within a version the run-to-run spread is
+ *      only 2–3 facts for `sim.js` and under half a fact here, but the eight rows
+ *      are not eight opinions. Never build an argument on a single run.
+ *
  *   node tables/tests/sim-daily.js
  *
  * Exit code: non-zero only for genuine code health (page errors, or the real
@@ -670,8 +683,13 @@ function runLearner(cfg){
       + '   recall ' + avg(rs, r => r.end.recall).toFixed(1) + '/78'
       + '   → ' + p.filter(x => x[1]).length + '/3 targets');
   });
-  console.log('    ' + 'sim.js, the ladder shipped today'.padEnd(40)
-    + '35.0/78  38.5/78  22/78   recall n/a   → 0/3 targets');
+  // sim.js's own numbers, measured on 2026-08-12: medians of 15 runs against the
+  // v1.8 app and 5 runs against the pre-v1.8 app. Re-measure after any change to
+  // the ladder: these two rows are one script on two versions an hour apart.
+  console.log('    ' + 'sim.js, the ladder at v1.8'.padEnd(40)
+    + '~53.9/78 ~54.9/78 ~43/78  recall n/a   → 0/3 targets');
+  console.log('    ' + 'sim.js, the ladder before v1.8'.padEnd(40)
+    + '~35.0/78 ~38.0/78 ~21/78  recall n/a   → 0/3 targets');
   console.log('\n  Read tables/tests/SIM-DAILY.md before changing anything. Do NOT close any of');
   console.log('  this by lowering the targets, and do not trust the box model on its own.\n');
 
