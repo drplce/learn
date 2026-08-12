@@ -342,7 +342,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
     </div>
     <span class="grow"></span>
     <button class="hudbtn" id="soundbtn" aria-label="Sound">🔊</button>
-    <button id="buddybtn" aria-label="Her buddy"></button>
+    <button id="buddybtn" aria-label="Buddy"></button>
   </div>
 
   <main>
@@ -363,7 +363,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
         <div id="cue"></div>
       </div>
       <div id="clear">
-        <div class="big" id="clearBig">Stone cleared!</div>
+        <div class="big" id="clearBig">Level cleared!</div>
         <div class="row">
           <div><div class="v" id="clearWatts">0</div><div class="k">watts earned</div></div>
           <div><div class="v" id="clearCharge">0%</div><div class="k">charged up</div></div>
@@ -379,7 +379,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
         <div class="roomhead">
           <div class="bigcube" id="bigcube"></div>
           <div class="meta">
-            <h2 id="buddyName">her buddy</h2>
+            <h2 id="buddyName">buddy</h2>
             <p id="buddyState">asleep · charging</p>
             <button id="nameit">✏️ name it</button>
             <input id="nameinput" maxlength="14" placeholder="a name…" autocomplete="off"
@@ -394,11 +394,11 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
         </div>
 
         <h3 class="sec">the shell</h3>
-        <p class="hint">its colour is hers to choose while it sleeps — more opens as it boots up</p>
+        <p class="hint">pick its colour while it sleeps — more opens as it boots up</p>
         <div class="shells" id="shells"></div>
 
-        <h3 class="sec">her 144</h3>
-        <p class="hint">every fact she powers up turns gold. the whole game is to light all 144.</p>
+        <h3 class="sec">the 144</h3>
+        <p class="hint">every fact powered up turns gold. the whole game is to light all 144.</p>
         <div id="grid"></div>
         <div class="legend">
           <span><i style="background:var(--bg2);opacity:.5"></i>not yet</span>
@@ -422,7 +422,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.6';
+var VERSION = '1.7';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -914,7 +914,7 @@ function renderHome(){
 function renderPower(){
   applyShell();
   el('#bigcube').innerHTML = buddyInner(true);
-  el('#buddyName').textContent = S.buddy.name || 'her buddy';
+  el('#buddyName').textContent = S.buddy.name || 'buddy';
   var st=buddyStage(), pct=Math.round(S.power.charge);
   el('#buddyState').textContent =
     (st===0?'asleep':st===1?'stirring':st===2?'awake':'fully booted') + ' · ' + pct + '% charged'

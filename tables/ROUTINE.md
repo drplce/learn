@@ -77,6 +77,13 @@ gamified. What it inherits is not the look but the *soul*:
   gambling she can lose, no dark patterns. The casino is in the *payout*, never in the risk.
 - **Her name is never in the code** (the repo is public). She may name the *buddy*; that pet name
   lives on the device and nowhere else. Never an API key in the repo.
+- **The app never says "her".** David, 2026-08-12: *"Ditch the word 'her' throughout. Like her buddy
+  should just be buddy."* It is her app — it does not need to keep telling her so, and copy written
+  *about* her reads like someone else is watching. So: "buddy", "the 144", "pick its colour" —
+  never "her buddy", "her 144", "hers". This covers `aria-label`s too, and a test in
+  `game.spec.js` ("the words she reads") sweeps every screen for it. Comments in the source still
+  say "she", which is fine — that is us talking about the person we are building for, not the app
+  talking to her.
 - Legibility is in scope (big type, tap targets ≥48px, reduced motion honoured). Screen-reader
   support is out of scope, same as Acorn.
 
@@ -137,7 +144,7 @@ composites transparency to black). Storage key `144.v1`.
 npx playwright test -c tables/playwright.config.js
 ```
 
-47 tests at v1.6. **Add a test for every defect fixed, and verify it fails on the broken version**
+48 tests at v1.7. **Add a test for every defect fixed, and verify it fails on the broken version**
 (inject the regression, watch it fail, revert). Extend the suite each pass with new adversarial
 cases — the tests are what make an autonomous loop safe.
 
@@ -283,6 +290,10 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-12, 00:11Z (David, live):** *"Ditch the word 'her' throughout."* The app now says
+  "buddy", "the 144" and "pick its colour" — including the `aria-label`s — and a copy sweep in
+  `game.spec.js` keeps it that way (teeth-checked). Also fixed a leftover "Stone cleared!" in the
+  markup from before the stones→levels rename. v1.7, 48 pass.
 - **2026-08-11 23:08 – 2026-08-12 00:06Z (sprint pass 6, and the close):** the level-clear card (v1.6). It
   counted the charge it asked for rather than the charge that landed, so a nearly-full battery was
   told it gained 31% when it took 2 — the one screen that makes her a promise was the one getting the

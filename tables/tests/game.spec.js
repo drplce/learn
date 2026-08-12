@@ -360,7 +360,7 @@ test.describe('what the app remembers', () => {
 
 });
 
-test.describe('her buddy and its power', () => {
+test.describe('the buddy and its power', () => {
 
   test('the charge drains across her day and pauses overnight', async ({page}) => {
     await open(page);
@@ -423,7 +423,7 @@ test.describe('her buddy and its power', () => {
     expect(await page.locator('#bigcube .eye').count()).toBe(2);
   });
 
-  test('the shell colour is hers to choose, and it sticks', async ({page}) => {
+  test('the shell colour is hers to pick, and it sticks', async ({page}) => {
     await open(page);
     await page.evaluate(() => window.__144.go('power'));
     await page.waitForTimeout(200);
@@ -464,7 +464,7 @@ test.describe('her buddy and its power', () => {
     await page.press('#nameinput', 'Enter');
     await page.waitForTimeout(150);
     expect(await page.evaluate(() => window.__144.state.buddy.name)).toBe('');
-    expect((await name()).trim()).toBe('her buddy');
+    expect((await name()).trim()).toBe('buddy');
     expect(errorsOf(page)).toEqual([]);
   });
 
@@ -542,6 +542,29 @@ test.describe('the words she reads', () => {
       expect(all, `"${word}" is on her screen`).not.toContain(word);
     // and the miss still tells her something useful
     expect(seen[1].toLowerCase()).toMatch(/not that one|another look|list/);
+  });
+
+  test('the app never says "her" — the buddy is just the buddy', async ({page}) => {
+    // David, 2026-08-12: "Ditch the word 'her' throughout. Like her buddy should
+    // just be buddy." Nothing on screen speaks about her in the third person.
+    await open(page);
+    await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
+    const seen = [];
+    seen.push(await page.locator('#home').innerText());
+    seen.push(await page.locator('#hud').innerText());
+    await page.click('#go');
+    await page.waitForTimeout(250);
+    seen.push(await page.locator('#play').innerText());
+    await page.evaluate(() => window.__144.go('power'));
+    await page.waitForTimeout(250);
+    seen.push(await page.locator('#power .scroll').innerText());
+    // the labels a screen reader would speak, too
+    seen.push((await page.evaluate(() => [...document.querySelectorAll('[aria-label]')]
+      .map(e => e.getAttribute('aria-label')).join(' '))));
+
+    for(const text of seen)
+      expect(text, `"her" is on her screen: ${text.slice(0, 80)}`)
+        .not.toMatch(/\bher\b|\bhers\b/i);
   });
 
   test('her name is nowhere in the app', async ({page}) => {
