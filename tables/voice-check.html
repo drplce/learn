@@ -261,36 +261,68 @@ function startRec(){
   catch(e){ note('rec.start-threw', String(e && e.name || e)); return false; }
 }
 
+/* The lesson from the first run on her phone (2026-08-12), and the whole reason
+   this page exists: iOS streams a number as it hears it. "fifty six" arrives as
+   50 and then 56; "seventy two" as 70 then 72; "one thirty two" as 130 then 132.
+   Taking the first number that appears marks her wrong for saying the right
+   answer — and worse, the corrected value lands after the question has moved on,
+   so it gets scored against the NEXT question and every answer after it is out by
+   one. Five of her ten answers were right and the page said none were.
+
+   So: a number is a candidate, not a verdict. It has to stop changing before it
+   counts, nothing is heard while we are speaking, and the tail of one answer is
+   never allowed to leak into the next question. */
+var STABLE_MS = 500;      // a number must hold still this long to count
+var DEAF_MS   = 400;      // after settling, ignore the rest of what she said
+
+function commit(q){
+  if(!run || q.settled || q.cand === null) return;
+  var now = performance.now();
+  q.settled = true;
+  q.heard = q.cand;
+  q.raw = q.candRaw;
+  q.ms = Math.round(q.candAt - q.readyAt);        // when she said it, not when we believed it
+  q.right = (q.heard === q.want);
+  q.ambiguous = !q.right && confusable(q.heard, q.want);
+  run.deafUntil = now + DEAF_MS;
+  note('SETTLED', q.heard + (q.right ? ' (right)' : q.ambiguous ? ' (confusable pair)' : ' (not the answer)')
+       + (q.trail.length > 1 ? '  [streamed: ' + q.trail.join(' → ') + ']' : ''));
+  document.getElementById('heard').textContent =
+    (q.right ? '✓ ' : q.ambiguous ? '≈ ' : '· ') + q.heard + '  (' + q.ms + 'ms)';
+  setTimeout(nextQuestion, 450);
+}
+
 function handleHeard(txt, isFinal){
   if(!run || !run.q) return;
-  var now = performance.now();
-  var q = run.q;
+  var now = performance.now(), q = run.q;
   note(isFinal ? 'final' : 'interim', txt);
-  document.getElementById('heard').textContent = '“' + txt.trim() + '”';
 
-  // Did it hear the app's own question rather than her?
-  if(speaking || (now - q.spokenAt) < 250){
-    if(/times|what|equals/i.test(txt)){ run.echo++; note('ECHO — heard our own question'); return; }
-  }
-  if(q.firstResultAt === null) q.firstResultAt = now;
+  // Never listen to ourselves. The recogniser does transcribe the spoken
+  // question ("Six times…"), so this is not theoretical.
+  if(speaking){ run.echoIgnored++; note('ignored — we were still speaking'); return; }
+  if(q.settled) return;
+  if(now < (run.deafUntil || 0)){ note('ignored — tail of the previous answer'); return; }
+  if(q.firstResultAt === null){ q.firstResultAt = now; }
+  document.getElementById('heard').textContent = '“' + txt.trim() + '”';
 
   var n = parseNumber(txt);
   if(n === null) return;
-  if(q.settled) return;
   // Ignore the question read back to us — unless that number IS the answer.
   if(n !== q.want && (n === q.a || n === q.b)){ note('heard-the-question-number', n); return; }
 
-  q.settled = true;
-  q.heard = n;
-  q.raw = txt.trim();
-  q.heardAt = now;
-  q.ms = Math.round(now - q.readyAt);
-  q.right = (n === q.want);
-  q.ambiguous = !q.right && confusable(n, q.want);
-  note('SETTLED', n + (q.right ? ' (right)' : q.ambiguous ? ' (confusable pair)' : ' (not the answer)'));
-  document.getElementById('heard').textContent =
-    (q.right ? '✓ ' : q.ambiguous ? '≈ ' : '· ') + n + '  (' + q.ms + 'ms)';
-  setTimeout(nextQuestion, 450);
+  if(n !== q.cand){
+    q.cand = n; q.candRaw = txt.trim(); q.candAt = now;
+    q.trail.push(n);
+    clearTimeout(q.candT);
+    q.candT = setTimeout(function(){ commit(q); }, STABLE_MS);
+    document.getElementById('heard').textContent = '… ' + n;
+  }
+  // A final result is good evidence, but still give a beat for a correction —
+  // on her phone the corrected number sometimes arrived after the final.
+  if(isFinal){
+    clearTimeout(q.candT);
+    q.candT = setTimeout(function(){ commit(q); }, 220);
+  }
 }
 
 function nextQuestion(){
@@ -300,7 +332,8 @@ function nextQuestion(){
   var f = FACTS[run.done.length];
   var q = {a:f[0], b:f[1], want:f[0]*f[1], settled:false, heard:null, raw:null,
            readyAt:0, spokenAt:0, firstResultAt:null, heardAt:0, ms:null,
-           right:false, ambiguous:false};
+           right:false, ambiguous:false,
+           cand:null, candRaw:null, candAt:0, candT:null, trail:[]};
   run.q = q;
   document.getElementById('q').textContent = run.mode === 'silent' ? (f[0] + ' × ' + f[1]) : '🔊';
   document.getElementById('heard').innerHTML = '&nbsp;';
@@ -321,6 +354,7 @@ function nextQuestion(){
   // Nothing said for a long while: move on rather than sit there.
   setTimeout(function(){
     if(run && !run.finished && run.q === q && !q.settled){
+      if(q.cand !== null){ clearTimeout(q.candT); return commit(q); }   // she did answer
       q.timedOut = true; note('timed-out');
       nextQuestion();
     }
@@ -331,7 +365,7 @@ function begin(mode){
   if(!SR){ setState('no SpeechRecognition on this browser'); report(); return; }
   log = [];
   run = {mode:mode, done:[], q:null, finished:false, ends:0, restarts:0, restartFailed:0,
-         echo:0, errors:[], startedAt: Date.now()};
+         echo:0, echoIgnored:0, deafUntil:0, errors:[], startedAt: Date.now()};
   document.getElementById('spoken').disabled = true;
   document.getElementById('silent').disabled = true;
   document.getElementById('stop').disabled = false;
@@ -387,7 +421,7 @@ function report(){
   lines.push('recogniser stopped on its own: ' + (run ? run.ends : '—') + ' times');
   lines.push('restarted with no new tap:     ' + (run ? run.restarts : '—'));
   lines.push('restart refused (needed a tap): ' + (run ? run.restartFailed : '—'));
-  lines.push('heard our own spoken question: ' + (run ? run.echo : '—') + ' times');
+  lines.push('results ignored because we were speaking: ' + (run ? run.echoIgnored : '—'));
   lines.push('errors: ' + (run && run.errors.length ? run.errors.join(', ') : 'none'));
   lines.push('');
   lines.push('per question:');
@@ -395,7 +429,8 @@ function report(){
     lines.push('  ' + (i+1) + '. ' + q.a + '×' + q.b + ' = ' + q.want +
       '  heard: ' + (q.heard === null ? (q.timedOut ? 'nothing (timed out)' : 'nothing') : q.heard) +
       (q.ms ? '  ' + q.ms + 'ms' : '') +
-      (q.raw ? '  raw: "' + q.raw + '"' : ''));
+      (q.raw ? '  raw: "' + q.raw + '"' : '') +
+      (q.trail && q.trail.length > 1 ? '  streamed: ' + q.trail.join(' → ') : ''));
   });
   lines.push('');
   lines.push('event log:');
@@ -408,6 +443,13 @@ function report(){
   reports.push(text);
   document.getElementById('out').textContent = reports.join('\n\n' + '='.repeat(40) + '\n\n');
 }
+
+window.__vc = {
+  begin: begin, stop: stop,
+  feed: function(txt, isFinal){ handleHeard(txt, !!isFinal); },
+  run: function(){ return run; },
+  setSpeaking: function(v){ speaking = !!v; }
+};
 
 document.getElementById('spoken').addEventListener('click', function(){ begin('spoken'); });
 document.getElementById('silent').addEventListener('click', function(){ begin('silent'); });
