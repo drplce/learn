@@ -371,6 +371,9 @@ main{flex:1; position:relative; overflow:hidden;}
 .roomhead .meta{flex:1;}
 .roomhead .meta h2{margin:0 0 2px; font-size:var(--t-lg); font-weight:900;}
 .roomhead .meta p{margin:0; font-size:var(--t-xs); color:var(--ink-soft); font-weight:700; line-height:1.5;}
+/* For David, not for her: a plain link at the very bottom, under the version. */
+#diag{font:inherit; color:var(--ink-soft); text-decoration:underline; opacity:.75;}
+#diag.done{color:var(--n-lime); text-decoration:none;}
 #nameit{margin-top:var(--s2); padding:7px 12px; border-radius:var(--r-pill); background:var(--bg2);
   font-size:var(--t-xs); font-weight:800; color:var(--ink-soft); box-shadow:0 2px 0 rgba(0,0,0,.3);}
 #nameinput{margin-top:var(--s2); width:100%; padding:10px 12px; border-radius:var(--r-md);
@@ -516,7 +519,8 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 
         <div style="height:var(--s6)"></div>
         <button class="bigbtn" id="backHome">🗺️ back to the path</button>
-        <p class="hint" style="text-align:center;margin-top:var(--s3)">144 · v<span id="ver"></span></p>
+        <p class="hint" style="text-align:center;margin-top:var(--s3)">144 · v<span id="ver"></span>
+          · <button id="diag">copy diagnostics</button></p>
       </div>
     </section>
   </main>
@@ -526,7 +530,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.16';
+var VERSION = '1.17';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -575,6 +579,7 @@ function fresh(){
     prog:{cleared:0, placed:false, startedOn:todayISO(), lastDay:'', sessions:0, days:0},
     set:{sound:true, dials:0},
     sit:null,           // a level part-finished: {i, done, asked, round}
+    log:{days:bare(null), recent:[]},   // what actually happened, for the diagnostics export
     rev:0
   };
 }
@@ -634,6 +639,29 @@ function sane(raw){
         asked: Math.round(num(raw.sit.asked, 0, 500, 0)),
         round: Math.round(num(raw.sit.round, 1, 40, 1))};
       if(t.sit.done <= 0) t.sit = null;
+    }
+  }
+  /* The diary. Bounded hard on the way in: a corrupt or enormous log must not be
+     able to slow her phone down or fill its disk. */
+  if(raw.log && typeof raw.log==='object'){
+    if(raw.log.days && typeof raw.log.days==='object'){
+      var dk = Object.keys(raw.log.days).filter(function(d){ return /^\d{4}-\d\d-\d\d$/.test(d); })
+                     .sort().slice(-LOG_DAYS);
+      dk.forEach(function(d){
+        var v = raw.log.days[d]; if(!v || typeof v!=='object') return;
+        t.log.days[d] = {a:Math.round(num(v.a,0,1e5,0)), r:Math.round(num(v.r,0,1e5,0)),
+          w:Math.round(num(v.w,0,1e5,0)), ms:Math.round(num(v.ms,0,864e5,0)),
+          lv:Math.round(num(v.lv,0,1e4,0)), s:Math.round(num(v.s,0,500,0)),
+          met:Math.round(num(v.met,0,200,0)), slow:Math.round(num(v.slow,0,1e5,0))};
+      });
+    }
+    if(Array.isArray(raw.log.recent)){
+      t.log.recent = raw.log.recent.slice(-LOG_RECENT).filter(function(e){
+        return e && typeof e.k==='string' && e.k.length < 8;
+      }).map(function(e){
+        return {k:e.k, d:(typeof e.d==='string' && /^\d{4}-\d\d-\d\d$/.test(e.d)) ? e.d : '',
+                ok:e.ok?1:0, ms:Math.round(num(e.ms,0,120000,0))};
+      });
     }
   }
   t.rev = Math.round(num(raw.rev, 0, 1e12, 0));
@@ -908,6 +936,155 @@ function settleCharge(){
     S.power.at = now;
   }
 }
+/* =========================================================
+   7b. The diary — what actually happened, so David can look.
+   David, 2026-08-13: "would it help if we added an export or
+   copy of something with days, time played, time between
+   answers, wrong answers, other diagnostics that I could
+   paste back in here."
+
+   It would, and the most valuable column is the one the app
+   has never kept: HOW LONG she takes to answer. A right
+   answer in under about two and a half seconds is a fact she
+   RETRIEVED; a right answer after six is one she worked out.
+   The Leitner box cannot tell those apart, which is the whole
+   reason "known" has been such a slippery word here.
+
+   Kept small on purpose: a per-day rollup and a rolling
+   window of the last few hundred answers. Nothing identifying
+   — not her name, not the buddy's.
+   ========================================================= */
+var LOG_DAYS = 180, LOG_RECENT = 400;
+var FAST_MS = 2500;                        // under this reads as retrieval, not working it out
+var _lastAct = 0;
+function today_(){ return todayISO(); }
+function dayRow(){
+  var d = today_(), L = S.log || (S.log = {days:bare(null), recent:[]});
+  if(!L.days[d]) L.days[d] = {a:0, r:0, w:0, ms:0, lv:0, s:0, met:0, slow:0};
+  return L.days[d];
+}
+// Time played, counted honestly: a gap longer than a minute is her putting the
+// phone down, not playing.
+function clockOn(){
+  var now = Date.now();
+  if(_lastAct){
+    var gap = now - _lastAct;
+    if(gap > 0 && gap < 60000) dayRow().ms += gap;
+  }
+  _lastAct = now;
+}
+function noteAnswer(k, ok, ms){
+  var row = dayRow();
+  clockOn();
+  row.a++; ok ? row.r++ : row.w++;
+  if(ok && ms > FAST_MS) row.slow++;
+  var L = S.log;
+  L.recent.push({k:k, d:today_(), ok:ok?1:0, ms:Math.max(0, Math.min(120000, Math.round(ms||0)))});
+  if(L.recent.length > LOG_RECENT) L.recent.splice(0, L.recent.length - LOG_RECENT);
+}
+function noteLevel(){ dayRow().lv++; }
+function noteMet(){ dayRow().met++; }
+
+/* The digest. Written to be pasted into a chat and read by eye, not parsed —
+   which means: short, sorted by what matters, and honest about what it cannot
+   see. Nothing identifying goes in it, including the buddy's name. */
+function diagnostics(){
+  var L = S.log || {days:bare(null), recent:[]};
+  var out = [], i;
+  var pad = function(v, n){ v = String(v); return v.length >= n ? v : new Array(n-v.length+1).join(' ') + v; };
+  var mins = function(ms){ return (ms/60000).toFixed(1); };
+
+  out.push('144 diagnostics · v' + VERSION + ' · ' + todayISO());
+  out.push('level ' + level() + ' of ' + LEVELS.length + '   ·   ' + S.power.watts + ' watts   ·   ' +
+           S.prog.days + ' days playing');
+  out.push('');
+
+  // ---- the days ----
+  var days = Object.keys(L.days).sort().slice(-14);
+  if(days.length){
+    out.push('LAST ' + days.length + ' DAYS');
+    out.push('  day         mins  levels  answers   right   median  slow');
+    days.forEach(function(d){
+      var v = L.days[d];
+      var mine = L.recent.filter(function(e){ return e.d === d; }).map(function(e){ return e.ms; });
+      var med = mine.length ? mine.slice().sort(function(a,b){return a-b;})[Math.floor(mine.length/2)] : 0;
+      out.push('  ' + d + pad(mins(v.ms), 7) + pad(v.lv, 8) + pad(v.a, 9) +
+        pad(v.a ? Math.round(v.r/v.a*100) + '%' : '—', 8) +
+        pad(med ? (med/1000).toFixed(1) + 's' : '—', 9) + pad(v.slow, 6));
+    });
+    out.push('  (slow = right, but took longer than ' + (FAST_MS/1000) + 's — worked out, not recalled)');
+    out.push('');
+  } else {
+    out.push('No days recorded yet — this starts collecting from v1.17 onward.');
+    out.push('');
+  }
+
+  // ---- where the 78 facts sit ----
+  var boxes = [0,0,0,0,0,0,0,0], unmet = 0, all = [];
+  for(var a2=1;a2<=12;a2++) for(var b2=a2;b2<=12;b2++){
+    var k = key(a2,b2), f = S.facts[k];
+    if(!f || !f.seen){ unmet++; continue; }
+    boxes[Math.max(1, Math.min(7, f.box||1))]++;
+    all.push({k:k, f:f});
+  }
+  out.push('THE 78 FACTS');
+  out.push('  never met: ' + unmet + '   ·   box 1-2: ' + (boxes[1]+boxes[2]) +
+           '   ·   3-4: ' + (boxes[3]+boxes[4]) + '   ·   5+ ("known"): ' + (boxes[5]+boxes[6]+boxes[7]));
+  out.push('');
+
+  // ---- what she is actually struggling with ----
+  var byMiss = all.filter(function(x){ return x.f.wrong > 0; }).sort(function(x,y){
+    var rx = x.f.wrong/((x.f.right||0)+x.f.wrong), ry = y.f.wrong/((y.f.right||0)+y.f.wrong);
+    return (ry - rx) || (y.f.wrong - x.f.wrong);
+  }).slice(0, 10);
+  if(byMiss.length){
+    out.push('MISSED MOST (of the ones she has met)');
+    byMiss.forEach(function(x){
+      var p = x.k.split('x');
+      out.push('  ' + pad(p[0] + '×' + p[1], 7) + '   ' + x.f.wrong + ' missed of ' +
+        ((x.f.right||0)+x.f.wrong) + '   box ' + x.f.box);
+    });
+    out.push('');
+  }
+
+  // ---- the measure the boxes cannot give: how long she takes ----
+  var per = bare(null);
+  L.recent.forEach(function(e){
+    if(!e.ok) return;
+    (per[e.k] = per[e.k] || []).push(e.ms);
+  });
+  var slowest = Object.keys(per).map(function(k){
+    var m = per[k].slice().sort(function(a,b){return a-b;});
+    return {k:k, n:m.length, med:m[Math.floor(m.length/2)]};
+  }).filter(function(x){ return x.n >= 2; }).sort(function(x,y){ return y.med - x.med; });
+  var allMs = [];
+  L.recent.forEach(function(e){ if(e.ok) allMs.push(e.ms); });
+  allMs.sort(function(a,b){ return a-b; });
+  if(allMs.length){
+    out.push('HOW LONG SHE TAKES (last ' + allMs.length + ' right answers)');
+    out.push('  median ' + (allMs[Math.floor(allMs.length/2)]/1000).toFixed(1) + 's   ·   ' +
+      'fastest quarter under ' + (allMs[Math.floor(allMs.length*0.25)]/1000).toFixed(1) + 's   ·   ' +
+      'slowest quarter over ' + (allMs[Math.floor(allMs.length*0.75)]/1000).toFixed(1) + 's');
+    if(slowest.length){
+      out.push('  slowest facts (right, but she is working them out):');
+      slowest.slice(0, 8).forEach(function(x){
+        var p2 = x.k.split('x');
+        out.push('    ' + pad(p2[0] + '×' + p2[1], 7) + '   ' + (x.med/1000).toFixed(1) + 's  (' + x.n + ' goes)');
+      });
+    }
+    out.push('');
+  }
+
+  // ---- the thing worth watching, stated plainly ----
+  var promotedToday = 0, td = todayISO();
+  L.recent.forEach(function(e){ if(e.d === td && e.ok) promotedToday++; });
+  out.push('NOTES');
+  out.push('  · a box can still rise more than once a day, so "known" can be reached in one sitting');
+  out.push('  · ' + promotedToday + ' right answers logged today');
+  out.push('  · nothing identifying is in this export — no names, hers or the buddy\'s');
+  return out.join('\n');
+}
+
 function addWatts(n){ S.power.watts += n; }
 // Returns what actually landed, which is not what was asked for once the battery
 // is full — the clear card counts this, so it can never claim a charge she did
@@ -1501,17 +1678,18 @@ function next(){
   // Ask it both ways round — 7×8 and 8×7 are the same fact and she should meet both faces of it.
   var a=p[0], b=p[1];
   if(Math.random()<0.5){ var t=a; a=b; b=t; }
-  W.cur={k:k, a:a, b:b};
+  W.cur={k:k, a:a, b:b, at:0};
   if(st.kind==='recall') return askGap(a, b);
   // A fact she has never met gets shown to her before it is asked.
   if((st.kind==='learn' || st.kind==='mix') && worthMeeting(k)){
-    W.metShown[k] = 1; W.meets = (W.meets||0) + 1;
+    W.metShown[k] = 1; W.meets = (W.meets||0) + 1; noteMet();
     return meetFact(a, b);
   }
   return askFact(a, b);
 }
 function askFact(a, b){
   var st = W.level;
+  W.cur.at = Date.now();                      // the clock on this question starts now
   el('#dial').classList.remove('on', 'live');
   el('#play').classList.remove('gap', 'meet');
   el('#prompt').innerHTML = a+' <i>×</i> '+b;
@@ -1572,6 +1750,7 @@ function worthMeeting(k){
    the question; the missing factor never is. Answers are always 1–12, which is
    why a fixed pad works — and why this is the mode voice will land in first. */
 function askGap(a, b){
+  W.cur.at = Date.now();
   var gapFirst = Math.random() < 0.5;
   W.cur.want = gapFirst ? a : b;
   W.cur.gapFirst = gapFirst;
@@ -1698,6 +1877,7 @@ function tap(o){
    Leitner move and the words she reads must not drift apart per input. */
 function score(right, x, y, node, cls){
   if(W.meeting) return;                       // nothing to answer yet: she is just looking
+  noteAnswer(W.cur.k, !!right, W.cur.at ? Date.now() - W.cur.at : 0);
   var placing = W.level.kind==='placement', gap = W.level.kind==='recall';
   hush();                                     // she answered: stop talking over her
   if(right){
@@ -1776,10 +1956,12 @@ function clearLevel(){
   } else {
     S.prog.cleared++;
   }
+  noteLevel();
   S.sit = null;                                // finished: nothing to come back to
   var t=todayISO();
   if(S.prog.lastDay!==t){ S.prog.lastDay=t; S.prog.days++; S.prog.sessions=1; }
   else S.prog.sessions++;
+  dayRow().s = S.prog.sessions;
   sfxClear(); save();
 
   el('#clearBig').textContent = wasPlacement ? 'Great — now we know!' :
@@ -1827,6 +2009,23 @@ document.addEventListener('click', function(ev){
   if((hit=t.closest('[data-shell]'))){
     if(locked()) return;                      // awake: this is who it is
     S.buddy.shell=hit.dataset.shell; save(); renderPower(); renderHud(); sfxTick(); return; }
+  if(t.closest('#diag')){
+    var txt = diagnostics(), b2 = el('#diag');
+    var flash = function(ok){ b2.textContent = ok ? 'copied ✓' : 'select and copy';
+      b2.classList.toggle('done', !!ok);
+      setTimeout(function(){ b2.textContent='copy diagnostics'; b2.classList.remove('done'); }, 2600); };
+    var fallback = function(){
+      var ta = document.createElement('textarea');
+      ta.value = txt; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select();
+      var ok = false; try{ ok = document.execCommand('copy'); }catch(e){}
+      document.body.removeChild(ta); flash(ok);
+    };
+    if(navigator.clipboard && navigator.clipboard.writeText)
+      navigator.clipboard.writeText(txt).then(function(){ flash(true); }, fallback);
+    else fallback();
+    return;
+  }
   if(t.closest('#nameit')){
     if(locked()) return;
     var i=el('#nameinput'); i.classList.add('on'); i.value=S.buddy.name; i.focus(); return;
@@ -1872,6 +2071,7 @@ window.__144 = {
   CHARGE_PER_ANSWER:function(){ return CHARGE_PER_ANSWER; },
   CHARGE_PER_LEVEL:function(){ return CHARGE_PER_LEVEL; },
   level:level, metCount:metCount, locked:locked, buddyInner:buddyInner,
+  diagnostics:diagnostics, noteAnswer:noteAnswer, FAST_MS:function(){ return FAST_MS; },
   // The mastery move itself, so tests/sim.js can run months of the REAL Leitner
   // engine (and the real weak-first picker) without touching the animations.
   record:record, mastery:mastery,
