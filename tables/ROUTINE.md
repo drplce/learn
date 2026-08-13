@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-13T17:05Z
+last-run: 2026-08-13T18:40Z
 ```
 
 On each firing:
@@ -264,6 +264,13 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
    builds up across a sitting (combo, round colour, the pool) is only ever tested one level deep.
 
 **Done, and now guarded — do not undo these:**
+- **The diary and the diagnostics export** (v1.17, `tests/diagnostics.spec.js`): a per-day rollup and
+  a rolling 400-answer window with per-answer latency, plus "copy diagnostics" at the foot of the
+  power room. Rules that must hold: **bounded on the way in** (180 days / 400 answers — a corrupt or
+  enormous log must never slow her phone), **minutes played ignore gaps over a minute** (otherwise it
+  measures time since she opened it), and **nothing identifying goes in the export** — not her name,
+  which is nowhere in the app, and not the buddy's, which stays on the device. The digest also states
+  its own blind spot in the NOTES section; keep that honest as the engine changes.
 - **The charge is a LEVEL, not a pulse** (v1.16, `tests/buddy.spec.js`): the light fills the glass in
   proportion to `power.charge`, translucent (opaque = the pale plastic blob v1.5 removed), with the
   eyes painted after it so a full battery cannot blind the face, and an ember behind it so flat reads
@@ -403,7 +410,17 @@ every meaningful change — Pages deploys automatically. Bump `VERSION` when she
 Table Bosses, Vault), multiplayer, accounts, anything that needs a server.
 
 **Open with David (do not invent answers):**
-- **⚠⚠ SHE IS PLAYING ~20× FASTER THAN THE PLAN ASSUMES, AND THE BOXES CANNOT TELL (2026-08-13).**
+- **HOW THIS GETS ANSWERED — David's call, 2026-08-13, and it changes the shape of the question.**
+  He is not looking for the box rule to be fixed now: *"we could introduce further levels of
+  knowledge beyond known in the future, treat the first run as familiarisation, gameplay and
+  routine… at the end of the day I just want her to improve."* So the first run through the ladder is
+  **familiarisation** and the tiers above "known" come later. Do not quietly tighten the boxes in the
+  meantime — the plan is to build the better measure, not to shrink the number she watches.
+  **The measure those tiers need is now being collected** (v1.17): how long she takes to answer.
+  Under ~2.5s reads as retrieval; six seconds is her working it out. When the tiers arrive, "fluent"
+  should mean *right AND fast on a later day* — which is a thing the app can now see and the Leitner
+  box never could.
+- **⚠ SHE IS PLAYING ~20× FASTER THAN THE PLAN ASSUMES, AND THE BOXES CANNOT TELL (2026-08-13).**
   David: *"She's already at level 40 I think"* — two days in, against a ladder built for two levels
   a day. Measured directly: **eight right answers in one sitting take a fact from box 1 to box 7**,
   the top box, nominally a 60-day interval, without a single night in between. `BOX_DAYS` is written
@@ -472,6 +489,11 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-13, night (David, live):** **v1.17 — the diary.** He asked for an export he could paste
+  back into the chat: days, minutes, time between answers, misses. Built, with per-answer latency as
+  the headline, because that is the measure the "levels beyond known" he wants later will be built
+  from. He also settled the box question for now: the first run is **familiarisation**, extra tiers
+  come later, do not tighten the boxes underneath her. 10 tests, 4 teeth-checked, 121 pass.
 - **2026-08-13, evening (David, live):** **v1.16** — the charge indicator he picked, wired in at both
   sizes. Then a refinement pass driven at HER ACTUAL STATE (level 40, buddy awake and locked, violet,
   named): path, play, clear card and power room shot at both phone sizes, no errors, everything
