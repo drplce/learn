@@ -144,25 +144,24 @@ main{flex:1; position:relative; overflow:hidden;}
   background:radial-gradient(circle at 50% 36%, #fff6d8, var(--n-gold) 60%, #b8830f);
   box-shadow:0 0 16px var(--n-gold), 0 0 42px color-mix(in srgb, var(--n-gold) 45%, transparent);}
 .level.done .nib{fill:#7a5407;}
-/* where she is now: the brightest thing on the screen, and breathing */
-.level.now{border-color:var(--n-cyan); border-width:4px;
-  box-shadow:0 0 20px var(--n-cyan), 0 0 54px color-mix(in srgb, var(--n-cyan) 55%, transparent),
-    inset 0 0 22px color-mix(in srgb, var(--n-cyan) 28%, transparent);
+/* Where she is now: the brightest thing on the screen, and breathing. The breath is
+   in the LIGHT, not in the geometry — it used to scale the node, which makes a tap
+   target that moves under a ten-year-old's finger (and which no automated tap can
+   ever hit: "element is not stable"). Light does the work here anyway. */
+.level.now{--pulse:var(--n-cyan); border-color:var(--pulse); border-width:4px;
   animation:levelbreathe var(--m-breath) ease-in-out infinite;}
 .level.now .nib{fill:#fff; filter:drop-shadow(0 0 5px var(--n-cyan));}
 /* still ahead of her: there, but unlit */
 .level.locked{opacity:.72; border-color:#3a2560;}
 .level.locked .nib{fill:#4b3277;}
 /* fill-the-gap levels wear the lime, and a hexagon rather than a bead */
-.level.recall.now{border-color:var(--n-lime);
-  box-shadow:0 0 20px var(--n-lime), 0 0 54px color-mix(in srgb, var(--n-lime) 55%, transparent),
-    inset 0 0 22px color-mix(in srgb, var(--n-lime) 28%, transparent);}
+.level.recall.now{--pulse:var(--n-lime); border-color:var(--pulse);}
 .level.recall.now .nib{fill:#fff; filter:drop-shadow(0 0 5px var(--n-lime));}
 .level.recall.locked .nib{fill:#5a7a2f;}
 /* a boss is bigger and wears the magenta */
 .level.boss{width:78px; height:78px; margin:-39px 0 0 -39px;}
 .level.boss svg{width:30px; height:30px;}
-.level.boss.now{border-color:var(--n-magenta);
+.level.boss.now{--pulse:var(--n-magenta); border-color:var(--pulse);
   box-shadow:0 0 22px var(--n-magenta), 0 0 58px color-mix(in srgb, var(--n-magenta) 55%, transparent),
     inset 0 0 24px color-mix(in srgb, var(--n-magenta) 28%, transparent);}
 .level.boss.now .nib{fill:#fff; filter:drop-shadow(0 0 6px var(--n-magenta));}
@@ -170,6 +169,13 @@ main{flex:1; position:relative; overflow:hidden;}
 .pack{position:absolute; width:28px; height:28px; margin:-14px 0 0 -14px; pointer-events:none;}
 .pack svg{width:100%; height:100%; filter:drop-shadow(0 0 7px var(--n-lime));}
 .pack .nib{fill:var(--n-lime);}
+/* Part way through: an arc of gold around the node, so a level she walked away from
+   is visibly waiting rather than looking untouched. */
+.level.part::after{content:''; position:absolute; inset:-8px; border-radius:50%;
+  background:conic-gradient(var(--n-gold) var(--part, 0%), transparent 0);
+  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+  mask:radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+  opacity:.95; pointer-events:none;}
 /* the level numbers, out in the margin: quiet for what is done, bright for here */
 .lvlnum{position:absolute; transform:translate(-50%,-50%); font-size:.8rem; font-weight:900;
   font-variant-numeric:tabular-nums; pointer-events:none; letter-spacing:.02em;}
@@ -177,9 +183,12 @@ main{flex:1; position:relative; overflow:hidden;}
 .lvlnum.locked{color:#3d2a5c;}
 .lvlnum.now{color:#fff; font-size:1.05rem;
   text-shadow:0 0 10px var(--n-cyan), 0 0 26px var(--n-cyan);}
-@keyframes levelbreathe{0%,100%{transform:scale(1);} 50%{transform:scale(1.07);}}
+@keyframes levelbreathe{
+  0%,100%{box-shadow:0 0 14px var(--pulse), 0 0 38px color-mix(in srgb, var(--pulse) 40%, transparent),
+          inset 0 0 16px color-mix(in srgb, var(--pulse) 20%, transparent);}
+  50%    {box-shadow:0 0 26px var(--pulse), 0 0 68px color-mix(in srgb, var(--pulse) 65%, transparent),
+          inset 0 0 28px color-mix(in srgb, var(--pulse) 34%, transparent);}}
 
-#gostrip{padding:var(--s3) var(--s4) var(--s4);}
 .bigbtn{display:block; width:100%; padding:var(--s4); border-radius:var(--r-lg);
   font-size:var(--t-xl); font-weight:900; letter-spacing:.02em; text-transform:uppercase;
   color:#06121a; background:linear-gradient(180deg,#8CF3FF,var(--n-cyan) 55%,#12b6d6);
@@ -380,6 +389,9 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 .shells button{width:38px; height:38px; border-radius:50%;
   box-shadow:0 3px 6px rgba(0,0,0,.45), inset 0 -3px 6px rgba(0,0,0,.25), inset 0 3px 5px rgba(255,255,255,.5);}
 .shells button.on{outline:2.5px solid #fff; outline-offset:3px;}
+/* sealed: her colour stays on show, the others step back — it is a fact now, not a menu */
+.shells.sealed button{opacity:.2; filter:saturate(.5);}
+.shells.sealed button.on{opacity:1; filter:none;}
 .tbl{display:flex; align-items:center; gap:var(--s2); margin:4px 0; font-size:var(--t-xs); font-weight:700;}
 .tbl .n{width:26px; text-align:right; color:var(--ink-soft);}
 .tbl .bar{flex:1; height:8px; border-radius:var(--r-pill); background:var(--bg2); overflow:hidden;}
@@ -424,7 +436,6 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
     <!-- HOME: the path -->
     <section class="screen on" id="home">
       <div class="scroll"><div id="path"></div></div>
-      <div id="gostrip"><button class="bigbtn" id="go"></button></div>
     </section>
 
     <!-- PLAY: Blast -->
@@ -474,7 +485,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
         </div>
 
         <h3 class="sec">the shell</h3>
-        <p class="hint">pick its colour while it sleeps — more opens as it boots up</p>
+        <p class="hint" id="shellhint"></p>
         <div class="shells" id="shells"></div>
 
         <h3 class="sec">the 144</h3>
@@ -502,7 +513,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.13';
+var VERSION = '1.14';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -886,6 +897,8 @@ function addCharge(pct){
 }
 function level(){ return S.prog.cleared + 1; }
 function buddyStage(){ var l=S.prog.cleared; return l>=45 ? 3 : l>=30 ? 2 : l>=15 ? 1 : 0; }
+// Awake — eyes open — means the colour and the name are settled for good.
+function locked(){ return buddyStage() >= 2; }
 
 /* =========================================================
    7. Sound — synthesised, so the app stays one file with
@@ -1271,8 +1284,9 @@ function renderHome(){
     var nib = nd.state==='done' ? (shape || NIB.done)
             : nd.state==='now' ? (shape || NIB.now)
             : (shape || NIB.lock);
-    var label = (nd.state==='now' ? 'Play this level' : nd.state==='done' ? 'Level done' : 'Level to come')
-              + (gap ? ' — fill the gap' : boss ? ' — boss' : '');
+    var label = nd.kind==='placement' ? 'Start — let’s see what you know'
+              : (nd.state==='now' ? 'Play this level' : nd.state==='done' ? 'Level done' : 'Level to come')
+                + (gap ? ' — fill the gap' : boss ? ' — boss' : '');
     html += '<button class="level '+nd.state+(boss?' boss':'')+(gap?' recall':'')+'" '
          +  (nd.state==='now' ? 'id="nowlevel" ' : 'disabled ')
          +  'style="left:'+p.x.toFixed(1)+'px; top:'+p.y.toFixed(1)+'px" '
@@ -1295,19 +1309,24 @@ function renderHome(){
   });
   host.innerHTML = html;
 
-  var b=el('#go');
-  if(!S.prog.placed){ b.innerHTML='⚡ Let’s see what you know<small>about two minutes</small>'; b.className='bigbtn'; }
-  else {
-    var st=LEVELS[idx];
-    // The path carries no words by design, so the button is where she finds out
-    // where she is — and whether last night moved her at all.
-    var part = (S.sit && S.sit.i === idx && S.sit.done > 0)
-             ? ' · ' + S.sit.done + '/' + goalOf(st) + ' done' : '';
-    b.innerHTML = (st.kind==='boss' ? '👑 Boss' : st.kind==='recall' ? '🎯 Fill the gap' : '⚡ Play')
-               + '<small>level '+level()+' · '+st.table+'×'+part+'</small>';
-    b.className = 'bigbtn'+(st.kind==='boss'?' pink':'')+(st.kind==='recall'?' lime':'');
+  // David, 2026-08-13: "Remove the big blue play level button from the bottom. We can
+  // see the play button on the current level." So the node is the only way in, and
+  // what the button used to tell her lives on the node: the ring shows how far
+  // through the level she is, and the margin number says which level it is.
+  var now = el('#path .level.now');
+  if(now && S.prog.placed){
+    var st = LEVELS[idx], goal = goalOf(st);
+    var doneIn = (S.sit && S.sit.i === idx) ? S.sit.done : 0;
+    if(doneIn > 0){
+      now.classList.add('part');
+      now.style.setProperty('--part', Math.min(100, Math.round(doneIn / goal * 100)) + '%');
+      now.setAttribute('aria-label', 'Carry on level ' + level() + ' — ' + doneIn + ' of ' + goal + ' done');
+    } else {
+      now.classList.remove('part');
+      now.setAttribute('aria-label', 'Play level ' + level() +
+        (st.kind === 'boss' ? ' — boss' : st.kind === 'recall' ? ' — fill the gap' : ''));
+    }
   }
-  var now=el('#path .level.now');
   if(now && now.scrollIntoView) try{ now.scrollIntoView({block:'center'}); }catch(e){}
 }
 
@@ -1348,10 +1367,24 @@ function renderPower(){
     tb+='<div class="tbl"><span class="n">'+t+'×</span><span class="bar"><i style="width:'+p+'%"></i></span><span class="p">'+p+'%</span></div>'; }
   el('#tables').innerHTML=tb;
 
+  /* David, 2026-08-13: "once the buddy is awake… the colour locks in so can't change
+     colour or name anymore." So the choices are hers while it sleeps, and once it
+     opens its eyes they are simply who it is. She is told that BEFORE it happens —
+     finding out afterwards would be a small heartbreak, and the app does not do
+     that to her. */
+  var sealed = locked();
+  el('#shellhint').textContent = sealed
+    ? 'it is awake now — this is who it is'
+    : 'pick its colour while it sleeps · it locks in when it wakes up';
+  el('#shells').classList.toggle('sealed', sealed);
   el('#shells').innerHTML = SHELLS.map(function(s){
     return '<button data-shell="'+s.id+'" class="'+(s.id===S.buddy.shell?'on':'')+'" aria-label="'+s.id+'"'
+      + (sealed ? ' disabled' : '')
       +' style="background:linear-gradient(160deg,'+s.hi+','+s.lo+')"></button>';
   }).join('');
+  var nb = el('#nameit');
+  nb.style.display = sealed ? 'none' : '';
+  if(sealed) el('#nameinput').classList.remove('on');
   el('#ver').textContent = VERSION;
 }
 
@@ -1382,7 +1415,7 @@ function sitKey(level){ return level.kind + ':' + (level.table || 0) + ':' + lev
 function start(level){
   W = {level:level, pool:level.facts.slice(), done:0, goal:goalOf(level),
        combo:0, best:0, round:1, watts:0, charge:0, per:bare(null), asked:0, cur:null,
-       metShown:bare(null), meeting:false, meetT:null, meetGo:null};
+       metShown:bare(null), meeting:false, meetT:null, meetGo:null, meets:0};
   // Carry on where she left off. A ten-year-old plays in bursts — five answers, put
   // the phone down, come back later — and a level that starts from nothing every
   // time is a level she can never finish. Her answers always counted towards the
@@ -1445,7 +1478,10 @@ function next(){
   W.cur={k:k, a:a, b:b};
   if(st.kind==='recall') return askGap(a, b);
   // A fact she has never met gets shown to her before it is asked.
-  if(st.kind==='learn' && !met(k) && !W.metShown[k]){ W.metShown[k] = 1; return meetFact(a, b); }
+  if((st.kind==='learn' || st.kind==='mix') && worthMeeting(k)){
+    W.metShown[k] = 1; W.meets = (W.meets||0) + 1;
+    return meetFact(a, b);
+  }
   return askFact(a, b);
 }
 function askFact(a, b){
@@ -1482,6 +1518,29 @@ function askFact(a, b){
 // seen is not recall, it is counting up in eights — slow, and it teaches the
 // wrong thing.
 function met(k){ var f = S.facts[k]; return !!(f && f.seen > 0); }
+
+/* Which facts are worth stopping the game for.
+   David, 2026-08-13: "Probably not each new fact for the learn level, maybe ones
+   that user is finding tricky." He is right — four new facts in a learn level meant
+   four interruptions, and the ones she picks up instantly do not need a lecture.
+   So: a fact she is genuinely stuck on, or the first brand-new one of the level,
+   and never more than twice in one level. */
+var MEETS_PER_LEVEL = 2;
+function tricky(k){
+  var f = S.facts[k];
+  if(!f || !f.seen) return false;
+  var tries = (f.right||0) + (f.wrong||0);
+  if(tries < 3) return false;
+  // stuck: still in the bottom boxes and missing it better than a third of the time
+  return (f.box||1) <= 2 && (f.wrong||0) / tries >= 0.34;
+}
+function worthMeeting(k){
+  if((W.meets||0) >= MEETS_PER_LEVEL) return false;
+  if(W.metShown[k]) return false;
+  if(tricky(k)) return true;
+  // one teaching moment for brand-new material, not one per fact
+  return !met(k) && (W.meets||0) === 0;
+}
 
 /* One of "8 × ? = 56" or "? × 7 = 56". The product is on screen because that is
    the question; the missing factor never is. Answers are always 1–12, which is
@@ -1730,15 +1789,18 @@ document.addEventListener('click', function(ev){
   if(W && W.meeting && screen==='play' && t.closest('#play')){
     clearTimeout(W.meetT); if(W.meetGo) W.meetGo(); return;
   }
-  if(t.closest('#go') || t.closest('#nowlevel')){
+  if(t.closest('#nowlevel')){
     start(S.prog.placed ? LEVELS[levelIndex()] : placementLevel()); return; }
   if(t.closest('#buddybtn')){ go('power'); return; }
   if(t.closest('#backHome') || t.closest('#clearHome')){ hush(); el('#clear').classList.remove('on'); go('home'); return; }
   if(t.closest('#clearOn')){ start(LEVELS[levelIndex()]); return; }
   if(t.closest('#soundbtn')){ S.set.sound=!S.set.sound; if(!S.set.sound) hush(); save(); renderHud();
     if(S.set.sound) sfxRight(0); return; }
-  if((hit=t.closest('[data-shell]'))){ S.buddy.shell=hit.dataset.shell; save(); renderPower(); renderHud(); sfxTick(); return; }
+  if((hit=t.closest('[data-shell]'))){
+    if(locked()) return;                      // awake: this is who it is
+    S.buddy.shell=hit.dataset.shell; save(); renderPower(); renderHud(); sfxTick(); return; }
   if(t.closest('#nameit')){
+    if(locked()) return;
     var i=el('#nameinput'); i.classList.add('on'); i.value=S.buddy.name; i.focus(); return;
   }
 });
@@ -1749,6 +1811,7 @@ document.addEventListener('click', function(ev){
 //    put it back, even on a fixed body. No headless browser opens a real keyboard,
 //    so this one is insurance rather than a tested fix — leave it in place.
 function takeName(v){
+  if(locked()) return;                        // the name settled when it woke up
   S.buddy.name = String(v||'').replace(/\s+/g,' ').trim().slice(0,14);
   save(); el('#nameinput').classList.remove('on'); renderPower();
 }
@@ -1777,7 +1840,7 @@ window.__144 = {
   LEVELS:LEVELS, levelIndex:levelIndex, goalOf:goalOf, placementLevel:placementLevel,
   TABLE_ORDER:TABLE_ORDER, BOX_DAYS:BOX_DAYS, KNOWN_BOX:KNOWN_BOX,
   wakingHoursBetween:wakingHoursBetween, settleCharge:settleCharge, buddyStage:buddyStage,
-  level:level, metCount:metCount,
+  level:level, metCount:metCount, locked:locked,
   // The mastery move itself, so tests/sim.js can run months of the REAL Leitner
   // engine (and the real weak-first picker) without touching the animations.
   record:record, mastery:mastery,
@@ -1785,6 +1848,7 @@ window.__144 = {
   numWords:numWords, qPhrase:qPhrase, gapPhrase:gapPhrase,
   speakQuestion:speakQuestion, speakWhole:speakWhole, hush:hush, bestVoice:bestVoice,
   meeting:function(){ return !!(W && W.meeting); }, MEET_MS:function(){ return MEET_MS; },
+  tricky:tricky, MEETS_PER_LEVEL:MEETS_PER_LEVEL,
   skipMeet:function(){ if(W && W.meeting){ clearTimeout(W.meetT); if(W.meetGo) W.meetGo(); } },
   score:score,
   CLIPS:function(){ return CLIPS; },

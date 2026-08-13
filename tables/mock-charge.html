@@ -1,0 +1,205 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>144 — charge indicator ideas</title>
+<!--
+  Not part of the app. Five ways the buddy could show its charge instead of the
+  single pulsing light, so David can look at them on the actual phone and pick one.
+
+  Drag the slider to change the charge. Every idea is drawn from the same two
+  numbers the app already has — the charge percentage and her shell colour — so
+  whichever wins can go straight in.
+-->
+<style>
+  :root{
+    --bg:#0B0614; --card:#160C22; --line:#2E1B44; --ink:#F3ECFF; --soft:#A99BC4;
+    --n-cyan:#22E6FF; --n-gold:#FFC93A; --n-lime:#8CFF4E; --n-magenta:#FF2D95;
+    --shell:#22E6FF; --shell-hi:#9DF6FF; --shell-lo:#0d7d97;
+    --m-breath:2.4s;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html{font-size:17px; -webkit-text-size-adjust:100%;}
+  body{margin:0; padding:1rem 1rem 3rem; background:var(--bg); color:var(--ink);
+       font-family:ui-rounded,system-ui,-apple-system,sans-serif;}
+  body::before{content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:radial-gradient(60% 40% at 12% -6%, rgba(255,45,149,.22), transparent 70%),
+               radial-gradient(60% 40% at 92% -8%, rgba(34,230,255,.18), transparent 70%);}
+  h1{font-size:1.3rem; margin:.2rem 0 .3rem; position:relative;}
+  p{margin:.3rem 0 1rem; color:var(--soft); font-size:.88rem; line-height:1.5; position:relative;}
+  .rig{position:sticky; top:0; z-index:5; background:linear-gradient(var(--bg) 70%, transparent);
+       padding:.6rem 0 1rem;}
+  .rig label{display:block; font-size:.75rem; font-weight:800; color:var(--soft);
+             letter-spacing:.05em; margin-bottom:.3rem;}
+  input[type=range]{width:100%; accent-color:var(--n-cyan); height:34px;}
+  .swatches{display:flex; gap:.5rem; margin-top:.4rem;}
+  .swatches button{width:34px; height:34px; border-radius:50%; border:2px solid var(--line);}
+  .grid{display:grid; gap:1rem; position:relative;}
+  .idea{background:var(--card); border:1px solid var(--line); border-radius:1.1rem; padding:1rem;}
+  .idea h2{font-size:1rem; margin:0 0 .15rem;}
+  .idea p{font-size:.8rem; margin:0 0 .9rem;}
+  .stage{display:flex; align-items:center; gap:1.2rem;}
+  .pct{font-size:.8rem; font-weight:900; color:var(--soft); font-variant-numeric:tabular-nums;}
+
+  /* ---- the buddy body, shared by every idea ---- */
+  .cube{position:relative; width:118px; height:118px; flex:none; border-radius:33%; overflow:hidden;
+    background:linear-gradient(160deg,color-mix(in srgb,var(--shell) 55%,#07030f),
+      color-mix(in srgb,var(--shell-lo) 52%,#07030f) 58%,#07030f);
+    box-shadow:0 12px 22px rgba(0,0,0,.5), 0 0 0 2px color-mix(in srgb,var(--shell) 60%,transparent),
+      0 0 34px color-mix(in srgb,var(--shell) 42%,transparent),
+      inset 0 -12px 20px rgba(0,0,0,.4), inset 0 12px 20px rgba(255,255,255,.22);}
+  .gl{position:absolute; left:15%; top:6%; width:46%; height:17%; border-radius:50%;
+    background:linear-gradient(#fff,rgba(255,255,255,0)); opacity:.34; filter:blur(1.6px); z-index:4;}
+  .eyes{position:absolute; inset:0; z-index:3;}
+  .eye{position:absolute; top:47%; width:11px; height:13px; margin-top:-6.5px; border-radius:5px;
+    background:#fff; filter:blur(1.2px);}
+  .eye.l{left:32px;} .eye.r{right:32px;}
+
+  /* 1 — the level rises inside it */
+  /* Kept translucent on purpose: the buddy is dark glass with light inside it, and a
+     solid fill turns it back into the pale plastic blob we got rid of at v1.5. */
+  .fill{position:absolute; left:0; right:0; bottom:0; z-index:1;
+    background:linear-gradient(180deg,
+      color-mix(in srgb,var(--shell) 62%, transparent),
+      color-mix(in srgb,var(--shell) 42%, transparent) 55%,
+      color-mix(in srgb,var(--shell-lo) 30%, transparent));
+    box-shadow:0 0 22px color-mix(in srgb,var(--shell) 45%, transparent);
+    transition:height .5s cubic-bezier(.22,.61,.36,1);}
+  /* the surface: this is the bit the eye actually reads as a level */
+  .fill::before{content:''; position:absolute; left:-6%; right:-6%; top:-4px; height:8px;
+    border-radius:50%; background:color-mix(in srgb,#fff 78%,var(--shell-hi));
+    filter:blur(2px); opacity:.95;}
+
+  /* 2 — a stack of cells, like a battery */
+  .cells{position:absolute; inset:22% 30%; z-index:1; display:flex; flex-direction:column-reverse;
+    gap:5px;}
+  .cell{flex:1; border-radius:3px; background:#1a0f2b; box-shadow:inset 0 0 6px rgba(0,0,0,.8);}
+  .cell.on{background:linear-gradient(90deg,var(--shell),color-mix(in srgb,#fff 55%,var(--shell-hi)));
+    box-shadow:0 0 12px var(--shell);}
+
+  /* 3 — a gauge around the outside */
+  .ring{position:relative; width:150px; height:150px; flex:none; display:grid; place-items:center;}
+  .ring .arc{position:absolute; inset:0; border-radius:50%;
+    background:conic-gradient(from -135deg, var(--shell) var(--sweep), rgba(255,255,255,.06) 0);
+    -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8px));
+    mask:radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8px));
+    filter:drop-shadow(0 0 8px var(--shell)); transition:background .5s;}
+  .ring .cube{width:104px; height:104px;}
+
+  /* 4 — the filament grows */
+  .fil{position:absolute; left:50%; top:47%; height:8px; margin-top:-4px; z-index:2;
+    border-radius:999px; background:linear-gradient(90deg,
+      color-mix(in srgb,#fff 60%,var(--shell-hi)), #fff, color-mix(in srgb,#fff 60%,var(--shell-hi)));
+    transform:translateX(-50%); filter:blur(2px);
+    transition:width .5s cubic-bezier(.22,.61,.36,1), opacity .5s;}
+  .filtrack{position:absolute; left:22%; right:22%; top:47%; height:2px; margin-top:-1px; z-index:1;
+    background:rgba(255,255,255,.10); border-radius:999px;}
+
+  /* 5 — motes drifting up, thicker when full */
+  .motes{position:absolute; inset:0; z-index:1; overflow:hidden;}
+  .mote{position:absolute; width:6px; height:6px; border-radius:50%; background:#fff;
+    filter:blur(1.5px); animation:rise linear infinite;}
+  @keyframes rise{from{transform:translateY(120px) scale(.5); opacity:0;}
+    20%{opacity:.9;} to{transform:translateY(-20px) scale(1); opacity:0;}}
+  .core{position:absolute; left:50%; top:50%; width:44px; height:30px; margin:-15px 0 0 -22px;
+    border-radius:50%; z-index:1; background:radial-gradient(closest-side,#fff,
+      color-mix(in srgb,#fff 58%,var(--shell-hi)) 42%, transparent 74%);
+    filter:blur(7px); transition:opacity .5s, transform .5s;}
+
+  .note{font-size:.75rem; color:var(--soft); line-height:1.5; margin-top:.7rem;}
+  .hud{display:flex; align-items:center; gap:.6rem; margin-top:.8rem;}
+  .hudcube{position:relative; width:52px; height:52px; border-radius:30%; overflow:hidden;
+    background:linear-gradient(160deg,color-mix(in srgb,var(--shell) 50%,#07030f),
+      color-mix(in srgb,var(--shell-lo) 50%,#07030f) 60%,#07030f);
+    box-shadow:0 0 0 1.5px color-mix(in srgb,var(--shell) 62%,transparent),
+      0 0 18px color-mix(in srgb,var(--shell) 45%,transparent);}
+  .hud .lbl{font-size:.72rem; color:var(--soft); font-weight:800;}
+</style>
+
+<h1>Charge, instead of the pulsing light</h1>
+<p>Five ways the buddy could show how charged it is. Drag to scrub — watch what still
+reads at a glance, and what reads at HUD size (the little one at the bottom of each card).</p>
+
+<div class="rig">
+  <label for="pct">charge — <span id="pctout">72%</span></label>
+  <input id="pct" type="range" min="0" max="100" value="72">
+  <div class="swatches" id="swatches"></div>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+var SHELLS = [
+  {id:'cyan',    c:'#22E6FF', hi:'#9DF6FF', lo:'#0d7d97'},
+  {id:'magenta', c:'#FF2D95', hi:'#FF9AC8', lo:'#a31160'},
+  {id:'violet',  c:'#B15CFF', hi:'#DDB6FF', lo:'#5f21a3'},
+  {id:'lime',    c:'#8CFF4E', hi:'#CBFFA6', lo:'#4f9a17'},
+  {id:'gold',    c:'#FFC93A', hi:'#FFE79A', lo:'#a87a06'}
+];
+var IDEAS = [
+  {n:'1 · The level rises inside it',
+   d:'Light fills the glass like something being poured in. Reads instantly from across a room, and empty is unmistakable without being sad.',
+   note:'My pick. It is the only one where you can tell the charge apart at a glance from two metres away, and it survives being 52px in the HUD.'},
+  {n:'2 · Cells, like a battery',
+   d:'Five bars stacked inside, lit from the bottom. The most literal reading — she already knows what a battery looks like.',
+   note:'Precise but a bit device-like for something that is meant to feel alive. Also the weakest at HUD size: five bars in 52px is mush.'},
+  {n:'3 · A gauge around the outside',
+   d:'An arc sweeping the cube. Keeps the whole body free for the face, so it never fights with the eyes.',
+   note:'Cleanest as it boots up and gains a face. Downside: the buddy stops being the indicator and starts wearing one.'},
+  {n:'4 · The filament grows',
+   d:'The line between where the eyes will be gets longer and brighter with charge. Closest to what is there now.',
+   note:'Most continuous with the current design, and the subtlest — which may be too subtle to be a gauge.'},
+  {n:'5 · Motes drifting up',
+   d:'Flecks of light rising inside, thicker when full, still and few when nearly empty.',
+   note:'The most alive, the least precise. Lovely at 100% and at 0%, vague in between.'}
+];
+
+function cube(i, pct, big){
+  var size = big ? '' : ' style="width:52px;height:52px;border-radius:30%"';
+  var eyes = '<div class="eyes"><div class="eye l"></div><div class="eye r"></div></div>';
+  var inner = '';
+  if(i === 0) inner = '<div class="fill" style="height:'+pct+'%"></div>';
+  if(i === 1){
+    var cells = '';
+    for(var c = 0; c < 5; c++) cells += '<div class="cell'+(pct > c*20 ? ' on' : '')+'"></div>';
+    inner = '<div class="cells">'+cells+'</div>';
+  }
+  if(i === 2) inner = '<div class="core" style="opacity:'+(0.25+pct/100*0.75)+'"></div>';
+  if(i === 3) inner = '<div class="filtrack"></div><div class="fil" style="width:'+
+    (10 + pct/100*56)+'%; opacity:'+(0.3+pct/100*0.7)+'"></div>';
+  if(i === 4){
+    var n = Math.round(pct/100*9), m = '';
+    for(var j = 0; j < n; j++) m += '<div class="mote" style="left:'+(18+j*8)+'%; '+
+      'animation-duration:'+(2.2+((j*7)%9)/4)+'s; animation-delay:'+(j*0.28)+'s"></div>';
+    inner = '<div class="motes">'+m+'</div><div class="core" style="opacity:'+(0.15+pct/100*0.5)+'"></div>';
+  }
+  var body = '<div class="cube"'+size+'>'+inner+'<div class="gl"></div>'+(big ? eyes : '')+'</div>';
+  if(i === 2 && big){
+    return '<div class="ring" style="--sweep:'+(pct*2.7)+'deg"><div class="arc"></div>'+body+'</div>';
+  }
+  return body;
+}
+function draw(){
+  var pct = Number(document.getElementById('pct').value);
+  document.getElementById('pctout').textContent = pct + '%';
+  document.getElementById('grid').innerHTML = IDEAS.map(function(idea, i){
+    return '<div class="idea"><h2>'+idea.n+'</h2><p>'+idea.d+'</p>'
+         + '<div class="stage">'+cube(i, pct, true)
+         + '<div><div class="pct">'+pct+'%</div>'
+         + '<div class="note">'+idea.note+'</div></div></div>'
+         + '<div class="hud">'+cube(i, pct, false)
+         + '<span class="lbl">at HUD size</span></div></div>';
+  }).join('');
+}
+document.getElementById('swatches').innerHTML = SHELLS.map(function(s){
+  return '<button data-s="'+s.id+'" style="background:'+s.c+'" aria-label="'+s.id+'"></button>';
+}).join('');
+document.getElementById('swatches').addEventListener('click', function(ev){
+  var b = ev.target.closest('button[data-s]'); if(!b) return;
+  var s = SHELLS.filter(function(x){ return x.id === b.dataset.s; })[0];
+  document.documentElement.style.setProperty('--shell', s.c);
+  document.documentElement.style.setProperty('--shell-hi', s.hi);
+  document.documentElement.style.setProperty('--shell-lo', s.lo);
+});
+document.getElementById('pct').addEventListener('input', draw);
+draw();
+</script>

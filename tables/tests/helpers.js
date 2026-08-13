@@ -43,7 +43,7 @@ async function alreadyMet(page){
 // Start the level she is on and get to a question. A learn level SHOWS her a new
 // fact before asking it (the slow lane), so "start playing" means past that.
 async function play(page){
-  await page.click('#go');
+  await page.click('#nowlevel');
   await page.waitForTimeout(200);
   const skipped = await page.evaluate(() => {
     const a = window.__144;

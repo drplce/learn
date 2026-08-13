@@ -48,14 +48,19 @@ test.describe('seeing that she is getting somewhere', () => {
     expect(errorsOf(page)).toEqual([]);
   });
 
-  test('the button says which level she is on', async ({page}) => {
-    // The path carries no words on purpose, so this is the one place she can read
-    // where she is — and whether last night moved her at all.
+  test('the path itself says which level she is on', async ({page}) => {
+    // There is no big button any more (David, 2026-08-13: "we can see the play
+    // button on the current level"), so the number in the margin and the node's own
+    // label carry it.
     await open(page);
     await at(page, 14);
     await page.waitForTimeout(200);
-    const txt = (await page.locator('#go').innerText()).toLowerCase();
-    expect(txt).toContain('level 15');
+    const s = await page.evaluate(() => ({
+      margin: (document.querySelector('#path .lvlnum.now') || {}).textContent,
+      label: document.getElementById('nowlevel').getAttribute('aria-label')
+    }));
+    expect(s.margin).toBe('15');
+    expect(s.label.toLowerCase()).toContain('level 15');
   });
 
 });
@@ -65,7 +70,7 @@ test.describe('a level she walked away from', () => {
   test('is waiting where she left it, not back at the start', async ({page}) => {
     await open(page);
     await at(page, 14);
-    await page.click('#go');
+    await page.click('#nowlevel');
     await page.waitForTimeout(250);
     const goal = await page.evaluate(() => window.__144.sitting().goal);
     for(let i = 0; i < 6; i++){ await answer(page, true); await page.waitForTimeout(340); }
@@ -76,7 +81,7 @@ test.describe('a level she walked away from', () => {
     // she puts the phone down and comes back to the path
     await page.evaluate(() => window.__144.go('home'));
     await page.waitForTimeout(250);
-    await page.click('#go');
+    await page.click('#nowlevel');
     await page.waitForTimeout(250);
     expect(await page.evaluate(() => window.__144.sitting().done),
       'six answers were thrown away').toBe(6);
@@ -85,7 +90,7 @@ test.describe('a level she walked away from', () => {
     await page.reload();
     await page.waitForFunction(() => !!window.__144);
     await page.waitForTimeout(150);
-    await page.click('#go');
+    await page.click('#nowlevel');
     await page.waitForTimeout(250);
     expect(await page.evaluate(() => window.__144.sitting().done),
       'closing the app threw her progress away').toBe(6);
@@ -95,7 +100,7 @@ test.describe('a level she walked away from', () => {
   test('so a long level can be finished across two sittings', async ({page}) => {
     await open(page);
     await at(page, 14);                                   // a mix level: twelve answers
-    await page.click('#go');
+    await page.click('#nowlevel');
     await page.waitForTimeout(250);
     const goal = await page.evaluate(() => window.__144.sitting().goal);
     const cleared = await page.evaluate(() => window.__144.state.prog.cleared);
@@ -105,7 +110,7 @@ test.describe('a level she walked away from', () => {
     await page.waitForFunction(() => !!window.__144);
     await page.waitForTimeout(150);
     // …half tomorrow
-    await page.click('#go');
+    await page.click('#nowlevel');
     await page.waitForTimeout(250);
     for(let i = 0; i < goal; i++){
       const on = await page.evaluate(() => !!window.__144.sitting() && !document.querySelector('#clear.on'));
@@ -120,7 +125,7 @@ test.describe('a level she walked away from', () => {
   test('once it is cleared there is nothing left to come back to', async ({page}) => {
     await open(page);
     await at(page, 14);
-    await page.click('#go');
+    await page.click('#nowlevel');
     await page.waitForTimeout(250);
     const goal = await page.evaluate(() => window.__144.sitting().goal);
     for(let i = 0; i < goal; i++){ await answer(page, true); await page.waitForTimeout(340); }
@@ -148,7 +153,7 @@ test.describe('a level she walked away from', () => {
     const sit = await page.evaluate(() => window.__144.state.sit);
     const goal = await page.evaluate(() => window.__144.goalOf(window.__144.LEVELS[14]));
     expect(sit.done, 'a corrupt count could finish a level for her').toBeLessThan(goal);
-    await page.click('#go');
+    await page.click('#nowlevel');
     await page.waitForTimeout(300);
     expect(await page.evaluate(() => !!document.querySelector('#clear.on')),
       'the level cleared itself on opening').toBe(false);
@@ -168,7 +173,7 @@ test.describe('a level she walked away from', () => {
     });
     await page.reload();
     await page.waitForFunction(() => !!window.__144);
-    await page.click('#go');
+    await page.click('#nowlevel');
     await page.waitForTimeout(300);
     expect(await page.evaluate(() => window.__144.sitting().done),
       'progress from a different level was carried over').toBe(0);

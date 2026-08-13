@@ -11,8 +11,10 @@ test.describe('opening it', () => {
   test('it opens on the path with something to do, and no errors', async ({page}) => {
     await open(page);
     await expect(page.locator('#home')).toHaveClass(/on/);
-    // The first thing offered is the check, not a wall of tables.
-    expect(await page.locator('#go').innerText()).toMatch(/what you know/i);
+    // The first thing offered is the check, not a wall of tables. There is no big
+    // button any more (David, 2026-08-13) — the node on the path IS the way in, so
+    // what it offers has to be legible from the node itself.
+    expect(await page.locator('#nowlevel').getAttribute('aria-label')).toMatch(/what you know/i);
     await expect(page.locator('#path .level')).toHaveCount(1);
     expect(errorsOf(page)).toEqual([]);
   });
@@ -187,7 +189,7 @@ test.describe('the first-open check', () => {
 
   test('it asks each fact once — a miss moves on instead of asking again', async ({page}) => {
     await open(page);
-    await page.click('#go');
+    await page.click('#nowlevel');
     await page.waitForTimeout(150);
     const goal = await page.evaluate(() => window.__144.sitting().goal);
     // get every single one wrong: it must still end after exactly `goal` answers
@@ -199,7 +201,7 @@ test.describe('the first-open check', () => {
 
   test('what she gets right starts high, what she misses starts low', async ({page}) => {
     await open(page);
-    await page.click('#go');
+    await page.click('#nowlevel');
     await page.waitForTimeout(150);
     await playLevel(page);                                  // all correct
     const boxes = await page.evaluate(() =>
@@ -227,7 +229,7 @@ test.describe('playing a level', () => {
     await open(page);
     await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
     const before = await page.evaluate(() => window.__144.levelIndex());
-    await page.click('#go');
+    await page.click('#nowlevel');
     await page.waitForTimeout(200);
     await playLevel(page);
     await expect(page.locator('#clear')).toHaveClass(/on/);
@@ -242,7 +244,7 @@ test.describe('playing a level', () => {
   test('a right answer pays, and a wrong answer costs her nothing', async ({page}) => {
     await open(page);
     await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
-    await page.click('#go');
+    await page.click('#nowlevel');
     await page.waitForTimeout(200);
     await answer(page, true);
     await page.waitForTimeout(300);
@@ -263,7 +265,7 @@ test.describe('playing a level', () => {
   test('a miss keeps the same question up rather than skipping it', async ({page}) => {
     await open(page);
     await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
-    await page.click('#go');
+    await page.click('#nowlevel');
     await page.waitForTimeout(200);
     const q1 = await page.evaluate(() => window.__144.sitting().cur.k);
     await answer(page, false);
@@ -284,7 +286,7 @@ test.describe('playing a level', () => {
   test('a streak builds a multiplier, and the jackpot pays extra', async ({page}) => {
     await open(page);
     await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
-    await page.click('#go');
+    await page.click('#nowlevel');
     await page.waitForTimeout(200);
     for(let i = 0; i < 5; i++){ await answer(page, true); await page.waitForTimeout(300); }
     const s = await page.evaluate(() => ({combo: window.__144.sitting().combo,
@@ -547,7 +549,7 @@ test.describe('the words she reads', () => {
     await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
     const seen = [];
     seen.push(await page.locator('#home').innerText());
-    await page.click('#go');
+    await page.click('#nowlevel');
     await page.waitForTimeout(200);
     await answer(page, false);                        // the miss wording
     await page.waitForTimeout(300);
@@ -575,7 +577,7 @@ test.describe('the words she reads', () => {
     const seen = [];
     seen.push(await page.locator('#home').innerText());
     seen.push(await page.locator('#hud').innerText());
-    await page.click('#go');
+    await page.click('#nowlevel');
     await page.waitForTimeout(250);
     seen.push(await page.locator('#play').innerText());
     await page.evaluate(() => window.__144.go('power'));

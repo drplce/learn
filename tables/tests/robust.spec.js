@@ -90,7 +90,7 @@ test.describe('a clock that jumps', () => {
   test('a day rolling over mid-level does not break it or lose progress', async ({page}) => {
     await open(page, '2026-08-11');
     await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
-    await page.click('#go');
+    await page.click('#nowlevel');
     await page.waitForTimeout(200);
     for(let i = 0; i < 3; i++){ await answer(page, true); await page.waitForTimeout(280); }
     const mid = await page.evaluate(() => window.__144.sitting().done);

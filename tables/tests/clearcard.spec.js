@@ -9,7 +9,7 @@ const {open, errorsOf, answer, playLevel} = require('./helpers');
 // Get past the placement check and into a real level.
 async function intoLevel(page){
   await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
-  await page.click('#go');
+  await page.click('#nowlevel');
   await page.waitForTimeout(200);
 }
 

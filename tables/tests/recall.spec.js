@@ -336,12 +336,13 @@ test.describe('filling the gap', () => {
       return {isRecall: now.classList.contains('recall'),
               label: now.getAttribute('aria-label'),
               colour: getComputedStyle(now).borderTopColor,
-              btn: document.getElementById('go').innerText.toLowerCase()};
+              label: (document.getElementById('nowlevel')
+                        .getAttribute('aria-label') || '').toLowerCase()};
     });
     expect(s.isRecall).toBe(true);
     expect(s.label).toMatch(/gap/i);                     // named, even though wordless on screen
     expect(s.colour).not.toBe('rgb(34, 230, 255)');      // not the cyan of an ordinary level
-    expect(s.btn).toContain('gap');
+    expect(s.label).toContain('gap');
   });
 
 });
