@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-13T05:40Z
+last-run: 2026-08-13T16:10Z
 ```
 
 On each firing:
@@ -158,7 +158,17 @@ composites transparency to black). Storage key `144.v1`.
     `tables/tools/voice.mjs` on David's machine; **the key never enters the repo**. A test checks the
     app's phrase rules and the generator's cannot drift apart.
 - **Currency: watts ⚡** — earned on right answers, and they charge the buddy. The charge drains
-  across her waking day (12h battery) and **pauses overnight** (07:00–20:00 local is "awake").
+  across her waking day and **pauses overnight** (07:00–20:00 local is "awake"), so she never wakes
+  to a flat buddy she did nothing to cause.
+  - **v1.15 (David):** `BATTERY_HOURS` **4**, not 12 — a waking hour costs a quarter of the charge.
+    `CHARGE_PER_ANSWER` 1, `CHARGE_PER_LEVEL` 8 (were 2 and 15), so a 12-answer level puts back 20%.
+    *"We'll add battery packs as Addons later"* — these three constants are the dial that economy
+    gets balanced against, which is why they are named rather than inline. **Consequence to watch:
+    she will now meet a flat buddy often.** That must stay peacefully asleep and never a reproach;
+    `buddy.spec.js` guards the words.
+  - **Watts are not balanced yet** and look inflated (2,606 banked by level ~20, at 1–4 a right
+    answer plus 25 a level). Price the add-ons against what she actually has rather than re-rating
+    watts underneath her — taking away a number she watched go up is the one move to avoid.
 - **The buddy:** a sealed glossy rounded cube, lit from within. At level 1 it has **no face at
   all** — just the glow and a dim filament where eyes will be. It boots up: Lv15 filament,
   Lv30 eyes, Lv45 fully booted. Level-1 customisation is **colour only**; more unlocks later.
@@ -254,6 +264,17 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
    builds up across a sitting (combo, round colour, the pool) is only ever tested one level deep.
 
 **Done, and now guarded — do not undo these:**
+- **The buddy settles when it wakes** (v1.15, `tests/buddy.spec.js`): at stage 2 (eyes, level 30)
+  the colour and the name are fixed. `locked()` is enforced in the click and naming handlers, not
+  just by a `disabled` attribute. **She is warned before it happens** — "it locks in when it wakes
+  up" — because losing a choice she did not know was closing is exactly the small heartbreak this
+  app does not hand out. The copy after the lock must never read as a refusal.
+- **The current node is the only way into a level** (v1.15): the big Play button is gone. The node
+  carries a gold arc for a part-finished level and the margin number says which level. **The node's
+  breath is in the LIGHT, never a transform** — it used to scale, which makes a tap target that
+  moves under a finger, and no automated tap can hit it ("element is not stable" — the suite went
+  from 2 minutes to over 10 the day the button was removed). One `--pulse` colour per level type.
+- **The clear card has exactly one button, "OK", and it returns to the path** (v1.15).
 - **The slow lane and reading the path** (v1.13, `tests/slowlane.spec.js`): a brand-new fact is shown
   before it is asked and nothing she taps during it can score; a finished level keeps the SHAPE of
   its kind (they were all collapsing into one gold bead, so a month of path told her nothing); the
@@ -434,6 +455,13 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-13, later (David, live):** **v1.14 + v1.15.** The slow lane now stops only for facts she
+  is stuck on (plus one new fact a level, max two) instead of every new one. The big Play button is
+  gone — which exposed that the current node breathed by *scaling* and so could not reliably be
+  tapped. The buddy's colour and name settle when it wakes, warned in advance. Battery down to four
+  hours with a smaller top-up, ahead of add-on battery packs. Clear card down to one button, "OK",
+  which returns to the path. Plus `tables/mock-charge.html`: five charge-indicator ideas to pick
+  from, not wired in. 9 new tests, 6 teeth-checked, 106 pass.
 - **2026-08-13 (David, live, after playing it):** **v1.13.** The fallback voice was landing on iOS's
   joke voices (same bug Acorn had) — fixed and guarded, after two of my own tests passed on the
   broken build for the wrong reason. The spoken restatement is **out of gameplay** and into a new
