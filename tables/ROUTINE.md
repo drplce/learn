@@ -107,9 +107,12 @@ composites transparency to black). Storage key `144.v1`.
     `ROUND_COLOURS` as rounds climb; the prompt, goal bar, sparks and flash follow it. Colour must
     never distinguish one answer from another — that would be a tell.
   - Answer bubbles are **circles, dark inside, ringed in light**; tap targets stay ≥48px.
-  - **The path carries no words at all** — state is shape and light (gold bead = done, breathing
-    cyan ring = here, unlit ring = ahead, magenta star = boss) — and it meanders. Wordless does
-    not mean nameless: every node keeps an `aria-label`.
+  - **The path carries no WORDS** — state is shape and light, and it meanders. Since v1.13 it does
+    carry **level numbers** in the negative space beside the meander (David asked twice), and a
+    finished level keeps the shape of its kind rather than collapsing into an anonymous bead:
+    spark = new facts, hexagon = fill the gap, star = boss, plain bead = mix, breathing cyan ring =
+    here, unlit = ahead, gold = done. Wordless does not mean nameless: every node keeps an
+    `aria-label`.
   - `ui-rounded` numerals; numbers are the hero content and should always be the brightest thing
     after the action button.
   - Everything starts deliberately under-dressed and unlocks richness with her level, so *the game
