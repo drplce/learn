@@ -491,7 +491,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.11';
+var VERSION = '1.12';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -912,6 +912,236 @@ function sfxClear(){ [523,659,784,1047,1319].forEach(function(f,i){ tone(f,.22,'
 function sfxTick(){ tone(880,.05,'square',.05); }
 
 /* =========================================================
+   7a. The voice — every question is said out loud.
+   Recorded phrases where we have them, the phone's own
+   voice where we do not, so it works before a single file
+   is recorded and gets better the moment they land.
+
+   WHOLE PHRASES, never stitched words. "five" recorded on
+   its own carries phrase-final prosody — falling pitch, long
+   release — so "five" + "times" + "seven" comes out as three
+   separate objects. The whole point is that she stores the
+   fact as ONE chunk, and the pitch contour is what tells the
+   ear that it is one. (Acorn does the opposite on purpose:
+   it plays syllable fragments, because there the job is to
+   take a word apart.)
+
+   Recorded AT the speed we want, not sped up afterwards.
+   Time-stretching preserves pitch but scales vowels,
+   consonants and pauses uniformly, which real fast speech
+   does not — and it smears exactly the syllable envelope
+   that a dyslexic listener already tracks poorly. The
+   runtime rate below is a +/-15% trim for A/B on her actual
+   phone, not a substitute for recording it properly.
+   ========================================================= */
+var CLIP_DIR = 'audio/';
+// Rewritten by tables/tools/voice.mjs — do not edit by hand.
+var CLIP_KB = 0, CLIP_EXT = ".mp3", CLIPS = [];   /* GENERATED */
+var CLIP_CACHE = '144-audio-v1';
+var SAY_RATE = 1;                    // runtime trim; 1.25 is the artefact ceiling
+var _clips = null, _blob = bare(null), _warming = bare(null), _cacheReady = null;
+var _clipEl = null, _clipSeq = 0, _voice = null;
+
+function numWords(n){
+  var ONES = ['zero','one','two','three','four','five','six','seven','eight','nine','ten',
+              'eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen',
+              'eighteen','nineteen'];
+  var TENS = ['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+  n = Math.round(n);
+  if(n < 20) return ONES[n] || String(n);
+  if(n < 100){
+    var t = TENS[Math.floor(n/10)], o = n % 10;
+    return o ? t + '-' + ONES[o] : t;
+  }
+  var h = Math.floor(n/100), r = n % 100;
+  return ONES[h] + ' hundred' + (r ? ' and ' + numWords(r) : '');
+}
+// The three things it ever says.
+function qPhrase(a, b){ return numWords(a) + ' times ' + numWords(b); }
+// Always the KNOWN factor first, whichever side the blank is on screen — the
+// spoken form does not have to mirror the layout, and this halves the recording.
+function gapPhrase(known, product){
+  return numWords(known) + ' times what is ' + numWords(product);
+}
+
+function clipSlug(t){ return String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-'); }
+function loadClips(){
+  _clips = bare(null);
+  for(var i=0;i<CLIPS.length;i++) _clips[CLIPS[i]] = clipSlug(CLIPS[i]) + CLIP_EXT;
+}
+function clipUrl(t){
+  if(!_clips) loadClips();
+  var k = String(t||'').trim().toLowerCase();
+  return _clips[k] ? CLIP_DIR + _clips[k] : null;
+}
+function clipFor(t){
+  var k = String(t||'').trim().toLowerCase();
+  return _blob[k] || clipUrl(k);
+}
+// All of it recorded, or none of it: half recorded and half synthesised in one
+// breath sounds worse than either.
+function haveClips(list){
+  for(var i=0;i<list.length;i++) if(!clipUrl(list[i])) return false;
+  return list.length > 0;
+}
+// Fetching only works over http; from a file:// page it is refused and there is
+// nothing to gain, because the file is already local.
+function canWarm(){ try{ return /^https?:$/.test(location.protocol); }catch(e){ return false; } }
+function clipCache(){
+  if(_cacheReady) return _cacheReady;
+  _cacheReady = (function(){
+    try{
+      if(!window.caches || !window.isSecureContext) return Promise.resolve(null);
+      return caches.open(CLIP_CACHE).catch(function(){ return null; });
+    }catch(e){ return Promise.resolve(null); }
+  })();
+  return _cacheReady;
+}
+// Kept on the device, not fetched at the moment she is waiting for it.
+function warmOne(text){
+  var url = clipUrl(text);
+  if(!url || !canWarm() || _blob[text]) return Promise.resolve(!!_blob[text]);
+  if(_warming[text]) return _warming[text];
+  _warming[text] = clipCache().then(function(cache){
+    return (cache ? cache.match(url) : Promise.resolve(null)).then(function(res){
+      if(res) return res;
+      return fetch(url, {cache:'force-cache'}).then(function(r){
+        if(!r || !r.ok) throw new Error('not ok');
+        // A full device rejects cache.put with a rejected promise rather than a
+        // throw. Failing to store one is fine — it still plays, just not for free
+        // next time.
+        if(cache) try{ cache.put(url, r.clone()).catch(function(){}); }catch(e){}
+        return r;
+      });
+    }).then(function(res){
+      return res.blob().then(function(bl){
+        try{ _blob[text] = URL.createObjectURL(bl); }catch(e){}
+        return true;
+      });
+    });
+  }).catch(function(){ return false; });
+  return _warming[text];
+}
+// Everything one level will ever say, fetched before she starts it.
+function warmLevel(level){
+  if(!level || !CLIPS.length) return;
+  var want = bare(null), out = [];
+  (level.facts||[]).forEach(function(k){
+    var p = k.split('x').map(Number), a = p[0], b = p[1];
+    [qPhrase(a,b), qPhrase(b,a), numWords(a*b),
+     gapPhrase(a, a*b), gapPhrase(b, a*b)].forEach(function(ph){
+      if(!want[ph]){ want[ph] = 1; out.push(ph); }
+    });
+  });
+  out.push('equals');
+  var lane = 0;
+  (function nextOne(){
+    if(!out.length || lane > 3) return;
+    lane++;
+    var t = out.shift();
+    warmOne(t).then(function(){ lane--; nextOne(); }, function(){ lane--; nextOne(); });
+    if(lane < 3) nextOne();
+  })();
+}
+
+/* Play a list of phrases back to back, with a beat between them. The beat is the
+   point of the restatement: "five times five … equals … twenty five" is how a
+   person says it, and the pauses are where the meaning sits. */
+function playClips(items, onFail){
+  var mine = ++_clipSeq, i = 0;
+  function step(){
+    if(mine !== _clipSeq) return;
+    if(i >= items.length) return;
+    var it = items[i++], src = clipFor(it.text);
+    if(!src) return onFail && onFail();
+    var el = _clipEl || (_clipEl = new Audio());
+    el.onended = el.onerror = null;
+    el.src = src;
+    el.playbackRate = SAY_RATE;
+    if('preservesPitch' in el) el.preservesPitch = true;
+    else if('webkitPreservesPitch' in el) el.webkitPreservesPitch = true;
+    el.onended = function(){ setTimeout(step, it.gap || 0); };
+    el.onerror = function(){ if(mine === _clipSeq && onFail) onFail(); };
+    var pr = el.play();
+    if(pr && pr.catch) pr.catch(function(){ if(mine === _clipSeq && onFail) onFail(); });
+  }
+  step();
+  return true;
+}
+function bestVoice(){
+  try{
+    var vs = (speechSynthesis.getVoices()||[]).filter(function(v){ return /^en([-_]|$)/i.test(v.lang||''); });
+    if(!vs.length) return null;
+    if(_voice && vs.indexOf(_voice) >= 0) return _voice;
+    _voice = vs.slice().sort(function(a,b){
+      var sc = function(v){
+        var n = (v.name||'') + ' ' + (v.voiceURI||''), s = 0;
+        if(/premium|enhanced|neural|natural|wavenet|siri/i.test(n)) s += 60;
+        if(/^en-AU/i.test(v.lang)) s += 30;
+        else if(/^en-(GB|NZ)/i.test(v.lang)) s += 18;
+        if(/compact|eloquence|espeak/i.test(n)) s -= 50;
+        return s;
+      };
+      return sc(b) - sc(a);
+    })[0];
+    return _voice;
+  }catch(e){ return null; }
+}
+// The fallback. iOS does not reliably fire `onend` on an utterance, so nothing
+// is ever chained off it — each phrase is queued with its own pause built in.
+function speakTTS(items){
+  try{
+    speechSynthesis.cancel();
+    items.forEach(function(it){
+      var u = new SpeechSynthesisUtterance(it.text + (it.gap ? ',' : ''));
+      var v = bestVoice(); if(v){ u.voice = v; u.lang = v.lang; } else u.lang = 'en-AU';
+      u.rate = 0.92 * SAY_RATE;          // ~140 wpm on most voices
+      speechSynthesis.speak(u);
+    });
+  }catch(e){}
+}
+function hush(){
+  _clipSeq++;
+  try{ if(_clipEl){ _clipEl.pause(); _clipEl.onended = _clipEl.onerror = null; } }catch(e){}
+  try{ speechSynthesis.cancel(); }catch(e){}
+}
+/* One seam for everything spoken. `items` is [{text, gap}] — always whole
+   phrases, never words assembled into one. */
+function say(items){
+  if(!S.set.sound) return;
+  hush();
+  var texts = items.map(function(it){ return it.text; });
+  if(haveClips(texts)) playClips(items, function(){ speakTTS(items); });
+  else speakTTS(items);
+}
+
+/* ---- what gets said, and when ----
+   The game gets terser as she gets better: the level that is teaching her says
+   the whole thing, the level that is testing her speed says almost nothing. */
+function speakQuestion(){
+  if(!W || !W.cur) return;
+  var c = W.cur;
+  if(W.level.kind === 'recall'){
+    var known = c.gapFirst ? c.b : c.a;
+    say([{text: gapPhrase(known, c.a * c.b)}]);
+  } else {
+    say([{text: qPhrase(c.a, c.b)}]);
+  }
+}
+function speakAnswer(){
+  if(!W || !W.cur) return;
+  var c = W.cur, kind = W.level.kind, product = c.a * c.b;
+  if(kind === 'boss') return;                       // a boss is a performance: keep it moving
+  if(kind === 'learn' || kind === 'recall' || kind === 'placement'){
+    // the teaching moment: the whole fact, said the way a person says it
+    say([{text: qPhrase(c.a, c.b), gap: 170}, {text: 'equals', gap: 170},
+         {text: numWords(product)}]);
+  } else {
+    say([{text: numWords(product)}]);               // mix: just the answer
+  }
+}
+
+/* =========================================================
    8. Screens
    ========================================================= */
 var screen='home', W=null;                                    // W = the sitting in progress
@@ -1121,6 +1351,7 @@ function start(level){
     W.done = S.sit.done; W.asked = S.sit.asked; W.round = S.sit.round;
   }
   el('#clear').classList.remove('on');
+  warmLevel(level);
   screen='play'; render();
   fieldSize();
   next();
@@ -1167,6 +1398,7 @@ function next(){
     orbs.push(o);
   });
   el('#cue').textContent = W.level.kind==='placement' ? 'just have a go — nothing to get wrong here' : '';
+  speakQuestion();
   paintGoal();
 }
 // Has she ever actually met this fact? Asking for a missing factor she has never
@@ -1187,6 +1419,7 @@ function askGap(a, b){
   armDial();
   el('#play').classList.add('gap');
   el('#cue').textContent = '';
+  speakQuestion();
   paintGoal();
 }
 
@@ -1303,6 +1536,7 @@ function tap(o){
    Leitner move and the words she reads must not drift apart per input. */
 function score(right, x, y, node, cls){
   var placing = W.level.kind==='placement', gap = W.level.kind==='recall';
+  hush();                                     // she answered: stop talking over her
   if(right){
     if(node && cls) node.classList.add(cls);
     record(W.cur.k, true, placing);
@@ -1314,6 +1548,7 @@ function score(right, x, y, node, cls){
     addWatts(got); W.watts+=got; W.charge += addCharge(2);
     W.done++; W.asked++;
     sfxRight(W.combo);
+    speakAnswer();
     sparks(x, y, 5+mult*2);
     paintCombo(); paintGoal(); renderHud();
     if(W.combo>0 && W.combo%5===0) jackpot();
@@ -1404,6 +1639,11 @@ function clearLevel(){
    ========================================================= */
 var _unlocked=false;
 function unlock(){ if(_unlocked) return; _unlocked=true; ac();
+  // An <audio> element needs its own first play inside a gesture on iOS, or the
+  // first spoken question of the evening is silently dropped.
+  try{ _clipEl = _clipEl || new Audio(); _clipEl.muted = true;
+       var pr = _clipEl.play(); if(pr && pr.catch) pr.catch(function(){});
+       setTimeout(function(){ try{ _clipEl.pause(); _clipEl.muted = false; }catch(e){} }, 30); }catch(e){}
   try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){} }
 document.addEventListener('pointerdown', unlock, {once:false});
 
@@ -1412,9 +1652,9 @@ document.addEventListener('click', function(ev){
   if(t.closest('#go') || t.closest('#nowlevel')){
     start(S.prog.placed ? LEVELS[levelIndex()] : placementLevel()); return; }
   if(t.closest('#buddybtn')){ go('power'); return; }
-  if(t.closest('#backHome') || t.closest('#clearHome')){ el('#clear').classList.remove('on'); go('home'); return; }
+  if(t.closest('#backHome') || t.closest('#clearHome')){ hush(); el('#clear').classList.remove('on'); go('home'); return; }
   if(t.closest('#clearOn')){ start(LEVELS[levelIndex()]); return; }
-  if(t.closest('#soundbtn')){ S.set.sound=!S.set.sound; save(); renderHud();
+  if(t.closest('#soundbtn')){ S.set.sound=!S.set.sound; if(!S.set.sound) hush(); save(); renderHud();
     if(S.set.sound) sfxRight(0); return; }
   if((hit=t.closest('[data-shell]'))){ S.buddy.shell=hit.dataset.shell; save(); renderPower(); renderHud(); sfxTick(); return; }
   if(t.closest('#nameit')){
@@ -1460,6 +1700,10 @@ window.__144 = {
   // The mastery move itself, so tests/sim.js can run months of the REAL Leitner
   // engine (and the real weak-first picker) without touching the animations.
   record:record, mastery:mastery,
+  // the voice: tests drive the real phrase building and the real policy
+  numWords:numWords, qPhrase:qPhrase, gapPhrase:gapPhrase,
+  speakQuestion:speakQuestion, speakAnswer:speakAnswer, hush:hush,
+  CLIPS:function(){ return CLIPS; },
   screen:function(){ return screen; }, go:go, render:render,
   sitting:function(){ return W; },
   start:start,
