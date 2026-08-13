@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-13T16:10Z
+last-run: 2026-08-13T17:05Z
 ```
 
 On each firing:
@@ -264,6 +264,12 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
    builds up across a sitting (combo, round colour, the pool) is only ever tested one level deep.
 
 **Done, and now guarded — do not undo these:**
+- **The charge is a LEVEL, not a pulse** (v1.16, `tests/buddy.spec.js`): the light fills the glass in
+  proportion to `power.charge`, translucent (opaque = the pale plastic blob v1.5 removed), with the
+  eyes painted after it so a full battery cannot blind the face, and an ember behind it so flat reads
+  as asleep rather than broken. Works at 52px, which is the size that matters. *Trap:* the first
+  version of the face test passed with the z-index removed — DOM order was doing the work — so it
+  now asserts paint order and translucency, the two things that actually hold it up.
 - **The buddy settles when it wakes** (v1.15, `tests/buddy.spec.js`): at stage 2 (eyes, level 30)
   the colour and the name are fixed. `locked()` is enforced in the click and naming handlers, not
   just by a `disabled` attribute. **She is warned before it happens** — "it locks in when it wakes
@@ -397,6 +403,17 @@ every meaningful change — Pages deploys automatically. Bump `VERSION` when she
 Table Bosses, Vault), multiplayer, accounts, anything that needs a server.
 
 **Open with David (do not invent answers):**
+- **⚠⚠ SHE IS PLAYING ~20× FASTER THAN THE PLAN ASSUMES, AND THE BOXES CANNOT TELL (2026-08-13).**
+  David: *"She's already at level 40 I think"* — two days in, against a ladder built for two levels
+  a day. Measured directly: **eight right answers in one sitting take a fact from box 1 to box 7**,
+  the top box, nominally a 60-day interval, without a single night in between. `BOX_DAYS` is written
+  in DAYS and nothing enforces days, so at her pace the spacing schedule is bypassed entirely and
+  she is doing massed practice while the app records durable mastery. This is the saturation
+  question below, no longer hypothetical.
+  **The one-line fix is to let a fact's box rise at most once per day**, which changes nothing about
+  how much she may play and everything about what the number means. It is David's call because the
+  "of 144 known" figure on her power room screen would climb more slowly — raised 2026-08-13, not
+  shipped.
 - **⚠ WHAT COUNTS AS KNOWING IT (new, 2026-08-12, and now the only thing in the way).** With the
   picker repaired (v1.10) and fill-the-gap shipped (v1.8), every one of the plan's targets passes in
   simulation — 78/78 by day 45. That is not the good news it looks like: the model saturates because
@@ -455,6 +472,11 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-13, evening (David, live):** **v1.16** — the charge indicator he picked, wired in at both
+  sizes. Then a refinement pass driven at HER ACTUAL STATE (level 40, buddy awake and locked, violet,
+  named): path, play, clear card and power room shot at both phone sizes, no errors, everything
+  reads. The pass's real finding is the pacing one now at the top of §7 — she is ~20× ahead of the
+  plan and eight answers in one sitting take a fact to box 7. 111 pass, sim green.
 - **2026-08-13, later (David, live):** **v1.14 + v1.15.** The slow lane now stops only for facts she
   is stuck on (plus one new fact a level, max two) instead of every new one. The big Play button is
   gone — which exposed that the current node breathed by *scaling* and so could not reliably be
