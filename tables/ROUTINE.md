@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-12T17:39Z
+last-run: 2026-08-13T04:30Z
 ```
 
 On each firing:
@@ -114,6 +114,26 @@ composites transparency to black). Storage key `144.v1`.
     after the action button.
   - Everything starts deliberately under-dressed and unlocks richness with her level, so *the game
     visibly gets better as she does*.
+- **THE VOICE (v1.12, David's brief).** Every level says the question out loud at the start.
+  - **WHOLE PHRASES, never stitched words.** "five times seven" is one recording. A word recorded
+    alone carries phrase-final prosody, so stitching gives three separate objects — and the point is
+    that she stores the fact as ONE chunk. (Acorn does the opposite deliberately: syllable fragments,
+    because there the job is taking a word apart. Do not copy that pattern here.)
+  - **Recorded AT the target speed, never sped up afterwards.** Time-stretching preserves pitch but
+    scales vowels, consonants and pauses uniformly, which real fast speech does not, and the
+    artefacts land in the syllable envelope — the exact cue a dyslexic listener already tracks
+    poorly. `SAY_RATE` is a ±15% runtime trim for A/B on her phone, ceiling 1.25; it is not a
+    substitute for re-recording. Default 150 wpm ≈ 1s for an average question. The longest
+    ("eleven times eleven", 7 syllables) cannot reach 1.2s without ~240 wpm — **aim at the average,
+    not the maximum.**
+  - **What speaks when:** learn and fill-the-gap say the whole fact back ("five times five …
+    equals … twenty five", assembled at PHRASE level with beats — that is a teacher's cadence, not
+    word-stitching); mix says just the answer; boss says nothing. The game gets terser as she
+    improves.
+  - 348 clips: 144 questions, 144 gap forms (**the known factor always first**, whichever side the
+    blank is on screen — that halves the recording), 59 answers, and "equals". Recorded by
+    `tables/tools/voice.mjs` on David's machine; **the key never enters the repo**. A test checks the
+    app's phrase rules and the generator's cannot drift apart.
 - **Currency: watts ⚡** — earned on right answers, and they charge the buddy. The charge drains
   across her waking day (12h battery) and **pauses overnight** (07:00–20:00 local is "awake").
 - **The buddy:** a sealed glossy rounded cube, lit from within. At level 1 it has **no face at
@@ -211,6 +231,11 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
    builds up across a sitting (combo, round colour, the pool) is only ever tested one level deep.
 
 **Done, and now guarded — do not undo these:**
+- **The voice** (v1.12, `tests/voice.spec.js`): a question is spoken as ONE phrase; a gap question
+  never contains its own answer; mute means silent; answering stops it mid-word (the interrupt test
+  runs on a BOSS level on purpose — anywhere else the reply's own `cancel()` masks a missing
+  interrupt and the test passes for the wrong reason); it all works with **no recordings at all**,
+  which is the state it ships in.
 - **She plays in BURSTS** (v1.11, `tests/progress.spec.js`). This is the most important thing on this
   list about how she actually uses it. A level used to restart from zero whenever she left it, so a
   12-answer mix or a 15-answer boss could never be finished in the six-answer sittings she really
@@ -380,6 +405,11 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-12, late (David, live):** **v1.12, the voice.** Every level now says the question aloud,
+  whole-phrase, with the restatement on the teaching levels. Built the layer and the recording
+  pipeline; the 348 files themselves need David's machine and his key. His question — record slow
+  and speed up, or record at target? — answered in `tools/voice.mjs`: record at target, and why.
+  10 tests, 5 teeth-checked, 85 pass.
 - **2026-08-12, evening (David, live — "the path appears to be stuck as level 4"):** he was on level
   15. Two real defects (v1.11): the path only ever drew three beads of history, so his position never
   appeared to move; and **a level restarted from zero every time he left it**, which is why 983 watts
