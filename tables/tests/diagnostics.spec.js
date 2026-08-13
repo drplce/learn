@@ -118,6 +118,87 @@ test.describe('the digest', () => {
     expect(t.split('\n').length).toBeGreaterThan(20);
   });
 
+  // David's phone, 2026-08-13: "7×9   32 missed of 59   box 7". Both halves of that
+  // line are true and they contradict each other, which is the single most important
+  // thing the export has to say. It must not print the box and let it stand.
+  async function seedHerSeven(page){
+    await page.evaluate(() => {
+      const a = window.__144;
+      a.state.prog.placed = true; a.state.prog.cleared = 49;
+      // the fact off her phone: a bad first session, then a clean run, top box
+      a.state.facts['7x9'] = {box: 7, right: 27, wrong: 32, seen: 59, last: '2026-08-13'};
+      // and one she is fumbling right now, whose lifetime record still looks fine
+      a.state.facts['6x8'] = {box: 5, right: 20, wrong: 1, seen: 21, last: '2026-08-13'};
+      // plus a plain, genuinely-solid fact that should be flagged by neither section
+      a.state.facts['2x5'] = {box: 6, right: 18, wrong: 0, seen: 18, last: '2026-08-13'};
+      for(let i = 0; i < 20; i++)
+        a.state.log.recent.push({k: '7x9', d: '2026-08-13', ok: 1, ms: 1400});
+      for(let i = 0; i < 5; i++)
+        a.state.log.recent.push({k: '6x8', d: '2026-08-13', ok: i === 4 ? 1 : 0, ms: 3900});
+      // and a fact she has seen twice and missed twice — 100%, but two answers of noise
+      a.state.facts['3x4'] = {box: 2, right: 6, wrong: 3, seen: 9, last: '2026-08-13'};
+      for(let i = 0; i < 2; i++)
+        a.state.log.recent.push({k: '3x4', d: '2026-08-13', ok: 0, ms: 3100});
+      a.save();
+    });
+  }
+  // the block of lines under one heading, so a fact cannot be "in" a section it is
+  // merely printed below
+  function section(text, heading){
+    const lines = text.split('\n');
+    const start = lines.findIndex(l => l.startsWith(heading));
+    if(start < 0) return '';
+    const rest = lines.slice(start + 1);
+    const end = rest.findIndex(l => /^[A-Z]/.test(l));
+    return rest.slice(0, end < 0 ? rest.length : end).join('\n');
+  }
+
+  test('a fact counted as known but missed half the time is flagged, not passed off', async ({page}) => {
+    await open(page);
+    await seedHerSeven(page);
+    const t = await digest(page);
+    const flagged = section(t, 'WORTH A LOOK');
+    expect(flagged, 'the top-box fact she misses half the time is not flagged').toContain('7×9');
+    expect(flagged).toContain('box 7');
+    expect(flagged).toMatch(/54%|missed 32 of 59/);
+    // and it says WHY the two disagree, so the number is not just left dangling
+    expect(flagged.toLowerCase()).toMatch(/only remembers the recent run|recent run/);
+    // a fact she has never missed must not be dragged in with it
+    expect(flagged, 'a solid fact was flagged as suspect').not.toContain('2×5');
+    expect(errorsOf(page)).toEqual([]);
+  });
+
+  test('what she is missing now is separated from what she ever missed', async ({page}) => {
+    await open(page);
+    await seedHerSeven(page);
+    const t = await digest(page);
+    const ever = section(t, 'MISSED MOST — ALL TIME');
+    const now = section(t, 'MISSED MOST — RECENTLY');
+    expect(ever, 'the all-time list lost the fact with the worst record').toContain('7×9');
+    expect(now, 'a fact she is missing right now is not in the recent list').toContain('6×8');
+    // 7×9 has not been missed once in the recent log — its bad record is history
+    expect(now, 'the recent list is just the all-time list again').not.toContain('7×9');
+    // and the all-time list has to admit where its big numbers came from
+    expect(ever.toLowerCase()).toMatch(/picker fault|before 2026-08-12/);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
+  test('the recent list is not swamped by facts she only saw twice', async ({page}) => {
+    // Sorting by miss RATE looks right and is useless: across 400 answers over 78
+    // facts, every fact seen twice and missed twice reads as 100% and buries the one
+    // she actually keeps losing. He reads the top of this list, so the top has to
+    // be the biggest problem, not the smallest sample.
+    await open(page);
+    await seedHerSeven(page);
+    const now = section(await digest(page), 'MISSED MOST — RECENTLY');
+    const lines = now.split('\n').filter(l => l.trim());
+    const at = f => lines.findIndex(l => l.includes(f));
+    expect(at('6×8'), 'the fact she keeps losing is missing').toBeGreaterThanOrEqual(0);
+    expect(at('3×4'), 'the two-answer fact is missing').toBeGreaterThanOrEqual(0);
+    expect(at('6×8'), 'a 2-of-2 sample outranked a 4-of-5 one').toBeLessThan(at('3×4'));
+    expect(errorsOf(page)).toEqual([]);
+  });
+
   test('nothing identifying goes in it', async ({page}) => {
     // The repo is public and this gets pasted into a chat. Her name is never in the
     // app at all; the buddy's pet name is hers and stays on the device.

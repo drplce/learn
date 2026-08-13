@@ -431,6 +431,12 @@ Table Bosses, Vault), multiplayer, accounts, anything that needs a server.
   how much she may play and everything about what the number means. It is David's call because the
   "of 144 known" figure on her power room screen would climb more slowly — raised 2026-08-13, not
   shipped.
+  **CONFIRMED ON HER REAL DATA, 2026-08-14.** His pasted digest: `7×9   32 missed of 59   box 7`.
+  Reproduced in the app — the box steps down one on a miss and up one on a right, so it only ever
+  remembers the recent run, and a bad session followed by ~7 clean answers lands in the top box with
+  a 54% lifetime miss rate. This is no longer a projection from `sim.js`; it is on her phone. The
+  digest now *says so* (v1.18, WORTH A LOOK) rather than printing the box and letting it stand, but
+  the rule itself is untouched and still David's to call.
 - **⚠ WHAT COUNTS AS KNOWING IT (new, 2026-08-12, and now the only thing in the way).** With the
   picker repaired (v1.10) and fill-the-gap shipped (v1.8), every one of the plan's targets passes in
   simulation — 78/78 by day 45. That is not the good news it looks like: the model saturates because
@@ -489,6 +495,16 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-14, early (David, live):** **v1.18 — the export stops repeating a number it cannot
+  stand behind.** He pasted the real digest off her phone and the standout line was `7×9   32 missed
+  of 59   box 7`: the worst record of any fact, sitting in the top box. Reproduced it exactly in the
+  app (32 misses then 27 rights → box 7, 54% lifetime miss rate; and 7 clean answers from nothing →
+  box 7 too), so the line is not a bug in the digest, it is the box rule showing through. The digest
+  now splits **ALL TIME** from **RECENTLY** (the last 400 answers, which is the only honest "what is
+  she missing *now*") and adds **WORTH A LOOK** for facts the app calls known while she misses ≥30%
+  of them, with the reason stated on screen. The all-time list also carries the caveat that big
+  attempt counts predate the picker fix. Note her 59 attempts on one fact are almost certainly
+  residue of the pre-v1.10 argmax picker. 2 tests, both teeth-checked, 123 pass.
 - **2026-08-13, night (David, live):** **v1.17 — the diary.** He asked for an export he could paste
   back into the chat: days, minutes, time between answers, misses. Built, with per-answer latency as
   the headline, because that is the measure the "levels beyond known" he wants later will be built

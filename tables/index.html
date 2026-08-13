@@ -530,7 +530,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.17';
+var VERSION = '1.18';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -1038,12 +1038,59 @@ function diagnostics(){
     return (ry - rx) || (y.f.wrong - x.f.wrong);
   }).slice(0, 10);
   if(byMiss.length){
-    out.push('MISSED MOST (of the ones she has met)');
+    out.push('MISSED MOST — ALL TIME (of the ones she has met)');
     byMiss.forEach(function(x){
       var p = x.k.split('x');
       out.push('  ' + pad(p[0] + '×' + p[1], 7) + '   ' + x.f.wrong + ' missed of ' +
         ((x.f.right||0)+x.f.wrong) + '   box ' + x.f.box);
     });
+    out.push('  (all-time counts include the days before 2026-08-12, when a picker fault');
+    out.push('   asked the same few facts over and over — so a huge attempt count on one');
+    out.push('   fact is that fault, not her.)');
+    out.push('');
+  }
+
+  /* Recent is the honest view, and the two can disagree loudly. The box steps down
+     one on a miss and up one on a right, so a fact she fumbled for a whole session
+     and then got right seven times running ends up in the top box with a terrible
+     lifetime record. That is not a lie the export should repeat without comment. */
+  var recent = bare(null);
+  L.recent.forEach(function(e){
+    var r = recent[e.k] = recent[e.k] || {ok:0, no:0};
+    e.ok ? r.ok++ : r.no++;
+  });
+  /* Sorted by HOW MANY she missed, not by rate. Over 400 answers spread across 78
+     facts a rate sort is all noise — every fact she saw twice and missed twice reads
+     as 100% and buries the one she missed seven times out of twelve. */
+  var recentKeys = Object.keys(recent).filter(function(k){ return recent[k].no > 0; })
+    .sort(function(x, y){
+      var rx = recent[x].no/(recent[x].ok+recent[x].no), ry = recent[y].no/(recent[y].ok+recent[y].no);
+      return (recent[y].no - recent[x].no) || (ry - rx);
+    }).slice(0, 8);
+  if(recentKeys.length){
+    out.push('MISSED MOST — RECENTLY (last ' + L.recent.length + ' answers)');
+    recentKeys.forEach(function(k){
+      var r = recent[k], p3 = k.split('x'), f3 = S.facts[k];
+      out.push('  ' + pad(p3[0] + '×' + p3[1], 7) + '   ' + r.no + ' missed of ' + (r.ok + r.no) +
+               '   box ' + (f3 ? f3.box : '?'));
+    });
+    out.push('');
+  }
+
+  // ---- where the box and the misses tell different stories ----
+  var odd = all.filter(function(x){
+    var tries = (x.f.right||0) + (x.f.wrong||0);
+    return x.f.box >= KNOWN_BOX && tries >= 6 && (x.f.wrong||0)/tries >= 0.3;
+  }).sort(function(x,y){ return y.f.wrong - x.f.wrong; }).slice(0, 8);
+  if(odd.length){
+    out.push('WORTH A LOOK — counted as known, but missed a lot');
+    odd.forEach(function(x){
+      var p4 = x.k.split('x'), tries = (x.f.right||0)+(x.f.wrong||0);
+      out.push('  ' + pad(p4[0] + '×' + p4[1], 7) + '   box ' + x.f.box + '   but missed ' +
+               x.f.wrong + ' of ' + tries + ' (' + Math.round(x.f.wrong/tries*100) + '%)');
+    });
+    out.push('  (the box only remembers the recent run: a bad session followed by a clean');
+    out.push('   one lands in the top box. This is the thing to decide about.)');
     out.push('');
   }
 
