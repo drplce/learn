@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-13T04:30Z
+last-run: 2026-08-13T05:40Z
 ```
 
 On each firing:
@@ -114,6 +114,18 @@ composites transparency to black). Storage key `144.v1`.
     after the action button.
   - Everything starts deliberately under-dressed and unlocks richness with her level, so *the game
     visibly gets better as she does*.
+- **THE SLOW LANE (v1.13, David's brief).** *"Possibly look at a slower level type which is focused
+  on slow ingestion of question and answer and then we can revert to the faster pace of the other
+  levels."* The first time a brand-new fact comes up in a `learn` level it is **shown whole and said
+  whole** — `5 × 5 = 25`, "five times five … equals … twenty five" — with no bubbles, no input
+  accepted, no timer pressure, and a tap to move on. Then it is asked with the answer taken away.
+  - `MEET_MS` 3200 (1200 under reduced motion — **shorter, never skipped**).
+  - It fires only for facts she has never met (`!met(k)`), once each, so it never lectures her about
+    something she knows.
+  - **This is what finally answers the oldest finding on file** — that 144 only ever *tested* a fact
+    and never taught one. If you change it, re-read §7 first.
+  - Tests that are about something else must seed the level's facts as met (`alreadyMet()` in
+    helpers) or they will stall on the slow lane; `answer()` skips it, which is what she does.
 - **THE VOICE (v1.12, David's brief).** Every level says the question out loud at the start.
   - **WHOLE PHRASES, never stitched words.** "five times seven" is one recording. A word recorded
     alone carries phrase-final prosody, so stitching gives three separate objects — and the point is
@@ -126,10 +138,18 @@ composites transparency to black). Storage key `144.v1`.
     substitute for re-recording. Default 150 wpm ≈ 1s for an average question. The longest
     ("eleven times eleven", 7 syllables) cannot reach 1.2s without ~240 wpm — **aim at the average,
     not the maximum.**
-  - **What speaks when:** learn and fill-the-gap say the whole fact back ("five times five …
-    equals … twenty five", assembled at PHRASE level with beats — that is a teacher's cadence, not
-    word-stitching); mix says just the answer; boss says nothing. The game gets terser as she
-    improves.
+  - **What speaks when (revised v1.13 after David played it):** every level says the QUESTION and
+    nothing else. *"Trying to say the full question equals answer is not working — real game play
+    doesn't allow it. So scratch that step."* The reply landed on top of the next question. The
+    restatement now lives only in **the slow lane** (below), where nothing else is happening.
+  - **The fallback voice must never be a joke voice.** iOS ships Bells, Bubbles, Trinoids, Zarvox —
+    all tagged `en` — and `getVoices()` is async, so the first call returns a partial list and
+    whatever is picked then gets cached before the good voices arrive. That is how the joke voice
+    wins, and it bit Acorn first. `NOVELTY` excludes them; the choice is remade whenever the list
+    changes. **Warning for whoever tests this next:** the first two tests written for it passed on
+    the broken build, protected by the scoring rather than by the filter. Test the case where a joke
+    voice is the ONLY option (must yield `null`, i.e. the system default), and the case where a
+    worse-but-legitimate voice loads first (must be upgraded).
   - 348 clips: 144 questions, 144 gap forms (**the known factor always first**, whichever side the
     blank is on screen — that halves the recording), 59 answers, and "equals". Recorded by
     `tables/tools/voice.mjs` on David's machine; **the key never enters the repo**. A test checks the
@@ -231,6 +251,12 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
    builds up across a sitting (combo, round colour, the pool) is only ever tested one level deep.
 
 **Done, and now guarded — do not undo these:**
+- **The slow lane and reading the path** (v1.13, `tests/slowlane.spec.js`): a brand-new fact is shown
+  before it is asked and nothing she taps during it can score; a finished level keeps the SHAPE of
+  its kind (they were all collapsing into one gold bead, so a month of path told her nothing); the
+  level numbers live in the negative space beside the meander and must never be drawn over a node.
+  **The wordless-path rule from v1.1 is deliberately reversed for numbers** — David asked twice. Words
+  are still out, and `game.spec.js` enforces exactly that: digits yes, letters no.
 - **The voice** (v1.12, `tests/voice.spec.js`): a question is spoken as ONE phrase; a gap question
   never contains its own answer; mute means silent; answering stops it mid-word (the interrupt test
   runs on a BOSS level on purpose — anywhere else the reply's own `cancel()` masks a missing
@@ -405,6 +431,14 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-13 (David, live, after playing it):** **v1.13.** The fallback voice was landing on iOS's
+  joke voices (same bug Acorn had) — fixed and guarded, after two of my own tests passed on the
+  broken build for the wrong reason. The spoken restatement is **out of gameplay** and into a new
+  **slow lane**: a brand-new fact is shown and said whole before it is ever asked, which is the
+  teaching step the simulation has been asking for since day one. The path now keeps each finished
+  level's shape and carries level numbers in the margin. 12 tests, 6 teeth-checked, 97 pass, and
+  `sim.js` came back green on every band — **which does not mean the saturation question in §7 is
+  answered; it is still open.**
 - **2026-08-12, late (David, live):** **v1.12, the voice.** Every level now says the question aloud,
   whole-phrase, with the restatement on the teaching levels. Built the layer and the recording
   pipeline; the 348 files themselves need David's machine and his key. His question — record slow
