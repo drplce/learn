@@ -441,7 +441,10 @@ test.describe('the buddy and its power', () => {
     await page.waitForTimeout(200);
     expect(await page.locator('#bigcube .eye').count()).toBe(0);
     expect(await page.locator('#bigcube .fil').count()).toBe(0);
-    expect(await page.locator('#bigcube .glow').count()).toBe(1);
+    // no face, but not an empty box: the charge shows as a level in the glass, with
+    // an ember behind it (v1.16 — this replaced the single pulsing core)
+    expect(await page.locator('#bigcube .glow').count(), 'the old pulsing core is back').toBe(0);
+    expect(await page.locator('#bigcube .emberglow').count()).toBe(1);
     // and by level 30 the eyes are on
     await page.evaluate(() => { window.__144.state.prog.cleared = 30; window.__144.render(); });
     await page.waitForTimeout(200);

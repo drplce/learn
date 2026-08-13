@@ -97,13 +97,9 @@ body::before{content:''; position:fixed; inset:0; pointer-events:none; z-index:0
   box-shadow:0 0 0 1.5px color-mix(in srgb, var(--shell) 62%, transparent),
     0 0 18px color-mix(in srgb, var(--shell) 45%, transparent),
     inset 0 5px 9px rgba(255,255,255,.22);}
-#buddybtn .bglow{position:absolute; left:50%; top:48%; width:30px; height:20px; margin:-10px 0 0 -15px;
-  border-radius:50%;
-  background:radial-gradient(closest-side,#fff,color-mix(in srgb,#fff 60%,var(--shell-hi)) 40%,transparent 74%);
-  filter:blur(3.4px); animation:breathe var(--m-breath) ease-in-out infinite;}
-#buddybtn .bline{position:absolute; left:50%; top:48%; width:20px; height:4px; margin:-2px 0 0 -10px;
+#buddybtn .bline{position:absolute; z-index:2; left:50%; top:48%; width:20px; height:4px; margin:-2px 0 0 -10px;
   border-radius:var(--r-pill); background:#fff; filter:blur(1.4px);}
-#buddybtn .beye{position:absolute; top:48%; width:6px; height:7px; margin-top:-3.5px; border-radius:3px;
+#buddybtn .beye{position:absolute; z-index:2; top:48%; width:6px; height:7px; margin-top:-3.5px; border-radius:3px;
   background:#fff; filter:blur(.7px);}
 #buddybtn .beye.l{left:14px;} #buddybtn .beye.r{right:14px;}
 #chargewrap{flex:1; max-width:132px;}
@@ -340,14 +336,31 @@ main{flex:1; position:relative; overflow:hidden;}
     0 0 34px color-mix(in srgb, var(--shell) 42%, transparent),
     inset 0 -12px 20px rgba(0,0,0,.4), inset 0 12px 20px rgba(255,255,255,.22);
   animation:bob 3.6s ease-in-out infinite;}
-.bigcube .glow{position:absolute; left:50%; top:47%; width:84px; height:56px; margin:-28px 0 0 -42px;
-  border-radius:50%;
-  background:radial-gradient(closest-side,#fff,color-mix(in srgb,#fff 58%,var(--shell-hi)) 42%,transparent 74%);
-  filter:blur(9px); animation:breathe var(--m-breath) ease-in-out infinite;}
-.bigcube .fil{position:absolute; left:50%; top:47%; width:44px; height:7px; margin:-3.5px 0 0 -22px;
+/* THE CHARGE, as a level inside the glass (v1.16, David's pick from the mockups).
+   It replaces the pulsing core, which looked the same at 90% as at 9%. Kept
+   TRANSLUCENT on purpose: a solid fill turns the buddy back into the pale plastic
+   blob we got rid of at v1.5. The bright line at the top is the bit the eye
+   actually reads as a level, so it stays crisp at both sizes. */
+.bigcube .lvl, #buddybtn .lvl{position:absolute; left:0; right:0; bottom:0; z-index:1;
+  background:linear-gradient(180deg,
+    color-mix(in srgb, var(--shell) 62%, transparent),
+    color-mix(in srgb, var(--shell) 42%, transparent) 55%,
+    color-mix(in srgb, var(--shell-lo) 30%, transparent));
+  box-shadow:0 0 22px color-mix(in srgb, var(--shell) 45%, transparent);
+  transition:height var(--m-slow) var(--ease);}
+.bigcube .lvl::before, #buddybtn .lvl::before{content:''; position:absolute; left:-6%; right:-6%;
+  top:-4px; height:8px; border-radius:50%;
+  background:color-mix(in srgb, #fff 78%, var(--shell-hi)); filter:blur(2px); opacity:.95;}
+#buddybtn .lvl::before{top:-3px; height:5px; filter:blur(1.4px);}
+/* flat is dark and quiet — asleep, not broken */
+.bigcube .emberglow, #buddybtn .emberglow{position:absolute; left:50%; top:62%; width:52%; height:22%;
+  transform:translate(-50%,-50%); border-radius:50%; z-index:1;
+  background:radial-gradient(closest-side, color-mix(in srgb,var(--shell) 45%, transparent), transparent 72%);
+  filter:blur(8px);}
+.bigcube .fil{position:absolute; z-index:2; left:50%; top:47%; width:44px; height:7px; margin:-3.5px 0 0 -22px;
   border-radius:var(--r-pill); background:#fff; filter:blur(2.6px);
   animation:breathe var(--m-breath) ease-in-out infinite;}
-.bigcube .eye{position:absolute; top:47%; width:11px; height:13px; margin-top:-6.5px; border-radius:5px;
+.bigcube .eye{position:absolute; z-index:2; top:47%; width:11px; height:13px; margin-top:-6.5px; border-radius:5px;
   background:#fff; filter:blur(1.2px);}
 .bigcube .eye.l{left:32px;} .bigcube .eye.r{right:32px;}
 /* The gloss is a sheen on the top curve. Big and soft it reads as a grey smudge,
@@ -513,7 +526,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.15';
+var VERSION = '1.16';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -1214,7 +1227,11 @@ function applyShell(){
 }
 function buddyInner(big){
   var st=buddyStage(), gl='<div class="gl"></div>';   // the gloss reads at both sizes
-  var glow = big ? '<div class="glow"></div>' : '<div class="bglow"></div>';
+  // How full it is, drawn as a level rather than a pulse. A charge of nothing is a
+  // dark cube with an ember in it — asleep, never broken-looking.
+  var pct = Math.max(0, Math.min(100, S.power.charge));
+  var glow = '<div class="emberglow"></div>'
+           + (pct > 0.5 ? '<div class="lvl" style="height:'+pct.toFixed(1)+'%"></div>' : '');
   var fil  = big ? '<div class="fil"></div>'  : '<div class="bline"></div>';
   var eyes = big ? '<div class="eye l"></div><div class="eye r"></div>'
                  : '<div class="beye l"></div><div class="beye r"></div>';
@@ -1229,7 +1246,7 @@ function renderHud(){
   el('#chargetxt').textContent = pct>=60 ? pct+'% charged' : pct>=25 ? pct+'% — top me up' : pct>0 ? pct+'% — sleepy' : 'out of power';
   el('#soundbtn').textContent = S.set.sound ? '🔊' : '🔇';
   el('#buddybtn').innerHTML = buddyInner(false);
-  el('#buddybtn').style.opacity = 0.55 + Math.min(0.45, S.power.charge/100*0.45);
+  // (the button used to fade with the charge; the level inside it says that now)
 }
 
 /* ---------- home: the path ----------
@@ -1854,7 +1871,7 @@ window.__144 = {
   BATTERY_HOURS:function(){ return BATTERY_HOURS; },
   CHARGE_PER_ANSWER:function(){ return CHARGE_PER_ANSWER; },
   CHARGE_PER_LEVEL:function(){ return CHARGE_PER_LEVEL; },
-  level:level, metCount:metCount, locked:locked,
+  level:level, metCount:metCount, locked:locked, buddyInner:buddyInner,
   // The mastery move itself, so tests/sim.js can run months of the REAL Leitner
   // engine (and the real weak-first picker) without touching the animations.
   record:record, mastery:mastery,

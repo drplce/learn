@@ -87,6 +87,103 @@ test.describe('the battery', () => {
 
 });
 
+test.describe('the charge, shown as a level', () => {
+
+  // David picked idea 1 from the mockups: the light fills the glass, instead of the
+  // single pulsing core that looked the same at 90% as at 9%.
+  const read = (page, big) => page.evaluate(isBig => {
+    const host = isBig ? document.getElementById('bigcube') : document.getElementById('buddybtn');
+    const lvl = host.querySelector('.lvl');
+    const box = host.getBoundingClientRect();
+    return {
+      has: !!lvl,
+      fill: lvl ? lvl.getBoundingClientRect().height / box.height : 0,
+      pulsing: !!host.querySelector('.glow, .bglow'),
+      eyes: host.querySelectorAll('.eye, .beye').length,
+      eyeVisible: [...host.querySelectorAll('.eye, .beye')].every(e => {
+        const r = e.getBoundingClientRect();
+        return r.width > 0 && Number(getComputedStyle(e).opacity) > .5;
+      })
+    };
+  }, big);
+
+  async function atCharge(page, pct){
+    await page.evaluate(v => {
+      const a = window.__144;
+      a.state.prog.placed = true; a.state.prog.cleared = 39;   // awake, eyes open
+      a.state.power.charge = v; a.state.power.at = Date.now();
+      a.save(); a.render(); a.go('power');
+    }, pct);
+    await page.waitForTimeout(250);
+  }
+
+  test('the light fills the glass in proportion to the charge', async ({page}) => {
+    await open(page);
+    for(const pct of [100, 60, 25]){
+      await atCharge(page, pct);
+      const big = await read(page, true), hud = await read(page, false);
+      expect(big.has, `no level shown at ${pct}%`).toBe(true);
+      expect(big.fill, `the level is wrong at ${pct}%`).toBeCloseTo(pct / 100, 1);
+      expect(hud.fill, `the HUD level is wrong at ${pct}%`).toBeCloseTo(pct / 100, 1);
+    }
+    expect(errorsOf(page)).toEqual([]);
+  });
+
+  test('the pulsing core is gone — that was the thing it replaced', async ({page}) => {
+    await open(page);
+    await atCharge(page, 70);
+    expect((await read(page, true)).pulsing, 'the old pulsing glow is still there').toBe(false);
+    expect((await read(page, false)).pulsing).toBe(false);
+  });
+
+  test('a flat battery is dark but never an empty box', async ({page}) => {
+    await open(page);
+    await atCharge(page, 0);
+    const big = await read(page, true);
+    expect(big.has, 'a level is drawn at zero').toBe(false);
+    // there is still something in there: an ember, so it reads as asleep not broken
+    expect(await page.evaluate(() =>
+      document.querySelectorAll('#bigcube .emberglow').length)).toBe(1);
+  });
+
+  test('the level never swallows its face, and never turns it into plastic', async ({page}) => {
+    await open(page);
+    await atCharge(page, 100);
+    const s = await page.evaluate(() => {
+      const host = document.getElementById('bigcube');
+      const kids = [...host.children];
+      const lvl = host.querySelector('.lvl');
+      const eye = host.querySelector('.eye');
+      return {
+        eyes: host.querySelectorAll('.eye').length,
+        // the eyes must be painted after the fill, or a full battery blinds it
+        eyeAfterFill: kids.indexOf(eye) > kids.indexOf(lvl),
+        // and the fill has to stay see-through, or the buddy goes back to being the
+        // pale plastic blob that v1.5 got rid of
+        bg: getComputedStyle(lvl).backgroundImage
+      };
+    });
+    expect(s.eyes).toBe(2);
+    expect(s.eyeAfterFill, 'the fill is painted over the eyes').toBe(true);
+    expect(s.bg, 'the fill is opaque — the buddy is plastic again')
+      // Chromium serialises color-mix as `color(srgb r g b / a)`, older syntax as rgba()
+      .toMatch(/\/\s*0?\.\d+\)|rgba\([^)]*,\s*0?\.\d+\)|transparent/);
+  });
+
+  test('it moves when she plays', async ({page}) => {
+    await open(page);
+    await atCharge(page, 30);
+    const before = (await read(page, true)).fill;
+    await page.evaluate(() => {
+      const a = window.__144;
+      a.state.power.charge += 20; a.render(); a.go('power');
+    });
+    await page.waitForTimeout(700);                 // it eases, so give it the transition
+    expect((await read(page, true)).fill, 'the level did not move').toBeGreaterThan(before + .1);
+  });
+
+});
+
 test.describe('while it is still asleep', () => {
 
   test('the colour is hers to change, and it says so before it stops being', async ({page}) => {
