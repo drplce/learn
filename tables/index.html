@@ -258,7 +258,8 @@ main{flex:1; position:relative; overflow:hidden;}
 /* ---------- clear card ---------- */
 #clear{position:absolute; inset:0; z-index:5; display:none; flex-direction:column; align-items:center;
   justify-content:center; gap:var(--s3); z-index:5; padding:var(--s5);
-  background:radial-gradient(90% 60% at 50% 40%, rgba(60,12,60,.96), rgba(11,6,20,.98));}
+  background:radial-gradient(90% 60% at 50% 40%, rgba(60,12,60,.985), #0B0614 78%);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);}
 #clear.on{display:flex;}
 #clear .big{font-size:var(--t-3xl); font-weight:900; color:#fff; text-align:center; letter-spacing:.02em;
   text-shadow:0 0 14px var(--n-gold), 0 0 44px var(--n-magenta);}
@@ -459,8 +460,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
           <div><div class="v" id="clearWatts">0</div><div class="k">watts earned</div></div>
           <div><div class="v" id="clearCharge">0%</div><div class="k">charged up</div></div>
         </div>
-        <button class="bigbtn" id="clearOn">Keep going ⚡</button>
-        <button class="hudbtn" id="clearHome" aria-label="Back to the path" style="width:auto;padding:0 var(--s4);height:44px;">🗺️ the path</button>
+        <button class="bigbtn" id="clearOn">OK</button>
       </div>
     </section>
 
@@ -513,7 +513,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.14';
+var VERSION = '1.15';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -861,7 +861,16 @@ function record(k, right, placement){
    never made to feel bad for sleeping. Low charge means
    peacefully asleep, dimmer — never sad, never dying.
    ========================================================= */
-var WAKE=7, SLEEP=20, BATTERY_HOURS=12;
+/* David, 2026-08-13: "drain the energy faster, so drains from full in 4hrs and lessen
+   the amount of energy given for each round. We'll add battery packs as Addons later."
+   So the charge stops being a background hum and becomes a real thing she spends —
+   which is what makes a battery pack worth having. It still only drains across her
+   WAKING hours, so she never wakes up to a flat buddy she did nothing to cause. */
+var WAKE=7, SLEEP=20, BATTERY_HOURS=4;
+// What a right answer and a finished level put back. Deliberately less than the
+// drain: the buddy runs down over a day and playing tops it up, rather than it
+// sitting at 100% permanently as it did.
+var CHARGE_PER_ANSWER = 1, CHARGE_PER_LEVEL = 8;
 function wakingHoursBetween(fromMs, toMs){
   if(!(toMs>fromMs)) return 0;
   var h=0, cur=fromMs, guard=0;
@@ -1682,7 +1691,7 @@ function score(right, x, y, node, cls){
     // Filling the gap is the harder ask, so it pays double. The payout is how the
     // app says "this one matters" without a word of instruction.
     var mult=1+Math.floor(W.combo/3), got=mult*(gap?2:1);
-    addWatts(got); W.watts+=got; W.charge += addCharge(2);
+    addWatts(got); W.watts+=got; W.charge += addCharge(CHARGE_PER_ANSWER);
     W.done++; W.asked++;
     sfxRight(W.combo);
     sparks(x, y, 5+mult*2);
@@ -1739,7 +1748,7 @@ function jackpot(){
 }
 function clearLevel(){
   var wasPlacement = W.level.kind==='placement';
-  addWatts(25); W.watts+=25; W.charge += addCharge(15);
+  addWatts(25); W.watts+=25; W.charge += addCharge(CHARGE_PER_LEVEL);
   if(wasPlacement){
     S.prog.placed = true;
     // Skip ahead past the tables she already owns: the first stone that still
@@ -1792,8 +1801,10 @@ document.addEventListener('click', function(ev){
   if(t.closest('#nowlevel')){
     start(S.prog.placed ? LEVELS[levelIndex()] : placementLevel()); return; }
   if(t.closest('#buddybtn')){ go('power'); return; }
-  if(t.closest('#backHome') || t.closest('#clearHome')){ hush(); el('#clear').classList.remove('on'); go('home'); return; }
-  if(t.closest('#clearOn')){ start(LEVELS[levelIndex()]); return; }
+  // One way off the clear card, and it is the path — which is the hub now that the
+  // node is the only way into a level (David, 2026-08-13).
+  if(t.closest('#backHome') || t.closest('#clearOn')){
+    hush(); el('#clear').classList.remove('on'); go('home'); return; }
   if(t.closest('#soundbtn')){ S.set.sound=!S.set.sound; if(!S.set.sound) hush(); save(); renderHud();
     if(S.set.sound) sfxRight(0); return; }
   if((hit=t.closest('[data-shell]'))){
@@ -1840,6 +1851,9 @@ window.__144 = {
   LEVELS:LEVELS, levelIndex:levelIndex, goalOf:goalOf, placementLevel:placementLevel,
   TABLE_ORDER:TABLE_ORDER, BOX_DAYS:BOX_DAYS, KNOWN_BOX:KNOWN_BOX,
   wakingHoursBetween:wakingHoursBetween, settleCharge:settleCharge, buddyStage:buddyStage,
+  BATTERY_HOURS:function(){ return BATTERY_HOURS; },
+  CHARGE_PER_ANSWER:function(){ return CHARGE_PER_ANSWER; },
+  CHARGE_PER_LEVEL:function(){ return CHARGE_PER_LEVEL; },
   level:level, metCount:metCount, locked:locked,
   // The mastery move itself, so tests/sim.js can run months of the REAL Leitner
   // engine (and the real weak-first picker) without touching the animations.

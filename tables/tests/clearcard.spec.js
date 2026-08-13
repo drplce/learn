@@ -58,34 +58,45 @@ test.describe('the level-clear card', () => {
     expect(Number(s.shown.replace('%',''))).toBe(moved);
   });
 
-  test('“keep going” takes her on, never back to the level she just cleared', async ({page}) => {
+  test('OK puts the card away and hands her back to the path', async ({page}) => {
+    // It used to say "keep going" and start the next level straight away. David,
+    // 2026-08-13: "Rename the keep going to OK and on pressing go back to path. and
+    // ditch the button for 'back to path'." The path is the hub now — one way out.
     await open(page);
     await intoLevel(page);
     const first = await page.evaluate(() => window.__144.sitting().level);
     await playLevel(page);
     const cleared = await page.evaluate(() => window.__144.state.prog.cleared);
+    expect((await page.locator('#clearOn').innerText()).trim().toLowerCase()).toBe('ok');
+    expect(await page.locator('#clearHome').count(), 'the second button is still there').toBe(0);
+
     await page.click('#clearOn');
-    await page.waitForTimeout(250);
+    await page.waitForTimeout(300);
     const s = await page.evaluate(() => ({
-      level: window.__144.sitting().level,
-      done: window.__144.sitting().done,
+      screen: window.__144.screen(),
+      cardGone: !document.querySelector('#clear.on'),
       cleared: window.__144.state.prog.cleared,
-      cardGone: !document.querySelector('#clear.on')}));
-    expect(s.cardGone, 'the card stayed up over the new level').toBe(true);
+      playing: !!window.__144.sitting() && !!document.querySelector('#play.on')}));
+    expect(s.cardGone, 'the card stayed up').toBe(true);
+    expect(s.screen, 'OK did not take her back to the path').toBe('home');
+    expect(s.playing, 'it started another level instead of letting her choose').toBe(false);
     expect(s.cleared, 'clearing was counted twice').toBe(cleared);
-    expect(s.done).toBe(0);                            // a fresh level, from the start
-    expect(s.level).not.toEqual(first);                // and not the one she just finished
     expect(errorsOf(page)).toEqual([]);
   });
 
-  test('leaving by the path puts the card away', async ({page}) => {
+  test('and the next level she starts is the next one, from the beginning', async ({page}) => {
     await open(page);
     await intoLevel(page);
+    const first = await page.evaluate(() => window.__144.sitting().level);
     await playLevel(page);
-    await page.click('#clearHome');
-    await page.waitForTimeout(250);
-    expect(await page.evaluate(() => !!document.querySelector('#clear.on'))).toBe(false);
-    expect(await page.evaluate(() => window.__144.screen())).toBe('home');
+    await page.click('#clearOn');
+    await page.waitForTimeout(300);
+    await page.click('#nowlevel');
+    await page.waitForTimeout(300);
+    const s = await page.evaluate(() => ({
+      done: window.__144.sitting().done, level: window.__144.sitting().level}));
+    expect(s.done).toBe(0);
+    expect(s.level).not.toEqual(first);
   });
 
 });

@@ -30,6 +30,63 @@ const room = page => page.evaluate(() => ({
   name: window.__144.state.buddy.name
 }));
 
+test.describe('the battery', () => {
+
+  test('a full charge is gone in four waking hours, not twelve', async ({page}) => {
+    // David, 2026-08-13: "drain the energy faster, so drains from full in 4hrs".
+    // At twelve it sat near full permanently and meant nothing.
+    await open(page);
+    const r = await page.evaluate(() => {
+      const a = window.__144;
+      const perHour = 100 / a.BATTERY_HOURS();
+      // and end to end: a day away is far more than four waking hours, so flat
+      a.state.power.charge = 100;
+      a.state.power.at = Date.now() - 24 * 3600 * 1000;
+      a.settleCharge();
+      const afterADay = a.state.power.charge;
+      return {hours: a.BATTERY_HOURS(), perHour, afterADay};
+    });
+    expect(r.hours).toBe(4);
+    expect(r.perHour).toBe(25);                      // a quarter of the battery an hour
+    expect(r.afterADay, 'a day away should leave it flat').toBe(0);
+  });
+
+  test('a level tops it up, but nowhere near a full tank', async ({page}) => {
+    // The other half of the same brief: "lessen the amount of energy given for each
+    // round". A finished level used to hand back most of the battery.
+    await open(page);
+    const per = await page.evaluate(() => ({
+      answer: window.__144.CHARGE_PER_ANSWER(),
+      level: window.__144.CHARGE_PER_LEVEL(),
+      hours: window.__144.BATTERY_HOURS()}));
+    expect(per.hours).toBe(4);
+    expect(per.answer).toBeLessThan(2);
+    expect(per.level).toBeLessThan(15);
+    // a whole twelve-answer level puts back well under half the battery
+    expect(per.level + per.answer * 12).toBeLessThan(50);
+    expect(per.level + per.answer * 12, 'a level does nothing visible to the battery')
+      .toBeGreaterThan(10);
+  });
+
+  test('a flat battery is still only ever asleep, never a telling-off', async ({page}) => {
+    // Draining four times faster means she WILL meet a flat buddy often. That must
+    // stay a warm reason to play, never a reprimand.
+    await open(page);
+    await page.evaluate(() => {
+      window.__144.state.power.charge = 0;
+      window.__144.state.prog.placed = true;
+      window.__144.save(); window.__144.go('power');
+    });
+    await page.waitForTimeout(250);
+    const words = (await page.locator('#power .scroll').innerText()).toLowerCase();
+    expect(words).toMatch(/asleep|sleep/);
+    for(const w of ['dead', 'dying', 'sad', 'starv', 'hungry', 'you forgot', 'where were you'])
+      expect(words, `"${w}" is on her screen`).not.toContain(w);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
+});
+
 test.describe('while it is still asleep', () => {
 
   test('the colour is hers to change, and it says so before it stops being', async ({page}) => {

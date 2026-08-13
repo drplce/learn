@@ -132,8 +132,10 @@ test.describe('a level she walked away from', () => {
     await page.waitForTimeout(700);
     expect(await page.evaluate(() => window.__144.state.sit),
       'a finished level is still marked as part-done').toBe(null);
-    // the next level starts from nothing
+    // OK hands her back to the path, and the next level starts from nothing
     await page.click('#clearOn');
+    await page.waitForTimeout(300);
+    await page.click('#nowlevel');
     await page.waitForTimeout(350);
     expect(await page.evaluate(() => window.__144.sitting().done)).toBe(0);
   });

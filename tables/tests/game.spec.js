@@ -235,7 +235,7 @@ test.describe('playing a level', () => {
     await expect(page.locator('#clear')).toHaveClass(/on/);
     const after = await page.evaluate(() => window.__144.levelIndex());
     expect(after).toBe(before + 1);
-    await page.click('#clearHome');
+    await page.click('#clearOn');                      // one button now, and it goes home
     await page.waitForTimeout(300);
     await expect(page.locator('#path .level.done')).not.toHaveCount(0);
     expect(errorsOf(page)).toEqual([]);
