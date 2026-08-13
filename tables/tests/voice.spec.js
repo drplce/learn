@@ -89,34 +89,48 @@ test.describe('the words it says', () => {
 
 test.describe('what it says back', () => {
 
-  test('a teaching level says the whole fact, the way a person says it', async ({page}) => {
+  test('nothing is said back during play, on any level', async ({page}) => {
+    // David, 2026-08-13, after playing it: "trying to say the full question equals
+    // answer is not working — real game play doesn't allow it. So scratch that
+    // step." The reply landed on top of the next question. The teaching version of
+    // it moved to the slow lane, where there is room for it.
     await open(page);
-    await onKind(page, 'learn');
-    await page.waitForTimeout(200);
+    for(const kind of ['learn', 'recall', 'mix', 'boss']){
+      await onKind(page, kind);
+      await page.waitForTimeout(150);
+      await listen(page);
+      await answer(page, true);          // skips the slow lane if it is showing
+      await page.waitForTimeout(300);
+      const said = await heard(page);
+      // the only thing allowed is the NEXT question, never a reply to this answer
+      expect(said.filter(t => /equals/.test(t)), `${kind} said the answer back`).toEqual([]);
+      expect(said.length, `${kind} said too much after she answered`).toBeLessThan(2);
+    }
+  });
+
+  test('the slow lane says the whole fact, the way a person says it', async ({page}) => {
+    // The one place a restatement fits: nothing else is happening.
+    await open(page);
     await listen(page);
-    await answer(page, true);
+    await page.evaluate(() => {
+      const a = window.__144;
+      const i = a.LEVELS.findIndex(l => l.kind === 'learn');
+      a.state.prog.placed = true; a.state.prog.cleared = i;
+      a.state.facts = {};                             // nothing met: it has to teach
+      a.save();
+      window.__said = [];
+      a.start(a.LEVELS[i]);
+    });
     await page.waitForTimeout(250);
+    expect(await page.evaluate(() => window.__144.meeting()),
+      'a brand-new fact was asked before it was ever shown').toBe(true);
     const said = await heard(page);
-    // three phrases with beats between them — assembled at PHRASE level, which is
-    // how a teacher says it, not stitched inside a phrase
+    // three phrases with beats between them — phrase-level assembly, which is how a
+    // teacher says it, not words stitched inside a phrase
     expect(said.length).toBe(3);
     expect(said[0]).toMatch(/ times /);
     expect(said[1]).toBe('equals');
     expect(said[2]).toMatch(/^[a-z- ]+$/);
-  });
-
-  test('a mix level says just the answer, and a boss says nothing', async ({page}) => {
-    await open(page);
-    for(const [kind, want] of [['mix', 1], ['boss', 0]]){
-      await onKind(page, kind);
-      await page.waitForTimeout(200);
-      await listen(page);
-      await answer(page, true);
-      await page.waitForTimeout(250);
-      const said = await heard(page);
-      expect(said.length, `${kind} said the wrong amount`).toBe(want);
-      if(want) expect(said[0]).not.toMatch(/times/);     // the answer alone, no restatement
-    }
   });
 
   test('answering stops it talking over her', async ({page}) => {
@@ -160,6 +174,78 @@ test.describe('what it says back', () => {
     await answer(page, true);
     await page.waitForTimeout(300);
     expect(errorsOf(page)).toEqual([]);
+  });
+
+});
+
+test.describe('which voice it borrows', () => {
+
+  // The phone's own voice is the fallback until the recordings land, and iOS ships a
+  // shelf of joke voices — Bells, Bubbles, Trinoids, Zarvox — all tagged `en`.
+  // David, 2026-08-13: "back the fall back it on the weird sounding voice - we
+  // actually had the same problem on Acorn with the first voice defaulting back to
+  // the iOS special voices."
+  const IOS_VOICES = [
+    {name:'Bells',    lang:'en-US', voiceURI:'bells'},
+    {name:'Bubbles',  lang:'en-US', voiceURI:'bubbles'},
+    {name:'Trinoids', lang:'en-US', voiceURI:'trinoids'},
+    {name:'Zarvox',   lang:'en-US', voiceURI:'zarvox'},
+    {name:'Albert',   lang:'en-US', voiceURI:'albert'},
+    {name:'Samantha', lang:'en-US', voiceURI:'samantha'},
+    {name:'Karen',    lang:'en-AU', voiceURI:'karen'},
+    {name:'Karen (Premium)', lang:'en-AU', voiceURI:'karen-premium'}
+  ];
+
+  test('when a joke voice is all there is, it uses none at all', async ({page}) => {
+    // The scoring already ranks Karen above Bells when both exist. The filter is for
+    // the phone where the joke voices are the ONLY thing on offer: better to hand the
+    // browser its own default than to explicitly ask for Zarvox.
+    await open(page);
+    const picked = await page.evaluate(() => {
+      window.speechSynthesis.getVoices = () => [
+        {name:'Bells',    lang:'en-US', voiceURI:'bells'},
+        {name:'Bubbles',  lang:'en-US', voiceURI:'bubbles'},
+        {name:'Zarvox',   lang:'en-AU', voiceURI:'zarvox'}   // even in her own accent
+      ];
+      const v = window.__144.bestVoice();
+      return v && v.name;
+    });
+    expect(picked, 'it chose a novelty voice').toBe(null);
+  });
+
+  test('a voice chosen before the good ones loaded is upgraded, not kept', async ({page}) => {
+    // getVoices() is async. The first call returns a partial list — often just the
+    // US default — and if that choice is cached, the en-AU premium voice that arrives
+    // a moment later never gets used. This is the Acorn bug.
+    await open(page);
+    const out = await page.evaluate(() => {
+      const sy = window.speechSynthesis;
+      const early = [{name:'Samantha', lang:'en-US', voiceURI:'samantha'}];
+      const full  = early.concat([
+        {name:'Karen (Premium)', lang:'en-AU', voiceURI:'karen-premium'},
+        {name:'Bells', lang:'en-US', voiceURI:'bells'}
+      ]);
+      sy.getVoices = () => early;
+      const first = window.__144.bestVoice();
+      sy.getVoices = () => full;
+      const second = window.__144.bestVoice();
+      return {first: first && first.name, second: second && second.name};
+    });
+    expect(out.first).toBe('Samantha');               // all there was at the time
+    expect(out.second, 'it kept the voice it picked while the list was still loading')
+      .toBe('Karen (Premium)');
+  });
+
+  test('her own accent wins over a better-sounding foreign one', async ({page}) => {
+    await open(page);
+    const picked = await page.evaluate(() => {
+      window.speechSynthesis.getVoices = () => [
+        {name:'Siri Voice 1 (Enhanced)', lang:'en-US', voiceURI:'siri-us'},
+        {name:'Karen (Enhanced)',        lang:'en-AU', voiceURI:'karen-au'}
+      ];
+      return window.__144.bestVoice().name;
+    });
+    expect(picked).toBe('Karen (Enhanced)');
   });
 
 });

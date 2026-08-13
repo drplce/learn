@@ -170,6 +170,13 @@ main{flex:1; position:relative; overflow:hidden;}
 .pack{position:absolute; width:28px; height:28px; margin:-14px 0 0 -14px; pointer-events:none;}
 .pack svg{width:100%; height:100%; filter:drop-shadow(0 0 7px var(--n-lime));}
 .pack .nib{fill:var(--n-lime);}
+/* the level numbers, out in the margin: quiet for what is done, bright for here */
+.lvlnum{position:absolute; transform:translate(-50%,-50%); font-size:.8rem; font-weight:900;
+  font-variant-numeric:tabular-nums; pointer-events:none; letter-spacing:.02em;}
+.lvlnum.done{color:color-mix(in srgb, var(--n-gold) 55%, transparent);}
+.lvlnum.locked{color:#3d2a5c;}
+.lvlnum.now{color:#fff; font-size:1.05rem;
+  text-shadow:0 0 10px var(--n-cyan), 0 0 26px var(--n-cyan);}
 @keyframes levelbreathe{0%,100%{transform:scale(1);} 50%{transform:scale(1.07);}}
 
 #gostrip{padding:var(--s3) var(--s4) var(--s4);}
@@ -303,6 +310,10 @@ main{flex:1; position:relative; overflow:hidden;}
 /* With the line at the bottom the sum belongs just above it, not up at the top of
    the screen with a third of the phone empty in between. */
 #play.gap #prompt{top:44%;}
+/* the slow lane: the whole fact, answer and all, nothing to do but look */
+#play.meet #prompt{top:40%;}
+#prompt .meet{color:var(--n-gold); text-shadow:0 0 18px var(--n-gold), 0 0 46px var(--n-gold);}
+#play.meet #goal{opacity:.25;}
 #prompt .gap{display:inline-block; min-width:1.1em; color:var(--rc);
   border-bottom:5px solid var(--rc); line-height:.9;
   text-shadow:0 0 16px var(--rc);}
@@ -491,7 +502,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.12';
+var VERSION = '1.13';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -1068,25 +1079,38 @@ function playClips(items, onFail){
   step();
   return true;
 }
+/* iOS ships a shelf of joke voices — Bells, Bubbles, Trinoids, Zarvox — and they
+   are all `en`, so a naive pick lands on one and the app sounds unhinged. Acorn hit
+   exactly this. Two defences: never consider them, and NEVER latch onto a choice
+   made while the voice list was still loading (getVoices() is async and returns []
+   or a partial list on the first call, which is how the joke voice wins). */
+var NOVELTY = /\b(albert|bad news|bahh|bells|boing|bubbles|cellos|deranged|good news|hysterical|jester|junior|kathy|organ|princess|ralph|superstar|trinoids|whisper|wobble|zarvox|grandma|grandpa|rocko|sandy|shelley|reed|flo|eddy|bruce|fred|agnes|vicki|victoria)\b/i;
+var _voiceKey = '';
+function voiceScore(v){
+  var n = (v.name||'') + ' ' + (v.voiceURI||''), s = 0;
+  if(/premium|enhanced|neural|natural|wavenet|siri/i.test(n)) s += 60;
+  if(/^en-AU/i.test(v.lang)) s += 30;                        // her own accent first
+  else if(/^en-(GB|NZ)/i.test(v.lang)) s += 18;
+  else if(/^en-(IE|ZA)/i.test(v.lang)) s += 8;
+  if(/karen|matilda|catherine|serena|kate/i.test(n)) s += 10;
+  if(/compact|eloquence|espeak/i.test(n)) s -= 50;
+  return s;
+}
 function bestVoice(){
   try{
-    var vs = (speechSynthesis.getVoices()||[]).filter(function(v){ return /^en([-_]|$)/i.test(v.lang||''); });
+    var vs = (speechSynthesis.getVoices()||[]).filter(function(v){
+      return /^en([-_]|$)/i.test(v.lang||'') && !NOVELTY.test(v.name||'');
+    });
     if(!vs.length) return null;
-    if(_voice && vs.indexOf(_voice) >= 0) return _voice;
-    _voice = vs.slice().sort(function(a,b){
-      var sc = function(v){
-        var n = (v.name||'') + ' ' + (v.voiceURI||''), s = 0;
-        if(/premium|enhanced|neural|natural|wavenet|siri/i.test(n)) s += 60;
-        if(/^en-AU/i.test(v.lang)) s += 30;
-        else if(/^en-(GB|NZ)/i.test(v.lang)) s += 18;
-        if(/compact|eloquence|espeak/i.test(n)) s -= 50;
-        return s;
-      };
-      return sc(b) - sc(a);
-    })[0];
+    // The list growing means the good voices have arrived: choose again.
+    var key = vs.length + '|' + (vs[0] && vs[0].name);
+    if(_voice && _voiceKey === key) return _voice;
+    _voice = vs.slice().sort(function(a,b){ return voiceScore(b) - voiceScore(a); })[0] || null;
+    _voiceKey = key;
     return _voice;
   }catch(e){ return null; }
 }
+try{ speechSynthesis.onvoiceschanged = function(){ _voice = null; _voiceKey = ''; }; }catch(e){}
 // The fallback. iOS does not reliably fire `onend` on an utterance, so nothing
 // is ever chained off it — each phrase is queued with its own pause built in.
 function speakTTS(items){
@@ -1128,17 +1152,17 @@ function speakQuestion(){
     say([{text: qPhrase(c.a, c.b)}]);
   }
 }
-function speakAnswer(){
-  if(!W || !W.cur) return;
-  var c = W.cur, kind = W.level.kind, product = c.a * c.b;
-  if(kind === 'boss') return;                       // a boss is a performance: keep it moving
-  if(kind === 'learn' || kind === 'recall' || kind === 'placement'){
-    // the teaching moment: the whole fact, said the way a person says it
-    say([{text: qPhrase(c.a, c.b), gap: 170}, {text: 'equals', gap: 170},
-         {text: numWords(product)}]);
-  } else {
-    say([{text: numWords(product)}]);               // mix: just the answer
-  }
+/* David, 2026-08-13, after playing it: "trying to say the full question equals
+   answer is not working — real game play doesn't allow it. So scratch that step."
+   He is right: the game moves at a tap a second and the restatement lands on top
+   of the next question. Nothing is said back during play at all now. The teaching
+   version of it lives in the MEET step of a learn level (see meetFact), which is
+   deliberately slow and has room for it. */
+function speakAnswer(){ /* nothing: play is too fast for a reply */ }
+// The slow one. The whole fact, at a pace that has room for it.
+function speakWhole(a, b){
+  say([{text: qPhrase(a, b), gap: 260}, {text: 'equals', gap: 220},
+       {text: numWords(a * b)}]);
 }
 
 /* =========================================================
@@ -1201,7 +1225,9 @@ var NIB = {
   lock: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle class="nib" cx="12" cy="12" r="4.6"/></svg>',
   boss: '<svg viewBox="0 0 30 30" aria-hidden="true"><path class="nib" d="M15 3.5 18.6 11l8.2 1-6 5.8 1.5 8.1L15 22l-7.3 3.9 1.5-8.1-6-5.8 8.2-1Z"/></svg>',
   pack: '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="nib" d="M14 2 5 13.4h5.3L9.4 22 19 10.2h-5.4Z"/></svg>',
-  recall: '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="nib" d="M12 2.6 20.1 7.3v9.4L12 21.4 3.9 16.7V7.3Z"/></svg>'
+  recall: '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="nib" d="M12 2.6 20.1 7.3v9.4L12 21.4 3.9 16.7V7.3Z"/></svg>',
+  // a new-facts level: a spark, because that is where something arrives
+  learn: '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="nib" d="M12 2.4 14.3 9.1 21 11.4 14.3 13.7 12 20.4 9.7 13.7 3 11.4 9.7 9.1Z"/></svg>'
 };
 function renderHome(){
   var host = el('#path');
@@ -1236,8 +1262,13 @@ function renderHome(){
 
   nodes.forEach(function(nd, k){
     var p = levelXY(k, w), boss = nd.kind==='boss', gap = nd.kind==='recall';
-    var shape = boss ? NIB.boss : gap ? NIB.recall : null;
-    var nib = nd.state==='done' ? NIB.done
+    var learn = nd.kind==='learn';
+    // A finished level keeps the shape of the WORK IT WAS. David, 2026-08-13: the
+    // path "is storing all the completed levels as gold, rather than keeping some
+    // identifiable information shape or colour of the level type". Gold still means
+    // done — the shape says which kind of done.
+    var shape = boss ? NIB.boss : gap ? NIB.recall : learn ? NIB.learn : null;
+    var nib = nd.state==='done' ? (shape || NIB.done)
             : nd.state==='now' ? (shape || NIB.now)
             : (shape || NIB.lock);
     var label = (nd.state==='now' ? 'Play this level' : nd.state==='done' ? 'Level done' : 'Level to come')
@@ -1246,9 +1277,19 @@ function renderHome(){
          +  (nd.state==='now' ? 'id="nowlevel" ' : 'disabled ')
          +  'style="left:'+p.x.toFixed(1)+'px; top:'+p.y.toFixed(1)+'px" '
          +  'aria-label="'+label+'">'+nib+'</button>';
+    // The number lives out in the negative space, on whichever side the meander
+    // left empty. David, 2026-08-13: fill that space. (This is a deliberate change
+    // from the original wordless path — he asked for it, twice. Do not "restore"
+    // the silence.)
+    if(nd.i !== undefined){
+      var side = p.x > w/2 ? -1 : 1;
+      html += '<span class="lvlnum '+nd.state+'" style="left:'+(p.x + side*58).toFixed(1)
+           +  'px; top:'+p.y.toFixed(1)+'px">'+(nd.i+1)+'</span>';
+    }
     // a power pack hanging off the wire every fifth level
     if(nd.i !== undefined && (nd.i+1)%5===0){
-      html += '<span class="pack" style="left:'+(p.x + (Math.sin(k*WAVE)>0?-46:46)).toFixed(1)
+      var pside = p.x > w/2 ? 1 : -1;            // the side the number is NOT on
+      html += '<span class="pack" style="left:'+(p.x + pside*44).toFixed(1)
            +  'px; top:'+(p.y-4).toFixed(1)+'px">'+NIB.pack+'</span>';
     }
   });
@@ -1340,7 +1381,8 @@ try{ reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){
 function sitKey(level){ return level.kind + ':' + (level.table || 0) + ':' + level.facts.length; }
 function start(level){
   W = {level:level, pool:level.facts.slice(), done:0, goal:goalOf(level),
-       combo:0, best:0, round:1, watts:0, charge:0, per:bare(null), asked:0, cur:null};
+       combo:0, best:0, round:1, watts:0, charge:0, per:bare(null), asked:0, cur:null,
+       metShown:bare(null), meeting:false, meetT:null, meetGo:null};
   // Carry on where she left off. A ten-year-old plays in bursts — five answers, put
   // the phone down, come back later — and a level that starts from nothing every
   // time is a level she can never finish. Her answers always counted towards the
@@ -1357,6 +1399,35 @@ function start(level){
   next();
   if(!raf) raf=requestAnimationFrame(frame);
 }
+/* The slow lane. A learn level used to test a brand-new fact immediately, which
+   is a guess between bubbles — the pacing simulation has been saying for days that
+   144 never actually TEACHES a fact. So the first time each new fact comes up it is
+   simply shown, whole, and said whole: "five times five … equals … twenty five".
+   No input, no timer pressure, nothing to get wrong. Then it is asked.
+
+   This is also where the spoken restatement went after David found it unusable
+   during play — here there is room for it, because nothing else is happening. */
+var MEET_MS = 3200;
+function meetFact(a, b){
+  var W0 = W;
+  W.meeting = true;
+  el('#dial').classList.remove('on','live');
+  el('#play').classList.remove('gap');
+  orbs.forEach(function(o){ if(o.el.parentNode) o.el.remove(); }); orbs=[];
+  el('#prompt').innerHTML = a+' <i>×</i> '+b+' <i>=</i> <span class="meet">'+(a*b)+'</span>';
+  el('#play').classList.add('meet');
+  el('#cue').textContent = 'have a look at this one';
+  speakWhole(a, b);
+  var go = function(){
+    if(W !== W0 || !W.meeting) return;
+    W.meeting = false;
+    el('#play').classList.remove('meet');
+    askFact(a, b);
+  };
+  W.meetGo = go;
+  W.meetT = setTimeout(go, reduce ? 1200 : MEET_MS);
+}
+
 function next(){
   paintRound();
   orbs.forEach(function(o){ if(o.el.parentNode) o.el.remove(); }); orbs=[];
@@ -1373,8 +1444,14 @@ function next(){
   if(Math.random()<0.5){ var t=a; a=b; b=t; }
   W.cur={k:k, a:a, b:b};
   if(st.kind==='recall') return askGap(a, b);
+  // A fact she has never met gets shown to her before it is asked.
+  if(st.kind==='learn' && !met(k) && !W.metShown[k]){ W.metShown[k] = 1; return meetFact(a, b); }
+  return askFact(a, b);
+}
+function askFact(a, b){
+  var st = W.level;
   el('#dial').classList.remove('on', 'live');
-  el('#play').classList.remove('gap');
+  el('#play').classList.remove('gap', 'meet');
   el('#prompt').innerHTML = a+' <i>×</i> '+b;
 
   // Gentle on-ramp, then it climbs — and the climb has to fit INSIDE one stone
@@ -1535,6 +1612,7 @@ function tap(o){
    bubble, a key on the gap pad, and a spoken number later. The reward, the
    Leitner move and the words she reads must not drift apart per input. */
 function score(right, x, y, node, cls){
+  if(W.meeting) return;                       // nothing to answer yet: she is just looking
   var placing = W.level.kind==='placement', gap = W.level.kind==='recall';
   hush();                                     // she answered: stop talking over her
   if(right){
@@ -1548,7 +1626,6 @@ function score(right, x, y, node, cls){
     addWatts(got); W.watts+=got; W.charge += addCharge(2);
     W.done++; W.asked++;
     sfxRight(W.combo);
-    speakAnswer();
     sparks(x, y, 5+mult*2);
     paintCombo(); paintGoal(); renderHud();
     if(W.combo>0 && W.combo%5===0) jackpot();
@@ -1649,6 +1726,10 @@ document.addEventListener('pointerdown', unlock, {once:false});
 
 document.addEventListener('click', function(ev){
   var t=ev.target, hit;
+  // She has seen it and wants to get on with it.
+  if(W && W.meeting && screen==='play' && t.closest('#play')){
+    clearTimeout(W.meetT); if(W.meetGo) W.meetGo(); return;
+  }
   if(t.closest('#go') || t.closest('#nowlevel')){
     start(S.prog.placed ? LEVELS[levelIndex()] : placementLevel()); return; }
   if(t.closest('#buddybtn')){ go('power'); return; }
@@ -1702,7 +1783,10 @@ window.__144 = {
   record:record, mastery:mastery,
   // the voice: tests drive the real phrase building and the real policy
   numWords:numWords, qPhrase:qPhrase, gapPhrase:gapPhrase,
-  speakQuestion:speakQuestion, speakAnswer:speakAnswer, hush:hush,
+  speakQuestion:speakQuestion, speakWhole:speakWhole, hush:hush, bestVoice:bestVoice,
+  meeting:function(){ return !!(W && W.meeting); }, MEET_MS:function(){ return MEET_MS; },
+  skipMeet:function(){ if(W && W.meeting){ clearTimeout(W.meetT); if(W.meetGo) W.meetGo(); } },
+  score:score,
   CLIPS:function(){ return CLIPS; },
   screen:function(){ return screen; }, go:go, render:render,
   sitting:function(){ return W; },
@@ -1710,6 +1794,9 @@ window.__144 = {
   // answer the current question the way she does: right, or with a real wrong tap
   answer:function(right){
     if(!W || !W.cur) return false;
+    // If it is still showing her the fact, she taps to get on with it and then
+    // answers — which is what she actually does. The meet step has its own tests.
+    if(W.meeting){ clearTimeout(W.meetT); if(W.meetGo) W.meetGo(); }
     if(W.level.kind==='recall'){
       var want = W.cur.want;
       var n = right !== false ? want : (want === 12 ? 11 : want + 1);

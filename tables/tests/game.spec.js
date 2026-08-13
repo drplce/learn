@@ -4,7 +4,7 @@
 // pays, a wrong answer never costs her anything, and nothing on screen ever calls
 // her wrong. Everything else is decoration.
 const {test, expect} = require('@playwright/test');
-const {open, errorsOf, answer, playLevel, seed} = require('./helpers');
+const {open, errorsOf, answer, playLevel, seed, play, alreadyMet} = require('./helpers');
 
 test.describe('opening it', () => {
 
@@ -67,13 +67,18 @@ test.describe('opening it', () => {
 
 test.describe('the look of it', () => {
 
-  test('the path carries no words at all — a level is a shape and a light', async ({page}) => {
+  test('the path carries numbers but no words — a level is a shape, a light and a number',
+    async ({page}) => {
+    // It used to carry nothing at all. David asked twice for the numbers back
+    // (2026-08-13: "on the sides of the path… level numbers or something to fill
+    // the space"), so digits in the margin are correct now. WORDS are still out.
     await open(page);
     await page.evaluate(() => { window.__144.state.prog.cleared = 6;
       window.__144.state.prog.placed = true; window.__144.render(); });
     await page.waitForTimeout(200);
     const txt = (await page.locator('#path').innerText()).replace(/\s+/g, '');
-    expect(txt).toBe('');                              // not a label, not a number, nothing
+    expect(txt, 'a label crept back onto the path').not.toMatch(/[a-z]/i);
+    expect(txt, 'the level numbers are missing').toMatch(/\d/);
     // and it is still readable to something that cannot see: every node is named
     const named = await page.evaluate(() => [...document.querySelectorAll('#path .level')]
       .every(b => (b.getAttribute('aria-label') || '').length > 0));
@@ -98,8 +103,7 @@ test.describe('the look of it', () => {
   test('every bubble in a round is the same colour, and the colour changes as rounds climb', async ({page}) => {
     await open(page);
     await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
-    await page.click('#go');
-    await page.waitForTimeout(250);
+    await play(page);
     const read = () => page.evaluate(() => {
       const orbs = [...document.querySelectorAll('.orb')];
       return {colours: [...new Set(orbs.map(o => getComputedStyle(o).borderTopColor))],
@@ -122,8 +126,7 @@ test.describe('the look of it', () => {
   test('the bubbles are round', async ({page}) => {
     await open(page);
     await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
-    await page.click('#go');
-    await page.waitForTimeout(250);
+    await play(page);
     const s = await page.evaluate(() => {
       const o = document.querySelector('.orb'), c = getComputedStyle(o);
       const r = o.getBoundingClientRect();
@@ -146,8 +149,7 @@ test.describe('the look of it', () => {
       await page.emulateMedia({reducedMotion: motion});
       await open(page);
       await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
-      await page.click('#go');
-      await page.waitForTimeout(120);
+      await play(page);
       if(motion !== 'reduce'){
         // Wait for the bubbles to have actually started climbing rather than for a
         // stopwatch — on a loaded machine the frame loop can be starved, and then
@@ -296,8 +298,8 @@ test.describe('playing a level', () => {
   test('it starts gentle and speeds up as the rounds climb', async ({page}) => {
     await open(page);
     await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
-    await page.click('#go');
-    await page.waitForTimeout(200);
+    await alreadyMet(page);            // this is about the ramp, not the teaching step
+    await play(page);
     const early = await page.evaluate(() => document.querySelectorAll('.orb').length);
     expect(early).toBe(3);                             // fewer choices while she finds her feet
     // The ramp has to arrive inside a single level, so it steps every 4 answers.

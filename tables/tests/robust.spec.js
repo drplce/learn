@@ -4,7 +4,7 @@
 // fault and none of them may cost her an evening, break a level she is halfway
 // through, or throw where she can see it.
 const {test, expect} = require('@playwright/test');
-const {open, errorsOf, answer, playLevel} = require('./helpers');
+const {open, errorsOf, answer, playLevel, play, alreadyMet} = require('./helpers');
 
 // Make every write fail, the way a full disk does.
 async function jamStorage(page){
@@ -21,8 +21,8 @@ test.describe('a full disk', () => {
   test('she can keep playing, and nothing throws where she can see it', async ({page}) => {
     await open(page);
     await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
-    await page.click('#go');
-    await page.waitForTimeout(200);
+    await alreadyMet(page);            // this is about a full disk, not the teaching step
+    await play(page);
     await jamStorage(page);
 
     // four answers with the disk full
@@ -42,8 +42,8 @@ test.describe('a full disk', () => {
   test('when the disk frees up, everything she did is written at once', async ({page}) => {
     await open(page);
     await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
-    await page.click('#go');
-    await page.waitForTimeout(200);
+    await alreadyMet(page);            // this is about a full disk, not the teaching step
+    await play(page);
     await jamStorage(page);
     for(let i = 0; i < 5; i++){ await answer(page, true); await page.waitForTimeout(280); }
     const inMemory = await page.evaluate(() => window.__144.state.power.watts);

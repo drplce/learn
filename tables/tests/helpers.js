@@ -27,6 +27,32 @@ function errorsOf(page){ return page.__errors || []; }
 async function answer(page, right){
   return page.evaluate(r => window.__144.answer(r), right !== false);
 }
+// Mark the current level's facts as already met, so play starts on a question
+// rather than on the slow lane's "have a look at this one" — for tests that are
+// about something other than the teaching step.
+async function alreadyMet(page){
+  await page.evaluate(() => {
+    const a = window.__144, st = a.LEVELS[a.levelIndex()];
+    (st.facts || []).forEach(k => {
+      a.state.facts[k] = a.state.facts[k] ||
+        {box:2, right:1, wrong:0, seen:2, last:a.todayISO()};
+    });
+    a.save(); a.render();
+  });
+}
+// Start the level she is on and get to a question. A learn level SHOWS her a new
+// fact before asking it (the slow lane), so "start playing" means past that.
+async function play(page){
+  await page.click('#go');
+  await page.waitForTimeout(200);
+  const skipped = await page.evaluate(() => {
+    const a = window.__144;
+    if(a.meeting && a.meeting()){ a.skipMeet(); return true; }
+    return false;
+  });
+  await page.waitForTimeout(skipped ? 250 : 100);
+  return skipped;
+}
 // Play the current level to its goal. Returns how many answers it took.
 async function playLevel(page, {wrongEvery = 0} = {}){
   let n = 0;
@@ -65,4 +91,4 @@ async function openRaw(page){
   await page.waitForFunction(() => !!window.__144);
   return page;
 }
-module.exports = {APP, open, openRaw, errorsOf, answer, playLevel, seed};
+module.exports = {APP, open, openRaw, errorsOf, answer, playLevel, seed, play, alreadyMet};
