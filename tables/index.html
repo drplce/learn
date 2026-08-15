@@ -254,7 +254,14 @@ main{flex:1; position:relative; overflow:hidden;}
 /* ---------- clear card ---------- */
 #clear{position:absolute; inset:0; z-index:5; display:none; flex-direction:column; align-items:center;
   justify-content:center; gap:var(--s3); z-index:5; padding:var(--s5);
-  background:radial-gradient(90% 60% at 50% 40%, rgba(60,12,60,.985), #0B0614 78%);
+  /* The one screen that had no stage light on it at all — flat dark behind flat text,
+     which after a bright noisy level read as the game switching off rather than
+     applauding. It now blooms in the colour of the round she just finished, which is
+     the house's one-colour-per-round rule followed through to the end of the level
+     instead of stopping at the last question. */
+  background:
+    radial-gradient(76% 44% at 50% 33%, color-mix(in srgb, var(--rc) 30%, transparent), transparent 72%),
+    radial-gradient(90% 60% at 50% 40%, rgba(60,12,60,.975), #0B0614 78%);
   backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);}
 #clear.on{display:flex;}
 #clear .big{font-size:var(--t-3xl); font-weight:900; color:#fff; text-align:center; letter-spacing:.02em;
@@ -342,16 +349,30 @@ main{flex:1; position:relative; overflow:hidden;}
    blob we got rid of at v1.5. The bright line at the top is the bit the eye
    actually reads as a level, so it stays crisp at both sizes. */
 .bigcube .lvl, #buddybtn .lvl{position:absolute; left:0; right:0; bottom:0; z-index:1;
+  /* The top few percent ramp up instead of starting at full strength: the body's own
+     edge used to be a hard step across the whole shell, which is what actually read
+     as a bar. The crest above carries the level; the body just fills. */
   background:linear-gradient(180deg,
-    color-mix(in srgb, var(--shell) 62%, transparent),
+    color-mix(in srgb, var(--shell) 10%, transparent),
+    color-mix(in srgb, var(--shell) 62%, transparent) 7%,
     color-mix(in srgb, var(--shell) 42%, transparent) 55%,
     color-mix(in srgb, var(--shell-lo) 30%, transparent));
   box-shadow:0 0 22px color-mix(in srgb, var(--shell) 45%, transparent);
   transition:height var(--m-slow) var(--ease);}
-.bigcube .lvl::before, #buddybtn .lvl::before{content:''; position:absolute; left:-6%; right:-6%;
-  top:-4px; height:8px; border-radius:50%;
-  background:color-mix(in srgb, #fff 78%, var(--shell-hi)); filter:blur(2px); opacity:.95;}
-#buddybtn .lvl::before{top:-3px; height:5px; filter:blur(1.4px);}
+/* The crest — the top surface of the light, and the bit the eye actually reads as a
+   level. It used to be a near-white bar the full width of the shell, which at around
+   60% charge lands level with the eyes and reads as a rule drawn across the buddy's
+   face rather than a surface inside it. It now fades out at both ends and is tinted
+   toward the shell instead of white, so it stays a meniscus and never out-shines the
+   face it passes. */
+.bigcube .lvl::before, #buddybtn .lvl::before{content:''; position:absolute; left:14%; right:14%;
+  top:-3px; height:6px; border-radius:50%;
+  background:linear-gradient(90deg, transparent,
+    color-mix(in srgb, #fff 52%, var(--shell-hi)) 30%,
+    color-mix(in srgb, #fff 62%, var(--shell-hi)) 50%,
+    color-mix(in srgb, #fff 52%, var(--shell-hi)) 70%, transparent);
+  filter:blur(3px); opacity:.66;}
+#buddybtn .lvl::before{left:10%; right:10%; top:-2px; height:4px; filter:blur(1.6px); opacity:.8;}
 /* flat is dark and quiet — asleep, not broken */
 .bigcube .emberglow, #buddybtn .emberglow{position:absolute; left:50%; top:62%; width:52%; height:22%;
   transform:translate(-50%,-50%); border-radius:50%; z-index:1;
@@ -530,7 +551,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.18';
+var VERSION = '1.19';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -2133,13 +2154,20 @@ window.__144 = {
   screen:function(){ return screen; }, go:go, render:render,
   sitting:function(){ return W; },
   start:start,
-  // answer the current question the way she does: right, or with a real wrong tap
+  // Answer the current question the way she does: right, or with a real wrong tap.
+  // The return value means AN ANSWER WAS SCORED — never merely "I did something".
+  // It used to return true for a gap level unconditionally, including in the gap
+  // between one question being answered and the next appearing, where `W.cur.done`
+  // correctly makes the whole thing a no-op. A test counting answers then counted
+  // twice as many as the app had judged, which is how a suite ends up disagreeing
+  // with the diary and blaming the diary.
   answer:function(right){
     if(!W || !W.cur) return false;
     // If it is still showing her the fact, she taps to get on with it and then
     // answers — which is what she actually does. The meet step has its own tests.
     if(W.meeting){ clearTimeout(W.meetT); if(W.meetGo) W.meetGo(); }
     if(W.level.kind==='recall'){
+      if(W.cur.done) return false;               // already answered; waiting for the next
       var want = W.cur.want;
       var n = right !== false ? want : (want === 12 ? 11 : want + 1);
       _dialOn = true; _dialCancel = false; _dialN = n;

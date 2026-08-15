@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-13T23:08Z
+last-run: 2026-08-15T18:38Z
 ```
 
 On each firing:
@@ -259,11 +259,39 @@ bands** (code defects — enforced, exits non-zero) from **the PLAN's own target
 reported loudly, *never* silently relaxed by lowering them). Run it after any change to the engine,
 the ladder or the level goals. It is slow (~2 min); that is fine.
 
-1. **Sound**: prove the mute really silences everything (the synth is fired from several places).
-2. **A whole evening, end to end**: several levels in a row without reloading — the state that
-   builds up across a sitting (combo, round colour, the pool) is only ever tested one level deep.
+*(Both of the original queue items are now done — see `evening.spec.js` and `sound.spec.js` under
+"Done, and now guarded". What is left here is what the next pass should reach for.)*
+
+1. **`reset()` does not clear the test clock** (see above) — fix before trusting `sim.js`'s
+   per-learner spread.
+2. **Teach `sim.js` that a fill-the-gap answer is harder than a bubble tap** — until then its
+   gap-level numbers are the optimistic end and must not be quoted to David bare.
+3. **A week, not an evening.** `evening.spec.js` now covers one sitting. Nothing covers several
+   DAYS in a row: the box intervals, `lastDay`/`sessions`, and the diary's day rollover only ever
+   see one day per test. `setToday()` makes this cheap and it is where the Leitner engine actually
+   lives.
 
 **Done, and now guarded — do not undo these:**
+- **A whole evening in one sitting** (v1.19, `tests/evening.spec.js`): six levels back to back with
+  no reload — the path really moves six, a level only ever asks its OWN facts, the streak does not
+  survive a level boundary, the DOM does not grow across the sitting, and the evening is one day in
+  the diary. Her diagnostics say she plays ~19 levels a sitting; before this every spec played one
+  and reloaded. *Trap this caught:* `__144.answer()` used to return `true` on a gap level even when
+  `W.cur.done` made it a no-op, so a test loop counted twice the answers the app had judged — and
+  the natural conclusion was "the diary is dropping answers". The hook now returns whether an answer
+  was actually SCORED. **A test hook that overstates what happened is worse than no hook.**
+- **Mute means mute** (v1.19, `tests/sound.spec.js`): a whole level played muted, counted at the
+  browser boundary — `createOscillator`, `HTMLMediaElement.play`, `speechSynthesis.speak` — so a
+  future sound that bypasses `tone()` is caught rather than trusted. The same page then plays the
+  same level unmuted as its own control, so it can never pass because the counter was not wired.
+  The ONE allowed `play()` with sound off is the iOS gesture unlock, which is `muted` with no `src`;
+  the test asserts that rather than waving the count through.
+- **The charge line is a surface, not a bar** (v1.19, `tests/buddy.spec.js`): the crest at the top of
+  the fill used to be a near-white band running wider than the shell itself, and at ~60% charge it
+  lands level with the eyes — the buddy looked like it had a rule struck through its face. It now
+  fades at both ends, is tinted toward the shell rather than white, and is dimmer than the eyes; the
+  fill body's own top edge ramps up over its first 7% instead of starting at full strength. The
+  level is still plainly readable at 20% and at 88% — that was checked by looking, not assumed.
 - **The diary and the diagnostics export** (v1.17, `tests/diagnostics.spec.js`): a per-day rollup and
   a rolling 400-answer window with per-answer latency, plus "copy diagnostics" at the foot of the
   power room. Rules that must hold: **bounded on the way in** (180 days / 400 answers — a corrupt or
@@ -384,8 +412,12 @@ leave 144 looking better than it found it. Rules of engagement:
 - **Everything must survive `prefers-reduced-motion`** (show the end state, don't run the show) and
   keep tap targets ≥48px.
 - **The known list, most valuable first** (keep it pruned and re-ordered as things get done):
-  1. The power room and the level-clear card got less neon than the rest of the app.
-  2. The level-clear moment could be a proper stage flare rather than a card.
+  1. The power room's three stat tiles are flat dark rectangles with no rim and no glow — the
+     numbers inside them are good, the containers are dead. *(v1.19 did the clear card's half of
+     this: it now blooms in the round's colour. The power room is what is left.)*
+  2. The level-clear moment could be a proper stage flare rather than a card. *(v1.19 added the
+     stage light behind it; a real flare — rays, a burst, the number counting up — is still the
+     bigger idea and is a PROPOSAL, not a licence: it changes the look enough to need David.)*
   3. The number type could be more of a hero (weight, spacing, a subtle stage shadow).
   4. Round-to-round transitions: the hue currently snaps; a fast wipe or pulse would sell it.
   5. *(v1.4 — the prompt now floats inside the field, so the empty middle is gone. What is left in
@@ -495,6 +527,18 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-15, 18:02–18:40Z (cron pass, due at 42.9h):** **v1.19 — the sitting she actually plays,
+  and the bar across the buddy's face.** Cleared BOTH standing items from the §5 queue rather than
+  adding features: `evening.spec.js` (six levels back to back, no reload) and `sound.spec.js` (mute
+  counted at the browser boundary, with an unmuted control in the same page). The evening tests
+  immediately found that `__144.answer()` reported success on gap levels when nothing had been
+  scored — 56 answers driven, 36 judged — which would have read as the diary losing her work; the
+  hook is honest now. Then the visual job, by looking at her real screens: the charge crest was a
+  near-white band wider than the shell, and at ~60% it sits exactly at eye level, so the buddy
+  appeared to have a line struck through its face. Softened to a fading, shell-tinted meniscus,
+  checked at four charges. The level-clear card — the one screen with no stage light on it — now
+  blooms in the colour of the round she just finished. 8 tests, 6 teeth-checked, 132 pass.
+  Acorn untouched. **Still waiting on David: the box rule (§7), which this pass did not touch.**
 - **2026-08-14, early (David, live):** **v1.18 — the export stops repeating a number it cannot
   stand behind.** He pasted the real digest off her phone and the standout line was `7×9   32 missed
   of 59   box 7`: the worst record of any fact, sitting in the top box. Reproduced it exactly in the

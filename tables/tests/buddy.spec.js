@@ -170,6 +170,41 @@ test.describe('the charge, shown as a level', () => {
       .toMatch(/\/\s*0?\.\d+\)|rgba\([^)]*,\s*0?\.\d+\)|transparent/);
   });
 
+  test('the charge line never draws a bar across its face', async ({page}) => {
+    // Found by looking, 2026-08-15: at around 60% the top of the fill sits level with
+    // the eyes, and it was drawn as a near-white band running the FULL width of the
+    // shell and then some (left/right at -6%). On her phone the buddy looked like it
+    // had a rule struck through its face. The level still has to be readable, so the
+    // crest stays — it just has to be a surface inside the shell rather than a line
+    // across it: narrower than the shell, and dimmer than the eyes it passes.
+    await open(page);
+    await atCharge(page, 62);                       // the charge that puts it at eye height
+    const m = await page.evaluate(() => {
+      const host = document.getElementById('bigcube');
+      const lvl = host.querySelector('.lvl');
+      const crest = getComputedStyle(lvl, '::before');
+      const eye = getComputedStyle(host.querySelector('.eye'));
+      const w = host.getBoundingClientRect().width;
+      const px = v => parseFloat(v) || 0;
+      return {
+        shell: w,
+        // inset from each edge of the fill; negative means it overhangs the shell
+        crestWidth: lvl.getBoundingClientRect().width - px(crest.left) - px(crest.right),
+        crestOpacity: parseFloat(crest.opacity),
+        eyeOpacity: parseFloat(eye.opacity),
+        fades: /transparent|rgba\([^)]*,\s*0\)|\/\s*0\)/.test(crest.backgroundImage)
+      };
+    });
+    expect(m.crestWidth, 'the charge line is as wide as the buddy — that is a bar, not a level')
+      .toBeLessThan(m.shell * 0.85);
+    expect(m.crestOpacity, 'the charge line is brighter than the eyes it crosses')
+      .toBeLessThan(m.eyeOpacity);
+    expect(m.fades, 'the charge line has hard ends instead of fading out').toBe(true);
+    // and it is still there to be read — softening it must not delete it
+    expect(m.crestWidth).toBeGreaterThan(m.shell * 0.4);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
   test('it moves when she plays', async ({page}) => {
     await open(page);
     await atCharge(page, 30);
