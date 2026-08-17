@@ -403,9 +403,23 @@ main{flex:1; position:relative; overflow:hidden;}
 #nameinput.on{display:block;}
 
 .race{display:flex; gap:var(--s3); margin-bottom:var(--s4);}
-.stat{flex:1; background:var(--bg2); border-radius:var(--r-lg); padding:var(--s3); text-align:center;}
+/* Three lit panels, not three grey slabs. They were flat `--bg2` rectangles with no
+   rim and no light in them at all, which on the one screen that is supposed to be her
+   trophy cabinet read as placeholder boxes with good numbers sitting in them. Each
+   tile now takes its own number's colour (`--sc`) for a thin rim and a bloom rising
+   from the bottom — light doing the work, per the house style, and nothing added that
+   competes with the numerals themselves. */
+.stat{--sc:var(--ink); flex:1; position:relative; border-radius:var(--r-lg); padding:var(--s3);
+  text-align:center; background:
+    radial-gradient(120% 78% at 50% 116%, color-mix(in srgb, var(--sc) 30%, transparent), transparent 72%),
+    var(--bg2);
+  border:1px solid color-mix(in srgb, var(--sc) 26%, transparent);
+  box-shadow:inset 0 1px 0 color-mix(in srgb, var(--sc) 14%, transparent),
+             0 0 18px color-mix(in srgb, var(--sc) 13%, transparent);}
 .stat .v{font-size:var(--t-2xl); font-weight:900; line-height:1;}
 .stat .v.gold{color:var(--gold);} .stat .v.watt{color:var(--watt);}
+.stat:has(.v.gold){--sc:var(--gold);}
+.stat:has(.v.watt){--sc:var(--watt);}
 .stat .k{font-size:10.5px; color:var(--ink-soft); font-weight:700; margin-top:5px; letter-spacing:.01em;}
 
 h3.sec{margin:var(--s5) 0 var(--s2); font-size:var(--t-md); font-weight:900;}
@@ -551,7 +565,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.19';
+var VERSION = '1.20';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -1015,9 +1029,17 @@ function diagnostics(){
   var pad = function(v, n){ v = String(v); return v.length >= n ? v : new Array(n-v.length+1).join(' ') + v; };
   var mins = function(ms){ return (ms/60000).toFixed(1); };
 
+  /* Days played, without the export contradicting itself. `prog.days` only moves when
+     she CLEARS a level — that is the only place `lastDay` is written — so an evening
+     she spent answering and then put the phone down mid-level did not exist as far as
+     this headline was concerned, while LAST N DAYS listed it four lines below. The
+     diary is exact for the days it covers; `prog.days` is a lower bound reaching back
+     before the diary existed. The larger of the two understates neither. */
+  var diaryDays = Object.keys(L.days).length;
+  var played = Math.max(S.prog.days || 0, diaryDays);
   out.push('144 diagnostics · v' + VERSION + ' · ' + todayISO());
   out.push('level ' + level() + ' of ' + LEVELS.length + '   ·   ' + S.power.watts + ' watts   ·   ' +
-           S.prog.days + ' days playing');
+           played + (played === 1 ? ' day' : ' days') + ' playing');
   out.push('');
 
   // ---- the days ----
@@ -1149,6 +1171,8 @@ function diagnostics(){
   out.push('NOTES');
   out.push('  · a box can still rise more than once a day, so "known" can be reached in one sitting');
   out.push('  · ' + promotedToday + ' right answers logged today');
+  out.push('  · "' + played + (played === 1 ? ' day' : ' days') + ' playing" counts days she ' +
+           'finished a level (all time) or has a diary row (since v1.17)');
   out.push('  · nothing identifying is in this export — no names, hers or the buddy\'s');
   return out.join('\n');
 }
@@ -2182,7 +2206,13 @@ window.__144 = {
     }
     return false;
   },
-  reset:function(){ W=null; try{ localStorage.removeItem(KEY); }catch(e){} load(); screen='home'; render(); }
+  /* A reset puts EVERYTHING back, the faked clock included. It used to leave `_today`
+     where the last caller left it, which quietly poisoned any simulation that ran
+     several learners in one page: learner 2 onwards stamped its day-0 records with
+     learner 1's final date, months in the future, so every fact it learned looked
+     "not due yet" for the rest of the run. Callers set the clock after reset, never
+     before, so clearing it here is the honest default. */
+  reset:function(){ W=null; _today=null; try{ localStorage.removeItem(KEY); }catch(e){} load(); screen='home'; render(); }
 };
 
 /* ---- boot ---- */

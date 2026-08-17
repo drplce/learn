@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-15T18:38Z
+last-run: 2026-08-17T18:22Z
 ```
 
 On each firing:
@@ -225,27 +225,29 @@ anything done here. Run it if a change could plausibly reach it; otherwise trust
 Gaps worth closing when there is time — **this is the queue for the first few passes**, most
 valuable first:
 
-**⚠⚠ `sim.js` CURRENTLY EXITS NON-ZERO, AND THAT IS THE HONEST RESULT (v1.10).**
-One health band fails: *first-go sits in a workable band (70–95%)* — it reads 95.1%.
-Do **not** widen the band, and do not tune the picker to squeeze under it. Here is what
-actually happened, so nobody re-derives it at 3am:
+**⚠⚠ BOTH SIMULATIONS NOW EXIT ZERO. THAT IS NOT THE GOOD NEWS IT LOOKS LIKE — READ THIS
+BEFORE QUOTING THEM (v1.20).**
+`node tables/tests/sim.js` and `node tables/tests/sim-daily.js` both pass every band and every one
+of David's targets. What changed at v1.20 was the *simulation*, not the app's learning model:
+`__144.reset()` used to leave the faked clock behind, so learners 2–8 stamped their day-0 records
+months in the future and looked "never due" all year. With that fixed the per-learner spread is
+real for the first time — first-go runs 89.2% (weakest) to 97.0% (strongest), aggregate 95.0%,
+which lands inside the 70–95% band by a hair rather than 95.1% just outside it.
 
-Repairing the picker (v1.10) let the modelled learner reach **78/78 known by day 45**, and every
-one of David's plan targets now passes. But the model then saturates: every fact sits at box 7 by
-the sprint's end, so there is nothing hard left to surface and 95% first-go is the *correct* answer
-rather than a defect. Two bands now contradict each other for the same reason.
+**The saturation it was flagging is completely unchanged.** `sim.js` still ends with *average box
+7.0 of 7* and 78/78 known for every learner by day 45. The reason is still that **"known well" is
+too cheap**: a miss keeps the question up until it lands, and `record` moves the box on the attempt
+that lands, so a presentation is net +1 or 0. Hammer a new fact a dozen times tonight and it is
+"known well" tonight, having never once been recalled on a second day. That is a **product decision
+about what counts as knowing it** (candidates: promote a box at most once per day per fact; only
+promote when the FIRST attempt is right; separate "met" from "retained"), it is David's, and it is
+open at the top of §7 with his real data behind it.
 
-The cause is that **"known well" is too cheap**, which a background analysis found independently:
-a miss keeps the question up until it lands, and `record` moves the box on the attempt that lands,
-so a presentation is net +1 or 0. Hammer a new fact a dozen times tonight and it is "known well"
-tonight, having never once been recalled on a second day. That is a **product decision about what
-counts as knowing it** (candidates: promote a box at most once per day per fact; only promote when
-the FIRST attempt is right; separate "met" from "retained"), so it is David's, and it is open at the
-top of §7. Until he rules, the red band is information, not a bug to be silenced.
-
-Also known, and not yet fixed: `__144.reset()` does not clear the test clock, so in `sim.js`
-learners after the first stamp day-0 records with a future date and those facts look "never due"
-all year. Fix that before trusting any per-learner spread.
+**So do not read "health bands all hold" as "the model is fine."** If you want the honest number,
+`sim-daily.js` already reports one the boxes cannot flatter: **unaided recall, 69.3/78 at day 142**
+(and 53–66 along the way) against `known` pinned at 78/78 everywhere. That gap between 69 and 78 is
+the whole of the open question, stated as a number. Do **not** widen a band, lower a target, or tune
+the picker to make any of this look tidier.
 
 **⚠ What `sim.js` does NOT model (v1.8):** it treats a fill-the-gap answer as no harder than a
 bubble tap, because the modelled learner has one ability number. A missing-factor question is
@@ -262,16 +264,39 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
 *(Both of the original queue items are now done — see `evening.spec.js` and `sound.spec.js` under
 "Done, and now guarded". What is left here is what the next pass should reach for.)*
 
-1. **`reset()` does not clear the test clock** (see above) — fix before trusting `sim.js`'s
-   per-learner spread.
-2. **Teach `sim.js` that a fill-the-gap answer is harder than a bubble tap** — until then its
-   gap-level numbers are the optimistic end and must not be quoted to David bare.
-3. **A week, not an evening.** `evening.spec.js` now covers one sitting. Nothing covers several
-   DAYS in a row: the box intervals, `lastDay`/`sessions`, and the diary's day rollover only ever
-   see one day per test. `setToday()` makes this cheap and it is where the Leitner engine actually
-   lives.
+1. **Teach `sim.js` that a fill-the-gap answer is harder than a bubble tap** — until then its
+   gap-level numbers are the optimistic end and must not be quoted to David bare. (`sim-daily.js`
+   already models an "unaided recall" measure; that is the shape to copy.)
+2. **The slow lane across days.** `slowlane.spec.js` proves a brand-new fact is shown before it is
+   asked, and `tricky()` decides which facts earn a second look — but `tricky()` is only ever
+   exercised on facts seeded in one sitting. Whether the *right* facts get met over a week, as her
+   record changes underneath it, is untested.
+3. **The dial, at the sizes her thumb actually is.** `#dial` has tests for the gesture and for the
+   cancel-by-dragging-away, none for what happens on the 375px screen when the twelve stops are
+   ~26px apart. Worth a look before it is worth a test.
 
 **Done, and now guarded — do not undo these:**
+- **A week, not an evening** (v1.20, `tests/week.spec.js`): the first tests in the suite where a
+  DATE changes. `BOX_DAYS` is written in days and until now every test ran inside one day, so the
+  intervals were never exercised at all. Now: a fact parked in box 6 is nearly invisible the next
+  day and back in circulation 25 days later; the fact she keeps missing is the one asked most, three
+  days running; three levels on Tuesday and two on Wednesday is two days and two sittings, not five
+  of either; a week away costs the charge and nothing else, with no reproach on the screen when she
+  comes back. *Trap this caught:* the miss-rate test first passed with the picker's miss-rate term
+  deleted — the *box* term was carrying it, because the weak fact had a lower box too. All four
+  facts now sit in the same box so only her record can separate them. **When a picker test seeds
+  two signals, it is testing the stronger one.**
+- **A reset puts the clock back too** (v1.20): `__144.reset()` now clears `_today`. It used to leave
+  the faked date behind, which silently poisoned any simulation running several learners in one page
+  — learner 2 onwards stamped day-0 records months in the future, so everything it learned looked
+  "not due yet" for the rest of the run. This is why both simulations' per-learner spreads are only
+  trustworthy from v1.20 on.
+- **The export does not contradict itself about days** (v1.20): `prog.days` only moves when she
+  CLEARS a level, so an evening she spent answering and then put down mid-level did not exist as far
+  as the headline was concerned, while `LAST N DAYS` listed it four lines below. The headline now
+  takes the larger of `prog.days` and the diary's row count (the diary is exact for what it covers;
+  `prog.days` reaches back before the diary existed, so the larger understates neither) and says
+  which it means in NOTES. It also said "1 days playing" — that is fixed too.
 - **A whole evening in one sitting** (v1.19, `tests/evening.spec.js`): six levels back to back with
   no reload — the path really moves six, a level only ever asks its OWN facts, the streak does not
   survive a level boundary, the DOM does not grow across the sitting, and the evening is one day in
@@ -412,9 +437,10 @@ leave 144 looking better than it found it. Rules of engagement:
 - **Everything must survive `prefers-reduced-motion`** (show the end state, don't run the show) and
   keep tap targets ≥48px.
 - **The known list, most valuable first** (keep it pruned and re-ordered as things get done):
-  1. The power room's three stat tiles are flat dark rectangles with no rim and no glow — the
-     numbers inside them are good, the containers are dead. *(v1.19 did the clear card's half of
-     this: it now blooms in the round's colour. The power room is what is left.)*
+  1. ~~The power room's three stat tiles are flat dark rectangles.~~ **Done (v1.20):** each tile now
+     takes its own number's colour (`--sc`) for a thin rim and a bloom rising from its base — three
+     lit panels instead of three grey slabs. Uses `:has()`; on an iOS too old for it all three rims
+     fall back to neutral, which is a graceful loss rather than a broken screen.
   2. The level-clear moment could be a proper stage flare rather than a card. *(v1.19 added the
      stage light behind it; a real flare — rays, a burst, the number counting up — is still the
      bigger idea and is a PROPOSAL, not a licence: it changes the look enough to need David.)*
@@ -527,6 +553,19 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-17, 18:02–18:25Z (cron pass, due at 47.4h):** **v1.20 — the first tests where a date
+  changes, and the number the export was contradicting itself about.** `BOX_DAYS` is written in days
+  and every test in the suite ran inside a single day, so the Leitner intervals — the engine's whole
+  reason to exist — had never been exercised. `week.spec.js` fixes that. Fixed the `reset()` clock
+  bug that had been on this list since v1.10, which unblocked both simulations' per-learner spreads;
+  **both now exit zero, and §5 explains at length why that is not the good news it looks like** —
+  the saturation is unchanged, average box still 7.0 of 7, and `sim-daily.js`'s unaided-recall
+  measure (69.3/78 at day 142 against `known` pinned at 78/78) is the honest version of the same
+  gap. Found and fixed a real inconsistency in the export: the headline said "1 days playing" — both
+  the plural and the count wrong, because `prog.days` only moves when she clears a level, while the
+  diary four lines below listed the evening she stopped mid-level. Visual: the power room's three
+  stat tiles now wear their own number's colour. 6 tests, 6 teeth-checked, 138 pass. Acorn untouched.
+  **Still waiting on David: the box rule (§7).**
 - **2026-08-15, 18:02–18:40Z (cron pass, due at 42.9h):** **v1.19 — the sitting she actually plays,
   and the bar across the buddy's face.** Cleared BOTH standing items from the §5 queue rather than
   adding features: `evening.spec.js` (six levels back to back, no reload) and `sound.spec.js` (mute
