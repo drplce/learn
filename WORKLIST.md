@@ -36,6 +36,14 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
 - ✅ **PACE-1** — **B2 + B3 shipped (owner-approved).** sim.js bands recalibrated (learned floor 0.80→0.75; finished-list exemption 0.5→3), engine untouched. **sim now green.**
 
 ## Done / closed
+- ✅ **HAR-1 (2026-08-18)** — the adversarial pass gained three sections about the **re-trace**, the
+  newest mechanic and the one she meets on every slip: it cannot be escaped by wrong keys or stray
+  keys, cannot be pasted through, and never re-scores the word (§37); an evening of nothing but
+  misses still ends rather than requeueing forever (§38); a reload mid-copy loses nothing and counts
+  one slip once (§39). All teeth-checked. Also: `__acorn.reset()` now clears the faked test clock —
+  latent here (every caller sets the date again first, and sim.js output is byte-identical either
+  way) but a live trap in the sibling app, so guarded in `engine.spec.js` rather than left to luck.
+  `session()` now exposes `traced`, without which §37 could not measure anything.
 - ✅ 13.1 trace letter green · 13.2 scroll-lock v1 · 13.3 anchor · 13.4 drop write-instruction · 13.5 mic-on-trace fix
 - ✅ CLOSED: iOS keyboard accessory bar — impossible to remove from any web app (research-confirmed); accepted.
 - ✅ `reference/home-screen-webapp.md` — Apple home-screen web-app research.

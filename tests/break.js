@@ -2297,6 +2297,183 @@ async function main(){
     if(!faults) ok('"great effort" is spoken when read-aloud is on and stays silent when it is off');
   }
 
+  // ---- 37. the re-trace, under a child's hands
+  {
+    console.log('\n37. the copy-it-back after a miss, hammered');
+    // The re-trace (WIN-1, 13.22) is the newest mechanic in the app and the one she meets
+    // every time she slips. It accepts only the next correct letter, and it must be
+    // impossible to escape, impossible to paste through, and — the part that matters most —
+    // it must never score her again. The miss was already recorded and requeued; a copy is
+    // corrective, not another attempt.
+    const {page, ctx, errs} = await fresh(browser, '2026-08-01');
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'w', name:'T', words:['because','thought','friend']}];
+      a.state.words.activeId = 'w'; a.state.words.mastery = {}; a.state.words.sessions = [];
+      a.save(); a.go('day'); a.start();
+    });
+    // reach a real miss, typed with real keys
+    await page.evaluate(() => window.__acorn.cover());
+    const w = await page.evaluate(() => window.__acorn.session().words[window.__acorn.session().i]);
+    await write(page, 'becuase');
+    await page.keyboard.press('Enter');
+    const onRetrace = await page.evaluate(() => !!(window.__acorn.session() || {}).retrace);
+    if(!onRetrace){ bad('the copy-it-back', 'a real miss did not put her on a re-trace at all'); }
+    else {
+      const at = () => page.evaluate(() => {
+        const S = window.__acorn.session();
+        return {traced:S && S.traced, retrace:!!(S && S.retrace), i:S && S.i};
+      });
+      const before = await page.evaluate(x => window.__acorn.mastery(x), w);
+      const start = await at();
+      // Guard against the trap this section fell into once: if `traced` is not a number the
+      // comparisons below are undefined === undefined and the whole section holds no teeth.
+      if(typeof start.traced !== 'number')
+        bad('the copy-it-back', 'session().traced is not exposed — this section cannot measure anything');
+
+      const box = page.locator('#type');
+      await box.click();
+      /* THREE wrong keys first, and read the counter before going further. Sixty of them
+         would, on a build that accepts any key, finish the copy outright — and next() resets
+         the counter to 0 on the way out, so the "it did not move" comparison would come back
+         0 === 0 and pass on exactly the build it is meant to catch. Fewer keys than the word
+         has letters is the only way this assertion can see the advance it is looking for. */
+      for(let i = 0; i < 3; i++) await page.keyboard.press('z');
+      const nudged = await at();
+      if(nudged.traced !== start.traced)
+        bad('the copy-it-back', 'a wrong letter moved the copy on (' + start.traced + ' -> ' + nudged.traced + ')');
+      else ok('wrong letters do not move the copy on (still at ' + nudged.traced + ')');
+
+      // now the full hammering: more wrong letters, digits, Enter, Backspace, arrows, modifiers
+      for(let i = 0; i < 60; i++) await page.keyboard.press('z');
+      for(const k of ['Enter','Backspace','ArrowLeft','ArrowRight','Escape','Delete','Home','End',
+                      'PageDown','Space','5','!','ControlOrMeta+a','ControlOrMeta+z'])
+        await page.keyboard.press(k);
+      // the copy completes on a 500ms settle timer, so a read taken immediately after the
+      // last key would find `retrace` still true whatever happened — wait past it
+      await page.waitForTimeout(800);
+      const stuck = await at();
+      if(!stuck.retrace) bad('the copy-it-back', 'hammering escaped the re-trace');
+      else ok('none of it escapes the re-trace');
+
+      // a real clipboard paste of the whole word — the shortcut that would skip the copy
+      await page.evaluate(() => {
+        const el = document.getElementById('type');
+        if(!el) return;
+        const dt = new DataTransfer(); dt.setData('text/plain', 'because');
+        el.dispatchEvent(new ClipboardEvent('paste', {clipboardData:dt, bubbles:true, cancelable:true}));
+      });
+      await page.waitForTimeout(120);
+      const pasted = await at();
+      if(pasted.traced > start.traced + 1)
+        bad('the copy-it-back', 'a paste filled the copy in (traced ' + pasted.traced + ')');
+      else ok('pasting the word does not copy it for her');
+
+      const mid = await page.evaluate(x => window.__acorn.mastery(x), w);
+      if(mid.wrong !== before.wrong || mid.right !== before.right)
+        bad('the copy-it-back', 'hammering it re-scored the word: ' + JSON.stringify(before) + ' -> ' + JSON.stringify(mid));
+      else ok('none of it scores her again (' + JSON.stringify(mid) + ')');
+
+      // now copy it properly, and the sitting must move on
+      for(const ch of w) await page.keyboard.press(ch);
+      await page.waitForTimeout(900);
+      const after = await page.evaluate(x => ({m:window.__acorn.mastery(x),
+        retrace:!!(window.__acorn.session() || {}).retrace, live:!!window.__acorn.session()}), w);
+      if(after.retrace) bad('the copy-it-back', 'copying the whole word correctly did not end the re-trace');
+      else ok('copying it correctly carries her on');
+      if(after.m.right !== before.right)
+        bad('the copy-it-back', 'the copy was scored as a right answer (' + JSON.stringify(after.m) + ')');
+      else ok('and the copy still is not a right answer — the retrieval comes later');
+      if(!await alive(page)) bad('the copy-it-back', 'blank screen after the copy');
+    }
+    if(errs.length) bad('the copy-it-back', errs.join(' | '));
+    await page.screenshot({path: OUT + '/break-37-retrace.png'});
+    await ctx.close();
+  }
+
+  // ---- 38. a child who gets every word wrong, every time
+  {
+    console.log('\n38. a child who misses every word, every time');
+    // A miss requeues the word. So: can an evening of nothing but misses ever END, or does
+    // the requeue feed itself? A sitting that cannot finish is a child who never reaches her
+    // garden — and it is the kind of thing no happy-path test can see.
+    const {page, ctx, errs} = await fresh(browser, '2026-08-01');
+    const out = await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'w', name:'T', words:['because','thought','friend','beautiful','through']}];
+      a.state.words.activeId = 'w'; a.state.words.mastery = {}; a.state.words.sessions = [];
+      a.save(); a.go('day'); a.start();
+      let steps = 0, asked = 0;
+      // 600 steps is far past any honest sitting; if it is still going, it is not going to stop
+      while(a.session() && steps++ < 600){
+        const W = a.session();
+        if(W.stage === 'look'){ a.cover(); continue; }
+        // the copy itself needs real keydowns; next() is exactly what the app calls when
+        // a copy completes, so this models her finishing it
+        if(W.retrace){ a.next(); continue; }
+        if(W.stage === 'write'){ asked++; a.type('zzzz'); a.check(); a.next(); continue; }
+        a.next();
+      }
+      return {steps, asked, live:!!a.session(),
+              finished:!!document.querySelector('#screen .net, #screen .tick'),
+              children:(document.querySelector('#screen') || {children:[]}).children.length};
+    });
+    console.log('    ' + JSON.stringify(out));
+    if(out.live) bad('missing everything', 'the sitting never ended — ' + out.steps + ' steps and still going');
+    else ok('an evening of nothing but misses still ends (' + out.asked + ' asked over ' + out.steps + ' steps)');
+    if(!out.children) bad('missing everything', 'the screen is empty at the end of it');
+    else ok('and it ends on a rendered screen');
+    if(errs.length) bad('missing everything', errs.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 39. the phone dies mid-copy
+  {
+    console.log('\n39. a reload in the middle of the copy-it-back');
+    // She slips, starts copying the word back, and the phone locks or the browser drops the
+    // tab. What she must not find on the way back is a half-copied word she cannot get out
+    // of, or a miss counted twice for one slip.
+    const {page, ctx, errs} = await fresh(browser, '2026-08-01');
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'w', name:'T', words:['because','thought','friend']}];
+      a.state.words.activeId = 'w'; a.state.words.mastery = {}; a.state.words.sessions = [];
+      a.save(); a.go('day'); a.start(); a.cover();
+    });
+    const w2 = await page.evaluate(() => window.__acorn.session().words[window.__acorn.session().i]);
+    await write(page, 'becuase');
+    await page.keyboard.press('Enter');
+    // half-copy it
+    await page.locator('#type').click();
+    for(const ch of w2.slice(0, 3)) await page.keyboard.press(ch);
+    const before = await page.evaluate(x => window.__acorn.mastery(x), w2);
+    await page.reload();
+    await page.waitForFunction(() => !!window.__acorn);
+    await page.evaluate(() => window.__acorn.setToday('2026-08-01'));
+    await page.waitForTimeout(200);
+    const back = await page.evaluate(x => ({
+      m: window.__acorn.mastery(x),
+      live: !!window.__acorn.session(),
+      stage: (window.__acorn.session() || {}).stage,
+      retrace: !!(window.__acorn.session() || {}).retrace,
+      children: (document.querySelector('#screen') || {children:[]}).children.length
+    }), w2);
+    console.log('    ' + JSON.stringify(back));
+    if(!back.children) bad('reload mid-copy', 'came back to an empty screen');
+    else ok('she comes back to a rendered screen');
+    if(back.m.wrong > before.wrong)
+      bad('reload mid-copy', 'the one slip was counted again on the way back (' +
+          before.wrong + ' -> ' + back.m.wrong + ')');
+    else ok('one slip is still one slip (' + JSON.stringify(back.m) + ')');
+    // and she can still practise: whatever screen she is on must lead somewhere
+    await walk(page, 14);
+    if(!await alive(page)) bad('reload mid-copy', 'the sitting could not be carried on');
+    else ok('and the evening carries on from there');
+    if(errs.length) bad('reload mid-copy', errs.join(' | '));
+    await page.screenshot({path: OUT + '/break-39-reload-mid-copy.png'});
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n' + (fails.length ? 'FAILURES (' + fails.length + '):\n  ' + fails.join('\n  ')
                                    : 'nothing broke'));

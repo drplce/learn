@@ -146,3 +146,34 @@ test.describe('the session builder, over random states', () => {
     expect(Math.max(...rows.map(r => r.fresh))).toBe(3);
   });
 });
+
+/* The test API's own contract. Not the app she uses, but the thing every simulation
+   and every adversarial run in this repo stands on — and a harness that lies quietly
+   is worse than one that fails loudly. */
+test.describe('the reset the harness relies on', () => {
+
+  test('a reset puts the faked clock back too', async ({page}) => {
+    // `reset()` used to leave `_today` wherever the last caller left it. Harmless while
+    // every caller sets the date again before recording anything — which is exactly what
+    // tests/sim.js happens to do, so nothing here was ever wrong — and a quiet disaster
+    // for any caller that does not. The sibling app in tables/ ran eight learners in one
+    // page this way and learners 2 through 8 stamped their day-0 records months into the
+    // future, so every word they learned read as "not due yet" for the whole run and the
+    // spread it reported was measuring nothing. Cheap to guard, so guard it.
+    await open(page);
+    const real = await page.evaluate(() => window.__acorn.todayISO());
+    await page.evaluate(() => window.__acorn.setToday('2027-03-14'));
+    expect(await page.evaluate(() => window.__acorn.todayISO())).toBe('2027-03-14');
+
+    await page.evaluate(() => window.__acorn.reset());
+    expect(await page.evaluate(() => window.__acorn.todayISO()),
+      "a reset left the previous run's faked date behind").toBe(real);
+
+    // and a word recorded after the reset is stamped today, not next March — the
+    // consequence the date actually has
+    await page.evaluate(() => window.__acorn.recordWord('because', true));
+    expect(await page.evaluate(() => window.__acorn.mastery('because').lastSeen),
+      'a word learned after the reset was dated by the stale clock').toBe(real);
+  });
+
+});

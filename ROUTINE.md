@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: weekly
-last-run: 2026-08-11T17:31Z
+last-run: 2026-08-18T19:07Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -55,6 +55,14 @@ strictly separate routines.
 - **SELF-UPDATE.** When you cool to `weekly` (the calm steady state), before saving, revise THIS
   FILE: correct anything stale (pacing numbers, scope, the NOT-NOW list, dates), fold in what has
   been learned, keep it tight. This file is the living document now — not the trigger prompt.
+
+> **The block below is HISTORY, kept because parts of it live nowhere else.** 144 has had its own
+> living document since 2026-08-11 — `tables/ROUTINE.md` — and that file, not this one, is
+> authoritative for anything about it: its state, its harness, its cadence, its open questions and
+> its per-pass log. What is preserved here is the *design trail* from the days before that file
+> existed: the prototypes and artifact IDs, the four-look style board, the pace lock, the mascot
+> iterations. **An Acorn pass must not act on any of it, and must not edit `tables/`.** A future 144
+> pass is the right place to absorb what is still worth keeping and let this shrink to a pointer.
 
 **NEW PROJECT (live, 2026-08-11) — a times-tables app, sibling to Acorn.** David wants a SECOND app
 for his daughter: multiplication tables, deliberately GAMIFIED / arcade-reward (the opposite of
@@ -328,6 +336,18 @@ node tests/break.js     # adversarial pass; non-zero on any finding
 
 `two-windows.spec.js` and the audio-live prefetch test are known parallel-load flakes — confirm
 by re-running the named file in isolation before treating a failure as real.
+
+**The harness itself can lie, and has.** Two traps caught this way, both worth carrying:
+- **A field the hook does not expose reads as `undefined`,** and `undefined === undefined` passes
+  whatever the app does. `break.js` §37 was written against `session().traced` before it was
+  exposed and held no teeth at all until it was. If an assertion compares a value, prove the value
+  is a value.
+- **A regression that finishes the thing early can hide itself.** The same section pressed sixty
+  wrong keys; on a build that accepted any key that *completed* the copy, and `next()` reset the
+  counter to 0 on the way out, so "it did not move" came back 0 === 0 and passed. Measure after
+  fewer keys than the word has letters.
+
+Both are why the teeth-check is not optional: inject the regression, watch it fail, revert.
 
 Pacing target: ~80–85% right first go, 70–90% known material. Report the actual numbers when you
 tune the engine.

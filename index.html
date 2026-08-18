@@ -4711,7 +4711,13 @@ loadClips(); render(); },
   // its day equals the test's target it passes sessionStillGood and renders over a screen the
   // test is trying to reach — a done-screen test that only failed when the wall clock caught up
   // to its hard-coded date. reset is a test/sim hook, never the app.
-  reset: function(){ W = null; localStorage.removeItem(KEY); load(); },
+  /* A reset puts everything back, the faked clock included. It used to leave `_today` where
+     the last caller left it — harmless while every caller happens to set the date again
+     before recording anything, and a quiet disaster the moment one does not: the sibling
+     app's simulation ran eight learners in one page this way, and learners 2–8 stamped
+     their day-0 records months in the future, so every word they learned looked "not due
+     yet" for the whole run. Clearing it here costs nothing and removes the trap. */
+  reset: function(){ W = null; _today = null; localStorage.removeItem(KEY); load(); },
   // Drop any live sitting without wiping her data — for tests that build a specific state and
   // then a specific screen, where the sitting the app auto-starts at page load (its day is the
   // real clock's, set before the test's setToday) would otherwise still be valid for the test's
@@ -4733,6 +4739,13 @@ loadClips(); render(); },
                                      done:(W.done || []).slice(),
                                      keys:W.keys || 0,
                                      retrace:!!W.retrace,
+                                     /* How far the letter-by-letter copy has got. Exposed because
+                                        the adversarial pass cannot otherwise tell "the wrong key was
+                                        discarded" from "the key never reached the handler at all" —
+                                        a copy test that reads an undefined field passes whatever the
+                                        app does, which is how the first version of break.js §37 came
+                                        to hold no teeth. */
+                                     traced:W.traced || 0,
                                      notWritten:!!W.notWritten}; },
   go: go, screen: function(){ return screen; },
   BOX_DAYS: BOX_DAYS, MAX_BOX: MAX_BOX, KNOWN_BOX: KNOWN_BOX,
