@@ -565,7 +565,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.20';
+var VERSION = '1.21';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -1898,9 +1898,18 @@ function dialMove(ev){
   if(!_dialOn) return;
   ev.preventDefault();
   var n = dialValue(ev.clientX);
-  // Well below the line means "not that, let me start again" — the iOS way out.
-  var g = dialGeom(), away = ev.clientY - (g.top + g.h);
-  var cancel = away > 64;
+  /* Away from the line means "not that, let me start again" — the iOS way out.
+     It used to mean BELOW the line by 64px, and on 2026-08-18 a look at the real
+     screen sizes found that is off the bottom of the phone: the track ends 38px
+     above the edge on an SE and 45px on a 13, so the threshold sat at y=693 on a
+     667px screen and y=863 on an 844px one. The escape hatch could not be reached
+     on either phone she might hold — she could put a thumb down by accident, or
+     freeze on a fact, and had no way out but to enter a number and lose her streak.
+     Up is where the room is (the question sits well above the line), so up is the
+     way out now; down still works wherever the phone leaves space for it. */
+  var g = dialGeom(), away = ev.clientY - (g.top + g.h), up = g.top - ev.clientY;
+  var room = Math.max(0, innerHeight - (g.top + g.h) - 6);
+  var cancel = up > 56 || away > Math.min(56, room);
   if(cancel !== _dialCancel){ _dialCancel = cancel; el('#dial').classList.toggle('cancel', cancel);
     el('#dialhint').textContent = cancel ? 'let go to start again' : ''; }
   if(n !== _dialN){ _dialN = n; paintDial(n); sfxTick(); }

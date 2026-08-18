@@ -9,13 +9,27 @@
 const {test, expect} = require('@playwright/test');
 const {open, errorsOf} = require('./helpers');
 
+/* Sample the picker with a SEEDED random, not the real one.
+   The first version of this file drew 600 times from Math.random and compared the
+   counts. The comparison it needed — "the resting fact comes back at least half as
+   often again once its interval is up" — sat 1.77 standard deviations clear of the
+   noise, which is a test that fails roughly one full run in twenty-five. It did, on
+   2026-08-18, and passed on the re-run, which is the worst way for a suite to behave:
+   a red that goes away teaches you to ignore reds. Seeding makes the draw reproducible
+   and the larger sample puts the observed share within about a point of the true one,
+   so the assertion is about the weighting and nothing else. */
 const draws = (page, pool, n) => page.evaluate(([p, count]) => {
-  const tally = {};
-  for(let i = 0; i < count; i++){
-    const k = window.__144.pickFact(p);
-    tally[k] = (tally[k] || 0) + 1;
-  }
-  return tally;
+  const real = Math.random;
+  let seed = 20260818;
+  Math.random = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  try {
+    const tally = {};
+    for(let i = 0; i < count; i++){
+      const k = window.__144.pickFact(p);
+      tally[k] = (tally[k] || 0) + 1;
+    }
+    return tally;
+  } finally { Math.random = real; }
 }, [pool, n]);
 
 // Play the level on screen to its end and dismiss the card.
@@ -53,13 +67,13 @@ test.describe('what a day passing does', () => {
     }, weak);
 
     await page.evaluate(() => window.__144.setToday('2026-09-02'));   // the next day
-    const soon = await draws(page, pool, 600);
+    const soon = await draws(page, pool, 4000);
     await page.evaluate(() => window.__144.setToday('2026-09-26'));   // 25 days on
-    const later = await draws(page, pool, 600);
+    const later = await draws(page, pool, 4000);
 
     const restingSoon = soon['7x8'] || 0, restingLater = later['7x8'] || 0;
     expect(restingSoon, 'a fact she just got right is being drilled the very next day')
-      .toBeLessThan(600 / pool.length);
+      .toBeLessThan(4000 / pool.length);
     expect(restingLater, 'its 21 days came and went and it never came back')
       .toBeGreaterThan(restingSoon * 1.5);
     // and it never disappears entirely — resting is not retiring
@@ -87,7 +101,7 @@ test.describe('what a day passing does', () => {
     }, pool);
     for(const day of ['2026-09-02', '2026-09-03', '2026-09-04']){
       await page.evaluate(d => window.__144.setToday(d), day);
-      const t = await draws(page, pool, 400);
+      const t = await draws(page, pool, 2000);
       expect(t[pool[0]] || 0, `on ${day} the fact she keeps missing was not the one asked most`)
         .toBeGreaterThan(Math.max(t[pool[1]] || 0, t[pool[2]] || 0, t[pool[3]] || 0));
     }

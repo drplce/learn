@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-17T18:22Z
+last-run: 2026-08-18T19:40Z
 ```
 
 On each firing:
@@ -271,11 +271,28 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
    asked, and `tricky()` decides which facts earn a second look — but `tricky()` is only ever
    exercised on facts seeded in one sitting. Whether the *right* facts get met over a week, as her
    record changes underneath it, is untested.
-3. **The dial, at the sizes her thumb actually is.** `#dial` has tests for the gesture and for the
-   cancel-by-dragging-away, none for what happens on the 375px screen when the twelve stops are
-   ~26px apart. Worth a look before it is worth a test.
+3. ~~The dial, at the sizes her thumb actually is.~~ **Done (v1.21), and it found a real one** —
+   see "the way out of the dial" below. The 27.6px stops turned out to be a non-issue (she drags
+   and reads the number above her thumb; she never has to hit a stop blind) and the track clears
+   the home-indicator inset. What was broken was the escape gesture.
 
 **Done, and now guarded — do not undo these:**
+- **The way out of the dial is somewhere her thumb can reach** (v1.21, `tests/recall.spec.js`):
+  backing out of a gap answer meant dragging 64px BELOW the track, and the track ends 38px above
+  the edge of an iPhone SE and 45px above a 13 — so the threshold sat at y=693 on a 667px screen.
+  **The escape hatch was unreachable on both phones she might hold**: a thumb put down by accident,
+  or a freeze on a fact she does not know, had no way out but to enter a number and lose the streak.
+  Cancel is now "off the line in either direction" — up, where the room is, at 56px, and down at
+  whatever the phone actually leaves. *Trap this caught:* the old test dragged to 120px below the
+  track and asserted the cancel state engaged. It did — at a coordinate off the bottom of the glass.
+  **Playwright will move the mouse outside the viewport without complaint**, so a gesture test is
+  worth nothing unless it asserts its own targets are on screen. The new tests clamp and assert.
+- **The picker tests are seeded, not sampled** (v1.21): `week.spec.js` drew 600 times from
+  `Math.random` and compared counts, and the comparison it needed sat **1.77 standard deviations**
+  clear of the noise — a ~4% chance of a red per full run, which duly happened on 2026-08-18 and
+  passed on the re-run. **A red that goes away is worse than no test**: it teaches you to ignore
+  reds. `draws()` now installs a seeded PRNG and samples 4000. If you add a test that counts random
+  draws, do the arithmetic on its margin before you commit it.
 - **A week, not an evening** (v1.20, `tests/week.spec.js`): the first tests in the suite where a
   DATE changes. `BOX_DAYS` is written in days and until now every test ran inside one day, so the
   intervals were never exercised at all. Now: a fact parked in box 6 is nearly invisible the next
@@ -553,6 +570,17 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-18, 19:10–19:45Z (cron pass, due at 24.8h):** **v1.21 — she could not back out of the
+  number line.** The suite opened red on a test written the day before, so the first job was that:
+  not a re-run until green, but the arithmetic — 1.77σ of margin on a 600-draw sample, ~4% failure
+  per run, my own construction. Seeded and widened to 4000. Then the queue item that said "worth a
+  look": the dial at 375px. The stops and the home-indicator clearance were both fine; **the escape
+  gesture was not.** Backing out required dragging 64px below a track that ends 38px above the edge
+  of an SE — off the glass on both phone sizes, so a thumb put down by accident had no way out but
+  to enter a number and lose the streak. The test that should have caught it dragged to a point past
+  the bottom of the screen and passed for a year. Cancel now works upward, where the room is.
+  4 tests reworked or added, all teeth-checked, 139 pass, two clean full runs. Acorn untouched.
+  **Still waiting on David: the box rule (§7).**
 - **2026-08-17, 18:02–18:25Z (cron pass, due at 47.4h):** **v1.20 — the first tests where a date
   changes, and the number the export was contradicting itself about.** `BOX_DAYS` is written in days
   and every test in the suite ran inside a single day, so the Leitner intervals — the engine's whole

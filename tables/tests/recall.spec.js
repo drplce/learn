@@ -156,8 +156,15 @@ test.describe('filling the gap', () => {
     expect(errorsOf(page)).toEqual([]);
   });
 
-  test('dragging away from the line lets her start again instead of answering', async ({page}) => {
-    await open(page);
+  /* The way out of a dial entry, and it must be somewhere her thumb can actually go.
+     The first version of this test dragged to 120px BELOW the track and asserted the
+     cancel state engaged. It did — at a coordinate off the bottom of the phone.
+     Playwright will happily move the mouse outside the viewport, so the test was green
+     for a year while the gesture was impossible on both screens she might hold: the
+     track ends 38px above the edge on an SE and 45px on a 13, and the threshold sat
+     64px below that. Every drag target here is now clamped to the visible screen, and
+     the clamp is asserted, so this can never again pass on a gesture she cannot make. */
+  async function dialCancelAt(page, dy){
     await intoGap(page);
     await page.waitForTimeout(250);
     const before = await page.evaluate(() => ({
@@ -166,26 +173,67 @@ test.describe('filling the gap', () => {
     const box = await page.locator('#dialtrack').boundingBox();
     const step = box.width / 12;
     const wrong = before.want === 12 ? 11 : before.want + 1;
-    await page.mouse.move(box.x + step * (wrong - 0.5), box.y + box.height / 2);
+    const x = box.x + step * (wrong - 0.5);
+    const vh = await page.evaluate(() => innerHeight);
+    const target = dy > 0 ? box.y + box.height + dy : box.y + dy;
+    expect(target, 'the test is reaching past the bottom of her phone').toBeLessThan(vh);
+    expect(target, 'the test is reaching above the top of her phone').toBeGreaterThan(0);
+
+    await page.mouse.move(x, box.y + box.height / 2);
     await page.mouse.down();
     await page.waitForTimeout(80);
-    await page.mouse.move(box.x + step * (wrong - 0.5), box.y + box.height + 120);  // well below
-    await page.waitForTimeout(80);
+    await page.mouse.move(x, target, {steps: 6});
+    await page.waitForTimeout(100);
     const cancelling = await page.evaluate(() => ({
       cancel: document.getElementById('dial').classList.contains('cancel'),
       hint: document.getElementById('dialhint').textContent.toLowerCase()}));
-    expect(cancelling.cancel).toBe(true);
-    expect(cancelling.hint).toMatch(/again/);
     await page.mouse.up();
     await page.waitForTimeout(300);
     const after = await page.evaluate(() => ({
       done: window.__144.sitting().done, watts: window.__144.state.power.watts,
       want: window.__144.sitting().cur.want,
       live: document.getElementById('dial').classList.contains('live')}));
-    expect(after.done, 'letting go off the line still answered').toBe(before.done);
-    expect(after.watts).toBe(before.watts);
-    expect(after.want, 'the question moved on').toBe(before.want);
-    expect(after.live).toBe(false);
+    return {before, after, cancelling};
+  }
+
+  test('dragging up off the line lets her start again instead of answering', async ({page}) => {
+    await page.setViewportSize({width: 375, height: 667});
+    await open(page);
+    const r = await dialCancelAt(page, -80);              // above the line: where the room is
+    expect(r.cancelling.cancel, 'dragging up off the line does not offer a way out').toBe(true);
+    expect(r.cancelling.hint).toMatch(/again/);
+    expect(r.after.done, 'letting go off the line still answered').toBe(r.before.done);
+    expect(r.after.watts).toBe(r.before.watts);
+    expect(r.after.want, 'the question moved on').toBe(r.before.want);
+    expect(r.after.live).toBe(false);
+  });
+
+  test('the way out is reachable on the phone she actually holds', async ({page}) => {
+    // Both sizes, and only ever inside the screen. This is the assertion the old test
+    // could not make, because it was measuring a point past the edge of the glass.
+    for(const [w, h] of [[375, 667], [390, 844]]){
+      await page.setViewportSize({width: w, height: h});
+      await open(page);
+      await intoGap(page);
+      await page.waitForTimeout(250);
+      const box = await page.locator('#dialtrack').boundingBox();
+      const x = box.x + box.width / 2;
+      await page.mouse.move(x, box.y + box.height / 2);
+      await page.mouse.down();
+      let found = 0;
+      // sweep from just under the line to the last pixel of the screen, and from just
+      // above it up towards the question — every point on the glass, nothing beyond it
+      for(let y = 2; y < h - 1; y += 6){
+        await page.mouse.move(x, y);
+        if(await page.evaluate(() => document.getElementById('dial').classList.contains('cancel'))){
+          found = y; break;
+        }
+      }
+      await page.mouse.up();
+      await page.waitForTimeout(200);
+      expect(found, `on a ${w}x${h} screen there is nowhere she can put her thumb to back out`)
+        .toBeGreaterThan(0);
+    }
   });
 
   test('the line reaches 1 and 12 without asking for the very edge of the phone', async ({page}) => {
