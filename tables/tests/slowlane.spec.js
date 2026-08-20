@@ -118,6 +118,131 @@ test.describe('the slow lane', () => {
     expect(await page.evaluate(() => document.querySelectorAll('.orb').length)).toBeGreaterThan(2);
   });
 
+  /* Which facts the slow lane picks, as her record changes underneath it.
+     David, 2026-08-13: "Probably not each new fact for the learn level, maybe ones that
+     user is finding tricky." `tricky()` is the answer to that, and every test above it
+     seeds a fact once and plays one level — so what has never been checked is the part
+     that matters: does the choice FOLLOW her, days later, when the same fact has got
+     worse or better? A slow lane pinned to a fixed list would look identical on day one
+     and be useless by week two. */
+
+  // Put a learn level's facts in a known state on a known day, then play it.
+  async function lane(page, seed){
+    return page.evaluate(f => {
+      const a = window.__144;
+      const i = a.LEVELS.findIndex(l => l.kind === 'learn');
+      a.state.prog.placed = true; a.state.prog.cleared = i;
+      a.state.facts = {};
+      const facts = a.LEVELS[i].facts.slice();
+      facts.forEach((k, n) => { a.state.facts[k] = Object.assign({}, f.solid); });
+      if(f.spoil !== undefined) a.state.facts[facts[f.spoil]] = Object.assign({}, f.state);
+      if(f.all) facts.forEach(k => { a.state.facts[k] = Object.assign({}, f.state); });
+      a.save(); a.start(a.LEVELS[i]);
+      return {facts, spoiled: f.spoil !== undefined ? facts[f.spoil] : null};
+    }, seed);
+  }
+  const laneState = page => page.evaluate(() => {
+    const W = window.__144.sitting();
+    return {meeting: window.__144.meeting(), meets: W.meets || 0,
+            shown: Object.keys(W.metShown || {})};
+  });
+
+  test('a fact she has started losing is taught again, days after she first met it',
+    async ({page}) => {
+      await open(page, '2026-09-01');
+      // all four solid, except one she has been dropping: bottom box, missing two in three
+      const r = await lane(page, {
+        solid: {box:4, right:6, wrong:0, seen:6, last:'2026-08-25'},
+        spoil: 2,
+        state: {box:2, right:2, wrong:4, seen:6, last:'2026-08-31'}
+      });
+      await page.waitForTimeout(300);
+      expect(await page.evaluate(k => window.__144.tricky(k), r.spoiled),
+        'a fact in the bottom box missed two goes in three does not read as tricky').toBe(true);
+
+      /* Play forward until it is taught or the level runs out. The first version of this
+         test read `meeting` once, right after the level opened, and so quietly depended on
+         the picker drawing the spoiled fact FIRST — about a two-in-five chance. It passed
+         four runs in a row and then failed in the full suite. The claim was never about
+         draw order: it is that a fact she is losing gets taught again at some point in the
+         level, and that is what this now waits for. */
+      let taught = null;
+      for(let g = 0; g < 60 && !taught; g++){
+        const st = await laneState(page);
+        if(st.meeting){
+          taught = st.shown.indexOf(r.spoiled) >= 0 ? r.spoiled : (st.shown[0] || 'something else');
+          await page.evaluate(() => window.__144.skipMeet());
+          await page.waitForTimeout(240);
+          if(taught === r.spoiled) break;
+          taught = null;                       // it taught another one; keep watching
+          continue;
+        }
+        if(!await answer(page, true)){ await page.waitForTimeout(200); continue; }
+        await page.waitForTimeout(320);
+        if(await page.evaluate(() => !!document.querySelector('#clear.on'))) break;
+      }
+      expect(taught, 'the fact she is losing was never taught again').toBe(r.spoiled);
+      expect(errorsOf(page)).toEqual([]);
+    });
+
+  test('a fact she has pulled back is left alone again', async ({page}) => {
+    // The same fact, later, after she has got on top of it. The slow lane has to let go
+    // as readily as it takes hold, or it becomes a fact she is nagged about for ever.
+    await open(page, '2026-09-20');
+    const r = await lane(page, {
+      solid: {box:4, right:6, wrong:0, seen:6, last:'2026-09-14'},
+      spoil: 2,
+      /* The miss rate is deliberately STILL above the tricky threshold — 4 of 10, where
+         0.34 is the line — and only the box has moved. The first version of this test
+         gave it 4 misses in 24, and it passed with the box check deleted, because the
+         low rate was doing the work: the test named the box and measured the rate.
+         Isolated like this, only the box can carry it.
+         (This is also the fact the v1.18 digest flags to David under "counted as known,
+         but missed a lot". The two are meant to disagree: the slow lane lets go, and the
+         export tells him about it. That is the division of labour, not a contradiction.) */
+      state: {box:5, right:6, wrong:4, seen:10, last:'2026-09-19'}
+    });
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(k => window.__144.tricky(k), r.spoiled),
+      'a fact she has climbed out of the bottom boxes is still being called tricky').toBe(false);
+    expect((await laneState(page)).meeting,
+      'it stopped to teach her one she has already pulled back').toBe(false);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
+  test('a bad week does not turn the whole level into a lecture', async ({page}) => {
+    // The cap, under the condition that actually tests it: EVERY fact tricky at once,
+    // which is exactly what a rough week looks like. Two teaching moments is a pause;
+    // one per fact is the game stopping to talk at her.
+    await open(page, '2026-09-10');
+    await lane(page, {
+      solid: {box:2, right:2, wrong:4, seen:6, last:'2026-09-09'},
+      all: true,
+      state: {box:2, right:2, wrong:4, seen:6, last:'2026-09-09'}
+    });
+    await page.waitForTimeout(300);
+    const cap = await page.evaluate(() => window.__144.MEETS_PER_LEVEL);
+    // play the level right through, skipping each teaching moment as she would
+    let meets = 0;
+    for(let g = 0; g < 90; g++){
+      const st = await page.evaluate(() => ({
+        cleared: !!document.querySelector('#clear.on'), meeting: window.__144.meeting()}));
+      if(st.cleared) break;
+      if(st.meeting){
+        meets++;
+        await page.evaluate(() => window.__144.skipMeet());
+        await page.waitForTimeout(240);
+        continue;
+      }
+      if(!await answer(page, true)){ await page.waitForTimeout(200); continue; }
+      await page.waitForTimeout(320);
+    }
+    expect(meets, `every fact was tricky and it taught ${meets} of them, cap is ${cap}`)
+      .toBeLessThanOrEqual(cap);
+    expect(meets, 'a level full of tricky facts taught none of them').toBeGreaterThan(0);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
   test('with motion turned down it is shorter, not skipped', async ({page}) => {
     await page.emulateMedia({reducedMotion: 'reduce'});
     await open(page);

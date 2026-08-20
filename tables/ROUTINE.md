@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-18T19:40Z
+last-run: 2026-08-20T17:47Z
 ```
 
 On each firing:
@@ -267,16 +267,23 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
 1. **Teach `sim.js` that a fill-the-gap answer is harder than a bubble tap** — until then its
    gap-level numbers are the optimistic end and must not be quoted to David bare. (`sim-daily.js`
    already models an "unaided recall" measure; that is the shape to copy.)
-2. **The slow lane across days.** `slowlane.spec.js` proves a brand-new fact is shown before it is
-   asked, and `tricky()` decides which facts earn a second look — but `tricky()` is only ever
-   exercised on facts seeded in one sitting. Whether the *right* facts get met over a week, as her
-   record changes underneath it, is untested.
+2. ~~The slow lane across days.~~ **Done 2026-08-20** — see the guarded list below.
 3. ~~The dial, at the sizes her thumb actually is.~~ **Done (v1.21), and it found a real one** —
    see "the way out of the dial" below. The 27.6px stops turned out to be a non-issue (she drags
    and reads the number above her thumb; she never has to hit a stop blind) and the track clears
    the home-indicator inset. What was broken was the escape gesture.
 
 **Done, and now guarded — do not undo these:**
+- **The slow lane follows her record, days later** (2026-08-20, `tests/slowlane.spec.js`): a fact she has
+  started losing is taught again even though she met it weeks ago; a fact she has pulled back is let
+  go of; and a week where EVERY fact is tricky still yields two teaching moments, not one per fact.
+  *Two traps caught here, both the same shape — a test that names one thing and measures another:*
+  the "pulled back" case first used a fact with 4 misses in 24, and passed with the box check
+  deleted, because the low rate was carrying it (it now uses 4 in 10, above the 0.34 line, so only
+  the box can); and the "started losing" case read `meeting` once right after the level opened,
+  which quietly depended on the picker drawing that fact FIRST — about two chances in five. It
+  passed four runs then failed in the full suite. It now plays forward and waits for the fact to be
+  taught, which is what the claim always was.
 - **The way out of the dial is somewhere her thumb can reach** (v1.21, `tests/recall.spec.js`):
   backing out of a gap answer meant dragging 64px BELOW the track, and the track ends 38px above
   the edge of an iPhone SE and 45px above a 13 — so the threshold sat at y=693 on a 667px screen.
@@ -485,6 +492,30 @@ every meaningful change — Pages deploys automatically. Bump `VERSION` when she
 Table Bosses, Vault), multiplayer, accounts, anything that needs a server.
 
 **Open with David (do not invent answers):**
+- **⚠ THE UNLOCK LADDER HAS RUN OUT, AND SHE IS PAST THE END OF IT (measured 2026-08-20).**
+  The house style promises *"everything starts deliberately under-dressed and unlocks richness with
+  her level, so the game visibly gets better as she does."* Audited every read of her level in the
+  source: `buddyStage()` is the **only** level gate in the whole app, and it fires at **15, 30 and
+  45**. Everything else that reads `prog.cleared` either displays it or indexes the ladder. She was
+  at level 50 on 2026-08-14, so **she has already collected every unlock 144 has**, and levels 46 to
+  372 — 327 of them, the whole rest of the year — hold nothing new. The path still changes shape by
+  level *kind*, and the round colour and speed still climb *within* a level, but nothing arrives any
+  more. This is the promise going quiet exactly when the novelty of a new app wears off, which is
+  the worst possible timing. **Not mine to fix** — what unlocks and when is a design decision, and
+  §6's "is the ladder now a bluff?" is answered: yes, from 46 on. Candidates for him, none chosen:
+  a fourth buddy stage; accessories (the daily-accessory idea he floated on 2026-08-11 and never
+  closed); new level kinds in phase 2; the battery packs below as the first thing watts buy.
+- **⚠ WATTS HAVE NO SINK — 25,000 of them by December (measured 2026-08-20).**
+  `addWatts` is the only function that touches the total and it only ever adds; nothing in the app
+  spends a watt. Measured by playing 14 real levels end to end: **67.5 watts a level on average**
+  (learn 47, mix 69, recall 85, boss 90), which projects to **~25,100 by the end of the 372-level
+  ladder**. She had 2,370 at level 50. §6's economy warning — *"a reward that stops meaning
+  anything"* — is now literal: the number on her HUD is a score that only climbs and buys nothing.
+  David already named the intended sink on 2026-08-13 (*"We'll add battery packs as Addons later"*)
+  and asked what they should cost. **The number he needs is above**: price against ~67 watts a
+  level and ~25k over the year, so a pack at 250–500 watts is "a few levels' work" and one at 2,000+
+  is a week's. Nothing built, nothing priced — his call.
+
 - **HOW THIS GETS ANSWERED — David's call, 2026-08-13, and it changes the shape of the question.**
   He is not looking for the box rule to be fixed now: *"we could introduce further levels of
   knowledge beyond known in the future, treat the first run as familiarisation, gameplay and
@@ -570,6 +601,18 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-20, 17:10–17:50Z (cron pass, due at 45.5h):** **the slow lane over a week, and two findings
+  that are David's.** No `VERSION` bump: nothing in this pass is visible to her (§7's rule). Rotated to the two §6 items recent passes had skipped: the economy
+  and the unlock ladder. Both turned up something, and both are written up at the top of §7 with
+  numbers rather than impressions — **`buddyStage()` is the only level gate in the app and it ends at
+  45, so levels 46–372 hold nothing new**, and **watts have no sink at all: 67.5 a level measured
+  over 14 real levels, ~25,100 by December**. Neither is mine to fix; the watt figure is the one he
+  asked for to price battery packs. Then the harness item I could act on: `tricky()` had only ever
+  been tested inside a single sitting, so three tests now drive it across days. Both of the traps
+  they caught were the same shape — a test that names one thing and measures another — and one of
+  them was a 2-in-5 draw-order dependency that passed four runs before failing in the full suite.
+  3 tests, all teeth-checked, 142 pass over two clean full runs. Acorn untouched.
+  **Still waiting on David: the box rule, the ladder, and the watt sink (all §7).**
 - **2026-08-18, 19:10–19:45Z (cron pass, due at 24.8h):** **v1.21 — she could not back out of the
   number line.** The suite opened red on a test written the day before, so the first job was that:
   not a re-run until green, but the arithmetic — 1.77σ of margin on a 600-draw sample, ~4% failure
