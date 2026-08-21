@@ -125,6 +125,53 @@ test.describe('the look of it', () => {
     expect(r2.colours[0]).not.toBe(r1.colours[0]);     // …but a different one
   });
 
+  test('the round colour wipes instead of snapping, and never splits the bubbles',
+    async ({page}) => {
+      /* The hue used to change on one frame, everywhere at once — §6a had it on the
+         polish list as "the hue currently snaps". `--rc` is a registered colour now, so
+         it tweens. The reason this needs a test rather than an eyeball is the second
+         half: the house rule is that colour may NEVER distinguish one answer from
+         another, and a tween is precisely where that could break — if the bubbles read
+         the colour at different moments, or cached it on spawn, mid-wipe would show
+         her a ring that stands out. Because every one of them reads the same variable
+         on :root, they move together. This proves it while it is moving. */
+      await open(page);
+      await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
+      await play(page);
+      const midWipe = await page.evaluate(async () => {
+        const root = document.documentElement;
+        const rings = () => [...document.querySelectorAll('.orb')]
+          .map(o => getComputedStyle(o).borderTopColor);
+        const before = getComputedStyle(root).getPropertyValue('--rc').trim();
+        // change it the way a new round does, then watch the frames in between
+        const to = getComputedStyle(root).getPropertyValue('--n-lime').trim();
+        root.style.setProperty('--rc', to);
+        const frames = [];
+        for(let i = 0; i < 6; i++){
+          await new Promise(r => requestAnimationFrame(r));
+          frames.push({rc: getComputedStyle(root).getPropertyValue('--rc').trim(),
+                       distinct: [...new Set(rings())].length,
+                       n: rings().length});
+        }
+        return {before, to, frames};
+      });
+
+      // it is genuinely mid-flight, not already arrived
+      const seen = new Set(midWipe.frames.map(f => f.rc));
+      expect(seen.size, 'the colour arrived in one frame — it is still snapping')
+        .toBeGreaterThan(2);
+      // it did move — the FIRST frame is legitimately still the start colour (the
+      // transition has not advanced yet), so the claim is about where it ends up
+      expect(midWipe.frames[midWipe.frames.length - 1].rc,
+        'six frames later it has not moved at all').not.toBe(midWipe.before);
+      // and at no instant is one bubble a different colour from another
+      midWipe.frames.forEach((f, i) => {
+        expect(f.n, `no bubbles on screen at frame ${i}`).toBeGreaterThan(1);
+        expect(f.distinct, `frame ${i} of the wipe shows ${f.distinct} different ring colours`)
+          .toBe(1);
+      });
+    });
+
   test('the bubbles are round', async ({page}) => {
     await open(page);
     await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });

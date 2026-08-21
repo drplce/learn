@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-20T17:47Z
+last-run: 2026-08-21T18:22Z
 ```
 
 On each firing:
@@ -228,11 +228,30 @@ valuable first:
 **⚠⚠ BOTH SIMULATIONS NOW EXIT ZERO. THAT IS NOT THE GOOD NEWS IT LOOKS LIKE — READ THIS
 BEFORE QUOTING THEM (v1.20).**
 `node tables/tests/sim.js` and `node tables/tests/sim-daily.js` both pass every band and every one
-of David's targets. What changed at v1.20 was the *simulation*, not the app's learning model:
-`__144.reset()` used to leave the faked clock behind, so learners 2–8 stamped their day-0 records
-months in the future and looked "never due" all year. With that fixed the per-learner spread is
-real for the first time — first-go runs 89.2% (weakest) to 97.0% (strongest), aggregate 95.0%,
-which lands inside the 70–95% band by a hair rather than 95.1% just outside it.
+of David's targets. Two rounds of fixes to the *simulation* — not to the app's learning model — got
+it there, and both are worth knowing:
+
+- **v1.20:** `__144.reset()` left the faked clock behind, so learners 2–8 stamped their day-0
+  records months in the future and looked "never due" all year.
+- **2026-08-21:** `sim.js` treated a fill-the-gap answer as no harder than a bubble tap. Every
+  answer got the 1-in-3 or 1-in-4 guess floor the bubbles give, when the number line has twelve
+  stops and asks the fact backwards ("? × 7 = 56" is a division). Fixed with the stop count read
+  off the app (`DIAL_STOPS`) plus a named, arguable `GAP_PENALTY = 0.8` on the retrieval term.
+  **Also seeded `Math.random`**, because `pickFact` calls it directly and only the learner's
+  answers had been seeded — two runs of an identical model came back 93.2% and 92.8%, which is
+  small and is exactly enough wobble to make "did my change do that?" unanswerable. Runs repeat
+  exactly now.
+
+**The A/B, everything else held constant** (this is the size of the old optimism):
+
+| | first-go, all | weakest learner | answers/session |
+|---|---|---|---|
+| gap treated as a bubble tap | 95.1% | 89.5% | 12.5 |
+| gap modelled honestly | **93.1%** | **85.6%** | **13.2** |
+
+Note what that does to the old red band: 95.1% sat at the very top of the 70–95% window, and the
+breach recorded here for a fortnight was **partly an artefact of the model, not the app**. And note
+what it does NOT touch — `known@45` moves 77.9 → 77.8 and `known@142` is still 78/78.
 
 **The saturation it was flagging is completely unchanged.** `sim.js` still ends with *average box
 7.0 of 7* and 78/78 known for every learner by day 45. The reason is still that **"known well" is
@@ -264,9 +283,10 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
 *(Both of the original queue items are now done — see `evening.spec.js` and `sound.spec.js` under
 "Done, and now guarded". What is left here is what the next pass should reach for.)*
 
-1. **Teach `sim.js` that a fill-the-gap answer is harder than a bubble tap** — until then its
-   gap-level numbers are the optimistic end and must not be quoted to David bare. (`sim-daily.js`
-   already models an "unaided recall" measure; that is the shape to copy.)
+1. ~~Teach `sim.js` that a fill-the-gap answer is harder than a bubble tap.~~ **Done 2026-08-21** —
+   and it moved the numbers, see below. `sim-daily.js` still has its own unaided-recall measure and
+   has NOT been given the same treatment; it is the next thing to look at if its figures are ever
+   quoted.
 2. ~~The slow lane across days.~~ **Done 2026-08-20** — see the guarded list below.
 3. ~~The dial, at the sizes her thumb actually is.~~ **Done (v1.21), and it found a real one** —
    see "the way out of the dial" below. The 27.6px stops turned out to be a non-issue (she drags
@@ -274,6 +294,12 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
    the home-indicator inset. What was broken was the escape gesture.
 
 **Done, and now guarded — do not undo these:**
+- **The round colour wipes, and never splits the bubbles** (v1.22, `tests/game.spec.js`): `--rc` is
+  a registered `@property` colour now, so the hue tweens across the whole stage instead of snapping
+  on one frame (§6a item 4). The test is not really about the wipe — it is about the house rule
+  underneath it: colour may **never** distinguish one answer from another, and a tween is exactly
+  where that could break. It samples six frames mid-flight and asserts every ring is the same
+  colour at every instant. On an iOS too old for `@property` it snaps as it always did.
 - **The slow lane follows her record, days later** (2026-08-20, `tests/slowlane.spec.js`): a fact she has
   started losing is taught again even though she met it weeks ago; a fact she has pulled back is let
   go of; and a week where EVERY fact is tricky still yields two teaching moments, not one per fact.
@@ -469,7 +495,9 @@ leave 144 looking better than it found it. Rules of engagement:
      stage light behind it; a real flare — rays, a burst, the number counting up — is still the
      bigger idea and is a PROPOSAL, not a licence: it changes the look enough to need David.)*
   3. The number type could be more of a hero (weight, spacing, a subtle stage shadow).
-  4. Round-to-round transitions: the hue currently snaps; a fast wipe or pulse would sell it.
+  4. ~~Round-to-round transitions: the hue currently snaps.~~ **Done (v1.22)** — `--rc` is a
+     registered `@property`, so it tweens over `--m-quick` (briefer than the gap between questions,
+     deliberately). Reduced motion already forces every transition to ~0ms, so it snaps there.
   5. *(v1.4 — the prompt now floats inside the field, so the empty middle is gone. What is left in
      that space is still bare: drifting sparks or a faint stage floor would fill it.)*
   6. *(v1.5 — the buddy is glass now at both sizes: dark body, her colour in the rim, a bright core
@@ -601,6 +629,19 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-21, 18:04–18:25Z (cron pass, due at 24.3h):** **v1.22 — the simulation stops flattering
+  the gap levels, and the hue stops snapping.** Cleared the last item on the §5 queue: `sim.js`
+  gave every answer the bubbles' 1-in-3 guess floor, including on the number line, which has twelve
+  stops and asks the fact backwards. Fixed, with the stop count read off the app so the model cannot
+  drift from it, and a named `GAP_PENALTY` so the assumption can be argued with rather than buried.
+  On the way in, found that `sim.js` was **never reproducible** — `pickFact` calls `Math.random`
+  directly and only the learner's answers were seeded, so two runs of the same model differed by
+  0.4 points; seeded now, and the A/B above is clean as a result. The old model overstated first-go
+  by 2.0 points overall and 3.9 for the weakest learner, and the red band recorded here for a
+  fortnight was partly its fault. Visual: `--rc` is a registered colour, so the round hue wipes
+  instead of snapping — with the test aimed at the house rule underneath it rather than the pretty
+  part. 1 test, teeth-checked, 143 pass. Acorn untouched.
+  **Still waiting on David: the box rule, the ladder, and the watt sink (all §7).**
 - **2026-08-20, 17:10–17:50Z (cron pass, due at 45.5h):** **the slow lane over a week, and two findings
   that are David's.** No `VERSION` bump: nothing in this pass is visible to her (§7's rule). Rotated to the two §6 items recent passes had skipped: the economy
   and the unlock ladder. Both turned up something, and both are written up at the top of §7 with

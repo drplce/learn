@@ -37,18 +37,43 @@ function runLearner({ability, days, sessions, seed}){
   let s = seed;
   const rnd = () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
 
+  /* And the APP's randomness too, or the run is not repeatable at all. `pickFact`
+     calls Math.random directly, so until 2026-08-21 only the learner's answers were
+     seeded and the picker's choices were live — two runs of an identical model came
+     back 93.2% and 92.8%, which is small but is exactly the amount of wobble that
+     makes "did my change do that?" unanswerable. Seeded per learner, so the eight
+     still differ from each other while the run as a whole repeats. */
+  let ms = (seed ^ 0x5f3759df) & 0x7fffffff;
+  Math.random = () => (ms = (ms * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+
   const facts = () => a144.state.facts;
   const isEasy = (x, y) => x <= 2 || y <= 2 || x === 5 || y === 5 || x === 10 || y === 10
                         || x === 11 || y === 11 || x === y;
   const isHard = (x, y) => (x >= 6 && x <= 8 && y >= 6 && y <= 8) || x === 12 || y === 12;
 
+  /* A FILL-THE-GAP ANSWER IS NOT A BUBBLE TAP, and until 2026-08-21 this model did
+     not know that — every answer got the 1-in-3 or 1-in-4 floor the bubbles give, so
+     everything the simulation said about the gap levels was the optimistic end. Two
+     things make them harder:
+
+       1. There is nothing to pick from. The bubbles hand her a floor of 1/3 or 1/4;
+          the number line has twelve stops, so the floor is 1/12.
+       2. It asks the fact BACKWARDS. "? × 7 = 56" is a division — a different
+          operation from 7 × 8, and one she has not been taught yet.
+
+     GAP_PENALTY is an ASSUMPTION, not a measurement, and it is named so it can be
+     argued with rather than buried: recognition beats cued production for the same
+     material by a wide margin, and 0.8 is the conservative (kind-to-the-app) end of
+     that range. If it is ever measured on her real answers, replace it and say so. */
+  const GAP_PENALTY = 0.8;
+
   // Probability she gets this fact right, given how often she has retrieved it.
-  function pRight(k, nOptions){
+  function pRight(k, nOptions, isGap){
     const p = k.split('x').map(Number), f = facts()[k];
     const box = f ? f.box : 0;
     let base = isEasy(p[0], p[1]) ? 0.60 : isHard(p[0], p[1]) ? 0.16 : 0.34;
     let known = Math.min(1, box / 6);
-    let raw = (base + known * 0.78) * ability;
+    let raw = (base + known * 0.78) * ability * (isGap ? GAP_PENALTY : 1);
     const guess = 1 / nOptions;                       // multiple choice has a floor
     return Math.max(0.05, Math.min(0.985, guess + (1 - guess) * Math.max(0, Math.min(1, raw))));
   }
@@ -83,11 +108,14 @@ function runLearner({ability, days, sessions, seed}){
         // the real picker, over the same pool the app would use
         const pool = lv.kind === 'learn' ? lv.facts.filter(k => (per[k] || 0) < 2) : lv.facts;
         const k = a144.pickFact(pool.length ? pool : lv.facts);
-        const nOptions = round < 2 ? 3 : 4;
+        // the number line has twelve stops and no options to rule out
+        const isGap = lv.kind === 'recall';
+        // read the stop count off the app, so the model cannot quietly drift from it
+        const nOptions = isGap ? a144.DIAL_STOPS : (round < 2 ? 3 : 4);
         const first = !(per[k + ':seen']);
         per[k + ':seen'] = 1;
 
-        let right = rnd() < pRight(k, nOptions);
+        let right = rnd() < pRight(k, nOptions, isGap);
         answers++; sessionAnswers++; dayAnswers++;
         if(first){ asked++; dayAsked++; if(right){ firstGoRight++; dayRight++; } }
         a144.record(k, right, false);
@@ -98,7 +126,7 @@ function runLearner({ability, days, sessions, seed}){
         else {
           let tries = 0;
           while(!right && tries++ < 6){
-            right = rnd() < pRight(k, nOptions);
+            right = rnd() < pRight(k, nOptions, isGap);
             answers++; sessionAnswers++; dayAnswers++;
             a144.record(k, right, false);
           }

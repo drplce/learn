@@ -27,6 +27,19 @@
    sounds and the buddy all unlock richness as she climbs, so the game visibly
    gets better as she does.
    ========================================================================== */
+/* The round's colour, registered as a real colour so it can TWEEN.
+   Every round the whole stage changes hue — prompt, goal bar, bubble rings, sparks,
+   the flash — and until 2026-08-21 it changed by snapping, all of it, on one frame.
+   A custom property the browser knows nothing about cannot be transitioned, so
+   registering `--rc` is what makes a wipe possible at all; the transition below then
+   carries every one of those surfaces together, because they all read the same
+   variable. On an iOS too old for @property it simply snaps as it always did.
+
+   The wipe must stay SHORT and it must stay one colour at a time: the house rule is
+   that colour can never distinguish one answer from another, and since --rc lives on
+   :root every bubble on screen is mid-tween by exactly the same amount. */
+@property --rc{ syntax:'<color>'; inherits:true; initial-value:#FF2D95; }
+
 :root{
   /* Near-black violet ground so the neon has something to burn against. */
   --bg:#0B0614; --bg2:#150C24; --bg3:#231539;
@@ -36,7 +49,8 @@
      it, so no answer can be told from another by its colour. */
   --n-magenta:#FF2D95; --n-cyan:#22E6FF; --n-violet:#B15CFF;
   --n-lime:#B4FF3A;    --n-gold:#FFC93A;
-  --rc:var(--n-magenta);                     /* the round's colour, set in JS */
+  --rc:#FF2D95;                              /* the round's colour, set in JS */
+  transition:--rc var(--m-quick) var(--ease);   /* brisker than the gap between questions */
 
   --teal:#22E6FF; --teal-d:#0e7f9a; --pink:#FF2D95; --pink-d:#b3175f;
   --yellow:#FFC93A; --yellow-d:#c4901a;
@@ -565,7 +579,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.21';
+var VERSION = '1.22';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -2180,7 +2194,7 @@ window.__144 = {
   numWords:numWords, qPhrase:qPhrase, gapPhrase:gapPhrase,
   speakQuestion:speakQuestion, speakWhole:speakWhole, hush:hush, bestVoice:bestVoice,
   meeting:function(){ return !!(W && W.meeting); }, MEET_MS:function(){ return MEET_MS; },
-  tricky:tricky, MEETS_PER_LEVEL:MEETS_PER_LEVEL,
+  tricky:tricky, MEETS_PER_LEVEL:MEETS_PER_LEVEL, DIAL_STOPS:DIAL_STOPS,
   skipMeet:function(){ if(W && W.meeting){ clearTimeout(W.meetT); if(W.meetGo) W.meetGo(); } },
   score:score,
   CLIPS:function(){ return CLIPS; },
