@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-21T18:22Z
+last-run: 2026-08-23T18:25Z
 ```
 
 On each firing:
@@ -283,17 +283,45 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
 *(Both of the original queue items are now done — see `evening.spec.js` and `sound.spec.js` under
 "Done, and now guarded". What is left here is what the next pass should reach for.)*
 
-1. ~~Teach `sim.js` that a fill-the-gap answer is harder than a bubble tap.~~ **Done 2026-08-21** —
-   and it moved the numbers, see below. `sim-daily.js` still has its own unaided-recall measure and
-   has NOT been given the same treatment; it is the next thing to look at if its figures are ever
-   quoted.
-2. ~~The slow lane across days.~~ **Done 2026-08-20** — see the guarded list below.
-3. ~~The dial, at the sizes her thumb actually is.~~ **Done (v1.21), and it found a real one** —
+1. **`sim-daily.js` has not had the gap treatment.** `sim.js` now models a fill-the-gap answer as
+   harder than a bubble tap (2026-08-21); `sim-daily.js` still does not, so its figures are the
+   optimistic end in the same way `sim.js`'s were. Do this before quoting it to David.
+2. **Nothing tests the SPOKEN side against what is on screen.** `voice.spec.js` checks the phrases
+   and the policy, but not that the question she HEARS is the question she is LOOKING at — a
+   mismatch (an off-by-one after a fast answer, a stale utterance surviving `next()`) is a defect
+   she would meet as pure confusion, and the app is deliberately spoken-first.
+3. **The watts/charge economy has no test at all.** Measured by hand on 2026-08-20 (67.5 watts a
+   level; see §7) but nothing guards it, so a change to `CHARGE_PER_*` or the combo multiplier could
+   silently double or halve what a level is worth.
+4. ~~The slow lane across days.~~ **Done 2026-08-20** — see the guarded list below.
+5. ~~The dial, at the sizes her thumb actually is.~~ **Done (v1.21), and it found a real one** —
    see "the way out of the dial" below. The 27.6px stops turned out to be a non-issue (she drags
    and reads the number above her thumb; she never has to hit a stop blind) and the track clears
    the home-indicator inset. What was broken was the escape gesture.
 
 **Done, and now guarded — do not undo these:**
+- **⚠ THE CLOCK MUST BE PINNED IN ANY TEST WHOSE FIXTURE SEEDS A DATE** (v1.23, `tests/picker.spec.js`).
+  The picker adds +2 to a fact whose gap has reached `BOX_DAYS[box]` — 1, 2, 4, 8, 21 days for boxes
+  2 to 6. `picker.spec.js` seeded `last:'2026-08-01'` and did **not** pin `_today`, so as the real
+  clock advanced, more of those intervals elapsed, the "due" bonus spread across the whole pool, and
+  the box signal the thresholds measure flattened on its own. Two tests went red on 2026-08-23 — the
+  day the gap reached 22 days and box 6 became due — with nothing about the app changed.
+  **This is the worst failure mode a suite has:** a red arriving on a day nobody is watching, for a
+  reason that is not the app, whose obvious "fix" is to loosen the thresholds — which would have
+  destroyed the one test that would catch v1.9's argmax picker. Fixed with `PIN_TODAY`/`PIN_SEEN`
+  and a `pinned()` helper that fails loudly if the pin ever comes off. Swept the rest of the suite:
+  `slowlane`, `week` and `robust` already pin; `diagnostics` seeds dates the digest never reads
+  relative to today. **If you add a fixture with a `last:` date, pin the clock.**
+- **Every number in the export agrees with its noun** (v1.23, `tests/diagnostics.spec.js`): a
+  `plural()` helper at all five count-meets-noun sites, and a sweep over two one-of-everything
+  states (a single right answer, and a single miss — one brings up "how long she takes", the other
+  "missed most — recently"). Five real slips: `1 days playing`, `LAST 1 DAYS`, `last 1 answers`,
+  `last 1 right answers`, `1 right answers logged today`. *Trap:* the first version of the sweep used
+  `1 [a-z]+s` on the right-answer state alone and **passed with three of the five slips reinstated**
+  — it could not see a multi-word noun or an upper-case heading, and never reached the RECENTLY
+  section at all. Teeth-checked against each of the five separately, which is the only reason that
+  was found. Her own screens were checked too and are clean: the counts there are bare numbers under
+  fixed labels.
 - **The round colour wipes, and never splits the bubbles** (v1.22, `tests/game.spec.js`): `--rc` is
   a registered `@property` colour now, so the hue tweens across the whole stage instead of snapping
   on one frame (§6a item 4). The test is not really about the wipe — it is about the house rule
@@ -629,6 +657,19 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-23, 18:03–18:30Z (cron pass, due at 47.7h):** **v1.23 — a suite that was rotting on the
+  calendar, and five numbers that could not count to one.** The harness opened red on two picker
+  tests that had passed for a fortnight: they seeded `last:'2026-08-01'` and never pinned the clock,
+  so 2026-08-23 was simply the day the gap crossed box 6's 21-day interval and the box signal they
+  measure flattened. Nothing about the app had changed. Pinned, with a helper that fails loudly if
+  the pin comes off, and the rest of the suite swept for the same trap. Then §6's "the words she
+  reads": her screens are clean, but the export had **five** plural slips, only one of which had
+  been found before (by eye, six days ago). Routed every count through a `plural()` helper and swept
+  it — and the sweep's first version passed with three of the five reinstated, because it could not
+  see a multi-word noun or an upper-case heading. Teeth-checking each slip separately is the only
+  reason that came out. Also repopulated the §5 queue, which was empty. 2 tests reworked, 1 added,
+  6 teeth-checks, 144 pass, sim green. Acorn untouched.
+  **Still waiting on David: the box rule, the ladder, and the watt sink (all §7).**
 - **2026-08-21, 18:04–18:25Z (cron pass, due at 24.3h):** **v1.22 — the simulation stops flattering
   the gap levels, and the hue stops snapping.** Cleared the last item on the §5 queue: `sim.js`
   gave every answer the bubbles' 1-in-3 guess floor, including on the number line, which has twelve

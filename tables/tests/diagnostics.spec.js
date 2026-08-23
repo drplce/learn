@@ -199,6 +199,60 @@ test.describe('the digest', () => {
     expect(errorsOf(page)).toEqual([]);
   });
 
+  test('every number in it agrees with its noun', async ({page}) => {
+    /* "1 days playing" (found 2026-08-17), "LAST 1 DAYS" and "last 1 right answers"
+       (both 2026-08-23) were all spotted by eye, which is not a system. This drives the
+       digest into the states where every count in it is exactly ONE and sweeps for a
+       number followed by a plural. David reads this export to decide things; a page that
+       cannot say "1 answer" invites doubt about the figures standing next to it.
+
+       TWO fixtures, because one cannot cover every section: a single RIGHT answer brings
+       up "how long she takes" and hides "missed most — recently", and a single MISS does
+       the reverse. The first version of this test used only the right-answer state and a
+       regex of `1 [a-z]+s`, which cannot see a multi-word noun — so it passed with all
+       three of the real slips reinstated. It had no teeth at all until it was run against
+       them one at a time. */
+    const states = {
+      'one right answer': a => {
+        a.state.facts['7x8'] = {box: 2, right: 1, wrong: 0, seen: 1, last: a.todayISO()};
+        a.state.log.days[a.todayISO()] = {a:1, r:1, w:0, ms:40000, lv:1, s:1, met:1, slow:0};
+        a.state.log.recent.push({k:'7x8', d:a.todayISO(), ok:1, ms:1200});
+      },
+      'one miss': a => {
+        a.state.facts['7x8'] = {box: 1, right: 0, wrong: 1, seen: 1, last: a.todayISO()};
+        a.state.log.days[a.todayISO()] = {a:1, r:0, w:1, ms:40000, lv:1, s:1, met:1, slow:0};
+        a.state.log.recent.push({k:'7x8', d:a.todayISO(), ok:0, ms:1200});
+      }
+    };
+    const seen = [];
+    for(const [name, fn] of Object.entries(states)){
+      await open(page, '2026-09-04');
+      await page.evaluate(src => {
+        const a = window.__144;
+        a.state.prog.placed = true; a.state.prog.cleared = 1; a.state.prog.days = 1;
+        (new Function('a', src))(a);
+        a.save();
+      }, fn.toString().replace(/^[^=]*=>\s*\{/, '').replace(/\}\s*$/, ''));
+      const t = await digest(page);
+      // the counts really are 1, or this sweep is reading a page that cannot disagree
+      expect(t, `${name}: the fixture did not produce a one-day digest`).toMatch(/1 day playing/);
+      seen.push(t);
+
+      /* A number, then up to three words, ending in an s. Case-insensitive, because
+         one of the real slips was a heading ("LAST 1 DAYS"), and multi-word, because
+         another was "last 1 right answers" — the version of this regex that only
+         allowed a single word missed both. Bounded to three words so a correct
+         singular sentence that happens to contain a plural later on is not flagged. */
+      const offenders = t.split('\n')
+        .filter(l => /(^|[^\d.])1 (?:[a-z]+ ){0,2}[a-z]+s\b/i.test(l));
+      expect(offenders, `${name}: a count of one is followed by a plural`).toEqual([]);
+      expect(errorsOf(page)).toEqual([]);
+    }
+    // and between them the two states really did reach both of the count-bearing sections
+    expect(seen.join('\n')).toContain('HOW LONG SHE TAKES');
+    expect(seen.join('\n')).toContain('MISSED MOST — RECENTLY');
+  });
+
   test('nothing identifying goes in it', async ({page}) => {
     // The repo is public and this gets pasted into a chat. Her name is never in the
     // app at all; the buddy's pet name is hers and stays on the device.

@@ -579,7 +579,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.22';
+var VERSION = '1.23';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -1042,6 +1042,13 @@ function diagnostics(){
   var out = [], i;
   var pad = function(v, n){ v = String(v); return v.length >= n ? v : new Array(n-v.length+1).join(' ') + v; };
   var mins = function(ms){ return (ms/60000).toFixed(1); };
+  /* One noun, agreeing with its number. The export said "1 days playing" until
+     2026-08-17 and "last 1 answers" until 2026-08-23, and both were found by eye
+     rather than by anything checking. A digest that cannot get "1 answer" right
+     invites doubt about every figure standing next to it, which is the opposite of
+     what it is for. `plural` is used everywhere a count meets a noun in here, and a
+     test sweeps the whole digest for a disagreement. */
+  var plural = function(n, one, many){ return n + ' ' + (n === 1 ? one : many); };
 
   /* Days played, without the export contradicting itself. `prog.days` only moves when
      she CLEARS a level — that is the only place `lastDay` is written — so an evening
@@ -1053,13 +1060,13 @@ function diagnostics(){
   var played = Math.max(S.prog.days || 0, diaryDays);
   out.push('144 diagnostics · v' + VERSION + ' · ' + todayISO());
   out.push('level ' + level() + ' of ' + LEVELS.length + '   ·   ' + S.power.watts + ' watts   ·   ' +
-           played + (played === 1 ? ' day' : ' days') + ' playing');
+           plural(played, 'day', 'days') + ' playing');
   out.push('');
 
   // ---- the days ----
   var days = Object.keys(L.days).sort().slice(-14);
   if(days.length){
-    out.push('LAST ' + days.length + ' DAYS');
+    out.push('LAST ' + plural(days.length, 'DAY', 'DAYS'));
     out.push('  day         mins  levels  answers   right   median  slow');
     days.forEach(function(d){
       var v = L.days[d];
@@ -1125,7 +1132,7 @@ function diagnostics(){
       return (recent[y].no - recent[x].no) || (ry - rx);
     }).slice(0, 8);
   if(recentKeys.length){
-    out.push('MISSED MOST — RECENTLY (last ' + L.recent.length + ' answers)');
+    out.push('MISSED MOST — RECENTLY (last ' + plural(L.recent.length, 'answer', 'answers') + ')');
     recentKeys.forEach(function(k){
       var r = recent[k], p3 = k.split('x'), f3 = S.facts[k];
       out.push('  ' + pad(p3[0] + '×' + p3[1], 7) + '   ' + r.no + ' missed of ' + (r.ok + r.no) +
@@ -1165,7 +1172,7 @@ function diagnostics(){
   L.recent.forEach(function(e){ if(e.ok) allMs.push(e.ms); });
   allMs.sort(function(a,b){ return a-b; });
   if(allMs.length){
-    out.push('HOW LONG SHE TAKES (last ' + allMs.length + ' right answers)');
+    out.push('HOW LONG SHE TAKES (last ' + plural(allMs.length, 'right answer', 'right answers') + ')');
     out.push('  median ' + (allMs[Math.floor(allMs.length/2)]/1000).toFixed(1) + 's   ·   ' +
       'fastest quarter under ' + (allMs[Math.floor(allMs.length*0.25)]/1000).toFixed(1) + 's   ·   ' +
       'slowest quarter over ' + (allMs[Math.floor(allMs.length*0.75)]/1000).toFixed(1) + 's');
@@ -1184,8 +1191,8 @@ function diagnostics(){
   L.recent.forEach(function(e){ if(e.d === td && e.ok) promotedToday++; });
   out.push('NOTES');
   out.push('  · a box can still rise more than once a day, so "known" can be reached in one sitting');
-  out.push('  · ' + promotedToday + ' right answers logged today');
-  out.push('  · "' + played + (played === 1 ? ' day' : ' days') + ' playing" counts days she ' +
+  out.push('  · ' + plural(promotedToday, 'right answer', 'right answers') + ' logged today');
+  out.push('  · "' + plural(played, 'day', 'days') + ' playing" counts days she ' +
            'finished a level (all time) or has a diary row (since v1.17)');
   out.push('  · nothing identifying is in this export — no names, hers or the buddy\'s');
   return out.join('\n');

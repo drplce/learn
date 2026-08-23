@@ -9,20 +9,46 @@
 const {test, expect} = require('@playwright/test');
 const {open, errorsOf} = require('./helpers');
 
+/* THE CLOCK MUST BE PINNED IN THIS FILE, and it was not until 2026-08-23.
+   Every fixture here seeds `last: '2026-08-01'` and the picker adds +2 to a fact
+   whose gap has reached `BOX_DAYS[box]` — 1, 2, 4, 8, 21 days for boxes 2 to 6. With
+   the real clock running, more and more of those intervals elapse as the days pass,
+   so the "due" bonus spreads across the whole pool and the box signal these tests
+   measure flattens out on its own. Two of them duly went red on 2026-08-23, the day
+   the gap reached 22 days and box 6 became due — nothing about the app had changed
+   since they last passed.
+
+   That is the worst failure mode a suite can have: a red that arrives on a day nobody
+   is watching, for a reason that is not the app, and whose obvious "fix" is to loosen
+   the thresholds — which would quietly destroy the only test that would have caught
+   v1.9's argmax picker. So: PIN_TODAY is four days after the seeded date, which keeps
+   boxes 2-4 due and 5-6 resting — a believable mid-sitting mix that will read the same
+   in a year. If you add a fixture here, seed it against PIN_SEEN, not a bare date. */
+const PIN_TODAY = '2026-08-05';
+const PIN_SEEN  = '2026-08-01';
+
+// Fail loudly rather than drift: if the pin ever comes off, say so here instead of
+// letting the thresholds below slowly stop meaning anything.
+async function pinned(page){
+  const today = await page.evaluate(() => window.__144.todayISO());
+  expect(today, 'the clock is not pinned — these thresholds only hold at a fixed date')
+    .toBe(PIN_TODAY);
+}
+
 // A believable mid-year state: everything met, boxes spread, and a realistic
 // spread of lifetime misses — including facts she has missed many times.
 async function midYear(page){
-  return page.evaluate(() => {
+  return page.evaluate(seen => {
     const a = window.__144;
     const pool = [];
     for(let x = 1; x <= 12; x++) for(let y = x; y <= 12; y++) pool.push(a.key(x, y));
     pool.forEach((k, i) => {
       a.state.facts[k] = {box: 2 + (i % 5), right: 4 + (i % 7), wrong: i % 9,
-                          seen: 8 + (i % 11), last: '2026-08-01'};
+                          seen: 8 + (i % 11), last: seen};
     });
     a.save();
     return pool;
-  });
+  }, PIN_SEEN);
 }
 // Ask the real picker N times over the real pool.
 async function draw(page, n){
@@ -63,7 +89,8 @@ async function draw(page, n){
 test.describe('what she gets asked', () => {
 
   test('over a year of review, every fact in the pool actually comes up', async ({page}) => {
-    await open(page);
+    await open(page, PIN_TODAY);
+    await pinned(page);
     await midYear(page);
     const d = await draw(page, 2000);
     expect(d.pool).toBe(78);
@@ -75,7 +102,8 @@ test.describe('what she gets asked', () => {
   });
 
   test('weak-first is a bias, not a monopoly', async ({page}) => {
-    await open(page);
+    await open(page, PIN_TODAY);
+    await pinned(page);
     await midYear(page);
     const d = await draw(page, 2000);
     // Thresholds sit clear of the measured ratios (weak 1.25, strong 0.77, low box
@@ -95,26 +123,28 @@ test.describe('what she gets asked', () => {
   });
 
   test('never the same fact twice in a row', async ({page}) => {
-    await open(page);
+    await open(page, PIN_TODAY);
+    await pinned(page);
     await midYear(page);
     const d = await draw(page, 1000);
     expect(d.backToBack).toBe(0);
   });
 
   test('a fact she has never met jumps the queue', async ({page}) => {
-    await open(page);
-    const share = await page.evaluate(() => {
+    await open(page, PIN_TODAY);
+    await pinned(page);
+    const share = await page.evaluate(seen => {
       const a = window.__144;
       const pool = [];
       for(let x = 1; x <= 12; x++) for(let y = x; y <= 12; y++) pool.push(a.key(x, y));
       // all met and well known, except one she has never seen
-      pool.forEach(k => { a.state.facts[k] = {box:6, right:9, wrong:0, seen:9, last:'2026-08-01'}; });
+      pool.forEach(k => { a.state.facts[k] = {box:6, right:9, wrong:0, seen:9, last:seen}; });
       const fresh = pool[40];
       delete a.state.facts[fresh];
       let hits = 0;
       for(let i = 0; i < 2000; i++) if(a.pickFact(pool) === fresh) hits++;
       return hits / 2000;
-    });
+    }, PIN_SEEN);
     // One fact in 78, so its fair share is 1.3%. Assert the multiple rather than an
     // absolute number: the no-repeats rule caps how often any single fact can come
     // up, so an absolute threshold near the ceiling is a coin-flip, not a check.
@@ -125,13 +155,13 @@ test.describe('what she gets asked', () => {
   test('a one-fact pool still works', async ({page}) => {
     // A learn level filtered down to its last unfinished fact, or a gap level with
     // only one met fact: the no-repeats rule must not leave it with nothing to ask.
-    await open(page);
-    const got = await page.evaluate(() => {
+    await open(page, PIN_TODAY);
+    const got = await page.evaluate(seen => {
       const a = window.__144;
       const k = a.key(7, 8);
-      a.state.facts[k] = {box:2, right:1, wrong:1, seen:2, last:'2026-08-01'};
+      a.state.facts[k] = {box:2, right:1, wrong:1, seen:2, last:seen};
       return [a.pickFact([k]), a.pickFact([k]), a.pickFact([k])];
-    });
+    }, PIN_SEEN);
     expect(got).toEqual(['7x8', '7x8', '7x8']);
     expect(errorsOf(page)).toEqual([]);
   });
