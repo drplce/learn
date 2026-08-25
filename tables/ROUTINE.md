@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-23T18:25Z
+last-run: 2026-08-25T18:26Z
 ```
 
 On each firing:
@@ -286,13 +286,19 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
 1. **`sim-daily.js` has not had the gap treatment.** `sim.js` now models a fill-the-gap answer as
    harder than a bubble tap (2026-08-21); `sim-daily.js` still does not, so its figures are the
    optimistic end in the same way `sim.js`'s were. Do this before quoting it to David.
-2. **Nothing tests the SPOKEN side against what is on screen.** `voice.spec.js` checks the phrases
-   and the policy, but not that the question she HEARS is the question she is LOOKING at — a
-   mismatch (an off-by-one after a fast answer, a stale utterance surviving `next()`) is a defect
-   she would meet as pure confusion, and the app is deliberately spoken-first.
-3. **The watts/charge economy has no test at all.** Measured by hand on 2026-08-20 (67.5 watts a
-   level; see §7) but nothing guards it, so a change to `CHARGE_PER_*` or the combo multiplier could
-   silently double or halve what a level is worth.
+2. ~~Nothing tests the spoken side against what is on screen.~~ **Done 2026-08-25.**
+3. ~~The watts/charge economy has no test at all.~~ **Done 2026-08-25** (`economy.spec.js`).
+6. **The CHARGE half of the economy is still unguarded.** `economy.spec.js` covers watts; nothing
+   covers the battery — that a level tops it up, that a full battery is not over-claimed on the
+   clear card (a defect the overnight sprint already found once), that it drains at the rate §4
+   says. Cheap, and it is the half she actually feels.
+7. **The trigger's own drift, for David.** The daily trigger fires at a fixed 18:02Z but `last-run`
+   is stamped when a pass FINISHES — so a pass that runs past 18:02 pushes the stamp beyond the next
+   day's firing and that firing is skipped. Observed on 2026-08-22 and 2026-08-24; 144 is really
+   running every other day, and Acorn's weekly slipped a day on 2026-08-25 the same way. **Only
+   David changes schedules**, so this is recorded rather than fixed. The fix, when he wants it, is
+   to stamp `last-run` at the START of a pass, or give step 3 of the gate a small grace margin
+   (e.g. treat ≥ 95% of the interval as due).
 4. ~~The slow lane across days.~~ **Done 2026-08-20** — see the guarded list below.
 5. ~~The dial, at the sizes her thumb actually is.~~ **Done (v1.21), and it found a real one** —
    see "the way out of the dial" below. The 27.6px stops turned out to be a non-issue (she drags
@@ -300,6 +306,22 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
    the home-indicator inset. What was broken was the escape gesture.
 
 **Done, and now guarded — do not undo these:**
+- **The voice and the screen agree, every question, not just the first** (v1.24, `tests/voice.spec.js`):
+  the older tests compare the spoken phrase to `sitting().cur`, which is the app's own idea of the
+  question and so cannot catch the failure that would actually reach her — the SCREEN saying one
+  thing while the VOICE says another. These read the numbers off `#prompt` and sweep a whole level.
+  Three claims: the bubble question spoken is the one shown; the gap question reads the same gap the
+  screen shows and still never says the answer; and **every question gets exactly one utterance —
+  none silent, none doubled**. Teeth-checked by swapping the factors, by reading the wrong factor as
+  known, and by silencing every third question — which surfaces as the STALE utterance from the
+  previous question, which is exactly the confusion it would cause her.
+- **The currency cannot punish her** (v1.24, `tests/economy.spec.js`): watts sampled after every
+  action across a level full of misses, a dial entry she backs out of, and a reload — the total
+  never falls. Plus the two halves of "worth winning": a level she fought through still pays (53–70%
+  of a clean one, measured), and a streak pays better than no streak. *Trap:* the fluency claim was
+  first asserted as `fought.earned < clean.earned` and **passed with the combo multiplier deleted**,
+  because a fought level has more answers in it so the totals never isolate the multiplier. The
+  claim is per ANSWER, so it is measured per answer now.
 - **⚠ THE CLOCK MUST BE PINNED IN ANY TEST WHOSE FIXTURE SEEDS A DATE** (v1.23, `tests/picker.spec.js`).
   The picker adds +2 to a fact whose gap has reached `BOX_DAYS[box]` — 1, 2, 4, 8, 21 days for boxes
   2 to 6. `picker.spec.js` seeded `last:'2026-08-01'` and did **not** pin `_today`, so as the real
@@ -657,6 +679,17 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-25, 18:04–18:40Z (cron pass, due at 47.6h):** **v1.24 — what she hears against what she
+  sees, and a currency that cannot punish her.** Cleared two more §5 queue items. The voice tests
+  all compared speech to the app's own state and only ever looked at the opening question of a
+  level; these read the numbers off the DOM and sweep the whole level, which is the only way to
+  catch the screen and the voice disagreeing. The economy had no test at all despite the hand
+  measurement in §7 being the number David needs for battery-pack pricing. Two traps, both the same
+  shape as ever — an assertion that cannot see the thing it names: the fluency claim passed with the
+  combo multiplier deleted (totals do not isolate a per-answer effect), and the earlier plural sweep
+  taught the same lesson two days ago. Also recorded the trigger drift for David (queue item 7) —
+  144 is really running every other day. 6 tests added, 5 teeth-checks, 150 pass, sim green.
+  Acorn untouched. **Still waiting on David: the box rule, the ladder, and the watt sink (all §7).**
 - **2026-08-23, 18:03–18:30Z (cron pass, due at 47.7h):** **v1.23 — a suite that was rotting on the
   calendar, and five numbers that could not count to one.** The harness opened red on two picker
   tests that had passed for a fortnight: they seeded `last:'2026-08-01'` and never pinned the clock,

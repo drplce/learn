@@ -87,6 +87,105 @@ test.describe('the words it says', () => {
 
 });
 
+/* What she HEARS against what she is LOOKING AT — for every question in a level,
+   not just the first one.
+
+   The tests above compare the spoken phrase to `sitting().cur`, which is the app's
+   own idea of the question. That cannot catch the failure that would actually reach
+   her: the SCREEN saying one thing while the VOICE says another. It also only ever
+   looks at the opening question of a level, so an off-by-one that starts on the
+   second — a stale utterance surviving `next()`, a prompt repainted after the speech
+   was queued — would go straight past it.
+
+   She is dyslexic and this app is deliberately spoken-first. A question she hears
+   that does not match the one in front of her is not a cosmetic bug; it is the app
+   telling her two different things at once. */
+test.describe('the voice and the screen agree', () => {
+
+  // Everything the screen is claiming, read off the DOM rather than the app's state.
+  const onScreen = page => page.evaluate(() => {
+    const t = (document.getElementById('prompt').innerText || '').replace(/\s+/g, ' ').trim();
+    const nums = (t.match(/\d+/g) || []).map(Number);
+    return {text: t, nums: nums, gap: t.indexOf('?') >= 0};
+  });
+
+  async function sweep(page, kind, questions){
+    await listen(page);
+    await onKind(page, kind);
+    await page.waitForTimeout(250);
+    const rows = [];
+    for(let q = 0; q < questions; q++){
+      if(await page.evaluate(() => window.__144.meeting())){
+        await page.evaluate(() => window.__144.skipMeet());
+        await page.waitForTimeout(260);
+      }
+      const said = await heard(page);
+      const seen = await onScreen(page);
+      rows.push({said: said[said.length - 1] || null, spokenCount: said.length, seen: seen});
+      if(await page.evaluate(() => !!document.querySelector('#clear.on'))) break;
+      if(!await answer(page, true)) break;
+      await page.waitForTimeout(kind === 'recall' ? 460 : 340);
+    }
+    return rows;
+  }
+  const words = (page, n) => page.evaluate(v => window.__144.numWords(v), n);
+
+  test('on a bubble level, every question spoken is the question shown', async ({page}) => {
+    await open(page);
+    const rows = await sweep(page, 'learn', 7);
+    expect(rows.length, 'the level never got going').toBeGreaterThan(3);
+    for(const [i, r] of rows.entries()){
+      expect(r.said, `question ${i + 1} was never spoken at all`).toBeTruthy();
+      expect(r.seen.nums.length, `question ${i + 1} has no numbers on screen`).toBe(2);
+      const [x, y] = r.seen.nums;
+      const want = (await words(page, x)) + ' times ' + (await words(page, y));
+      expect(r.said, `question ${i + 1}: the screen says "${r.seen.text}" and the voice says "${r.said}"`)
+        .toBe(want);
+    }
+    expect(errorsOf(page)).toEqual([]);
+  });
+
+  test('on a gap level, the voice reads the same gap the screen shows', async ({page}) => {
+    await open(page);
+    const rows = await sweep(page, 'recall', 6);
+    expect(rows.length, 'the level never got going').toBeGreaterThan(3);
+    for(const [i, r] of rows.entries()){
+      expect(r.said, `question ${i + 1} was never spoken at all`).toBeTruthy();
+      expect(r.seen.gap, `question ${i + 1} is not showing a gap`).toBe(true);
+      // the screen shows the known factor and the product; the answer is the "?"
+      expect(r.seen.nums.length, `question ${i + 1}: expected a factor and a product`).toBe(2);
+      const [known, product] = r.seen.nums;
+      const kw = await words(page, known), pw = await words(page, product);
+      expect(r.said, `question ${i + 1}: screen "${r.seen.text}" vs voice "${r.said}"`)
+        .toBe(kw + ' times what is ' + pw);
+      // and it still never says the answer out loud
+      const missing = product / known;
+      if(Number.isInteger(missing) && missing !== known && missing !== product){
+        expect(' ' + r.said + ' ',
+          `question ${i + 1} spoke the answer she is meant to work out`)
+          .not.toContain(' ' + (await words(page, missing)) + ' ');
+      }
+    }
+    expect(errorsOf(page)).toEqual([]);
+  });
+
+  test('every question gets exactly one utterance — none silent, none doubled',
+    async ({page}) => {
+      // A question asked in silence is the app failing at the one thing it promises a
+      // child who finds reading hard. Two utterances is the older one talking over the
+      // newer, which is worse than either.
+      await open(page);
+      const rows = await sweep(page, 'learn', 7);
+      let prev = 0;
+      rows.forEach((r, i) => {
+        const added = r.spokenCount - prev;
+        expect(added, `question ${i + 1} was spoken ${added} times, not once`).toBe(1);
+        prev = r.spokenCount;
+      });
+    });
+
+});
+
 test.describe('what it says back', () => {
 
   test('nothing is said back during play, on any level', async ({page}) => {
