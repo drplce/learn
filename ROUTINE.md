@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: weekly
-last-run: 2026-08-18T19:07Z
+last-run: 2026-08-26T17:42Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -336,6 +336,28 @@ node tests/break.js     # adversarial pass; non-zero on any finding
 
 `two-windows.spec.js` and the audio-live prefetch test are known parallel-load flakes — confirm
 by re-running the named file in isolation before treating a failure as real.
+
+**RUN THE SUITE AT A FUTURE DATE NOW AND AGAIN:** `ACORN_DAYS_AHEAD=400 npx playwright test`
+(off by default; two minutes). The sibling app in `tables/` had two engine tests seed a fixed
+`last` date and read the REAL clock, and because the Leitner intervals are measured in days, what
+they were testing drifted a little every day until they went red on 2026-08-23 — a Sunday, on a
+build nobody had touched. **A red that arrives on its own, for a reason that is not the app, is the
+worst kind:** the obvious fix is to loosen the thresholds, which would have destroyed the test.
+Acorn was swept the same week and is clean — 590 pass at +200 days and again at +1100 — but "clean
+today" is exactly what the other suite was.
+
+**THE TWO-WINDOW DATA GUARD IS THE `rev` MERGE, NOT THE `storage` LISTENER (measured 2026-08-26).**
+Worth knowing before anyone simplifies either. With the `storage` handler stubbed out entirely,
+`break.js` §31 — the section built specifically to catch two windows losing her work — **still
+passes**. The listener keeps an open window's SCREEN fresh; it is the merge on write that keeps her
+data. Do not assume the listener is protecting anything but the view.
+
+*(Attempted this pass and NOT shipped: an adversarial section for a grown-up restoring a backup in
+one window while she is mid-word in another. It passes, but it passes with the merge stubbed AND
+with the listener stubbed — the invariant is over-determined and no single-line regression makes it
+fail. A test that cannot be made to fail is not a test, so it was dropped rather than left standing
+as a reassuring green. If it is ever wanted, it needs a build with the whole write path replaced,
+not a one-line injection.)*
 
 **The harness itself can lie, and has.** Two traps caught this way, both worth carrying:
 - **A field the hook does not expose reads as `undefined`,** and `undefined === undefined` passes

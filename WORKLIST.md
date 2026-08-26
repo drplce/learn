@@ -36,6 +36,11 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
 - ✅ **PACE-1** — **B2 + B3 shipped (owner-approved).** sim.js bands recalibrated (learned floor 0.80→0.75; finished-list exemption 0.5→3), engine untouched. **sim now green.**
 
 ## Done / closed
+- ✅ **HAR-2 (2026-08-26)** — `ACORN_DAYS_AHEAD=N` runs the whole suite at a simulated future date
+  (off by default). Added after the sibling app's engine tests rotted on the calendar and went red
+  on an untouched build; Acorn proved clean at +200 and +1100 days. Also measured, and written into
+  ROUTINE.md §5: the two-window data guard is the `rev` merge, **not** the `storage` listener —
+  `break.js` §31 still passes with the listener stubbed out.
 - ✅ **HAR-1 (2026-08-18)** — the adversarial pass gained three sections about the **re-trace**, the
   newest mechanic and the one she meets on every slip: it cannot be escaped by wrong keys or stray
   keys, cannot be pasted through, and never re-scores the word (§37); an evening of nothing but
