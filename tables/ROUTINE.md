@@ -16,10 +16,26 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-25T18:26Z
+last-run: 2026-08-27T18:18Z
 ```
 
 On each firing:
+
+0. **SYNC FIRST — the file you are about to read can be stale.** This session runs in a container
+   that is reclaimed and re-provisioned, and a fresh one can come up on an older snapshot of the
+   branch. On 2026-08-27 the checkout was three commits behind and this STATE block still read
+   `last-run: 2026-08-18`; taken at face value that said 190h had passed and would have sent the
+   loop into a full pass redoing work already pushed. **Nothing is lost when this happens** — the
+   remote has it — but the gate lies until you fetch. So, before reading anything:
+
+   ```
+   git status --short                 # must be clean before the next line
+   git fetch origin <branch> && git merge --ff-only origin/<branch>
+   ```
+
+   If the working tree is NOT clean, stop and say so rather than merging over it. If `node_modules`
+   is missing (a fresh container has none), `npm install` — it is quick, and the browsers are
+   already on the image.
 
 1. Read `interval` and `last-run`. Run `date -u +"%Y-%m-%dT%H:%MZ"` for now.
 2. Hours per interval: `30m`=0.5, `hourly`=1, `daily`=24, `weekly`=168.
@@ -288,10 +304,7 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
    optimistic end in the same way `sim.js`'s were. Do this before quoting it to David.
 2. ~~Nothing tests the spoken side against what is on screen.~~ **Done 2026-08-25.**
 3. ~~The watts/charge economy has no test at all.~~ **Done 2026-08-25** (`economy.spec.js`).
-6. **The CHARGE half of the economy is still unguarded.** `economy.spec.js` covers watts; nothing
-   covers the battery — that a level tops it up, that a full battery is not over-claimed on the
-   clear card (a defect the overnight sprint already found once), that it drains at the rate §4
-   says. Cheap, and it is the half she actually feels.
+6. ~~The charge half of the economy is unguarded.~~ **Done 2026-08-27** — see the guarded list.
 7. **The trigger's own drift, for David.** The daily trigger fires at a fixed 18:02Z but `last-run`
    is stamped when a pass FINISHES — so a pass that runs past 18:02 pushes the stamp beyond the next
    day's firing and that firing is skipped. Observed on 2026-08-22 and 2026-08-24; 144 is really
@@ -306,6 +319,16 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
    the home-indicator inset. What was broken was the escape gesture.
 
 **Done, and now guarded — do not undo these:**
+- **The battery sleeps when she does** (2026-08-27, `tests/economy.spec.js`): the reason
+  `wakingHoursBetween` exists, and nothing had ever tested it. A full charge is gone in four WAKING
+  hours, so if the night counted the buddy would be flat before breakfast **every day of the year** —
+  she would never once open the app to something awake, and "flat" would stop meaning "it has been a
+  while" and start meaning "it is always like this", which is the manipulation §3 forbids. Guarded
+  end to end (7pm full → 8am next day still ~50%) and at the arithmetic. *Trap:* a third assertion
+  in the same test claimed to check the ceiling by setting `charge = 100` and reading it straight
+  back — that tests assignment, not the app, and passed with `Math.min(100, …)` deleted. Dropped;
+  `clearcard.spec.js` already covers the ceiling that matters. **One assertion that bites beats two
+  that read well.**
 - **The voice and the screen agree, every question, not just the first** (v1.24, `tests/voice.spec.js`):
   the older tests compare the spoken phrase to `sitting().cur`, which is the app's own idea of the
   question and so cannot catch the failure that would actually reach her — the SCREEN saying one
@@ -679,6 +702,15 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-27, 18:02–18:20Z (cron pass, due at 47.6h):** **the gate can be lied to, and the battery
+  sleeps when she does.** The container had been reclaimed and came up on a snapshot three commits
+  old, with `node_modules` gone: this file still read `last-run: 2026-08-18`, which at face value
+  said 190h and would have sent the loop into a full pass redoing work already pushed. Nothing was
+  lost — the remote had it — but **the gate lies until you fetch**, so step 0 now says to sync first
+  and how. Then §5 item 6: the charge half of the economy, which is the half she actually feels.
+  A trap in my own test caught by teeth-checking: an assertion that set `charge = 100` and read it
+  back, which tests assignment rather than the app. 3 tests, 3 teeth-checks, 153 pass, sim green.
+  Acorn untouched. **Still waiting on David: the box rule, the ladder, and the watt sink (all §7).**
 - **2026-08-25, 18:04–18:40Z (cron pass, due at 47.6h):** **v1.24 — what she hears against what she
   sees, and a currency that cannot punish her.** Cleared two more §5 queue items. The voice tests
   all compared speech to the app's own state and only ever looked at the opening question of a

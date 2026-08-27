@@ -52,6 +52,82 @@ async function playSampling(page, {missEvery = 0} = {}){
   return {seen, earned, answers: n};
 }
 
+/* The battery, which is the half of the economy she actually feels.
+   `buddy.spec.js` covers the drain RATE and what a level puts back; `clearcard.spec.js`
+   covers the card never claiming a charge it did not get. What nothing covered is the
+   reason `wakingHoursBetween` exists at all: the battery must not drain while she is
+   asleep. It matters more than it sounds. A full charge is gone in four WAKING hours,
+   so if the night counted it would be flat before breakfast every single day — she
+   would never once open the app to a buddy that was awake, and "flat" would stop
+   meaning "it has been a while" and start meaning "it is always like this", which is
+   the manipulation §3 forbids. */
+test.describe('the battery sleeps when she does', () => {
+
+  // The app's own clock arithmetic, over real timestamps, in local time — which is
+  // what the implementation uses.
+  const waking = (page, from, to) => page.evaluate(([f, t]) => {
+    const at = a => new Date(a[0], a[1] - 1, a[2], a[3], 0, 0).getTime();
+    return window.__144.wakingHoursBetween(at(f), at(t));
+  }, [from, to]);
+
+  test('a night on the shelf costs it nothing', async ({page}) => {
+    await open(page);
+    // 8pm to 7am — the whole of the night, by the app's own definition
+    expect(await waking(page, [2026, 9, 1, 20], [2026, 9, 2, 7]),
+      'the battery drained while she was asleep').toBeCloseTo(0, 5);
+    // and a long weekend away is only the waking part of it
+    const twoDays = await waking(page, [2026, 9, 4, 20], [2026, 9, 6, 20]);
+    expect(twoDays, 'two nights and two days did not count two days').toBeCloseTo(26, 1);
+    expect(await waking(page, [2026, 9, 1, 12], [2026, 9, 1, 16]),
+      'four hours of an afternoon should be four hours').toBeCloseTo(4, 5);
+  });
+
+  test('she can wake up to a buddy that is still awake', async ({page}) => {
+    /* The end-to-end version, and the one she would notice. Last thing at night the
+       battery is full; by morning it has lost only the hour before bed and the hour
+       since getting up — not the eleven in between. If this ever regresses she meets a
+       flat buddy every morning of the year. */
+    await open(page);
+    const morning = await page.evaluate(() => {
+      const a = window.__144;
+      const bedtime = new Date(2026, 8, 1, 19, 0, 0).getTime();     // 7pm, charged up
+      const wakeUp  = new Date(2026, 8, 2, 8, 0, 0).getTime();      // 8am next day
+      a.state.power.charge = 100;
+      a.state.power.at = bedtime;
+      const realNow = Date.now;
+      Date.now = () => wakeUp;
+      try { a.settleCharge(); } finally { Date.now = realNow; }
+      return a.state.power.charge;
+    });
+    // 1h before bed + 1h after waking = 2 waking hours of a 4-hour battery
+    expect(morning, 'the buddy was flat by morning — the night was charged for')
+      .toBeCloseTo(50, 0);
+    expect(morning).toBeGreaterThan(0);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
+  test('a long absence empties it and stops there', async ({page}) => {
+    /* Only the FLOOR is asserted here. An earlier version also claimed to check the
+       ceiling, by setting `charge = 100` and reading it straight back — which tests
+       assignment, not the app, and duly passed with the `Math.min(100, ...)` in
+       `addCharge` deleted. The ceiling that matters is the one the clear card reports,
+       and `clearcard.spec.js` already covers it end to end ("a full battery is never
+       promised a charge it cannot take"). Better one assertion that bites than two
+       that read well. */
+    await open(page);
+    const under = await page.evaluate(() => {
+      const a = window.__144;
+      a.state.power.charge = 1;
+      a.state.power.at = Date.now() - 40 * 3600 * 1000;             // days of waking hours
+      a.settleCharge();
+      return a.state.power.charge;
+    });
+    expect(under, 'the battery went below empty').toBeGreaterThanOrEqual(0);
+    expect(under, 'a long absence did not flatten it').toBe(0);
+  });
+
+});
+
 test.describe('the currency', () => {
 
   test('nothing she does can take a watt back', async ({page}) => {
