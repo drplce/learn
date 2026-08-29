@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-27T18:18Z
+last-run: 2026-08-29T18:21Z
 ```
 
 On each firing:
@@ -279,8 +279,9 @@ promote when the FIRST attempt is right; separate "met" from "retained"), it is 
 open at the top of §7 with his real data behind it.
 
 **So do not read "health bands all hold" as "the model is fine."** If you want the honest number,
-`sim-daily.js` already reports one the boxes cannot flatter: **unaided recall, 69.3/78 at day 142**
-(and 53–66 along the way) against `known` pinned at 78/78 everywhere. That gap between 69 and 78 is
+`sim-daily.js` already reports one the boxes cannot flatter: **unaided recall, 69–70/78 at day 142**
+(and 53–66 along the way; quoted as a range because it is a stochastic model — three runs on
+2026-08-29 gave 70.3 / 70.2 / 70.3, and a single decimal overstates what it knows) against `known` pinned at 78/78 everywhere. That gap between 69 and 78 is
 the whole of the open question, stated as a number. Do **not** widen a band, lower a target, or tune
 the picker to make any of this look tidier.
 
@@ -299,9 +300,15 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
 *(Both of the original queue items are now done — see `evening.spec.js` and `sound.spec.js` under
 "Done, and now guarded". What is left here is what the next pass should reach for.)*
 
-1. **`sim-daily.js` has not had the gap treatment.** `sim.js` now models a fill-the-gap answer as
-   harder than a bubble tap (2026-08-21); `sim-daily.js` still does not, so its figures are the
-   optimistic end in the same way `sim.js`'s were. Do this before quoting it to David.
+1. ~~`sim-daily.js` has not had the gap treatment.~~ **CLOSED 2026-08-29 — the premise was wrong,
+   twice.** (a) `sim-daily.js` simulates David's *proposed* one-fact-a-day scheduler, which has no
+   fill-the-gap questions in it at all — every question there is a bubble question, so there is no
+   gap difficulty to model. (b) The figure actually quoted from it, unaided recall, comes from
+   `recallable()`, which is computed from the learner's memory strength and never touches
+   `nOptions` or the guess floor — it is already a production measure and was never inflated by the
+   multiple-choice floor. Also measured while checking: its run-to-run spread on that figure is
+   **0.1 facts over three runs**, so the file's own "under half a fact" warning is accurate and
+   seeding it would be tidying, not fixing. Left alone deliberately.
 2. ~~Nothing tests the spoken side against what is on screen.~~ **Done 2026-08-25.**
 3. ~~The watts/charge economy has no test at all.~~ **Done 2026-08-25** (`economy.spec.js`).
 6. ~~The charge half of the economy is unguarded.~~ **Done 2026-08-27** — see the guarded list.
@@ -702,6 +709,20 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-29, 18:02–18:35Z (cron pass, due at 47.7h):** **a queue item closed for being wrong, and
+  a visual look that found nothing.** The last substantive §5 item was "give `sim-daily.js` the gap
+  treatment" — and reading it properly, the premise was wrong twice over: that file simulates a
+  scheduler with no gap questions in it, and the figure quoted from it never went through the guess
+  floor anyway. Closed with the reasoning rather than executed, and its run-to-run spread measured
+  (0.1 facts) so the decision not to seed it is on the record. Softened the §5 quote of that figure
+  from `69.3` to `69–70`, because a single decimal overstates a stochastic model and David reads it.
+  Then §6's game-feel rotation: shot the play field across four rounds at 375px. Nothing wrong —
+  the prompt is the hero, the targets are generous, the hue wipe reads. **One thing that looked
+  like a defect was my own fixture:** the HUD buddy appeared to follow the round colour, because
+  `applyShell()` runs in `renderPower()` and at boot but not in the general `render()`, so a fixture
+  that sets the shell afterwards never applies it. Checked before concluding — `--shell` holds
+  violet across all three rounds while `--rc` rotates. 153 pass. Acorn untouched.
+  **Still waiting on David: the box rule, the ladder, and the watt sink (all §7).**
 - **2026-08-27, 18:02–18:20Z (cron pass, due at 47.6h):** **the gate can be lied to, and the battery
   sleeps when she does.** The container had been reclaimed and came up on a snapshot three commits
   old, with `node_modules` gone: this file still read `last-run: 2026-08-18`, which at face value
