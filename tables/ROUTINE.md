@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-29T18:21Z
+last-run: 2026-08-31T18:50Z
 ```
 
 On each firing:
@@ -312,6 +312,18 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
 2. ~~Nothing tests the spoken side against what is on screen.~~ **Done 2026-08-25.**
 3. ~~The watts/charge economy has no test at all.~~ **Done 2026-08-25** (`economy.spec.js`).
 6. ~~The charge half of the economy is unguarded.~~ **Done 2026-08-27** — see the guarded list.
+8. **⚠ ONE UNIDENTIFIED FULL-SUITE FAILURE, 2026-08-31.** The first run of that pass reported
+   `1 failed / 152 passed` and **four consecutive runs afterwards were green (153)**. The name was
+   lost because the output was piped through `grep | tail` and the ✘ line was cut, and Playwright
+   left no `test-results/` context behind. Unreproduced, so not fixed — but recorded, because a
+   ~1-in-5 flake is exactly what this suite has repeatedly turned out to have, and every previous
+   one was a test defect rather than an app defect. **Run the suite as
+   `npx playwright test -c tables/playwright.config.js --reporter=list > /tmp/run.txt 2>&1` and grep
+   the file**, never through a truncating pipe, so the next occurrence is identifiable.
+9. **`sim.js` is blind to distractor quality.** Its learner model takes a flat `1/nOptions` guess
+   floor and never sees WHICH wrong answers are offered, so the 2026-08-31 distractor work moved
+   nothing in the simulation (93.1% before and after). That is not evidence the change was harmless —
+   it is evidence sim cannot see it. If distractors are ever changed again, do not cite sim.
 7. **The trigger's own drift, for David.** The daily trigger fires at a fixed 18:02Z but `last-run`
    is stamped when a pass FINISHES — so a pass that runs past 18:02 pushes the stamp beyond the next
    day's firing and that firing is skipped. Observed on 2026-08-22 and 2026-08-24; 144 is really
@@ -326,6 +338,19 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
    the home-indicator inset. What was broken was the escape gesture.
 
 **Done, and now guarded — do not undo these:**
+- **The squares get real near-misses** (v1.25, `tests/game.spec.js`): the wrong answers ARE the
+  difficulty on a bubble level, and a number that appears nowhere in the times table can be ruled
+  out without knowing the fact. Audited all 78 facts and the **squares were the weak set** — 2.75
+  of 4 options were real table products against 3.82 for every other fact, worsening with size:
+  12 × 12 offered 156, 132, 146, 142, of which only 132 is a product of anything. Structural cause:
+  when `a === b` the four adjacent-multiple candidates collapse onto `p±a`, the pool halves, and the
+  `p±2` fallbacks get used. A square now also offers the squares either side of it and its two
+  adjacent products, capped at 144 (13² is a number from outside a 12×12 table, which is the same
+  fault as `p±2`). Squares now average 3.92; eleven of twelve are 4/4; 7 × 7 offers 36 and 64.
+  *Two things checked rather than assumed:* the old test looked at **6 × 7 only**, which is why it
+  never saw this; and of the assertions in the new one, the numeric-closeness sweep does **not**
+  catch the original defect (146 is two away from 144, so it passes) — the neighbouring-square rule
+  is what fails on the old build. Both are noted in the test itself.
 - **The battery sleeps when she does** (2026-08-27, `tests/economy.spec.js`): the reason
   `wakingHoursBetween` exists, and nothing had ever tested it. A full charge is gone in four WAKING
   hours, so if the night counted the buddy would be flat before breakfast **every day of the year** —
@@ -709,6 +734,17 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-08-31, 18:02–18:55Z (cron pass, due at 47.7h):** **v1.25 — the squares were offering
+  answers she could rule out without knowing them.** §6 item 3 asks whether the distractors stay
+  plausible at the top of the table. For 11 × 12 they do (it offers 121 and 144, exactly David's
+  brief). For the SQUARES they did not, and the old test could not have seen it because it checked
+  one fact. Measured across all 78, fixed, re-measured. Also found and recorded two limits rather
+  than papering over them: `sim.js` cannot see distractor quality at all (queue item 9), so its
+  unchanged 93.1% is not a validation; and **one full-suite failure went unidentified** because I
+  piped the output through `grep | tail` and cut the line — four later runs were green, and the
+  practice of capturing to a file is now written into queue item 8. 1 test rewritten from 1 fact to
+  78, teeth-checked. 153 pass, four times. sim green. Acorn untouched.
+  **Still waiting on David: the box rule, the ladder, and the watt sink (all §7).**
 - **2026-08-29, 18:02–18:35Z (cron pass, due at 47.7h):** **a queue item closed for being wrong, and
   a visual look that found nothing.** The last substantive §5 item was "give `sim-daily.js` the gap
   treatment" — and reading it properly, the premise was wrong twice over: that file simulates a

@@ -321,13 +321,64 @@ test.describe('playing a level', () => {
   });
 
   test('the wrong answers offered are the mistakes she would really make', async ({page}) => {
+    /* The wrong answers ARE the difficulty on a bubble level. A number that appears
+       nowhere in the times table can be ruled out without knowing the fact at all, so
+       every option has to be either NUMERICALLY close or a REAL PRODUCT — ideally both.
+
+       This checked one fact (6 × 7) until 2026-08-31, which is why it never noticed that
+       the squares were the weak set: when a === b the four adjacent-multiple candidates
+       collapse onto p±a, the pool halves, and the p±2 fallbacks get used — and p±2 at
+       the top of the table is a product of nothing. 12 × 12 was offering 156, 146 and
+       142 against 144. All 78 facts now, at both widths. */
     await open(page);
-    const d = await page.evaluate(() => window.__144.distractors(6, 7, 3));
-    expect(d).not.toContain(42);                       // never the right one
-    expect(d.every(v => v > 0 && v <= 200)).toBe(true);
-    expect(new Set(d).size).toBe(3);                   // no repeats
-    // near-misses, not random noise: everything within a table-step of the answer
-    expect(d.every(v => Math.abs(v - 42) <= 12)).toBe(true);
+    const rows = await page.evaluate(() => {
+      const a = window.__144, out = [];
+      const inTable = v => { for(let i = 1; i <= 12; i++) for(let j = 1; j <= 12; j++)
+        if(i * j === v) return true; return false; };
+      for(let x = 1; x <= 12; x++) for(let y = x; y <= 12; y++)
+        for(const n of [3, 4]){
+          const d = a.distractors(x, y, n), p = x * y;
+          out.push({f: x + '×' + y, p, n, d,
+            step: Math.max(x, y) + 2,
+            offTable: d.filter(v => Math.abs(v - p) > Math.max(x, y) + 2 && !inTable(v)),
+            plausible: d.filter(inTable).length});
+        }
+      return out;
+    });
+    expect(rows.length).toBe(78 * 2);
+
+    for(const r of rows){
+      expect(r.d, `${r.f}: the answer itself was offered`).not.toContain(r.p);
+      expect(new Set(r.d).size, `${r.f}: a repeated option`).toBe(r.n);
+      expect(r.d.every(v => v > 0 && v <= 200), `${r.f}: an impossible option ${JSON.stringify(r.d)}`)
+        .toBe(true);
+      // the real claim: nothing she could dismiss without knowing the fact
+      expect(r.offTable,
+        `${r.f} = ${r.p} offers ${JSON.stringify(r.offTable)} — neither close nor a real product`)
+        .toEqual([]);
+    }
+
+    /* Which of these assertions actually has teeth, checked rather than assumed:
+       the `offTable` sweep above does NOT catch the defect this test was written for.
+       12 × 12 was offering 146 and 142, and those are two away from 144 — numerically
+       close, so they pass it. The rule below is what does the work. Kept both anyway:
+       `offTable` guards a wilder class (a distractor from outside the table entirely)
+       that nothing currently produces, and the `v <= 200` bound is likewise a floor
+       under future changes rather than something reachable today — widening the cap to
+       400 changes no output, which was verified, not supposed.
+
+       So: the squares. Each must offer at least one NEIGHBOURING square, because that
+       is the mistake she really makes, and it is the assertion that fails on the
+       pre-2026-08-31 build. */
+    const squares = rows.filter(r => r.n === 4 && r.f.split('×')[0] === r.f.split('×')[1]);
+    expect(squares.length).toBe(12);
+    for(const r of squares){
+      const k = Number(r.f.split('×')[0]);
+      const neighbours = [(k - 1) * (k - 1), (k + 1) * (k + 1)].filter(v => v > 0 && v <= 144);
+      expect(r.d.some(v => neighbours.includes(v)),
+        `${r.f} = ${r.p} offers ${JSON.stringify(r.d)} — none of them a neighbouring square`)
+        .toBe(true);
+    }
   });
 
   test('a streak builds a multiplier, and the jackpot pays extra', async ({page}) => {

@@ -579,7 +579,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.24';
+var VERSION = '1.25';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -922,7 +922,10 @@ function pickFact(pool){
    table, a swapped square, an off-by-one row. Spotting the odd one out is not
    the skill — telling 48 from 42 from 56 is. */
 function distractors(a, b, n){
-  var p=a*b, cand=[p+a, p-a, p+b, p-b, a*(b+1), a*(b-1), (a+1)*b, (a-1)*b, p+2, p-2, p+10, p-10];
+  var p=a*b, cand=[p+a, p-a, p+b, p-b, a*(b+1), a*(b-1), (a+1)*b, (a-1)*b];
+  if(a === b) cand = cand.concat([(a-1)*(a-1), (a+1)*(a+1), a*(a-2), a*(a+2)]
+    .filter(function(c){ return c <= 144; }));
+  cand = cand.concat([p+2, p-2, p+10, p-10]);
   var out=[], seen=Object.create(null); seen[p]=1;
   for(var i=0;i<cand.length && out.length<n;i++){
     var c=cand[i];
