@@ -603,8 +603,15 @@ leave 144 looking better than it found it. Rules of engagement:
   4. ~~Round-to-round transitions: the hue currently snaps.~~ **Done (v1.22)** — `--rc` is a
      registered `@property`, so it tweens over `--m-quick` (briefer than the gap between questions,
      deliberately). Reduced motion already forces every transition to ~0ms, so it snaps there.
-  5. *(v1.4 — the prompt now floats inside the field, so the empty middle is gone. What is left in
-     that space is still bare: drifting sparks or a faint stage floor would fill it.)*
+  5. ~~The space between the prompt and the rising bubbles is bare.~~ **CLOSED 2026-09-02, decided
+     against.** It has sat on this list since v1.4 and been passed over every time, so here is the
+     reasoning rather than a fourth deferral. Looking at the actual screen: that dark band is what
+     the lit rings pop against, and the ground already carries three blooms (two stage lights from
+     the top corners plus one rising from the bottom at 108%). The two ideas on offer both cost more
+     than they give — **drifting sparks put MOTION in the field she is tracking rising targets
+     through**, which is the one place this app must not add competing movement; and a brighter
+     floor spends the contrast the bubbles rely on. §6a's own rule settles it: *legibility always
+     wins a fight with atmosphere.* Reopen only if David says the play field looks empty to him.)*
   6. *(v1.5 — the buddy is glass now at both sizes: dark body, her colour in the rim, a bright core
      breathing inside. Shell swatches still show her colour flat and pale; they could show the same
      lit-glass read so the picker matches what she gets.)*
