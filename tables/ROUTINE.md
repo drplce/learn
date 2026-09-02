@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-08-31T18:50Z
+last-run: 2026-09-02T18:45Z
 ```
 
 On each firing:
@@ -312,14 +312,11 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
 2. ~~Nothing tests the spoken side against what is on screen.~~ **Done 2026-08-25.**
 3. ~~The watts/charge economy has no test at all.~~ **Done 2026-08-25** (`economy.spec.js`).
 6. ~~The charge half of the economy is unguarded.~~ **Done 2026-08-27** — see the guarded list.
-8. **⚠ ONE UNIDENTIFIED FULL-SUITE FAILURE, 2026-08-31.** The first run of that pass reported
-   `1 failed / 152 passed` and **four consecutive runs afterwards were green (153)**. The name was
-   lost because the output was piped through `grep | tail` and the ✘ line was cut, and Playwright
-   left no `test-results/` context behind. Unreproduced, so not fixed — but recorded, because a
-   ~1-in-5 flake is exactly what this suite has repeatedly turned out to have, and every previous
-   one was a test defect rather than an app defect. **Run the suite as
+8. ~~One unidentified full-suite failure, 2026-08-31.~~ **CAUGHT AND FIXED 2026-09-02** — and it
+   was **two** flaky tests, not one; see the guarded list. Capturing to a file found both inside
+   three runs. **Keep doing that**: run the suite as
    `npx playwright test -c tables/playwright.config.js --reporter=list > /tmp/run.txt 2>&1` and grep
-   the file**, never through a truncating pipe, so the next occurrence is identifiable.
+   the file, never through a truncating pipe — a `| grep | tail` is what cost a fortnight here.
 9. **`sim.js` is blind to distractor quality.** Its learner model takes a flat `1/nOptions` guess
    floor and never sees WHICH wrong answers are offered, so the 2026-08-31 distractor work moved
    nothing in the simulation (93.1% before and after). That is not evidence the change was harmless —
@@ -338,6 +335,25 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
    the home-indicator inset. What was broken was the escape gesture.
 
 **Done, and now guarded — do not undo these:**
+- **⚠ THE SUITE WAS CRYING WOLF TWICE IN THREE RUNS** (2026-09-02). Two independent flaky tests,
+  both harness defects, both found by capturing output to a file:
+  - `game.spec.js` "on the smallest phone…" missed its threshold by **0.7%** (200.17 vs 198.71).
+    Measured rather than widened: bubbles spawn at randomised positions, so the gap runs **133–210**
+    across openings against a 199 threshold and then shrinks as they rise, and 30px of climb is not
+    enough margin when the spawn gap is 210. It waits for the claim now, with the timeout as the
+    failure. **Which branch guards what was checked, not assumed:** the `reduce` pass is the real
+    layout guard (nothing moves there, so the spawn band must be right); the wait succeeds
+    immediately about half the time and carries no weight, so the moving pass now asserts the one
+    thing only it can — the bubbles travel TOWARD her, which sinking bubbles fail and every static
+    measurement misses.
+  - `twowindows.spec.js` read `localStorage` from window **b** for a write made in window **a**.
+    Two Playwright pages share an origin but not necessarily a renderer process, so one page's view
+    can lag. Read from the writer. **Fixing it exposed a weaker test underneath:** an assertion for
+    the precondition its own NAME claimed found the second window holding **260, not 100** — it had
+    never been stale, the `storage` event reaches it and it merges. Renamed to what it does, and the
+    genuinely-stale case is the sibling test that writes from inside the page so no event fires.
+  **A suite that goes red for reasons that are not the app trains you to ignore reds.** Treat any
+  intermittent failure as a defect in the test until proven otherwise; every one here has been.
 - **The squares get real near-misses** (v1.25, `tests/game.spec.js`): the wrong answers ARE the
   difficulty on a bubble level, and a number that appears nowhere in the times table can be ruled
   out without knowing the fact. Audited all 78 facts and the **squares were the weak set** — 2.75
@@ -741,6 +757,15 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-09-02, 18:02–18:50Z (cron pass, due at 47.2h):** **the suite was crying wolf twice in
+  three runs.** Queue item 8 had one lost failure from 2026-08-31; capturing to a file caught it
+  twice over — **two** unrelated flaky tests, both harness defects, now fixed and teeth-checked
+  four ways. One of them was hiding a weaker test than its name: `twowindows`' "a window left open"
+  has never had a stale window in it. Also closed §6a item 5 (the bare band beside the prompt)
+  **against**, with the reasoning, rather than deferring it a fourth time — sparks would put motion
+  into the field she tracks rising targets through, and a brighter floor spends the contrast the
+  bubbles rely on. 153 pass, three consecutive clean runs after the fixes. sim green.
+  Acorn untouched. **Still waiting on David: the box rule, the ladder, and the watt sink (all §7).**
 - **2026-08-31, 18:02–18:55Z (cron pass, due at 47.7h):** **v1.25 — the squares were offering
   answers she could rule out without knowing them.** §6 item 3 asks whether the distractors stay
   plausible at the top of the table. For 11 × 12 they do (it offers 121 and 144, exactly David's
