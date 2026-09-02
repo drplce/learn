@@ -9,7 +9,20 @@ const {open, openRaw, errorsOf} = require('./helpers');
 
 test.describe('two windows', () => {
 
-  test('a window left open cannot undo the newest work', async ({browser}) => {
+  /* Two REAL windows, and the second one has caught up before it writes.
+     This was called "a window left open cannot undo the newest work" and its comments
+     said the second window was "holding this moment in memory" — and on 2026-09-02 an
+     assertion added to check that precondition found the second window's watts were
+     260, not 100. It had never been stale: the `storage` event reaches it and it
+     merges. So the test has always measured a caught-up window writing, which is a
+     weaker claim than its name, and the timing of that catch-up is part of why it
+     flaked. Renamed to what it does, and it now WAITS for the catch-up so the state it
+     measures is settled rather than whatever the event loop had managed.
+     The genuinely-stale case — the event never arriving, a frozen tab, a sleeping
+     phone — is the sibling test below ("a window that never heard the news"), which
+     writes from inside the page so no event fires. That one is where the merge is
+     really on trial. */
+  test('a second real window, caught up, writes without losing anything', async ({browser}) => {
     const ctx = await browser.newContext();          // one context = one localStorage
     const a = await openRaw(await ctx.newPage());
     await a.evaluate(() => window.__144.reset());
@@ -22,7 +35,7 @@ test.describe('two windows', () => {
       window.__144.save();
     });
 
-    // a second window opens and sits there, holding this moment in memory
+    // a second window opens on that moment
     const b = await openRaw(await ctx.newPage());
     expect(await b.evaluate(() => window.__144.state.power.watts)).toBe(100);
 
@@ -35,11 +48,21 @@ test.describe('two windows', () => {
       window.__144.save();
     });
 
-    // Check the ground truth before the interesting bit, so a failure below can
-    // only mean the merge let her down — not that something else moved the disk.
-    const onDisk = await b.evaluate(() => JSON.parse(localStorage.getItem('144.v1')));
+    /* Check the ground truth before the interesting bit, so a failure below can
+       only mean the merge let her down — not that something else moved the disk.
+
+       Read it from the window that WROTE it. This read used to come from `b`, and it
+       returned 100 instead of 260 on one full-suite run in three (caught 2026-09-02 by
+       capturing the output to a file, after a fortnight of the failure being seen once
+       and lost). Two Playwright pages share an origin but not necessarily a renderer
+       process, so one page's view of localStorage can lag another's write — a race in
+       the harness, not in the app, and nothing a phone with one tab would ever meet. */
+    const onDisk = await a.evaluate(() => JSON.parse(localStorage.getItem('144.v1')));
     expect(onDisk && onDisk.power.watts,
       'precondition lost: storage did not hold the newest work before the stale write').toBe(260);
+    // Wait for the second window to hear about it, so what follows is a settled state
+    // rather than a race with the event loop.
+    await b.waitForFunction(() => window.__144.state.power.watts === 260, null, {timeout: 4000});
 
     // and now the stale window writes — a tap on anything is enough
     await b.evaluate(() => { window.__144.state.set.sound = false; window.__144.save(); });

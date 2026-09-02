@@ -200,16 +200,49 @@ test.describe('the look of it', () => {
       await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
       await play(page);
       if(motion !== 'reduce'){
-        // Wait for the bubbles to have actually started climbing rather than for a
-        // stopwatch — on a loaded machine the frame loop can be starved, and then
-        // this measures a moment that never reaches her eyes.
-        await page.evaluate(() => { window.__spawnTop = Math.min(
-          ...[...document.querySelectorAll('.orb')].map(o => o.getBoundingClientRect().top)); });
+        /* WAIT FOR THE CLAIM, do not sample one frame of a moving system.
+           This used to wait for 30px of climb and then measure once, and it failed one
+           full-suite run in three — 200.17 against a 198.71 threshold, a miss of 0.7%.
+           Measured on 2026-09-02: the bubbles spawn at randomised positions, so the gap
+           at the start of a level runs anywhere from 133 to 210 across openings, and
+           then shrinks as they rise. Any single sample near the threshold is a coin
+           toss; 30px of climb is not enough margin when the spawn gap is 210.
+
+           The claim is that she can see the sum and the bubbles TOGETHER, so wait for
+           that to become true. The timeout is the failure.
+
+           Which branch of this test actually guards what, checked rather than assumed:
+           the `reduce` pass below is the real layout guard — the bubbles do not move
+           there, so the spawn band itself has to be right, and pushing the sum back to
+           the top of the screen fails it. The wait here does NOT carry that weight,
+           because the spawn gap is already under the threshold about half the time, so
+           it succeeds immediately. What the moving pass is for is the motion claim, and
+           that is asserted separately below: the bubbles must come TOWARD her. */
         await page.waitForFunction(() => {
+          const f = document.getElementById('field').getBoundingClientRect();
+          const p = document.getElementById('prompt').getBoundingClientRect();
           const os = [...document.querySelectorAll('.orb')];
           if(!os.length) return false;
-          return Math.min(...os.map(o => o.getBoundingClientRect().top)) <= window.__spawnTop - 30;
-        }, null, {timeout: 4000});
+          const gap = Math.min(...os.map(o => o.getBoundingClientRect().top)) - p.bottom;
+          return gap > 0 && gap < f.height * 0.35;
+        }, null, {timeout: 5000}).catch(() => {
+          throw new Error('[' + motion + '] the bubbles never came within a third of the ' +
+            'field of the sum — she has to look across the whole phone to play');
+        });
+      }
+      // With motion on, they have to travel TOWARDS the sum. Sinking bubbles would
+      // still satisfy every static measurement below.
+      if(motion !== 'reduce'){
+        const before = await page.evaluate(() => Math.min(
+          ...[...document.querySelectorAll('.orb')].map(o => o.getBoundingClientRect().top)));
+        await page.waitForTimeout(700);
+        const after = await page.evaluate(() => {
+          const os = [...document.querySelectorAll('.orb')];
+          return os.length ? Math.min(...os.map(o => o.getBoundingClientRect().top)) : null;
+        });
+        if(after !== null)
+          expect(after, 'the bubbles are drifting away from the sum, not towards it')
+            .toBeLessThan(before);
       }
       const s = await page.evaluate(() => {
         const f = document.getElementById('field').getBoundingClientRect();
