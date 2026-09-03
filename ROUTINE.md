@@ -20,6 +20,22 @@ last-run: 2026-08-26T17:42Z
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
 `weekly` interval most daily firings are skipped. On each firing:
 
+0. **SYNC FIRST — the STATE block above can be stale.** This session runs in a container that gets
+   reclaimed and re-provisioned, and a fresh one can come up on an older snapshot of the branch. On
+   2026-08-27 the checkout was three commits behind and the sibling routine's STATE still read a
+   date eight days old; taken at face value that said a full pass was due and would have redone work
+   already pushed. **Nothing is lost when this happens** — the remote has it — but the gate lies
+   until you fetch. So before reading anything:
+
+   ```
+   git status --short                 # must be clean before the next line
+   git fetch origin <branch> && git merge --ff-only origin/<branch>
+   ```
+
+   If the working tree is NOT clean, stop and say so rather than merging over it. If `node_modules`
+   is missing (a fresh container has none), `npm install` — it is quick, and the browsers are
+   already on the image.
+
 1. Read `interval` and `last-run` above. Run `date -u +"%Y-%m-%dT%H:%MZ"` for now.
 2. Hours per interval: `daily`=24, `weekly`=168. (`hourly`/`2h` are retired — see the ladder.)
 3. **If less than that many hours have passed since `last-run`:** you are firing early (an
@@ -336,6 +352,14 @@ node tests/break.js     # adversarial pass; non-zero on any finding
 
 `two-windows.spec.js` and the audio-live prefetch test are known parallel-load flakes — confirm
 by re-running the named file in isolation before treating a failure as real.
+
+**CAPTURE THE SUITE'S OUTPUT TO A FILE, AND RUN IT MORE THAN ONCE.**
+`npx playwright test --reporter=list > /tmp/run.txt 2>&1`, then grep the file — never
+`| grep | tail`, which truncates the ✘ line and loses the name of what failed. The sibling app spent
+a fortnight with a known-but-unidentified intermittent failure for exactly that reason; three
+captured runs on 2026-09-02 found it was **two** unrelated flaky tests, both harness defects. A
+single green run says less than it looks: **treat any intermittent failure as a defect in the test
+until proven otherwise** — every one in this project has been.
 
 **RUN THE SUITE AT A FUTURE DATE NOW AND AGAIN:** `ACORN_DAYS_AHEAD=400 npx playwright test`
 (off by default; two minutes). The sibling app in `tables/` had two engine tests seed a fixed
