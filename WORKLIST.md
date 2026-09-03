@@ -36,6 +36,16 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
 - ✅ **PACE-1** — **B2 + B3 shipped (owner-approved).** sim.js bands recalibrated (learned floor 0.80→0.75; finished-list exemption 0.5→3), engine untouched. **sim now green.**
 
 ## Done / closed
+- ✅ **HAR-3 (2026-09-03)** — the cadence gate gained a **sync-first step** (a reclaimed container can
+  come up on an older snapshot, and the STATE block then lies about when the last pass ran), plus the
+  **capture-the-output** practice and the standing lesson that an intermittent failure is a test
+  defect until proven otherwise. Both carried across from the sibling app, where a `| grep | tail`
+  hid an intermittent failure for a fortnight and three captured runs then found it was **two**
+  unrelated flaky tests. Applied the same three-run technique to Acorn: **590 passed on all three**,
+  break.js 60 checks clean, sim in band — so Acorn's suite is stable, and 144's flakiness was
+  specific to its newer timing-dependent tests rather than a property of the shared harness style.
+  *(Also caught mid-pass: I first ran break.js concurrently with the suite, which this project knows
+  can contaminate `file://` localStorage between runs. Re-ran it alone before trusting it.)*
 - ✅ **HAR-2 (2026-08-26)** — `ACORN_DAYS_AHEAD=N` runs the whole suite at a simulated future date
   (off by default). Added after the sibling app's engine tests rotted on the calendar and went red
   on an untouched build; Acorn proved clean at +200 and +1100 days. Also measured, and written into

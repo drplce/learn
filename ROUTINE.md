@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: weekly
-last-run: 2026-08-26T17:42Z
+last-run: 2026-09-03T17:22Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
