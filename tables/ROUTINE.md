@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-09-02T18:45Z
+last-run: 2026-09-04T18:24Z
 ```
 
 On each firing:
@@ -335,6 +335,19 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
    the home-indicator inset. What was broken was the escape gesture.
 
 **Done, and now guarded — do not undo these:**
+- **She can still play on a phone with site data switched off** (2026-09-04, `tests/robust.spec.js`):
+  the full-disk tests cover a localStorage that refuses WRITES; this is the other shape of it, and
+  the one she is likelier to meet — a grown-up has blocked cookies and site data, or it is a private
+  window, and touching `localStorage` at all throws a SecurityError on the first read, at boot,
+  before any write guard gets a say. It works: boots, teaches, shows the bubbles, scores the answer,
+  pays the watt, no errors; only saving is lost, which is the right degradation. Guarded because
+  this is one file with no build step — a new read at boot, or a `try` moved by a line, turns a
+  playable evening into a blank screen and nothing else would notice.
+  *Trap, and a new shape of it:* the probe that found this read
+  `document.getElementById('screen') || document.body`, and `#screen` is **Acorn's** element, not
+  144's — the fallback quietly measured `document.body` and reported a healthy-looking 3 children,
+  so it would have said the app was fine whatever it rendered. **A convenience fallback in a probe
+  is a way to get an answer that looks right regardless of the truth.** Name the real element.
 - **⚠ THE SUITE WAS CRYING WOLF TWICE IN THREE RUNS** (2026-09-02). Two independent flaky tests,
   both harness defects, both found by capturing output to a file:
   - `game.spec.js` "on the smallest phone…" missed its threshold by **0.7%** (200.17 vs 198.71).
@@ -757,6 +770,13 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-09-04, 18:02–18:25Z (cron pass, due at 47.3h):** **§6 item 5, the least-recently-reviewed
+  rotation item.** With the §5 queue empty of actionable items, took robustness: `robust.spec`
+  covered a storage that refuses writes but not one that refuses to exist. Drove it — the app is
+  fully playable with site data blocked — and guarded the negative rather than just noting it.
+  My own probe nearly hid the answer behind an `|| document.body` fallback on a selector belonging
+  to the sibling app. 1 test added, teeth-checked, 154 pass over two captured runs, sim green.
+  Acorn untouched. **Still waiting on David: the box rule, the ladder, and the watt sink (all §7).**
 - **2026-09-02, 18:02–18:50Z (cron pass, due at 47.2h):** **the suite was crying wolf twice in
   three runs.** Queue item 8 had one lost failure from 2026-08-31; capturing to a file caught it
   twice over — **two** unrelated flaky tests, both harness defects, now fixed and teeth-checked
