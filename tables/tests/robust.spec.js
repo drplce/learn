@@ -4,7 +4,7 @@
 // fault and none of them may cost her an evening, break a level she is halfway
 // through, or throw where she can see it.
 const {test, expect} = require('@playwright/test');
-const {open, errorsOf, answer, playLevel, play, alreadyMet} = require('./helpers');
+const {APP, open, errorsOf, answer, playLevel, play, alreadyMet} = require('./helpers');
 
 // Make every write fail, the way a full disk does.
 async function jamStorage(page){
@@ -81,6 +81,66 @@ test.describe('a full disk', () => {
     const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('144.v1')));
     expect(stored.power.watts, 'a failed write let this window clobber the other').toBe(500);
     expect(stored.prog.cleared).toBe(9);
+  });
+
+});
+
+/* Site data turned off altogether.
+   The full-disk tests above cover a localStorage that REFUSES WRITES. This is the
+   other shape of the same problem and the one a ten-year-old is more likely to meet:
+   a phone where a grown-up has blocked cookies and site data, or a private window.
+   There, touching `localStorage` at all throws a SecurityError — on the very first
+   read, at boot, before any of the write guards get a say.
+
+   Everything the app does with storage is already inside a try/catch, including the
+   property access itself, so this passes today. It is guarded because the app is one
+   file with no build step: a new read added at boot, or a `try` moved by one line,
+   would turn a playable evening into a blank screen and nothing else would notice. */
+test.describe('a phone with site data switched off', () => {
+
+  const blocked = async page => page.addInitScript(() => {
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get(){ throw new DOMException('The operation is insecure.', 'SecurityError'); }
+    });
+  });
+
+  test('it still opens, still teaches, and she can still play a round', async ({page}) => {
+    const errs = [];
+    page.on('pageerror', e => errs.push('pageerror: ' + e.message));
+    page.on('console', m => { if(m.type() === 'error' && !/Failed to load resource/i.test(m.text()))
+      errs.push('console: ' + m.text()); });
+    await blocked(page);
+    await page.goto(APP);
+    await page.waitForTimeout(500);
+
+    expect(await page.evaluate(() => !!window.__144),
+      'the app did not come up at all with site data blocked').toBe(true);
+    expect(await page.evaluate(() => {
+      const app = document.getElementById('app');
+      return app ? app.children.length : 0;
+    }), 'she is looking at a blank screen').toBeGreaterThan(0);
+
+    // into a level, through the teaching step, and answer one
+    await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
+    await page.click('#nowlevel');
+    await page.waitForTimeout(300);
+    if(await page.evaluate(() => window.__144.meeting())){
+      await page.evaluate(() => window.__144.skipMeet());
+      await page.waitForTimeout(500);
+    }
+    expect(await page.evaluate(() => document.querySelectorAll('.orb').length),
+      'no answers to tap').toBeGreaterThan(1);
+    expect(await page.evaluate(() => window.__144.answer(true)),
+      'her answer did not land').toBe(true);
+    await page.waitForTimeout(400);
+    const s = await page.evaluate(() => ({done: window.__144.sitting().done,
+      watts: window.__144.state.power.watts}));
+    expect(s.done, 'the level did not count her answer').toBeGreaterThan(0);
+    expect(s.watts, 'she earned nothing for it').toBeGreaterThan(0);
+
+    // the one thing that IS allowed to fail is saving — silently, never at her
+    expect(errs, 'an error reached the console with site data blocked').toEqual([]);
   });
 
 });
