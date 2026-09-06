@@ -863,6 +863,16 @@ function goalOf(st){
   if(st.kind==='recall') return 10;                          // effortful; a short dose
   return st.kind==='boss' ? 15 : 12;
 }
+/* UNUSED since v1.1, and it must not be wired up as it stands. It was written for a
+   path that named its levels, which David then ruled out ("the path carries no WORDS"
+   — §4 of the routine), so nothing calls it. Kept because the copy records what each
+   level kind is FOR, and that intent is worth having.
+
+   The trap if anyone revives it: from level 72 on, a `mix` or `recall` level carries a
+   `table` number but draws on ALL 78 facts (measured 2026-09-06) — only `boss` levels
+   still restrict to their table. So "12× · mix it up" would be a lie about a level that
+   is not about 12× at all. Either drop the table from the label in phase 2, or say
+   what the subtitle already says: everything so far, jumbled. */
 function levelLabel(st){
   if(st.kind==='placement') return {t:'What do you know?', s:'a quick look — nothing to get wrong'};
   if(st.kind==='learn') return {t:st.table+'× · new facts', s:st.facts.map(pretty).join('  ')};

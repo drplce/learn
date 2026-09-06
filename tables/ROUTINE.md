@@ -15,8 +15,8 @@ routine returns the favour.
 <!-- STATE — the routine reads these two values and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: daily
-last-run: 2026-09-04T18:24Z
+interval: weekly
+last-run: 2026-09-06T18:16Z
 ```
 
 On each firing:
@@ -674,6 +674,15 @@ Table Bosses, Vault), multiplayer, accounts, anything that needs a server.
   §6's "is the ladder now a bluff?" is answered: yes, from 46 on. Candidates for him, none chosen:
   a fourth buddy stage; accessories (the daily-accessory idea he floated on 2026-08-11 and never
   closed); new level kinds in phase 2; the battery packs below as the first thing watts buy.
+  **The shape of what is left, measured 2026-09-06 — it is starker than "no new unlocks".** Phase 1
+  (levels 1–72) has four level kinds across twelve tables: 24 learn, 24 recall, 12 mix, 12 boss.
+  Phase 2 is levels 73–372 — **300 levels, most of her year** — and it is a repeating five-level
+  cycle: three `mix`, one `recall`, one `boss`, per 100 levels 60/20/20. The `mix` and `recall`
+  levels there draw on **all 78 facts** (only `boss` still restricts to a table), so from about
+  level 73 onward every non-boss level is structurally identical: twelve answers from the whole
+  pool. She reaches that point around now. So it is not only that nothing new arrives after level
+  45 — the levels themselves stop differing too. Pedagogically a broad review pool is right; as a
+  year of play it is one screen repeated ~240 times. **David's call what, if anything, goes in.**
 - **⚠ WATTS HAVE NO SINK — 25,000 of them by December (measured 2026-08-20).**
   `addWatts` is the only function that touches the total and it only ever adds; nothing in the app
   spends a watt. Measured by playing 14 real levels end to end: **67.5 watts a level on average**
@@ -770,6 +779,21 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-09-06, 18:01–18:20Z (cron pass, due at 47.6h): DAILY → WEEKLY, and why.** Measured the
+  shape of the ladder past level 72 for the first time — see §7: phase 2 is 300 levels of a
+  repeating five-level cycle over the same 78-fact pool, so it is not only that nothing new unlocks
+  after 45, the levels stop differing too. That is David's to decide, not mine to build. Also marked
+  `levelLabel()` — dead since v1.1 — with the trap that would bite anyone reviving it: in phase 2 a
+  `mix` level carries a table number but draws on all 78 facts, so "12× · mix it up" would be a lie.
+  154 pass.
+  **The cadence step is the real content of this pass.** Daily earned its keep while nearly every
+  pass turned up something in the APP — the dead-end ladder, the picker asking five facts of 78, the
+  save-on-paint race, the unreachable dial cancel, the guessable squares. It no longer does: the
+  last three passes found a flaky harness, a robustness NEGATIVE, and a design question for David.
+  §8's failure modes name this exactly — *gold-plating* and *padding*, work invented to look
+  productive — and the honest read of my own recent log is that it had started. Weekly from here.
+  **A live message from David resets this to daily**, as does any defect a pass actually finds.
+  **Still waiting on David: the box rule, the ladder, and the watt sink (all §7).**
 - **2026-09-04, 18:02–18:25Z (cron pass, due at 47.3h):** **§6 item 5, the least-recently-reviewed
   rotation item.** With the §5 queue empty of actionable items, took robustness: `robust.spec`
   covered a storage that refuses writes but not one that refuses to exist. Drove it — the app is
