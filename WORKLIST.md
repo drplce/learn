@@ -36,6 +36,16 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
 - ✅ **PACE-1** — **B2 + B3 shipped (owner-approved).** sim.js bands recalibrated (learned floor 0.80→0.75; finished-list exemption 0.5→3), engine untouched. **sim now green.**
 
 ## Done / closed
+- ✅ **HAR-4 (2026-09-11)** — §6 item 5 (real input), the least-recently-exercised rotation item.
+  Typing, Enter, paste refusal and dictation detection were all well covered; **autocorrect was
+  covered at one stage of three.** `#type` is rendered at three separate places — the trace, the
+  write, and the re-trace — each with its own attribute list, and the test only read the write one.
+  All three are correct today (checked, not assumed); the test now reads all three, teeth-checked by
+  dropping `autocorrect="off"` from each of the two that were unguarded. This is the highest-stakes
+  invisible defect the app could have: if iOS fixes her spelling on the way in she is marked right
+  for a word she got wrong, the box climbs, and the screen looks identical. The grown-ups' paste box
+  has no `autocorrect` attribute, which is fine — that is a parent pasting a word list, not her
+  spelling, and capitalisation and spellcheck are off there anyway.
 - ✅ **HAR-3 (2026-09-03)** — the cadence gate gained a **sync-first step** (a reclaimed container can
   come up on an older snapshot, and the STATE block then lies about when the last pass ran), plus the
   **capture-the-output** practice and the standing lesson that an intermittent failure is a test

@@ -125,15 +125,38 @@ test.describe('a word she has never met', () => {
     expect(errorsOf(page)).toEqual([]);
   });
 
-  test('the spelling box never autocorrects her', async ({page}) => {
-    await open(page, '2026-07-28');
-    await startOn(page, ['friend']);
-    await page.evaluate(() => window.__acorn.cover());
-    const attrs = await page.locator('#type').evaluate(n => ({
+  test('no stage she types in ever autocorrects her', async ({page}) => {
+    /* The highest-stakes invisible defect this app could have. If iOS fixes her
+       spelling on the way in, she is marked right for a word she got wrong, the Leitner
+       box climbs, and the whole thing quietly teaches nothing while reporting success —
+       and nobody would see it, because the screen would look exactly the same.
+
+       `#type` is rendered at THREE separate places in the source — the trace, the write,
+       and the re-trace after a miss — each with its own attribute list. This test checked
+       only the write stage until 2026-09-11, so dropping the attributes from either of
+       the other two would have gone straight through. Checked all three: they are all
+       correct today, and now they stay that way. */
+    const want = {correct:'off', cap:'off', spell:'false', complete:'off'};
+    const attrs = () => page.locator('#type').evaluate(n => ({
       correct: n.getAttribute('autocorrect'), cap: n.getAttribute('autocapitalize'),
       spell: n.getAttribute('spellcheck'), complete: n.getAttribute('autocomplete')
     }));
-    expect(attrs).toEqual({correct:'off', cap:'off', spell:'false', complete:'off'});
+
+    await open(page, '2026-07-28');
+    await startOn(page, ['friend']);
+    expect(await attrs(), 'the trace, where she copies the word').toEqual(want);
+
+    await page.evaluate(() => window.__acorn.cover());
+    expect(await attrs(), 'the write, where she spells it from memory').toEqual(want);
+
+    // a miss puts her on the re-trace, which renders its own input
+    await page.locator('#type').click();
+    await page.keyboard.type('freind', {delay: 0});
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => !!(window.__acorn.session() || {}).retrace),
+      'the miss did not put her on a re-trace, so that stage went unchecked').toBe(true);
+    expect(await attrs(), 'the re-trace, where she copies it back').toEqual(want);
   });
 
   test('a one-syllable word stands plain, no split drawn under it', async ({page}) => {
