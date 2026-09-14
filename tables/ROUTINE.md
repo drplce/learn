@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: weekly
-last-run: 2026-09-06T18:16Z
+last-run: 2026-09-14T18:09Z
 ```
 
 On each firing:
@@ -641,9 +641,18 @@ leave 144 looking better than it found it. Rules of engagement:
      through**, which is the one place this app must not add competing movement; and a brighter
      floor spends the contrast the bubbles rely on. §6a's own rule settles it: *legibility always
      wins a fight with atmosphere.* Reopen only if David says the play field looks empty to him.)*
-  6. *(v1.5 — the buddy is glass now at both sizes: dark body, her colour in the rim, a bright core
-     breathing inside. Shell swatches still show her colour flat and pale; they could show the same
-     lit-glass read so the picker matches what she gets.)*
+  6. ~~Shell swatches show her colour flat and pale.~~ **CLOSED 2026-09-14, decided against — and
+     the premise was wrong.** The note came from a small screenshot and I had been repeating it since
+     v1.5, including a claim in an earlier pass that the locked picker reads as "four dead grey
+     circles". Shot close up at her actual state: it is **one lit swatch among four unlit ones**, her
+     violet bright and ringed in white, and the chosen one is already a lit disc with a gradient
+     rather than anything flat. That is the same vocabulary the path uses — unlit means "not this
+     one", not "you cannot have this" — and it illustrates the line beside it ("it is awake now —
+     this is who it is") instead of denying her anything. Making the other four richer would work
+     against that reading. **Look at the thing before repeating a note about it.**
+
+  **§6a is now closed except for item 2**, which is David's to approve, so this list is not a source
+  of work any more. Do not go looking for a replacement item: if a pass finds nothing, say so.
 
   **How to look at the buddy** (it cost this pass half an hour): it bobs and its core breathes, so a
   plain screenshot catches a random frame and can look dead. Pause `animation` on `.bigcube` and
@@ -779,6 +788,13 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-09-14, 18:02–18:10Z (first weekly pass, due at 191.8h):** 154 pass, nothing found, nothing
+  changed in the app. Spent the pass on the last open §6a item and **closed it against, because the
+  premise turned out to be wrong**: the locked shell picker is one lit swatch among four unlit ones,
+  not the "four dead grey circles" I had written down from a small screenshot and then repeated. It
+  reads as identity, which is what the line beside it says. §6a now holds only item 2, which needs
+  David. **144 has no outstanding work that is mine** — the three open questions in §7 are all his,
+  and have been since 2026-08-14. Acorn untouched.
 - **2026-09-06, 18:01–18:20Z (cron pass, due at 47.6h): DAILY → WEEKLY, and why.** Measured the
   shape of the ladder past level 72 for the first time — see §7: phase 2 is 300 levels of a
   repeating five-level cycle over the same 78-fact pool, so it is not only that nothing new unlocks
