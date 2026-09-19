@@ -4153,12 +4153,20 @@ function renderNetwork(d, bare){
   /* The outline clause is conditional too, for the same reason the filament one is:
      it promised "the few she is coming to next as faint outlines" on the day she has
      met every word on every list and there is nothing coming at all. A caption that
-     describes a picture you are not looking at is worse than no caption. */
+     describes a picture you are not looking at is worse than no caption.
+     The same sentence had one more state it did not have: exactly ONE outline. The
+     horizon draws six to fourteen words ahead, so it only falls to one when the walk
+     has run out of words to offer — the last of a short list a grown-up pasted, or the
+     end of everything she has. Rare, but it is the end of the road she has been walking
+     the whole time, and "the few" over a single pale shape is the same defect as "the
+     few" over none at all, one rung down. */
   var ahead = d.cells.filter(function(c){ return !c.met; }).length;
   if(bare) return svg;
   return '<div class="sect"><h2>What she knows</h2>' + svg
     + '<div class="hint">Every word she has met is here'
-    + (ahead ? ', and the few she is coming to next as faint outlines' : '')
+    + (ahead === 0 ? ''
+       : ahead === 1 ? ', and the one she is coming to next as a faint outline'
+       : ', and the few she is coming to next as faint outlines')
     + '. It fills outward from the middle in the order she meets them, so the words '
     + 'that have been hers longest are at the heart of it and the newest are round the '
     + 'edge'

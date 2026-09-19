@@ -56,6 +56,20 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
   specific to its newer timing-dependent tests rather than a property of the shared harness style.
   *(Also caught mid-pass: I first ran break.js concurrently with the suite, which this project knows
   can contaminate `file://` localStorage between runs. Re-ran it alone before trusting it.)*
+- ✅ **COPY-1 (2026-09-19)** — the grown-ups map caption had no singular. At exactly one faint
+  outline it still read "the few she is coming to next as faint outlines", which is the same defect
+  the caption had already been fixed for twice (promising hairlines with none drawn, promising
+  outlines with none drawn) one rung down. `ahead === 1` is reachable at the end of a short pasted
+  list or the end of everything she has. Given a singular form; the neighbouring "the rest of her
+  lists" clause left alone on purpose (the horizon walk breaks after one untouched family, so one
+  outline can legitimately coexist with undrawn lists). `network.spec.js` "one outline is one
+  outline, not a few" checks both directions and was teeth-checked both ways. No VERSION bump — a
+  grown-up screen, so she would not notice. Found by a new agreement sweep over every readable
+  phrase (text, `aria-label`s, placeholders, `#say`) in five count-sensitive states; **the sweep's
+  first version was lying** — it split `innerText` on newlines and a stat tile is
+  `<b>1</b><span>sittings</span>`, so it reported clean with the plural guard deleted. Rebuilt per
+  element and re-teeth-checked. On the real build every other count-bearing string is already
+  guarded.
 - ✅ **HAR-2 (2026-08-26)** — `ACORN_DAYS_AHEAD=N` runs the whole suite at a simulated future date
   (off by default). Added after the sibling app's engine tests rotted on the calendar and went red
   on an untouched build; Acorn proved clean at +200 and +1100 days. Also measured, and written into

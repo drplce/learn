@@ -13,8 +13,8 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
 <!-- STATE — the routine reads these two values, and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: weekly
-last-run: 2026-09-11T17:21Z
+interval: daily
+last-run: 2026-09-19T17:07Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -319,6 +319,37 @@ COOLING `daily → weekly`: nothing here is actionable. The sheep thread is Davi
 he has clearly pivoted to 144 for now), and a daily pass on six-day-frozen code only adds noise on a
 night when 144's pass is the one doing real work. A live message snaps this back to `daily` and is
 answered in real time regardless. (Prior note 17:13Z 2026-08-10 — superseded.)
+
+**Cadence note (17:07Z, 2026-09-19):** first weekly firing that was actually due (191.8h). Three
+captured suite runs green — two on the real clock, one at `ACORN_DAYS_AHEAD=400` — plus break clean
+across 39 cases and sim in band (first-go 92.5%, known material 87.1%, learned 100% of the 14 words
+the list reaches). The app's code was frozen at 13.44 since 2026-08-05 before this pass.
+
+Reviewed §6.2, the words she sees, since the last pass took §6.5. Built a sweep that reads every
+readable phrase on the page — visible text, every `aria-label`, every placeholder, the `#say`
+channel — across five count-sensitive states and regexes for `1 <noun>s`. **Its first version was
+lying**: it split `body.innerText` on newlines, and a stat tile is `<b>1</b><span>sittings</span>`,
+two lines. With the sittings plural guard deliberately deleted it still reported clean. Rebuilt to
+collapse each ELEMENT's innerText to one line and sweep those; teeth-checked with the same injected
+regression, which it then caught in two places. On the real build: clean. Acorn's numeric agreement
+is genuinely good — every count-bearing string already carries its guard.
+
+Found and fixed one thing, in the grown-ups map caption. `ahead === 1` had no form: the sentence
+said "the few she is coming to next as faint outlines" over a single pale shape. This is the same
+defect the file has already fixed twice (the filament clause, the outline clause) one rung further
+down, and the file's own standard is the reason — a caption that describes a picture you are not
+looking at is worse than no caption. The clause now has a singular form. The neighbouring "the rest
+of her lists are not drawn" clause was left alone deliberately: the horizon walk breaks after one
+untouched family, so `ahead === 1` can legitimately coexist with whole lists still undrawn.
+Regression test `network.spec.js` "one outline is one outline, not a few" checks BOTH directions, so
+it cannot be satisfied by copy that has quietly gone singular for good; teeth-checked both ways
+(revert the fix → red; force it always-singular → red, and it takes the older caption test with it).
+591 pass now. **No VERSION bump** — she never sees the grown-ups screen, so she would not notice.
+
+Staying `daily` per the ladder: a pass found and fixed a defect, so a daily look still earns its
+keep. Tempering that honestly — the find was one clause of copy on a grown-up screen in a state at
+the end of every list, on code otherwise frozen for six weeks. If the next pass is clean, cool
+straight back to `weekly` rather than spending six firings proving frozen code is still frozen.
 
 ---
 

@@ -794,7 +794,9 @@ test.describe('the shape of what she knows', () => {
         expect(s.copy).not.toMatch(/morning/);
       }
       if(s.outlines){ sawOutlines++;
-        expect(s.copy, `${stage} has outlines and does not say so`).toMatch(/faint outlines/);
+        expect(s.copy, `${stage} has outlines and does not say so`)
+          .toMatch(s.outlines === 1 ? /the one she is coming to next as a faint outline/
+                                    : /the few she is coming to next as faint outlines/);
       }else{ sawNoOutlines++;
         expect(s.copy, `${stage} promises outlines it is not drawing`).not.toMatch(/outline/i);
       }
@@ -805,6 +807,44 @@ test.describe('the shape of what she knows', () => {
     // All four cases were actually met, or this proves nothing.
     expect([sawSome > 0, sawNone > 0, sawOutlines > 0, sawNoOutlines > 0])
       .toEqual([true, true, true, true]);
+  });
+
+  /* The same sentence, at the one count it did not have a form for.
+     The horizon reaches six to fourteen words ahead, so the number of outlines only
+     falls to one when the walk has genuinely run out of words to offer: the last word
+     of a short list a grown-up pasted, or the end of everything she has. On that
+     evening the caption said "the few she is coming to next as faint outlines" over a
+     single pale shape — the same defect as promising outlines when there are none,
+     one rung down. Both directions are checked here, so this cannot be satisfied by a
+     caption that has quietly gone singular for good. */
+  test('one outline is one outline, not a few', async ({page}) => {
+    await open(page, '2026-08-01');
+    // Everything met except the last N words of the last list she will be offered.
+    const leaving = n => page.evaluate(count => {
+      const a = window.__acorn;
+      const all = a.allLists().reduce((acc, l) => acc.concat(a.wordsOf(l)), []);
+      const m = {};
+      all.slice(0, all.length - count).forEach(w => {
+        m[w] = {right:4, wrong:0, box:5, lastSeen:'2026-07-25'}; });
+      a.state.words.mastery = m;
+      a.state.words.activeId = a.allLists()[a.allLists().length - 1].id;
+      a.save(); a.go('parent');
+      const sect = [...document.querySelectorAll('.sect')]
+        .filter(x => x.querySelector('h2') && /What she knows/.test(x.querySelector('h2').textContent))[0];
+      return {outlines: document.querySelectorAll('.net-cell:not(.met)').length,
+              copy: sect && sect.innerText};
+    }, n);
+
+    const one = await leaving(1);
+    expect(one.outlines, 'the fixture did not leave exactly one word unmet').toBe(1);
+    expect(one.copy, 'one faint outline described as "the few"')
+      .toMatch(/the one she is coming to next as a faint outline/);
+    expect(one.copy).not.toMatch(/the few she is coming to next/);
+
+    const two = await leaving(2);
+    expect(two.outlines, 'the fixture did not leave exactly two words unmet').toBe(2);
+    expect(two.copy, 'two faint outlines described as one')
+      .toMatch(/the few she is coming to next as faint outlines/);
   });
 
   test('the filaments join words that share a chunk', async ({page}) => {
