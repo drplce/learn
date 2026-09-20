@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-09-19T17:07Z
+last-run: 2026-09-20T17:07Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -350,6 +350,39 @@ Staying `daily` per the ladder: a pass found and fixed a defect, so a daily look
 keep. Tempering that honestly — the find was one clause of copy on a grown-up screen in a state at
 the end of every list, on code otherwise frozen for six weeks. If the next pass is clean, cool
 straight back to `weekly` rather than spending six firings proving frozen code is still frozen.
+
+**Cadence note (17:07Z, 2026-09-20):** and the very next pass was not clean, which settles the
+question the note above left open. All three green first (592 now, sim in band, break clean across
+39 cases).
+
+Took §6.1, the visual look, which the rotation had not reached since before 2026-08-18. Screenshot
+the real screens the way §6.1 says to — iPhone SE and 13, light and dark, 0.9×/1.0×/1.5× text — and
+LOOK at them. The dark map is what the look found: the learned words are the BRIGHT ones, and the
+caption underneath says "they fill in and darken as she learns them".
+
+Measured rather than eyeballed, because a look can be wrong about what it is looking at. A cell is
+`--acc` at a fill-opacity that climbs with her box; `--acc` is #35705A on cream and #7CC0A2 on the
+dark screen. Compositing box 1 against box 7: **light L 0.713 → 0.131 (darkens), dark L 0.047 →
+0.446 (lightens)**. The sentence was true on exactly one of the two screens, and it is the third
+time this caption has been caught describing a picture the reader is not looking at. Reworded in
+the direction that survives both — "fill in and grow stronger", "fades rather than disappearing" —
+rather than made conditional on the scheme, since the scheme can change under a live page. The
+code comment above the ramp said the same one-scheme thing and was corrected with it.
+
+`network.spec.js` "the caption is true on the dark screen as well as the light one" measures the
+direction in each scheme, asserts the premise still holds (the two really do run opposite ways), and
+bans any one-scheme direction word in the copy — so it cannot be satisfied by swapping "darken" for
+"lighten". Teeth-checked both ways; both go red. **No VERSION bump** — grown-ups screen again.
+
+**Lesson worth carrying: the harnesses could not have found this.** Every one of the 590 ran in the
+default scheme, and the defect is a sentence that is true there. §6.1 says to screenshot light AND
+dark and look; that instruction is the only thing in the routine that was going to catch it. Two
+passes running, the find has been in copy — worth asking next time whether the contrast/scheme
+sweeps should cover the *claims* the copy makes and not only its legibility.
+
+Staying `daily`: two consecutive passes found something, so the daily look is plainly still earning
+its keep. Drop the "cool if the next one is clean" plan from the note above — reassess on evidence,
+not on a schedule set in advance.
 
 ---
 

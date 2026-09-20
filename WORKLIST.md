@@ -56,6 +56,19 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
   specific to its newer timing-dependent tests rather than a property of the shared harness style.
   *(Also caught mid-pass: I first ran break.js concurrently with the suite, which this project knows
   can contaminate `file://` localStorage between runs. Re-ran it alone before trusting it.)*
+- ✅ **COPY-2 (2026-09-20)** — the map caption was true on one screen of two. "They fill in and
+  darken as she learns them" describes light mode; a cell is `--acc` over `--surface`, and those
+  swap places at night, so learning a word runs L 0.713 → 0.131 on cream and L 0.047 → **0.446** on
+  the dark screen. A grown-up reading at night was told the learned words are the dark ones while
+  looking at a picture whose learned words are the bright ones. Reworded in the direction true on
+  both — "fill in and grow stronger", "fades rather than disappearing" — rather than made
+  conditional on the scheme, which can change under a live page; the ramp's code comment said the
+  same one-scheme thing and was corrected with it. `network.spec.js` "the caption is true on the
+  dark screen as well as the light one" measures the direction in each scheme, asserts the two
+  really do run opposite ways, and bans any one-scheme direction word, so swapping "darken" for
+  "lighten" does not satisfy it. Teeth-checked both ways. No VERSION bump — grown-ups screen.
+  **Found by §6.1's screenshot-and-look, not by the suite:** all 590 tests ran in the default
+  scheme, where the sentence was true.
 - ✅ **COPY-1 (2026-09-19)** — the grown-ups map caption had no singular. At exactly one faint
   outline it still read "the few she is coming to next as faint outlines", which is the same defect
   the caption had already been fixed for twice (promising hairlines with none drawn, promising

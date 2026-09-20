@@ -4137,11 +4137,14 @@ function renderNetwork(d, bare){
        out identical at full strength: four distinct tones across seven boxes, and
        once she knew everything the whole picture was one flat green with nothing
        left to say. Spread over the whole ladder there are seven tones, so a mature
-       colony still has range in it: the words she has held longest are the darkest
-       and the ones she has only just consolidated are lighter, which is the
+       colony still has range in it: the words she has held longest are the strongest
+       and the ones she has only just consolidated are faintest, which is the
        difference between a picture of what she knows and a picture of what she has
-       finished. Monotonic — a word must never darken backwards — and box 1 stays
-       clearly above an empty outline, which is nothing at all. */
+       finished. Strongest, not darkest: the fill is `--acc` over `--surface`, and
+       those swap places between the two screens, so a mature word is the deepest
+       green on cream and the brightest mint at night. Monotonic — a word must never
+       slide back down the ramp — and box 1 stays clearly above an empty outline,
+       which is nothing at all. */
     var fill = c.met ? (0.18 + 0.82 * (Math.min(MAX_BOX, c.box) - 1) / (MAX_BOX - 1)) : 0;
     svg += '<path class="net-cell' + (c.met ? ' met' : '') + (c.box >= KNOWN_BOX ? ' well' : '')
         + '" aria-hidden="true" d="' + cellPath(c.w, c.x, c.y, c.r) + '" style="--f:' + fill.toFixed(2) + '"'
@@ -4175,8 +4178,16 @@ function renderNetwork(d, bare){
           + 'and the rest of her lists are not drawn until she is close to them, because '
           + 'a hundred empty outlines says more about how far there is to go than about her'
         : '')
-    + '. They fill in and darken as she learns them, and a word she is losing dims '
-    + 'rather than disappearing. Each family is one spelling pattern'
+    /* "darken" was true of one of the two screens. The cells are `--acc` at a
+       fill-opacity that climbs with her box, and `--acc` is a deep green on cream
+       and a light mint on the dark screen — so learning a word takes it from
+       L 0.713 down to 0.131 in light mode and from L 0.047 UP to 0.446 in dark.
+       A grown-up reading this at night was told the learned words are the dark ones
+       while looking at a picture whose learned words are the bright ones. Worded in
+       the direction that is true on both: stronger toward the accent, fading toward
+       the background, whichever way round those happen to sit. */
+    + '. They fill in and grow stronger as she learns them, and a word she is losing '
+    + 'fades rather than disappearing. Each family is one spelling pattern'
     /* Only when there are some. Two words sharing a chunk are usually a good way
        apart in the list, so both ends of a filament are rarely inside the near
        horizon: there are none at all until she is thirty or so words in. The copy

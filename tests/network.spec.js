@@ -456,6 +456,59 @@ test.describe('the shape of what she knows', () => {
     expect(copy).not.toMatch(/outline/i);
   });
 
+  /* The caption has to be true on BOTH screens, and one sentence of it was not.
+     A cell is `--acc` at a fill-opacity that climbs with her box. `--acc` is a deep
+     green on cream and a light mint on the dark screen, so learning a word carries it
+     DOWN the luminance scale in light mode (L 0.713 -> 0.131) and UP it in dark
+     (L 0.047 -> 0.446). The copy said "they fill in and darken as she learns them",
+     which told a grown-up reading at night that the learned words are the dark ones
+     while they looked at a picture whose learned words are the bright ones.
+     This measures the direction in each scheme rather than trusting either, then holds
+     the copy to a claim that survives both — so it cannot be fixed by swapping one
+     one-scheme word for the opposite one-scheme word. */
+  test('the caption is true on the dark screen as well as the light one', async ({page}) => {
+    const lum = ([r, g, b]) => {
+      const f = c => { c /= 255; return c <= .03928 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4); };
+      return .2126 * f(r) + .7152 * f(g) + .0722 * f(b);
+    };
+    const seen = {};
+    for(const scheme of ['light', 'dark']){
+      await page.emulateMedia({colorScheme: scheme});
+      await open(page, '2026-08-01');
+      const got = await page.evaluate(() => {
+        const a = window.__acorn;
+        const all = a.allLists().reduce((acc, l) => acc.concat(a.wordsOf(l)), []);
+        const m = {};
+        all.slice(0, 14).forEach((w, i) => {
+          m[w] = {right:5, wrong:0, box: 1 + (i % 7), lastSeen:'2026-07-31'}; });
+        a.state.words.mastery = m; a.save(); a.go('parent');
+        const px = v => { const d = document.createElement('div'); d.style.color = v;
+          document.body.appendChild(d); const c = getComputedStyle(d).color;
+          d.remove(); return c.match(/\d+/g).map(Number).slice(0, 3); };
+        const cs = getComputedStyle(document.documentElement);
+        const surface = px(cs.getPropertyValue('--surface')), acc = px(cs.getPropertyValue('--acc'));
+        const ops = [...document.querySelectorAll('.net-cell.met')]
+          .map(c => Number(getComputedStyle(c).fillOpacity));
+        const comp = o => acc.map((v, i) => Math.round(v * o + surface[i] * (1 - o)));
+        const sect = [...document.querySelectorAll('.sect')].filter(x => x.querySelector('h2')
+          && /What she knows/.test(x.querySelector('h2').textContent))[0];
+        return {lo: comp(Math.min(...ops)), hi: comp(Math.max(...ops)), copy: sect && sect.innerText};
+      });
+      seen[scheme] = lum(got.hi) > lum(got.lo) ? 'lighter' : 'darker';
+      // The copy may not name a direction that is only true on one of the two screens.
+      expect(got.copy, `the caption claims a direction on the ${scheme} screen`)
+        .not.toMatch(/darken|darker|lighten|brighten|brighter/i);
+      expect(got.copy, 'the caption stopped saying what happens as she learns a word')
+        .toMatch(/fill in and grow stronger as she learns them/);
+      expect(got.copy, 'the caption stopped saying what happens to a word she is losing')
+        .toMatch(/fades rather than disappearing/);
+    }
+    // And the premise held: the two screens really do run in opposite directions, or
+    // this test is guarding against a problem that does not exist.
+    expect([seen.light, seen.dark], 'the two schemes no longer disagree — recheck the copy')
+      .toEqual(['darker', 'lighter']);
+  });
+
   /* Seven boxes, seven tones. The ramp saturated at KNOWN_BOX, so boxes 5, 6 and 7
      all came out at full strength — four distinct tones across the whole ladder, and
      a picture that went flat green the moment she knew everything, with nothing left
