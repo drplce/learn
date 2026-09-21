@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-09-20T17:07Z
+last-run: 2026-09-21T17:07Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -384,6 +384,61 @@ Staying `daily`: two consecutive passes found something, so the daily look is pl
 its keep. Drop the "cool if the next one is clean" plan from the note above — reassess on evidence,
 not on a schedule set in advance.
 
+**Cadence note (17:07Z, 2026-09-21):** third pass running, third find, and the three of them are the
+same defect wearing different clothes. All three harnesses green first and after (593 now, sim
+byte-identical, break clean).
+
+Carried on with §6.1 into the screens the last look did not reach — the write stage, the verdict,
+the re-trace, her finished garden, light and dark at 1.0× and 1.5× on the SE. Those are all fine.
+What the look turned up instead was on the grown-ups screen: the paragraph explaining the pace
+spells out **3 / 1 / 0 new words** as if they were laws of the app. They are the DEFAULTS of the two
+steppers a few inches below it on the same screen, and the code comment beside `clampN` says so in
+as many words — "the tiers that used to be hard-wired at 3 / 1 / 0 now read the two grown-up
+levers". The sentence was never updated when the levers landed.
+
+Measured at newMin 2 / newMax 5: the engine hands her **5 / 2 / 2**, and the paragraph still
+promised "up to three new words, in the middle eight words and one new, under 70% six words and
+nothing new" — three wrong numbers. Worse, the paragraph OPENS with `paceLabel()`, which does read
+the lever, so it read "**5 new words a session**. … up to three new words" — self-contradicting
+inside one paragraph. The third claim, "new words never take more than a third of a sitting", was
+false too: at newMax 5 on a nine-word sitting the pool is 5, over half. The bands now come from the
+levers through the same `clampN` the engine uses, and the third-of-a-sitting line says what is
+actually always true (the ceiling bounds it) with the third given as what the suggested 3 works out
+to.
+
+Checked before assuming the copy was the only thing wrong: at **newMax 0 she really does meet zero
+new words** (`poolCap` returns 1 there, but `newWordsToday` gates the intake and returns 0). The
+engine is right; only the sentence was wrong. Sim numbers are byte-identical, which is the proof no
+behaviour moved.
+
+`pace-settings.spec.js` "the pace paragraph says what the engine will actually do" puts her in each
+of the three bands at six lever settings, asks the ENGINE what it will hand her, and requires the
+paragraph to contain that number in a readable form — **and to contain no number the engine will
+never give**, which is exactly how the old copy failed ("three" survived at every setting). It also
+holds the paragraph to opening with `paceLabel()`. Deliberately not pinned to a fixed string, so the
+wording stays free to change and still has to be true. Teeth-checked: restore the hard-coded
+sentence and it goes red naming the band. **No VERSION bump** — grown-ups screen.
+
+### The pattern, now that there are three of it
+
+2026-09-19 (the caption promising "the few" over one outline), 2026-09-20 (the caption promising
+"darken" on a screen where learning brightens), and today are all **one defect: an explanatory
+sentence that was true when it was written and was falsified later by a state, a setting or a colour
+scheme, with nothing holding it to the app.** None of the three was reachable by the harnesses as
+they stood — every one of the 590 ran in the default scheme, at the default settings, in the middle
+of a list.
+
+So this is now a standing item in §6.2 rather than something to rediscover: **go through the
+explanatory copy asking what makes each sentence true, and what could falsify it — a grown-up
+setting, the colour scheme, a count of one, the end of a list.** Where a sentence states a number the
+app computes, it must read it from the same place the app does. The tests that come out of this
+should compare copy against the ENGINE, never against a fixed string; all three of these did, and
+all three have teeth in both directions.
+
+Staying `daily`. Three for three is not a run of luck, and the sweep above is not finished — the
+grown-ups screen has several more explanatory hints (the voices paragraph, the saved-lists one, the
+backup summary) that have not been put to this question yet.
+
 ---
 
 ## 3. WHO THIS IS FOR
@@ -469,8 +524,18 @@ tune the engine.
    eyeballed — every foreground/background pair clears 4.5:1 (3:1 for large text) on cream AND
    all four tints, light and dark (`tests/contrast.spec.js`; keep it honest). Screenshot the real
    screens in Chromium at 0.9×–1.5× text scale, light and dark, iPhone SE and 13, and LOOK.
-2. **The words she sees.** Never her own misspelling, never "wrong"/"failed", singular/plural
-   agreement, nothing that reads as blame.
+2. **The words she sees, and the words a grown-up reads.** Never her own misspelling, never
+   "wrong"/"failed", singular/plural agreement, nothing that reads as blame.
+   **And the standing sweep (added 2026-09-21, after three consecutive passes found the same
+   thing): take each explanatory sentence and ask what makes it true, and what could falsify
+   it** — a grown-up setting, the colour scheme, a count of one, the end of a list. Three
+   sentences have now been caught this way: "the few" over a single outline, "darken" on the
+   screen where learning brightens, and a pace paragraph reciting the defaults of two steppers
+   sitting inches below it. Where a sentence states a number the app computes, it must read it
+   from the same place the app does. Test the copy against the ENGINE, never against a fixed
+   string — a string test only pins today's wording, and all three of these needed to survive a
+   rewrite. Not yet put to this question: the voices paragraph, the saved-lists hint, the backup
+   summary.
 3. **The engine.** Scheduling, pacing, session building, the comparison of her attempt against
    the mistakes a dyslexic child actually makes, syllable splitting (`SYLLABLES` dictionary +
    `COMPOUNDS` + the rule; researched splits win over the rule).

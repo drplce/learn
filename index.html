@@ -3215,6 +3215,17 @@ function renderParent(){
     .filter(function(w){ return mastery(w).wrong > 0 && (mastery(w).box || 1) < KNOWN_BOX; })
     .sort(function(a,b){ return mastery(b).wrong - mastery(a).wrong; }).slice(0, 12);
   var scales = [['Smaller',.9],['Normal',1],['Large',1.15],['Larger',1.3],['Largest',1.5]];
+  /* The pace sentence below used to spell out 3 / 1 / 0 as if they were laws of the app.
+     They are the DEFAULTS of the two levers in the "New words a day" section a few inches
+     further down the same screen, and since those levers were added the sentence has been
+     able to contradict the number printed four words before it: at newMax 5 the paragraph
+     opened "5 new words a session" and then promised "up to three new words". A grown-up who
+     moves a setting and watches the explanation ignore them has no reason to trust any other
+     number on the page. So the bands are read from the levers, through the same clampN the
+     engine uses, rather than written down twice. */
+  var newMax = S.settings.newMax, newMin = S.settings.newMin;
+  var newPhrase = function(n){
+    return n === 0 ? 'nothing new' : n === 1 ? 'one new word' : n + ' new words'; };
   var tints  = [['cream','#FBF6EC'],['peach','#FBF0E8'],['mint','#EDF6F0'],['blue','#EDF2F8'],['grey','#F2F1EE']];
 
   el('#bar').innerHTML = '<button class="back" data-go="day" aria-label="Back">← Back</button>'
@@ -3244,10 +3255,18 @@ function renderParent(){
     +     (S.words.sessions.length === 1 ? 'sitting' : 'sittings') + '</span></div>'
     + '</div>'
     + '<div class="hint">' + esc(paceLabel()) + '. The pace follows her over her last five '
-    + 'sessions: above 85% right first time she gets a nine-word sitting and up to three new '
-    + 'words, in the middle eight words and one new, under 70% six words and nothing new — so a '
-    + 'hard week slows the intake instead of piling up. New words never take more than a third '
-    + 'of a sitting; the rest is words she can already spell.</div></div>'
+    + 'sessions: above 85% right first time she gets a nine-word sitting and '
+    +   (newMax === 0 ? 'no new words' : 'up to ' + newPhrase(newMax))
+    + ', in the middle eight words and ' + newPhrase(clampN(1, newMin, newMax))
+    + ', under 70% six words and ' + newPhrase(newMin)
+    + ' — so a hard week slows the intake instead of piling up. '
+    /* "never take more than a third of a sitting" was the third claim the levers
+       falsified: the third is what bounds the pool only while the ceiling sits below
+       it. At newMax 5 on a nine-word sitting the pool is five, which is over half. The
+       ceiling is the thing that is always true, and the third is what the suggested
+       setting works out to. */
+    + 'New words are bounded by the ceiling in “New words a day” below — at the suggested 3 '
+    + 'that is about a third of a sitting; the rest is words she can already spell.</div></div>'
 
     /* The two pace levers a grown-up can move: how many new words she meets on a flying
        day and on a hard one. Each is a stepper — a −, the current number, a +. newMin can

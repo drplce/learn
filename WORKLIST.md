@@ -56,6 +56,22 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
   specific to its newer timing-dependent tests rather than a property of the shared harness style.
   *(Also caught mid-pass: I first ran break.js concurrently with the suite, which this project knows
   can contaminate `file://` localStorage between runs. Re-ran it alone before trusting it.)*
+- ✅ **COPY-3 (2026-09-21)** — the pace paragraph recited the defaults of the steppers below it.
+  "Above 85% … up to three new words, in the middle eight words and one new, under 70% six words and
+  nothing new" is 3 / 1 / 0, which are the DEFAULTS of `newMax`/`newMin` — two grown-up levers a few
+  inches down the same screen. At newMin 2 / newMax 5 the engine hands her **5 / 2 / 2** and the
+  paragraph still said three / one / nothing, while OPENING with `paceLabel()`'s "5 new words a
+  session" — self-contradicting inside one paragraph. "New words never take more than a third of a
+  sitting" was false there too (5 of 9). Bands now read the levers through the same `clampN` the
+  engine uses; the third-of-a-sitting line states what is always true (the ceiling bounds it) with
+  the third given as what the suggested 3 works out to. Checked first that the engine was right:
+  **at newMax 0 she really does meet zero new words**, and sim numbers are byte-identical, so no
+  behaviour moved. `pace-settings.spec.js` "the pace paragraph says what the engine will actually
+  do" drives six lever settings × three bands, compares against the ENGINE rather than a fixed
+  string, and also requires the paragraph to name **no** count the engine will never give — which is
+  how the old copy failed. Teeth-checked. No VERSION bump — grown-ups screen.
+  **Third consecutive pass to find a sentence falsified by a setting, a scheme or a count of one;
+  `ROUTINE.md` §6.2 now carries this as a standing sweep rather than a lucky catch.**
 - ✅ **COPY-2 (2026-09-20)** — the map caption was true on one screen of two. "They fill in and
   darken as she learns them" describes light mode; a cell is `--acc` over `--surface`, and those
   swap places at night, so learning a word runs L 0.713 → 0.131 on cream and L 0.047 → **0.446** on

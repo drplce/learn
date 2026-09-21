@@ -214,4 +214,68 @@ test.describe('the pace levers', () => {
     expect(errorsOf(page)).toEqual([]);
   });
 
+  /* The paragraph that EXPLAINS the pace has to move when the levers do.
+     It used to spell out 3 / 1 / 0 as if they were laws of the app, and they are the
+     defaults of the two steppers a few inches below it on the same screen. At newMax 5 the
+     paragraph opened "5 new words a session" — paceLabel(), which does read the lever — and
+     then promised "up to three new words" in the next breath. A grown-up who moves a
+     setting and watches the explanation ignore it has no reason to believe any other number
+     on the page.
+     This does not check the sentence against a fixed string, which would only pin today's
+     wording. It puts her in each of the three bands the sentence names, asks the ENGINE what
+     it will actually hand her, and requires the sentence to contain that number in a form a
+     person would read — so the copy can be rewritten freely and still has to be true. */
+  test('the pace paragraph says what the engine will actually do', async ({page}) => {
+    await open(page, '2026-08-01');
+    // How the paragraph is entitled to write a count.
+    const said = (copy, n) => new RegExp(
+      n === 0 ? 'nothing new|no new words'
+      : n === 1 ? '(one|1) new word'
+      : `${n} new words`).test(copy);
+
+    for(const [newMin, newMax] of [[0, 3], [2, 5], [0, 0], [1, 1], [0, 1], [3, 3]]){
+      const got = await page.evaluate(o => {
+        const a = window.__acorn;
+        a.state.settings.newMin = o.newMin; a.state.settings.newMax = o.newMax;
+        const band = firstTime => {
+          a.state.words.sessions = [0, 1, 2, 3, 4].map(i => ({date: '2026-07-2' + i,
+            asked: 10, right: firstTime, words: 10, firstTime, fresh: [], grew: [], slipped: []}));
+          a.save();
+          return a.newWordsToday();
+        };
+        const flying = band(10), middle = band(8), hard = band(5);
+        band(10); a.go('parent');
+        const copy = [...document.querySelectorAll('.hint')]
+          .map(h => h.innerText.replace(/\s+/g, ' '))
+          .find(t => /The pace follows her/.test(t));
+        return {flying, middle, hard, copy, label: a.paceLabel()};
+      }, {newMin, newMax});
+
+      const at = `newMin ${newMin} / newMax ${newMax}`;
+      expect(got.copy, `${at}: the pace paragraph is gone`).toBeTruthy();
+      // The bands really are the bands, or the fixture is not exercising anything.
+      expect(got.flying, `${at}: flying band is not the ceiling`).toBe(newMax);
+      expect(got.hard, `${at}: hard band is not the floor`).toBe(newMin);
+
+      expect(said(got.copy, got.flying),
+        `${at}: engine gives ${got.flying} on a flying day; paragraph says "${got.copy}"`).toBe(true);
+      expect(said(got.copy, got.middle),
+        `${at}: engine gives ${got.middle} in the middle band; paragraph says "${got.copy}"`).toBe(true);
+      expect(said(got.copy, got.hard),
+        `${at}: engine gives ${got.hard} on a hard day; paragraph says "${got.copy}"`).toBe(true);
+
+      // And it may not name a number the engine will never hand her — which is how the
+      // old copy failed: "three" survived in the sentence at every setting.
+      for(let n = 0; n <= 5; n++){
+        if(n === got.flying || n === got.middle || n === got.hard) continue;
+        expect(said(got.copy, n),
+          `${at}: paragraph offers ${n} new words, which the engine never gives`).toBe(false);
+      }
+      // The paragraph opens with paceLabel(); the two must not disagree.
+      expect(got.copy.startsWith(got.label),
+        `${at}: "${got.label}" is not how the paragraph opens`).toBe(true);
+    }
+    expect(errorsOf(page)).toEqual([]);
+  });
+
 });
