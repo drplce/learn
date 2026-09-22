@@ -56,6 +56,22 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
   specific to its newer timing-dependent tests rather than a property of the shared harness style.
   *(Also caught mid-pass: I first ran break.js concurrently with the suite, which this project knows
   can contaminate `file://` localStorage between runs. Re-ran it alone before trusting it.)*
+- ✅ **COPY-4 (2026-09-22)** — the voice paragraph described a phone it had never looked at, and
+  the §6.2 sweep is now finished. It announced the list as "Australian first" and recommended
+  "Karen is usually the best it can do" unconditionally; `offerVoices()` only puts en-AU first when
+  the phone HAS one. Stubbed a UK iPhone and a laptop with a single American voice: "**offering 1
+  English voice, Australian first**", Karen recommended and absent. Not exotic — the grown-ups
+  screen is the one a parent opens on a laptop to paste a list. Both clauses now read the list; the
+  replacement avoids its own agreement slip ("none of them" is plural against "1 English voice", so
+  "and none is"). `speech.spec.js` "the voice paragraph describes the phone it is actually on"
+  drives four stubbed phones and checks the fixture took before trusting it. Teeth-checked. No
+  VERSION bump.
+  **Checked and left alone, with reasons:** the saved-lists drip hint ("a couple of words at a
+  time" is vague prose, and "never dumped on her at once" holds at every lever setting) and the
+  backup summary (every count already guarded). **The §6.2 named list is exhausted — the question
+  stays as something to ask of new copy, not a backlog.**
+  *Also corrected: COPY-3's note said newMax 0 gives her zero new words. True only with review
+  material — on an empty slate `buildSession`'s MIN_SESSION floor still hands her one, deliberately.*
 - ✅ **COPY-3 (2026-09-21)** — the pace paragraph recited the defaults of the steppers below it.
   "Above 85% … up to three new words, in the middle eight words and one new, under 70% six words and
   nothing new" is 3 / 1 / 0, which are the DEFAULTS of `newMax`/`newMin` — two grown-up levers a few

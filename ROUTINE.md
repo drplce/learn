@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-09-21T17:07Z
+last-run: 2026-09-22T17:13Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -439,6 +439,41 @@ Staying `daily`. Three for three is not a run of luck, and the sweep above is no
 grown-ups screen has several more explanatory hints (the voices paragraph, the saved-lists one, the
 backup summary) that have not been put to this question yet.
 
+**Cadence note (17:13Z, 2026-09-22): the §6.2 sweep is now FINISHED.** All three named hints were
+put to the question; one was wrong, two were fine, and saying which is the point. All harnesses
+green (594, sim in band, break clean).
+
+- **The voices paragraph — wrong, fixed.** It made two claims about a phone it had never looked
+  at: the list is "Australian first", and "Karen is usually the best it can do". `offerVoices()`
+  does put en-AU first **when there is one**; both sentences were printed unconditionally. Stubbed
+  a UK phone and a laptop with a single American voice and got "**offering 1 English voice,
+  Australian first**" with Karen recommended and absent. This is not an exotic state — the
+  grown-ups screen is the one a parent is most likely to open on a laptop to paste a list. Both
+  clauses now read the list. The replacement also had to dodge an agreement slip of its own:
+  "none of them Australian" reads plural against "1 English voice", so it is "and none is".
+  `speech.spec.js` "the voice paragraph describes the phone it is actually on" drives four stubbed
+  phones, checks the fixture really produced the shape it claims, and requires the copy to claim an
+  Australian accent only when one is on offer and to name Karen only when she is. Teeth-checked.
+- **The saved-lists drip hint — fine, left alone.** "A long list is dripped a couple of words at a
+  time, never dumped on her at once." "A couple" is vague prose rather than a computed number, and
+  the actual promise — never dumped at once — holds at every lever setting. Changing it would have
+  been padding.
+- **The backup summary — fine, left alone.** Every count already carries its plural guard, and
+  "0 words, 0 saved lists, 0 sittings" reads correctly.
+
+**Correction to yesterday's note.** It says "at newMax 0 she really does meet zero new words". That
+is true only when she has review material. With an empty slate `buildSession`'s `MIN_SESSION` floor
+still hands her one new word — deliberately, and the comment there says why ("one new word beats a
+thirty-second session she has no reason to come back to"), bounded by `poolCap`'s own `max(1, …)`.
+The pace gives her none; the floor overrides the pace rather than the pace failing. Yesterday's
+conclusion stands — the engine was right and only the copy was wrong — but the claim as written was
+broader than what was measured, and a later pass could have leaned on it.
+
+Staying `daily`, but the reason has changed: the sweep that justified the last three passes is done,
+so the next pass has no queued work. That is fine and it should be said plainly rather than
+back-filled — **if the next pass finds nothing, say so and cool to `weekly`.** Do not go looking for
+a replacement item.
+
 ---
 
 ## 3. WHO THIS IS FOR
@@ -533,9 +568,11 @@ tune the engine.
    screen where learning brightens, and a pace paragraph reciting the defaults of two steppers
    sitting inches below it. Where a sentence states a number the app computes, it must read it
    from the same place the app does. Test the copy against the ENGINE, never against a fixed
-   string — a string test only pins today's wording, and all three of these needed to survive a
-   rewrite. Not yet put to this question: the voices paragraph, the saved-lists hint, the backup
-   summary.
+   string — a string test only pins today's wording, and all four of these needed to survive a
+   rewrite. The sweep was completed on 2026-09-22: the voices paragraph was wrong (it announced
+   "Australian first" and recommended Karen on phones with no Australian voice) and is fixed; the
+   saved-lists drip hint and the backup summary were both checked and are fine. **The named list is
+   exhausted — this is a question to ask of NEW copy, not a backlog to work through.**
 3. **The engine.** Scheduling, pacing, session building, the comparison of her attempt against
    the mistakes a dyslexic child actually makes, syllable splitting (`SYLLABLES` dictionary +
    `COMPOUNDS` + the rule; researched splits win over the rule).

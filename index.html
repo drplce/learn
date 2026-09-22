@@ -3211,6 +3211,15 @@ function renderParent(){
   var list = activeList(), all = wordsOf(list), net = networkData();
   var own = ownList(), ownWords = own ? wordsOf(own) : [];
   var voices = offerVoices(), chosen = pickVoice();
+  /* The voice paragraph made two claims about a phone it had not looked at: that the list is
+     "Australian first", and that "Karen is usually the best it can do". Both are true of an
+     Australian iPhone and of nothing else. offerVoices() puts en-AU first WHEN THERE IS ONE;
+     on a UK phone, or on the laptop a grown-up is likely to be setting lists up on, the list
+     comes back en-GB or en-US and the sentence still announced it as Australian and still
+     recommended a voice that is not in it. Measured on a stubbed list of one American voice:
+     "offering 1 English voice, Australian first". */
+  var auVoices = voices.filter(function(v){ return /^en-AU/i.test(v.lang || ''); });
+  var auFirst = !!voices.length && /^en-AU/i.test(voices[0].lang || '');
   var tricky = Object.keys(S.words.mastery)
     .filter(function(w){ return mastery(w).wrong > 0 && (mastery(w).box || 1) < KNOWN_BOX; })
     .sort(function(a,b){ return mastery(b).wrong - mastery(a).wrong; }).slice(0, 12);
@@ -3437,11 +3446,18 @@ function renderParent(){
     +   '</div><div class="hint">'
     +   (voices.length
         ? 'Your phone is offering ' + voices.length + ' English '
-          + (voices.length === 1 ? 'voice' : 'voices') + ', Australian first. '
+          + (voices.length === 1 ? 'voice' : 'voices')
+          + (auFirst
+             ? ', Australian first. '
+             /* Not "none of them", which reads as a plural against the "1 English voice"
+                four words earlier — the same agreement slip this screen is careful about
+                everywhere else. "None is" carries both counts. */
+             : ', and none is Australian — these are the nearest accents it has. ')
         : 'No voices listed yet — the ones it has appear above once something has spoken. ')
     +   'Safari only ever offers the handful built into iOS — '
-    +   'voices you download under Accessibility are not available to a web page, '
-    +   'so Karen is usually the best it can do. Recorded words, where this app has '
+    +   'voices you download under Accessibility are not available to a web page'
+    +   (auVoices.length ? ', so Karen is usually the best it can do. ' : '. ')
+    +   'Recorded words, where this app has '
     +   'them, do not use the phone voice at all.</div></div>'
 
     + '<div class="sect"><h2 id="l-size">Text size</h2>'

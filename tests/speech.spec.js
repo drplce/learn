@@ -481,4 +481,55 @@ test.describe('what she hears', () => {
     const after = await page.evaluate(() => window.__cancels);
     expect(after - before).toBe(5);
   });
+
+  /* The paragraph under the voice list described a phone it had not looked at.
+     offerVoices() puts en-AU first WHEN THERE IS ONE; the copy announced "Australian
+     first" unconditionally and recommended Karen unconditionally. On a UK phone, or on
+     the laptop a grown-up is likely to set lists up on, the list comes back en-GB or
+     en-US and both claims were false — measured at its plainest on a stubbed list of one
+     American voice: "offering 1 English voice, Australian first", with Karen recommended
+     and absent.
+     Driven off the stubbed list rather than a fixed string: whatever the wording becomes,
+     it may only claim an Australian accent when there is one in the list, and may only
+     name Karen when an en-AU voice is actually on offer. */
+  test('the voice paragraph describes the phone it is actually on', async ({page}) => {
+    const cases = [
+      {what: 'an Australian iPhone', au: true,
+       voices: [{name:'Karen', lang:'en-AU'}, {name:'Lee', lang:'en-AU'}, {name:'Daniel', lang:'en-GB'}]},
+      {what: 'a UK iPhone', au: false,
+       voices: [{name:'Daniel', lang:'en-GB'}, {name:'Serena', lang:'en-GB'}, {name:'Samantha', lang:'en-US'}]},
+      {what: 'a laptop with one American voice', au: false,
+       voices: [{name:'Samantha', lang:'en-US'}]},
+      {what: 'a phone listing nothing yet', au: false, voices: []},
+    ];
+    for(const c of cases){
+      await open(page, '2026-08-01');
+      await listen(page, c.voices);
+      const got = await page.evaluate(() => {
+        const a = window.__acorn;
+        a.clearVoiceCache(); a.go('parent');
+        return {copy: [...document.querySelectorAll('.hint')]
+                  .map(h => h.innerText.replace(/\s+/g, ' '))
+                  .find(t => /offering|No voices listed/.test(t)),
+                offered: a.offerVoices().map(v => v.lang)};
+      });
+      expect(got.copy, `${c.what}: the voice paragraph is gone`).toBeTruthy();
+      // The fixture really did produce the shape it claims to.
+      expect(/^en-AU/i.test(got.offered[0] || ''), `${c.what}: fixture did not take`).toBe(c.au);
+
+      if(c.au){
+        expect(got.copy, `${c.what}: an Australian voice is first and it does not say so`)
+          .toMatch(/Australian first/);
+        expect(got.copy, `${c.what}: Karen is on offer and is not mentioned`).toMatch(/Karen/);
+      }else{
+        expect(got.copy, `${c.what}: claims Australian first with none in the list`)
+          .not.toMatch(/Australian first/);
+        expect(got.copy, `${c.what}: recommends Karen, who is not on this phone`)
+          .not.toMatch(/Karen/);
+      }
+      // And it never disagrees with itself about how many there are.
+      expect(got.copy, `${c.what}: singular count with a plural pronoun`)
+        .not.toMatch(/\b1 English voice\b[^.]*\bthem\b/);
+    }
+  });
 });
