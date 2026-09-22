@@ -544,7 +544,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
         </div>
 
         <div class="race">
-          <div class="stat"><div class="v" id="daysLeft">—</div><div class="k">days left this year</div></div>
+          <div class="stat"><div class="v" id="daysLeft">—</div><div class="k" id="daysLeftK">days left this year</div></div>
           <div class="stat"><div class="v gold" id="knownN">0</div><div class="k">of 144 known</div></div>
           <div class="stat"><div class="v watt" id="lvN">1</div><div class="k">level</div></div>
         </div>
@@ -579,7 +579,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.25';
+var VERSION = '1.26';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -1670,7 +1670,13 @@ function renderPower(){
     + (pct<25 ? ' · play to power it up' : '');
 
   var now=new Date(), eoy=new Date((_today?parseISO(_today):now).getFullYear(),11,31);
-  el('#daysLeft').textContent = Math.max(0, Math.ceil((eoy - (_today?parseISO(_today):now))/86400000));
+  var left = Math.max(0, Math.ceil((eoy - (_today?parseISO(_today):now))/86400000));
+  el('#daysLeft').textContent = left;
+  /* The label is a fixed word under a number that counts down to 1, so on 30 December
+     the tile read "1 days left this year" — on the tensest day of the countdown the
+     whole app is built around. The number and its word live in sibling elements, which
+     is exactly why a sweep over lines of text never saw them together. */
+  el('#daysLeftK').textContent = (left === 1 ? 'day' : 'days') + ' left this year';
   el('#lvN').textContent = level();
 
   // the grid: 144 cells, mirrored across the diagonal because a fact is one fact

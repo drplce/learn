@@ -735,4 +735,69 @@ test.describe('the words she reads', () => {
     expect(await page.evaluate(() => Object.keys(window.__144.state))).not.toContain('profile');
   });
 
+  /* Agreement, swept as PHRASES and across the dates that make a count fall to one.
+     Two things had to be true at once for this to find anything, and each of them is a
+     trap this project has already been caught by:
+
+     1. The number and its word are SIBLING elements — <div class="v">1</div> next to
+        <div class="k">days left this year</div>. A sweep that splits the page's innerText
+        into lines never sees them on the same one. (Proved on the sibling app on
+        2026-09-19: an identical sweep reported clean with a plural guard deliberately
+        removed.) So each element's own innerText is collapsed to one line and swept.
+     2. The count only reaches one on ONE DAY OF THE YEAR. A sweep run on today's date,
+        whatever today is, is overwhelmingly likely to see a two-digit number and pass.
+        The dates below are chosen to put each counter at 0, 1 and 2.
+
+     What it found: "1 days left this year", on 30 December — the tensest day of the
+     countdown this whole app is built around. */
+  test('nothing on her screens says "1 things"', async ({page}) => {
+    /* "a word ending in s shortly after a 1" is too blunt on its own: it fires on
+       "1 day left this year", because `this` ends in s. So the candidate noun is taken
+       explicitly and checked against the s-ending words that are never counted nouns. */
+    const NOT_A_NOUN = new Set(['this', 'his', 'its', 'was', 'has', 'is', 'as', 'yes',
+                                'plus', 'less', 'across', 'always', 'perhaps']);
+    const SLIP = p => {
+      const m = /(?:^|[^\d.])1 ([a-z’']+)(?: ([a-z’']+))?/i.exec(p);
+      if(!m) return false;
+      return [m[1], m[2]].some(w =>
+        w && /s$/i.test(w) && !/ss$/i.test(w) && !NOT_A_NOUN.has(w.toLowerCase()));
+    };
+    const phrases = () => page.evaluate(() => {
+      const out = new Set(), norm = t => (t || '').replace(/\s+/g, ' ').trim();
+      document.querySelectorAll('*').forEach(e => {
+        const t = norm(e.innerText !== undefined ? e.innerText : e.textContent);
+        if(t && t.length < 300) out.add(t);
+        const al = e.getAttribute && e.getAttribute('aria-label');
+        if(al) out.add(norm(al));
+      });
+      return [...out];
+    });
+
+    const slips = [];
+    let sawAOne = false;
+    // 30 Dec puts the year countdown at 1; the others bracket it and cover ordinary days.
+    for(const day of ['2026-12-29', '2026-12-30', '2026-12-31', '2026-06-15']){
+      await open(page, day);
+      await page.evaluate(() => {
+        const a = window.__144;
+        a.state.prog.placed = true; a.state.prog.days = 1; a.state.prog.sessions = 1;
+        a.state.prog.cleared = 1; a.state.power.watts = 1;
+        a.state.facts['7x8'] = {box:5, right:1, wrong:0, seen:1, last:a.todayISO()};
+        a.save(); a.render();
+      });
+      for(const sc of ['home', 'power']){
+        await page.evaluate(x => window.__144.go(x), sc);
+        await page.waitForTimeout(150);
+        for(const p of await phrases()){
+          if(/(^|[^\d.])1 [a-z]/i.test(p)) sawAOne = true;
+          if(SLIP(p)) slips.push(`${day}/${sc}: ${p}`);
+        }
+      }
+    }
+    // The sweep really did read a phrase with a 1 in it, or it proves nothing at all.
+    expect(sawAOne, 'the sweep never saw a count of one — it is not reading the screens').toBe(true);
+    expect(slips).toEqual([]);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
 });

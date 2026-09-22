@@ -15,8 +15,8 @@ routine returns the favour.
 <!-- STATE — the routine reads these two values and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: weekly
-last-run: 2026-09-14T18:09Z
+interval: daily
+last-run: 2026-09-22T18:03Z
 ```
 
 On each firing:
@@ -41,8 +41,13 @@ On each firing:
 2. Hours per interval: `30m`=0.5, `hourly`=1, `daily`=24, `weekly`=168.
 3. **If less than that has passed:** say one line — `not due (interval=X, Nh since last run)` — and
    **end the turn**. Do not run the harness, do not touch the repo.
-4. **Otherwise:** do a full pass (sections 4–7). At the end, set `last-run` to now, re-decide
-   `interval` per the ladder, rewrite both STATE lines, and commit this file with the work.
+4. **Otherwise:** do a full pass (sections 4–7). At the end, set `last-run` to **the time the
+   trigger FIRED, not the time you finished**, re-decide `interval` per the ladder, rewrite both
+   STATE lines, and commit this file with the work.
+   *Firing time, because the finish time drifts and the drift compounds.* The 2026-09-14 pass
+   stamped 18:09 for an 18:02 firing, so on the next weekly firing the gate read 167.9h against a
+   168h interval and said not due **by six minutes** — a whole day lost, and it would have lost
+   another the week after, and so on. Stamping the firing time keeps the cadence anchored.
 
 Never change the trigger schedules on your own initiative — only David does that. (The one exception
 was the overnight sprint's own clean-up, which he asked for explicitly; it is done — see below.)
@@ -594,6 +599,12 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
    at iPhone SE and 13, and LOOK. Motion honours `prefers-reduced-motion`.
 
 2. **The words she reads.** Never blame; never guilt about the battery; singular/plural agreement.
+   **Sweep it as PHRASES, and on dates that make a count fall to one** (added 2026-09-22, which is
+   how "1 days left this year" was found). A number and its noun are often sibling elements, so a
+   line-split over `innerText` never sees them together; collapse each *element's* innerText
+   instead. And a counter only hits 1 on one day of the year — pin the dates rather than running on
+   whatever today is. Ask of each sentence what makes it true and what could falsify it: a date, a
+   state, a count of one, a setting.
 3. **The engine.** Does weak-first actually surface her gaps? Is she inside 80–85%? Do the
    distractors stay plausible at the top of the table (11×12 vs 121, 132, 144)?
 4. **The economy.** Watts and charge should always feel earned and never punitive. Watch for
@@ -788,6 +799,32 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-09-22, 18:03–18:55Z (weekly pass, due at 191.9h): v1.26 — "1 days left this year".**
+  155 pass, both simulations hold every target.
+  **§6 item 2, the words she reads** — the least recently rotated. Brought over the question that
+  has been paying next door all week: for each thing on screen, what makes it true and what could
+  falsify it. Here the answer was **a date**. The power room's countdown tile is a number in one
+  element and a fixed word in its sibling, so on **30 December it read "1 days left this year"** —
+  the single tensest day of the countdown the whole app is built around. Fixed; the label now
+  agrees with the count.
+  **Two traps had to be dodged at once to find it, and both are ones this project has been caught
+  by before.** (1) A sweep that splits the page's `innerText` into LINES can never see a number and
+  its noun together when they are siblings — proved next door on 2026-09-19, where the identical
+  sweep reported clean with a plural guard deliberately deleted. So the sweep collapses each
+  *element's* own innerText instead. (2) The count only reaches one **on one day of the year**, so
+  a sweep run on whatever today happens to be would have passed forever. The new test pins
+  29/30/31 December explicitly and asserts it actually saw a count of one before believing itself.
+  `game.spec.js` "nothing on her screens says 1 things", teeth-checked — reverting the fix makes it
+  red naming the exact string.
+  **One thing I nearly reported as a find and was wrong about:** the clear card appeared to say
+  "1 watts earned". It does not — `clearLevel()` always adds 25, so the card is never below 25. The
+  "1" was my own injected DOM, which I then read back and quoted as though it were the app. Check
+  what a probe is actually measuring before believing it, especially when it agrees with you.
+  Also **fixed the cadence drift in §1 step 4**: `last-run` is now stamped at the FIRING time, not
+  the finish time. The 2026-09-14 pass stamped 18:09 for an 18:02 firing, so yesterday's weekly
+  firing came out at 167.9h against 168 and said not due by six minutes — a day lost, compounding
+  weekly. Acorn untouched. **Still waiting on David: the box rule, the ladder, and the watt sink
+  (all §7).**
 - **2026-09-14, 18:02–18:10Z (first weekly pass, due at 191.8h):** 154 pass, nothing found, nothing
   changed in the app. Spent the pass on the last open §6a item and **closed it against, because the
   premise turned out to be wrong**: the locked shell picker is one lit swatch among four unlit ones,
