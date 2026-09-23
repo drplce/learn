@@ -13,8 +13,8 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
 <!-- STATE — the routine reads these two values, and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: daily
-last-run: 2026-09-22T17:13Z
+interval: weekly
+last-run: 2026-09-23T17:13Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -42,8 +42,13 @@ The trigger fires once a day, but you only do a **full pass** as often as `inter
    off-day). Say one line — `not due (interval=X, Nh since last run)` — and **end the turn**. Do
    not run the harnesses, do not read the app, do not touch the repo or the trigger.
 4. **Otherwise you are due:** do a full pass (sections 3–7 below). At the **end** of the pass,
-   set `last-run` to the current time, re-decide `interval` per the ladder (section 2), rewrite
-   both STATE lines, and commit ROUTINE.md together with whatever else the pass changed.
+   set `last-run` to **the time the trigger FIRED, not the time you finished**, re-decide
+   `interval` per the ladder (section 2), rewrite both STATE lines, and commit ROUTINE.md together
+   with whatever else the pass changed.
+   *Firing time, because the finish time drifts and the drift compounds.* The sibling routine
+   stamped 18:09 for an 18:02 firing, and its next weekly firing then read 167.9h against a 168h
+   interval — **not due by six minutes**, a whole day lost, and another the week after. Acorn has
+   been stamping firing times by habit; this makes it the rule rather than the luck.
 
 Never call `update_trigger` yourself. The cadence lives here now, and the trigger is a fixed daily
 pointer — only David changes its schedule (he set it to daily at 17:00 UTC on 2026-08-09).
@@ -474,6 +479,39 @@ so the next pass has no queued work. That is fine and it should be said plainly 
 back-filled — **if the next pass finds nothing, say so and cool to `weekly`.** Do not go looking for
 a replacement item.
 
+**Cadence note (17:13Z, 2026-09-23): nothing found in the app. COOLING `daily → weekly`,** which is
+what the note above said to do and is the whole point of having written it down in advance.
+
+Took §6.3, the engine, and carried over the question that had been paying all week — what state
+pushes a value to an edge. For an engine measured in days, that state is the CLOCK, so: **ran the
+whole suite in a timezone with daylight saving for the first time in its life.** Every run it has
+ever had was under UTC, while `parseISO` builds local-midnight dates and `dayDiff` leans on
+`Math.round` to absorb 23- and 25-hour days. **594 pass under `TZ=Australia/Sydney`.** The reasoning
+in that comment was already sound; it is now measured instead of only argued, and the practice is
+written into §5.
+
+The one red of the day was the documented `two-windows` flake, and it is still documented rather
+than fixed. Handled it properly rather than waving it through: 12/12 in isolation three times, and
+**one failure in nine full runs** today, so ~1 in 9 under parallel load. Then went after it — 40
+instrumented trials of the exact scenario, **ten of them with her window's `storage` listener
+deliberately removed** so it could not hear the paste at all. Could not reproduce the loss once.
+
+That failure produced something worth keeping anyway, and §5 now carries it: the guard on a
+grown-up's pasted list is the **merge in `save()`**, not the listener — the same conclusion
+break.js §31 reached for her answers in August, now measured for lists too. The instinct on reading
+that listener is that it is what saves a paste. It is not.
+
+**What is NOT established, and the next attempt should start here rather than repeat my forty
+trials:** why it fails under full parallel load and never in isolation. The instrumented run shows
+her window has already received dad's write before she answers in 30/30 unloaded trials, so the
+load is changing the ordering in a way I did not reproduce. The failure's shape says the device
+ended holding only her list, which the merge alone should make impossible — so either the merge was
+skipped (`raw === _wrote`), or a write landed in an order I have not modelled. Worth an hour with
+the merge instrumented in-page, not more guessing from the outside.
+
+Cooling because the app is clean and the sweep is done. **A live message from David, or any defect
+a pass actually finds, resets this to `daily`.**
+
 ---
 
 ## 3. WHO THIS IS FOR
@@ -515,6 +553,13 @@ captured runs on 2026-09-02 found it was **two** unrelated flaky tests, both har
 single green run says less than it looks: **treat any intermittent failure as a defect in the test
 until proven otherwise** — every one in this project has been.
 
+**AND RUN IT IN A TIMEZONE WITH DAYLIGHT SAVING** (added 2026-09-23): `TZ=Australia/Sydney npx
+playwright test`. Every run this suite has ever had was under UTC, and the engine measures its
+intervals in days across LOCAL midnights — `parseISO` builds local-midnight dates and `dayDiff`
+leans on `Math.round` to absorb the 23- and 25-hour days. That reasoning is sound, and it is now
+measured rather than only argued: 594 pass under Sydney. Cheap, and it covers a dimension nothing
+else did.
+
 **RUN THE SUITE AT A FUTURE DATE NOW AND AGAIN:** `ACORN_DAYS_AHEAD=400 npx playwright test`
 (off by default; two minutes). The sibling app in `tables/` had two engine tests seed a fixed
 `last` date and read the REAL clock, and because the Leitner intervals are measured in days, what
@@ -524,11 +569,18 @@ worst kind:** the obvious fix is to loosen the thresholds, which would have dest
 Acorn was swept the same week and is clean — 590 pass at +200 days and again at +1100 — but "clean
 today" is exactly what the other suite was.
 
-**THE TWO-WINDOW DATA GUARD IS THE `rev` MERGE, NOT THE `storage` LISTENER (measured 2026-08-26).**
+**THE TWO-WINDOW DATA GUARD IS THE MERGE IN `save()`, NOT THE `storage` LISTENER (measured
+2026-08-26 for her answers, and again 2026-09-23 for a grown-up's lists).**
 Worth knowing before anyone simplifies either. With the `storage` handler stubbed out entirely,
 `break.js` §31 — the section built specifically to catch two windows losing her work — **still
 passes**. The listener keeps an open window's SCREEN fresh; it is the merge on write that keeps her
 data. Do not assume the listener is protecting anything but the view.
+**Extended 2026-09-23 to the case that matters most to a grown-up:** a list pasted in one window
+while she answers in the other. Ran that scenario 40 times, ten of them with her window's `storage`
+listener deliberately removed so it could not hear the paste at all. **Not one lost the list** — the
+merge's "if this window has not touched the lists since it read them, storage's copy wins outright"
+branch does the work. Worth knowing, because the instinct on reading that listener is that it is
+what saves a grown-up's paste, and it is not.
 
 *(Attempted this pass and NOT shipped: an adversarial section for a grown-up restoring a backup in
 one window while she is mid-word in another. It passes, but it passes with the merge stubbed AND

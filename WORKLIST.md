@@ -56,6 +56,17 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
   specific to its newer timing-dependent tests rather than a property of the shared harness style.
   *(Also caught mid-pass: I first ran break.js concurrently with the suite, which this project knows
   can contaminate `file://` localStorage between runs. Re-ran it alone before trusting it.)*
+- ✅ **HAR-5 (2026-09-23)** — two new things measured, no defect found. (1) **The suite runs under
+  daylight saving now.** Every run it has ever had was under UTC, while the engine measures
+  intervals in days across LOCAL midnights; `TZ=Australia/Sydney npx playwright test` → 594 pass.
+  Written into ROUTINE.md §5 as an occasional practice beside `ACORN_DAYS_AHEAD`. (2) **The
+  two-window guard on a grown-up's LISTS is the merge, not the `storage` listener** — 40 trials of
+  a list pasted in one window while she answers in the other, ten with her listener deliberately
+  removed, none lost the list. Extends the August measurement from her answers to his lists.
+  ⬜ **Open, deliberately not closed:** the documented `two-windows` flake is still a flake —
+  ~1 failure in 9 full runs, 12/12 in isolation, and 40 instrumented trials could not reproduce it.
+  ROUTINE.md records what was ruled out so the next attempt starts further along instead of
+  repeating them.
 - ✅ **COPY-4 (2026-09-22)** — the voice paragraph described a phone it had never looked at, and
   the §6.2 sweep is now finished. It announced the list as "Australian first" and recommended
   "Karen is usually the best it can do" unconditionally; `offerVoices()` only puts en-AU first when
