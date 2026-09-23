@@ -230,12 +230,19 @@ test.describe('the digest', () => {
       await page.evaluate(src => {
         const a = window.__144;
         a.state.prog.placed = true; a.state.prog.cleared = 1; a.state.prog.days = 1;
+        /* Watts too, and at ONE. Added 2026-09-23, when the header line was found reading
+           "1 watts": the technique here was always right — .test() scans the whole line —
+           but neither fixture ever drove watts to one, so the only count on that line that
+           was not going through plural() sat in the digest unread. Her first right answer
+           pays exactly one watt, so this is her first evening, not a contrived state. */
+        a.state.power.watts = 1;
         (new Function('a', src))(a);
         a.save();
       }, fn.toString().replace(/^[^=]*=>\s*\{/, '').replace(/\}\s*$/, ''));
       const t = await digest(page);
       // the counts really are 1, or this sweep is reading a page that cannot disagree
       expect(t, `${name}: the fixture did not produce a one-day digest`).toMatch(/1 day playing/);
+      expect(t, `${name}: the fixture did not put the watt count at one`).toMatch(/(^|\D)1 watt\b/);
       seen.push(t);
 
       /* A number, then up to three words, ending in an s. Case-insensitive, because

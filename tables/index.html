@@ -1072,7 +1072,13 @@ function diagnostics(){
   var diaryDays = Object.keys(L.days).length;
   var played = Math.max(S.prog.days || 0, diaryDays);
   out.push('144 diagnostics · v' + VERSION + ' · ' + todayISO());
-  out.push('level ' + level() + ' of ' + LEVELS.length + '   ·   ' + S.power.watts + ' watts   ·   ' +
+  /* The one count on this line that was not going through plural(). The August sweep
+     that added the helper fixed five sites and walked past this one, because it sits
+     mid-line between two other numbers rather than at the start of its own. Her very
+     first right answer pays exactly one watt, so "1 watts" was the second line of the
+     first export David would ever have read. */
+  out.push('level ' + level() + ' of ' + LEVELS.length + '   ·   ' +
+           plural(S.power.watts, 'watt', 'watts') + '   ·   ' +
            plural(played, 'day', 'days') + ' playing');
   out.push('');
 

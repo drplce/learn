@@ -756,11 +756,19 @@ test.describe('the words she reads', () => {
        explicitly and checked against the s-ending words that are never counted nouns. */
     const NOT_A_NOUN = new Set(['this', 'his', 'its', 'was', 'has', 'is', 'as', 'yes',
                                 'plus', 'less', 'across', 'always', 'perhaps']);
+    /* EVERY match on the phrase, not just the first. Written with a non-global exec on
+       2026-09-22, which stops at the first "1 <word>" it meets — so on a line like
+       "level 1 of 372 · 1 watts" it examines "1 of", finds nothing, and walks past the
+       slip four words later. Caught the next day by a probe built the same wrong way. */
     const SLIP = p => {
-      const m = /(?:^|[^\d.])1 ([a-z’']+)(?: ([a-z’']+))?/i.exec(p);
-      if(!m) return false;
-      return [m[1], m[2]].some(w =>
-        w && /s$/i.test(w) && !/ss$/i.test(w) && !NOT_A_NOUN.has(w.toLowerCase()));
+      const re = /(?:^|[^\d.])1 ([a-z’']+)(?: ([a-z’']+))?/gi;
+      let m;
+      while((m = re.exec(p)) !== null){
+        const bad = [m[1], m[2]].some(w =>
+          w && /s$/i.test(w) && !/ss$/i.test(w) && !NOT_A_NOUN.has(w.toLowerCase()));
+        if(bad) return true;
+      }
+      return false;
     };
     const phrases = () => page.evaluate(() => {
       const out = new Set(), norm = t => (t || '').replace(/\s+/g, ' ').trim();

@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-09-22T18:03Z
+last-run: 2026-09-23T18:03Z
 ```
 
 On each firing:
@@ -242,6 +242,13 @@ cases — the tests are what make an autonomous loop safe.
 
 Acorn's suite (`npx playwright test` from the root) must stay green too, and should be untouched by
 anything done here. Run it if a change could plausibly reach it; otherwise trust the separation.
+
+**RUN IT IN A TIMEZONE WITH DAYLIGHT SAVING NOW AND AGAIN** (added 2026-09-23):
+`TZ=Australia/Sydney npx playwright test -c tables/playwright.config.js`. Every run this suite ever
+had was under UTC, while the engine measures `BOX_DAYS` intervals in days across LOCAL midnights.
+155 pass under Sydney, so the reasoning is measured rather than only argued. Cheap, and it covers a
+dimension nothing else did. (Carried over from Acorn's routine, which did the same the night
+before — the two suites have the same date-shaped exposure.)
 
 Gaps worth closing when there is time — **this is the queue for the first few passes**, most
 valuable first:
@@ -799,6 +806,40 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-09-23, 18:03–19:05Z (daily pass, due at 24.0h): "1 watts", and two false alarms I nearly
+  reported as finds.** 155 pass, both simulations hold.
+  **Ran the suite under daylight saving for the first time** — `TZ=Australia/Sydney` — carried
+  straight over from the sibling routine, which did the same last night. 144's engine measures
+  `BOX_DAYS` intervals across local midnights too, and every run it has ever had was under UTC.
+  **155 pass under Sydney.** Cheap, and it covers a dimension nothing else did.
+  **§6 item 4, the economy** — the least recently rotated, and the one the log shows was never
+  taken. Asked the week's question of it: what state pushes a value to an edge? The clock going
+  backwards is already guarded (`settleCharge` resets `at` and hands out nothing), `addCharge`
+  clamps at 100, `wakingHoursBetween` has an 800-day loop guard, and the HUD renders watts through
+  `toLocaleString()` without overflowing 375px even at the sanitiser's 1e9 ceiling. All sound.
+  **The one real find is at the bottom of the scale, not the top: the export said "1 watts".** Her
+  very first right answer pays exactly one watt, so that was the second line of the first export
+  David would ever have read. It is the one count on that line that never went through `plural()` —
+  the August sweep that added the helper fixed five sites and walked past this one, because it sits
+  mid-line between two other numbers instead of starting its own.
+  **The existing test's technique was right and its FIXTURES were the gap** — the same lesson as
+  yesterday, one layer down. `diagnostics.spec.js` "every number in it agrees with its noun" uses
+  `.test()`, which scans a whole line, but neither of its two fixtures ever set `power.watts`, so
+  the count sat at 0 and could not disagree. Both fixtures now set it to one, and the test asserts
+  the fixture really took before believing its own green. Teeth-checked.
+  **Also fixed a latent weakness in yesterday's own test:** its detector used a non-global `exec`,
+  so it examined only the FIRST `1 <word>` on a phrase. On "level 1 of 372 · 1 watts" it stops at
+  "1 of" and walks straight past the slip. Now scans every match — and this was caught only because
+  the probe I wrote today had the identical bug and hid "1 watts" from me on the first attempt.
+  **Two things I nearly reported as finds and was wrong about, both my own fixture:**
+  (1) `0.0undefinedundefined` in the diary table — I had written the row as `{asked, right}` when
+  the real shape is `{a, r, w, ms, lv, s, met, slow}`. The sanitiser rebuilds every field with a
+  numeric default, so a row loaded from storage can never lack them; only a hand-built one can.
+  (2) Yesterday it was "1 watts earned" on the clear card, which is unreachable because
+  `clearLevel()` always adds 25. **That is two days running.** The pattern is the same both times:
+  a fixture that does not match what the app writes, read back and quoted as though it were the
+  app. Check the shape against the writer before believing a probe. Acorn untouched.
+  **Still waiting on David: the box rule, the ladder, and the watt sink (all §7).**
 - **2026-09-22, 18:03–18:55Z (weekly pass, due at 191.9h): v1.26 — "1 days left this year".**
   155 pass, both simulations hold every target.
   **§6 item 2, the words she reads** — the least recently rotated. Brought over the question that
