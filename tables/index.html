@@ -579,7 +579,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.26';
+var VERSION = '1.27';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -1746,8 +1746,25 @@ function paintRound(){
             .getPropertyValue(ROUND_COLOURS[(W.round-1) % ROUND_COLOURS.length]).trim();
   document.documentElement.style.setProperty('--rc', v);
 }
+/* Read LIVE, not once at load. This was a single `.matches` read at startup, so a
+   grown-up turning Reduce Motion on in iOS Settings changed nothing until the app was
+   reloaded — and a home-screen web app stays alive for weeks, so that reload never
+   comes. The CSS media query updates itself; this flag did not, and it is the one that
+   governs the rising orbs, which is the motion the setting exists to stop. Measured
+   2026-09-24: set before load the orbs travel 0px in 900ms; switched on mid-session they
+   kept travelling 31px, exactly as if nothing had been asked for.
+   The flag is read when a question spawns its orbs, so the change lands on the NEXT
+   question rather than freezing the ones already in flight — which is the right
+   granularity: those were placed low on the assumption they would rise, and stopping
+   them where they are would leave the sum in the bottom third of the screen. */
 var reduce=false;
-try{ reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
+try{
+  var _rmq = matchMedia('(prefers-reduced-motion: reduce)');
+  reduce = _rmq.matches;
+  var _onRM = function(e){ reduce = !!e.matches; };
+  if(_rmq.addEventListener) _rmq.addEventListener('change', _onRM);
+  else if(_rmq.addListener) _rmq.addListener(_onRM);   // Safari before 14
+}catch(e){}
 
 /* What a level IS, not merely where it sits in the list. The ladder has already
    been rewritten once under her (v1.8 inserted the fill-the-gap levels), and a

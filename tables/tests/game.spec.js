@@ -735,6 +735,69 @@ test.describe('the words she reads', () => {
     expect(await page.evaluate(() => Object.keys(window.__144.state))).not.toContain('profile');
   });
 
+  /* Reduce Motion turned on WHILE she is playing, which is the only way it ever
+     actually happens. Every other test in this file sets the media before the app loads;
+     the flag governing the rising orbs was read once at startup, so it stayed stale, and
+     a home-screen web app on iOS lives for weeks without a reload. A grown-up turning the
+     setting on for a child who needs it got no effect on the game's main motion at all.
+     Measured before the fix: set before load, the orbs travel 0px in 900ms; switched on
+     mid-session they kept travelling ~30px, exactly as if nothing had been asked for.
+     The flag is read when a question spawns its orbs, so this asserts the NEXT question is
+     still — the orbs already in flight keep their speed on purpose, having been placed low
+     on the assumption they would rise. */
+  test('turning Reduce Motion on mid-level is honoured without a reload', async ({page}) => {
+    test.setTimeout(120000);
+    const travel = async () => {
+      const top = () => page.evaluate(() =>
+        [...document.querySelectorAll('.orb')].map(e => Math.round(e.getBoundingClientRect().top)));
+      const a = await top();
+      await page.waitForTimeout(900);
+      const b = await top();
+      const n = Math.min(a.length, b.length);
+      let moved = 0;
+      for(let i = 0; i < n; i++) moved = Math.max(moved, Math.abs(a[i] - b[i]));
+      return {orbs: n, moved};
+    };
+    const pastMeets = async () => {
+      for(let i = 0; i < 6; i++){
+        if(await page.evaluate(() => window.__144.meeting())){
+          await page.evaluate(() => window.__144.skipMeet());
+          await page.waitForTimeout(260);
+        } else break;
+      }
+      await page.waitForTimeout(300);
+    };
+
+    await page.emulateMedia({reducedMotion: 'no-preference'});
+    await open(page, '2026-09-24');
+    await page.evaluate(() => { const a = window.__144;
+      a.state.prog.placed = true; a.save(); a.render(); });
+    await page.click('#nowlevel');
+    await page.waitForTimeout(300);
+    await pastMeets();
+
+    // The control: with motion allowed, they really are rising. Without this the
+    // assertion below could pass on a screen with nothing moving for other reasons.
+    const moving = await travel();
+    expect(moving.orbs, 'no orbs on screen to measure').toBeGreaterThan(1);
+    expect(moving.moved, 'the orbs were not rising even with motion allowed').toBeGreaterThan(8);
+
+    // Now a grown-up turns Reduce Motion on, without touching the app.
+    await page.emulateMedia({reducedMotion: 'reduce'});
+    await page.waitForTimeout(200);
+    expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches),
+      'the emulation did not take').toBe(true);
+
+    // On to the next question, which is where the live flag lands.
+    await page.evaluate(() => window.__144.answer(true));
+    await page.waitForTimeout(500);
+    await pastMeets();
+    const still = await travel();
+    expect(still.orbs, 'no orbs on the next question to measure').toBeGreaterThan(1);
+    expect(still.moved, 'the orbs kept rising after Reduce Motion was switched on').toBe(0);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
   /* Agreement, swept as PHRASES and across the dates that make a count fall to one.
      Two things had to be true at once for this to find anything, and each of them is a
      trap this project has already been caught by:

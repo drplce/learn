@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-09-23T18:03Z
+last-run: 2026-09-24T18:03Z
 ```
 
 On each firing:
@@ -637,7 +637,10 @@ leave 144 looking better than it found it. Rules of engagement:
   but never harsh, never seizure-bright, never so busy the numbers are hard to read. Legibility
   always wins a fight with atmosphere.
 - **Everything must survive `prefers-reduced-motion`** (show the end state, don't run the show) and
-  keep tap targets ≥48px.
+  keep tap targets ≥48px. **Test it switched on MID-SESSION, not only set before the app loads**
+  (added 2026-09-24): every test in the suite emulated it before `goto`, which is the one
+  arrangement in which a read-once flag looks correct. That is how the rising orbs went a month
+  ignoring the setting.
 - **The known list, most valuable first** (keep it pruned and re-ordered as things get done):
   1. ~~The power room's three stat tiles are flat dark rectangles.~~ **Done (v1.20):** each tile now
      takes its own number's colour (`--sc`) for a thin rim and a bloom rising from its base — three
@@ -806,6 +809,33 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-09-24, 18:03–19:00Z (daily pass, due at 24.0h): v1.27 — Reduce Motion did nothing until
+  the app was reloaded.** 156 pass, both simulations hold.
+  **§6 item 1, game feel** — least recently rotated (2026-08-29, which shot the play field across
+  four rounds and found nothing). Shot a different axis rather than repeating it: the accessibility
+  setting, switched on the way it actually gets switched on.
+  `var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches` was read **once at load**.
+  The CSS media query updates itself, so transitions flattened; the JS flag did not, and it is the
+  one that governs the **rising orbs** — the motion the setting exists to stop. A grown-up turning
+  Reduce Motion on in iOS Settings for a child who needs it got no effect on the game's main motion
+  at all, and an iOS home-screen web app lives for weeks without a reload, so that reload never
+  comes. Measured: set before load the orbs travel **0px** in 900ms; switched on mid-session they
+  kept travelling **~30px**, exactly as if nothing had been asked for. Now subscribed to the media
+  query's `change` (with the `addListener` fallback for Safari before 14).
+  **Every existing test set the media BEFORE loading the app**, which is the one arrangement in
+  which the bug is invisible — the same shape as the last three finds: the technique was fine, the
+  state was never reached. `game.spec.js` "turning Reduce Motion on mid-level is honoured without a
+  reload" asserts the orbs really are rising first (so it cannot pass on a dead screen), then
+  switches and requires the NEXT question to be still. Teeth-checked.
+  **Scope stated rather than hidden:** orbs already in flight keep their speed, because they were
+  placed low on the assumption they would rise and freezing them there would leave the sum in the
+  bottom third of the screen. The change lands on the next question, a second or two away.
+  **A probe of mine measured the wrong thing again** — the third time this week. The first version
+  watched the orbs already on screen and reported no improvement after the fix, which is exactly
+  what the design intends; it had to advance a question to see anything. Same family as the last
+  two (a fixture that did not match the app, and a detector that stopped at the first match): the
+  probe was measuring something adjacent to the question I was asking. Acorn untouched.
+  **Still waiting on David: the box rule, the ladder, and the watt sink (all §7).**
 - **2026-09-23, 18:03–19:05Z (daily pass, due at 24.0h): "1 watts", and two false alarms I nearly
   reported as finds.** 155 pass, both simulations hold.
   **Ran the suite under daylight saving for the first time** — `TZ=Australia/Sydney` — carried
