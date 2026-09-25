@@ -15,8 +15,8 @@ routine returns the favour.
 <!-- STATE — the routine reads these two values and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: daily
-last-run: 2026-09-24T18:03Z
+interval: weekly
+last-run: 2026-09-25T18:03Z
 ```
 
 On each firing:
@@ -809,6 +809,30 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-09-25, 18:03–18:40Z (daily pass, due at 24.0h): nothing found. DAILY → WEEKLY.**
+  156 pass, both simulations hold every target. **No change to the app.**
+  **§6 item 3, the engine** — least recently rotated (2026-08-31, the distractors). Took the part
+  of it that had never been measured: **the picker at the END of the journey**, which is where she
+  spends the ~97 reinforcement days and which every existing test skips past. Three states, 7,800
+  seeded draws each: every fact in box 7 and three months overdue; every fact in box 7 and seen
+  today; and one catastrophically weak fact among 77 perfect ones. All healthy — every fact still
+  drawn, a 159:90 spread when they are level, and the weak one tilted **11×** without monopolising
+  (12.5% of draws, about 1.6 times in a 13-answer sitting). The first two states came out
+  *identical*, which is right rather than suspicious: box 7 means the due bonus applies to all of
+  them or none, so the relative weights are unchanged either way.
+  Also confirmed rather than assumed: **78 unique facts, all 78 reachable through the ladder, none
+  spurious, and `metCount()` agrees at 78.**
+  **A fourth probe slip this week, caught before it misled me:** the first draw ran over a key list
+  of 2–12, which is 66 facts, not 78 — the ×1 family was missing — and I had labelled the output
+  "/78". The numbers were sound; the label was not. Four in a week is a habit, not four accidents:
+  **state what a probe is actually measuring before reading its output, and check the arithmetic of
+  the labels as well as the assertion.**
+  **Cooling `daily → weekly`.** The last three passes each found something real (a plural on her
+  screen, a plural in David's export, an accessibility setting that did nothing), so daily earned
+  its keep; today it did not, and §8's warning about padding is the reason to say so on the first
+  clean pass rather than the third. **A live message from David, or any defect a pass actually
+  finds, resets this to `daily`. Still waiting on David: the box rule, the ladder, and the watt
+  sink (all §7).**
 - **2026-09-24, 18:03–19:00Z (daily pass, due at 24.0h): v1.27 — Reduce Motion did nothing until
   the app was reloaded.** 156 pass, both simulations hold.
   **§6 item 1, game feel** — least recently rotated (2026-08-29, which shot the play field across
