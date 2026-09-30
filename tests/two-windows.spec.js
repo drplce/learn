@@ -11,13 +11,61 @@
 const {test, expect} = require('@playwright/test');
 const {APP} = require('./helpers');
 
-async function win(context, today){
+/* These tests have flaked at roughly one full run in nine since August, always under
+   the parallel suite and never in isolation, and ROUTINE.md §5 has been telling readers
+   to re-run the file before believing a red. That is a standing exception to this
+   project's own rule that an intermittent failure is a test defect until proven
+   otherwise, and it has outlived its welcome.
+
+   What the 2026-09-30 hunt established, so the next attempt does not repeat it:
+     - 240 trials of the exact scenario — uniform, jittered between every step, and ten
+       with her window's `storage` listener removed entirely — did not reproduce it once.
+     - The sibling app diagnosed an identical-looking flake in ITS two-window test as
+       parallel tests sharing one `file://` localStorage, and fixed it with `workers: 1`.
+       That does NOT apply here: measured on this harness, two workers cannot see each
+       other's `file://` localStorage, and neither can two sequential tests in one worker.
+       The leading hypothesis is ruled out, not inherited.
+   So the cause is still unknown. Rather than guess at a fix, every window now records
+   what `save()` actually did — whether a merge ran, what was on disk, what the lists
+   were before and after — and the assertions below print it. The next time this goes red
+   in a real run, the failure explains itself instead of costing another day. */
+/* Wrapped at localStorage.setItem, NOT at `__acorn.save`. The first version of this
+   wrapped the test hook, and the hook is not the path that matters: the app's own code
+   calls the module-scope save() directly, so the write inside check() — the one this
+   test is actually about — never went through the wrapper. It logged the seed and
+   nothing else, which would have looked like evidence while being none.
+   Every write to storage goes through setItem, whoever calls it. */
+const MERGE_LOG = () => {
+  window.__saves = [];
+  const names = v => { try { return (JSON.parse(v).words.lists || []).map(l => l.name); }
+                       catch(e){ return 'unreadable'; } };
+  const real = Storage.prototype.setItem;
+  Storage.prototype.setItem = function(k, v){
+    if(k === 'acorn.v1'){
+      const raw = localStorage.getItem(k);
+      window.__saves.push({wrote: names(v), foundOnDisk: raw ? names(raw) : 'absent'});
+    }
+    return real.apply(this, arguments);
+  };
+};
+const savesOf = p => p.evaluate(() => window.__saves || []).catch(() => []);
+// Both windows' save logs, for a failure message that says what happened rather than
+// only what is missing.
+async function story(...pages){
+  const out = [];
+  for(const p of pages) out.push(`${p.__tag}: ${JSON.stringify(await savesOf(p))}`);
+  return '\n  ' + out.join('\n  ');
+}
+
+async function win(context, today, tag){
   const p = await context.newPage();
   const errs = [];
   p.on('pageerror', e => errs.push(e.message));
   p.__errs = errs;
+  p.__tag = tag || 'window';
   await p.goto(APP);
   await p.waitForFunction(() => !!window.__acorn);
+  await p.evaluate(MERGE_LOG);
   await p.evaluate(d => window.__acorn.setToday(d), today || '2026-08-01');
   return p;
 }
@@ -61,8 +109,8 @@ test.describe('two windows on the same device', () => {
   });
 
   test('and her answering does not erase the list he just saved', async ({context}) => {
-    const her = await win(context);
-    const dad = await win(context);
+    const her = await win(context, null, 'her');
+    const dad = await win(context, null, 'dad');
     await seed(her, ['said', 'rain']);
     await dad.evaluate(() => {
       const a = window.__acorn;
@@ -73,7 +121,9 @@ test.describe('two windows on the same device', () => {
     expect((await onDevice(dad)).lists).toContain('Week 10');
     await answerOne(her);
     const after = await onDevice(her);
-    expect(after.lists, 'the list a grown-up had just pasted in was erased')
+    expect(after.lists,
+      'the list a grown-up had just pasted in was erased. What each window\'s save() did:'
+      + await story(her, dad))
       .toContain('Week 10');
     expect(after.mastery.length, 'her answer was not recorded').toBeGreaterThan(0);
   });

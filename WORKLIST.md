@@ -56,6 +56,18 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
   specific to its newer timing-dependent tests rather than a property of the shared harness style.
   *(Also caught mid-pass: I first ran break.js concurrently with the suite, which this project knows
   can contaminate `file://` localStorage between runs. Re-ran it alone before trusting it.)*
+- 🔨 **HAR-6 (2026-09-30)** — the two-window flake hunt: a negative, a correction, and a
+  self-diagnosing test. 240 trials of the exact scenario (uniform, jittered, and ten with the
+  `storage` listener removed) did not reproduce the loss once. **144's diagnosis does not transfer:**
+  it traced an identical-looking flake to parallel tests sharing one `file://` localStorage and
+  capped workers; measured here, Acorn's workers cannot see each other's `file://` storage, and
+  neither can two sequential tests in one worker. I claimed that was the cause before running the
+  check — the check disagreed. Cause still unknown and the test still flakes at ~1 in 9.
+  What shipped: `two-windows.spec.js` records every write to storage and prints both windows' logs
+  in the failure message, so the next red explains itself. Wrapped at `Storage.prototype.setItem`
+  after the first version — wrapped at `__acorn.save` — proved to be decoration: the app's own code
+  calls the module-scope `save()`, so it captured the seed and missed the write inside `check()`.
+  Verified by forcing the assertion and reading what actually printed.
 - ✅ **HAR-5 (2026-09-23)** — two new things measured, no defect found. (1) **The suite runs under
   daylight saving now.** Every run it has ever had was under UTC, while the engine measures
   intervals in days across LOCAL midnights; `TZ=Australia/Sydney npx playwright test` → 594 pass.

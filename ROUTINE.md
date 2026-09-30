@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: weekly
-last-run: 2026-09-23T17:13Z
+last-run: 2026-09-30T17:13Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -512,6 +512,28 @@ the merge instrumented in-page, not more guessing from the outside.
 Cooling because the app is clean and the sweep is done. **A live message from David, or any defect
 a pass actually finds, resets this to `daily`.**
 
+**Cadence note (17:13Z, 2026-09-30, due at 168.0h exactly):** fresh container, `npm install`, then
+594 pass, sim in band, break clean across 39 cases. **Nothing found in the app; no app change.**
+
+Took §6.4, robustness — least recently rotated — and specifically the next step this file recorded
+a week ago: instrument the two-window merge in the page rather than guess from outside. Did that,
+and the honest result is a **negative plus a correction**, both now in §5 above. The negative: 240
+trials could not reproduce the loss. The correction: I found 144's config note describing exactly
+this flake in its own suite, traced to parallel tests sharing one `file://` localStorage, **said out
+loud that I had found it**, and only then measured — and the measurement says Acorn's workers are
+storage-isolated, both across workers and sequentially within one. The leading hypothesis is dead
+and the next attempt should not spend a day on it.
+
+What shipped instead is the thing that makes the next occurrence cheap: the test records every
+write to storage and prints both windows' logs when it fails. **The first version of that was
+decoration** — it wrapped `__acorn.save`, which the app's own code does not go through, so it
+captured the seed and missed the write inside `check()`. Verified by forcing the assertion and
+reading what actually printed; rewrapped at `Storage.prototype.setItem`, which nothing can bypass.
+That is the fifth probe-measures-the-wrong-thing of this stretch, and the second caught only by
+deliberately breaking the thing to see whether the instrument noticed.
+
+Staying `weekly`: the app is clean, and a harness improvement is not a defect found.
+
 ---
 
 ## 3. WHO THIS IS FOR
@@ -542,8 +564,26 @@ node tests/sim.js       # pacing simulation: real engine, modelled learners; non
 node tests/break.js     # adversarial pass; non-zero on any finding
 ```
 
-`two-windows.spec.js` and the audio-live prefetch test are known parallel-load flakes — confirm
-by re-running the named file in isolation before treating a failure as real.
+`two-windows.spec.js` and the audio-live prefetch test flake under the parallel suite — confirm by
+re-running the named file in isolation before treating a failure as real. **This is a standing
+exception to the rule two paragraphs down, and it is on borrowed time.** `two-windows` fails about
+one full run in nine and has never failed in isolation.
+
+**What the 2026-09-30 hunt RULED OUT, so the next attempt starts here rather than where I did:**
+- **240 trials of the exact scenario did not reproduce it once** — uniform, jittered between every
+  step, and ten with her window's `storage` listener removed entirely.
+- **The sibling app's diagnosis does not transfer.** 144 traced an identical-looking flake in ITS
+  two-window test to parallel tests sharing one `file://` localStorage and fixed it with
+  `workers: 1`; Acorn has `fullyParallel: true` and no worker cap, so this looked certain. It is
+  not: measured on this harness, **two workers cannot see each other's `file://` localStorage, and
+  neither can two sequential tests in one worker.** I asserted I had found it before running that
+  check, and the check disagreed. Inherit a diagnosis only after measuring it here.
+
+Since the cause is still unknown, `two-windows.spec.js` now **instruments every write to storage**
+(wrapped at `Storage.prototype.setItem`, not at `__acorn.save` — the app's own code calls the
+module-scope `save()` directly, so a hook wrapper misses the write inside `check()`, which is the
+one the test is about) and prints both windows' write logs in the failure message. The next red
+says what happened instead of only what is missing.
 
 **CAPTURE THE SUITE'S OUTPUT TO A FILE, AND RUN IT MORE THAN ONCE.**
 `npx playwright test --reporter=list > /tmp/run.txt 2>&1`, then grep the file — never
