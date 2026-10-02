@@ -240,12 +240,16 @@ function runLearner(cfg){
   }
 
   /* ---- day 0: the real first-open placement check, then (c)'s seeding ----
-   * Set the clock FIRST. `__144.reset()` does not clear `_today`, so without
-   * this the second and later learners stamp their day-0 records with the date
-   * the PREVIOUS learner finished on — a date in the future — and every one of
-   * those facts then looks "not due" for the whole run and is never chosen.
-   * (sim.js has the same hole for its 14 placement facts; it is not this file's
-   * to fix, but it is worth knowing when the two are read together.)          */
+   * Set the clock FIRST, or day-0 records are stamped on a date the model is not
+   * on, and those facts then look "not due" for the whole run and are never
+   * chosen. The mechanism has changed since this was written and the remedy has
+   * not: `__144.reset()` DOES clear `_today` now (v1.20), so the stray date is no
+   * longer the previous learner's finishing date — it is the REAL clock, whatever
+   * day the simulation happens to be run on. Either way, set it first.
+   * sim.js had the same hole for its 14 placement facts and this comment used to
+   * say it was not this file's to fix. It was fixed on 2026-10-02, after being
+   * measured at 302 negative gaps a run — and fixing it broke a health band that
+   * it had been masking. See tables/ROUTINE.md §5.                             */
   todayIso = new Date(2026, 7, 11).toISOString().slice(0, 10);
   a.setToday(todayIso);
   (function placement(){

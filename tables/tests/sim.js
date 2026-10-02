@@ -82,6 +82,20 @@ function runLearner({ability, days, sessions, seed}){
   const perDay = [];
 
   // the first-open check: one look at each, seeding what she already owns
+  /* The clock BEFORE the placement, not after it.
+     `reset()` clears the faked date between learners (v1.20's fix, and the right one),
+     so until the day loop's first setToday the app is back on the REAL clock — and the
+     placement below calls record(), which stamps `last`. Every learner's placement facts
+     were therefore stamped with the day this simulation happened to be RUN, while the
+     model's own calendar sat in August 2026: roughly seven weeks in the future, for the
+     whole 142-day run. Measured 2026-10-02: 302 negative gaps per run, example
+     "2026-08-13 vs 2026-10-02".
+     The engine reads a negative gap as "not due", so the facts she meets FIRST were the
+     ones the model never brought back on schedule. Same family as the v1.20 bug this file
+     already carries a warning about — a faked clock left in the wrong state — in a place
+     nobody had looked. */
+  a144.setToday(new Date(2026, 7, 11).toISOString().slice(0, 10));
+
   (function placement(){
     const lv = a144.placementLevel();
     lv.facts.forEach(k => {

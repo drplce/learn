@@ -15,8 +15,8 @@ routine returns the favour.
 <!-- STATE — the routine reads these two values and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: weekly
-last-run: 2026-09-25T18:03Z
+interval: daily
+last-run: 2026-10-02T18:03Z
 ```
 
 On each firing:
@@ -253,8 +253,32 @@ before — the two suites have the same date-shaped exposure.)
 Gaps worth closing when there is time — **this is the queue for the first few passes**, most
 valuable first:
 
-**⚠⚠ BOTH SIMULATIONS NOW EXIT ZERO. THAT IS NOT THE GOOD NEWS IT LOOKS LIKE — READ THIS
-BEFORE QUOTING THEM (v1.20).**
+**🔴 OPEN, 2026-10-02: `sim.js` EXITS NON-ZERO ON ONE HEALTH BAND, AND THAT IS A REAL FINDING —
+DO NOT "FIX" IT BY RELAXING THE BAND.**
+`progress keeps moving after the sprint` (`knownEnd >= known45`) now fails: **77.8/78 known at day
+45, 77.4/78 at day 142.** It is the two weakest modelled learners and only them — ability 0.72 goes
+77 → 75 and 0.80 goes 77 → 76; the other six sit at 78 throughout. They cannot hold every fact
+through the 97 reinforcement days.
+
+**This was not caused by a code change; it was UNMASKED by fixing the simulation's clock.** `sim.js`
+ran its placement block before the day loop's first `setToday`, and `reset()` clears the faked date
+between learners, so every learner's placement facts were stamped with **the real-world date the
+simulation happened to be run on** — about seven weeks in the model's future — and a negative gap
+reads as "not due". Measured: **302 negative gaps a run.** The facts she meets FIRST were the ones
+the model never brought back on schedule, so they could never slip, so the band could never fail.
+`sim-daily.js` already carried a comment saying sim.js had this hole and that it was not that
+file's to fix; it is fixed now.
+
+**Isolated, so nobody has to re-derive it:** with the clock fixed and the engine's own future-gap
+fix REMOVED, the numbers are identical (77.8 → 77.4) and the band still fails. The breach is the
+engine's behaviour over the reinforcement phase, not either fix.
+
+**This belongs to David's open phase-2 question** (§7, the ladder ending at level 45 — 300 levels of
+a repeating five-level cycle over the same 78 facts). A green obtained from a clock the model knew
+was wrong is worth less than an honest red. Leave it red until the phase-2 answer lands.
+
+**⚠⚠ `sim-daily.js` still exits zero. THAT IS NOT THE GOOD NEWS IT LOOKS LIKE — READ THIS
+BEFORE QUOTING IT (v1.20).**
 `node tables/tests/sim.js` and `node tables/tests/sim-daily.js` both pass every band and every one
 of David's targets. Two rounds of fixes to the *simulation* — not to the app's learning model — got
 it there, and both are worth knowing:
@@ -809,6 +833,30 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-10-02, 18:03–19:30Z (weekly pass, due at 168.0h exactly): a future-dated fact, and the
+  simulation clock that was hiding a real shortfall. WEEKLY → DAILY.** 157 pass; `sim-daily` green;
+  **`sim.js` now red on one band, deliberately — see the 🔴 block in §5.**
+  **§6 item 5, robustness** — least recently rotated (2026-09-04) — and specifically "absurd clocks".
+  Acorn guards a `lastSeen` in the FUTURE ("the clock moved, not that she is ahead of schedule");
+  checked whether 144 had the same hole rather than assuming either way, and it did. A fact stamped
+  ahead gives `gap < 0`, which never satisfies `gap >= BOX_DAYS[box]`, so the due bonus is switched
+  off for that fact until the real date catches up. **Measured: one fact stamped eight months ahead,
+  everything else held equal, drawn 49 times per 6,600 instead of 87 — a 44% cut**, for as long as
+  the bad stamp lasts. Nothing disappears (the picker's floor keeps every fact in play) and nothing
+  shows on screen; what goes is the weak-first bias, for exactly that fact. Reachable from a phone
+  clock set forward and then corrected. Fixed, teeth-checked, `picker.spec.js` drives it off a
+  measured comparison with a control so it cannot pass on two numbers drifting together.
+  **Then the fix moved the simulation's numbers, which it had no business doing** — and chasing that
+  is where the pass earned its keep. Instrumented a counter in the engine, ran the real sim, and
+  found **302 negative gaps a run**, example `2026-08-13 vs 2026-10-02` — the second being the real
+  date. `sim.js` placed before its first `setToday`. Fixed; see §5 for what fixing it unmasked and
+  why the band is staying red.
+  Also corrected a stale comment in `sim-daily.js`: it blamed `reset()` for *not* clearing `_today`,
+  which stopped being true at v1.20. The remedy it recommends is still right; its reasoning was not.
+  **No VERSION bump** — she would not notice either change, and the rule is about noticing.
+  **Cadence back to `daily`:** a defect was found and there is now an open red.
+  **Still waiting on David: the box rule, the ladder, and the watt sink (all §7) — and the ladder
+  question now has a measurement attached to it.** Acorn untouched.
 - **2026-09-25, 18:03–18:40Z (daily pass, due at 24.0h): nothing found. DAILY → WEEKLY.**
   156 pass, both simulations hold every target. **No change to the app.**
   **§6 item 3, the engine** — least recently rotated (2026-08-31, the distractors). Took the part

@@ -166,4 +166,47 @@ test.describe('what she gets asked', () => {
     expect(errorsOf(page)).toEqual([]);
   });
 
+  /* A fact stamped in the FUTURE — a phone set forward and then corrected, or a
+     timezone jump. The gap goes negative, so `gap >= BOX_DAYS[box]` is false and the
+     fact stops counting as due for as long as the bad stamp lasts, which can be months.
+     The floor in the weighting keeps it in play, so nothing vanishes and nothing is
+     visible on screen; what goes is the weak-first bias, for exactly that fact.
+     Measured before the fix: one fact stamped eight months ahead, everything else held
+     equal, was drawn 49 times per 6,600 instead of 87 — a 44% cut.
+     This project already knows the hazard from the other direction: v1.20's simulation
+     stamped its learners' day-0 records months ahead and they read as "never due" all
+     year. The engine itself had the same blind spot.
+     Driven off a MEASURED comparison rather than a threshold, so it cannot be satisfied
+     by the two numbers drifting together for some other reason: the control proves the
+     due bonus is doing something, and the fixed case has to match it. */
+  test('a fact stamped in the future is not quietly demoted', async ({page}) => {
+    await open(page, '2026-10-02');
+    const draws = (lastFor7x8) => page.evaluate(last => {
+      const a = window.__144;
+      const keys = [];
+      for(let x = 2; x <= 12; x++) for(let y = x; y <= 12; y++) keys.push(x + 'x' + y);
+      keys.forEach(k => { a.state.facts[k] = {box:4, right:8, wrong:2, seen:10, last:'2026-08-01'}; });
+      a.state.facts['7x8'] = {box:4, right:8, wrong:2, seen:10, last: last};
+      a.save();
+      const real = Math.random; let seed = 20261002;
+      Math.random = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+      try {
+        let n = 0;
+        for(let i = 0; i < 6600; i++) if(a.pickFact(keys) === '7x8') n++;
+        return n;
+      } finally { Math.random = real; }
+    }, lastFor7x8);
+
+    const overdue = await draws('2026-08-01');     // due like everything else
+    const future  = await draws('2027-06-01');     // stamped eight months ahead
+    const fresh   = await draws('2026-10-02');     // seen today: genuinely not due
+
+    // The control: being due really does change how often it comes up, or this proves nothing.
+    expect(overdue, 'the due bonus is not affecting the draw at all — the fixture is inert')
+      .toBeGreaterThan(fresh);
+    // And a clock that moved must not look like a fact she is ahead on.
+    expect(future, `a future stamp cut the draw from ${overdue} to ${future}`).toBe(overdue);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
 });

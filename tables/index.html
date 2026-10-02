@@ -918,7 +918,19 @@ function pickFact(pool){
       var tries = (f.right||0) + (f.wrong||0);
       w += (tries ? (f.wrong||0)/tries : 0) * 5;        // the ones she gets wrong come back
       w += Math.max(0, KNOWN_BOX - (f.box||1)) * 0.9;   // the ones she owns step aside
+      /* A `last` in the FUTURE means the clock moved, not that she is ahead of
+         schedule — a phone set forward and then corrected, or a timezone jump. Left
+         as a negative gap the fact never counts as due again until the real date
+         catches up, which here is months. Measured 2026-10-02 with one fact stamped
+         eight months ahead and everything else equal: it was drawn 49 times per 6,600
+         instead of 87, a 44% cut in how often the engine brings it back, lasting as
+         long as the bad stamp does. The floor keeps it in play so nothing disappears,
+         but the weak-first bias is quietly switched off for exactly that fact.
+         This project already knows the hazard from the other side: v1.20's simulation
+         stamped its learners' day-0 records months ahead and they looked "never due"
+         all year. Treated as due, the same way Acorn treats a future `lastSeen`. */
       var gap = f.last ? dayDiff(t, f.last) : 99;
+      if(gap < 0) gap = 99;
       if(gap >= (BOX_DAYS[f.box]||0)) w += 2;           // due
     }
     ws.push(w); tot += w;
