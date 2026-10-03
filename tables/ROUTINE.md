@@ -15,8 +15,8 @@ routine returns the favour.
 <!-- STATE — the routine reads these two values and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: daily
-last-run: 2026-10-02T18:03Z
+interval: weekly
+last-run: 2026-10-03T18:03Z
 ```
 
 On each firing:
@@ -276,6 +276,27 @@ engine's behaviour over the reinforcement phase, not either fix.
 **This belongs to David's open phase-2 question** (§7, the ladder ending at level 45 — 300 levels of
 a repeating five-level cycle over the same 78 facts). A green obtained from a clock the model knew
 was wrong is worth less than an honest red. Leave it red until the phase-2 answer lands.
+
+**Characterised 2026-10-03, which settles which half of this is ours.** Instrumented the run to ask
+the one question that could have made it a PICKER defect: when a fact slips, does the engine bring
+it back? It does, emphatically. All four slipped facts, across the two weakest learners:
+
+| fact | box @45 | @142 | asked after day 45 | right | wrong |
+|---|---|---|---|---|---|
+| 6×7  | 7 | 4 | 62 | 46 | 16 |
+| 9×12 | 7 | 3 | 71 | 46 | 25 |
+| 7×12 | 7 | 2 | 48 | 25 | 23 |
+| 6×8  | 7 | 2 | 64 | 40 | 24 |
+
+Asked **48–71 times each over 97 days** and still missed a quarter to half the time — 7×12 is 25
+right to 23 wrong, a coin flip. **Nothing is being lost and weak-first is doing exactly its job.**
+The boxes fall because she keeps missing them, not because they stop being offered.
+
+And note *which* facts: 6×7, 6×8, 7×12, 9×12 — the hard core the pace plan named at the outset
+(easy anchors ×2/×5/×10 first, ×6/×7/×8 last). So the finding is not "the ladder loses facts"; it is
+**the weakest learners cannot hold the hard core at the ~80–85% guardrail through reinforcement, no
+matter how often it comes back.** That is a question about difficulty and the box rule, both of
+which are already David's (§7). There is nothing further here for a pass to do without him.
 
 **⚠⚠ `sim-daily.js` still exits zero. THAT IS NOT THE GOOD NEWS IT LOOKS LIKE — READ THIS
 BEFORE QUOTING IT (v1.20).**
@@ -833,6 +854,22 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-10-03, 18:03–18:50Z (daily pass, due at 24.0h): the red characterised, and nothing new.
+  DAILY → WEEKLY.** 157 pass, `sim-daily` green, and `sim.js` red on exactly the one band it was red
+  on yesterday, with identical numbers — so nothing else moved.
+  **No app change.** Spent the pass turning yesterday's red into something David can act on, which
+  meant answering the one part of it that could have been mine: when a fact slips, does the picker
+  bring it back? Instrumented a run and measured every slipped fact. **It brings them back 48–71
+  times each over 97 days, and she still misses a quarter to half of them.** The full table is in
+  §5. Nothing is lost; weak-first works; the boxes fall because the hard core stays hard. The four
+  facts are 6×7, 6×8, 7×12 and 9×12 — exactly the hard core the pace plan named at the start.
+  So the red is **entirely David's** — difficulty and the box rule, both already open in §7 — and
+  it now carries a measurement instead of a shrug.
+  **Cooling `daily → weekly`.** Yesterday's `daily` was right: a defect had just been found and the
+  red was uncharacterised. Both of those are now closed out, the app is clean, and a daily pass on
+  frozen code waiting for David is the padding §8 warns about. The red stays red; it is not a reason
+  to keep looking every night. **A live message from David, or any defect a pass finds, resets this
+  to `daily`.** Acorn untouched.
 - **2026-10-02, 18:03–19:30Z (weekly pass, due at 168.0h exactly): a future-dated fact, and the
   simulation clock that was hiding a real shortfall. WEEKLY → DAILY.** 157 pass; `sim-daily` green;
   **`sim.js` now red on one band, deliberately — see the 🔴 block in §5.**
