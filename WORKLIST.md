@@ -56,6 +56,15 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
   specific to its newer timing-dependent tests rather than a property of the shared harness style.
   *(Also caught mid-pass: I first ran break.js concurrently with the suite, which this project knows
   can contaminate `file://` localStorage between runs. Re-ran it alone before trusting it.)*
+- ⏸ **INP-1 (2026-10-07)** — autocorrect vs the written-answers check. **Gated on David**, no code
+  changed. She types `beutiful` by hand (eight real keystrokes), iOS corrects it to `beautiful`, the
+  whole-word arrival trips the check, and on submit the box is cleared and the word spoken again
+  with no verdict. **Not a lockout** — retyping by hand straight after was accepted — but **her
+  misspelling is discarded**, so the engine never learns she cannot spell that word. Three options
+  and the reasoning are in ROUTINE.md §"STILL genuinely open for David", item 0.
+  **A fix was built and thrown away:** rescuing any whole-word arrival she had mostly typed herself
+  stopped the hand-back and marked the misspelling **right**. Worse than the problem. Recorded so
+  nobody rebuilds it. The autocorrect fixture is modelled, not captured from her phone.
 - 🔨 **HAR-6 (2026-09-30)** — the two-window flake hunt: a negative, a correction, and a
   self-diagnosing test. 240 trials of the exact scenario (uniform, jittered, and ten with the
   `storage` listener removed) did not reproduce the loss once. **144's diagnosis does not transfer:**

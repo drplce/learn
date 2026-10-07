@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: weekly
-last-run: 2026-09-30T17:13Z
+last-run: 2026-10-07T17:13Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -288,6 +288,29 @@ green:
     setting), and reopen-to-completed is done.
 
 **STILL genuinely open for David (his product calls — do NOT invent answers):**
+  0. **NEW 2026-10-07 — what should happen when her phone corrects her spelling?** Measured, not
+     guessed at: she types `beutiful` by hand (eight real keystrokes), iOS corrects it to
+     `beautiful`, and the whole-word arrival trips the written-answers check. On submit the box is
+     cleared, the word is spoken again, and she gets no verdict. **She is not locked out** — retyping
+     it by hand straight after was accepted (`right: 1`) — so this is a nuisance, not a trap, and the
+     hand-back is quiet and blameless exactly as designed.
+     **The sharp part is what it does to the engine, not to her evening: her misspelling is thrown
+     away.** The attempt is never scored, so the box never hears that she cannot spell that word. A
+     word she reliably misspells-and-autocorrects looks untested forever.
+     Three ways to go, and the choice is yours:
+     (a) leave it — a quiet hand-back and another go, at the cost of the engine never learning;
+     (b) accept the corrected word — **do not**; it would credit her for spellings she did not
+         produce and poison the mastery data, which is the one thing this app must get right;
+     (c) **judge what she actually typed**, not what the phone left behind. Checked and it is
+         feasible: at `beforeinput` time the box still reads `beutiful`, so her real attempt is
+         there to be scored. It is the honest answer and the bigger change, and it alters what
+         counts as an answer — which is why it is yours and not mine.
+     **I built (c)'s cheaper cousin and threw it away.** A rule that rescued any whole-word arrival
+     she had mostly typed herself did stop the hand-back — and marked a misspelling **right**
+     ("Yes — that's it"). That is worse than the thing it fixed. Recorded so nobody rebuilds it.
+     **One thing I could not check from here:** that iOS delivers autocorrect as a single whole-word
+     event after the letters. The fixture is modelled. This file's own standard is that a guessed
+     fixture being caught is not evidence about the real one — worth thirty seconds on the phone.
   1. **Feel the shipped set on his phone** — the gentle arrival (13.36), the wordless finish, the
      breathing pebble, the reward timing — and say whether pace/feel wants nudging.
   2. **Step 3 — the pool-physics map, PROTOTYPE ONLY** (`scratchpad/pool.html`, published artifact
@@ -511,6 +534,25 @@ the merge instrumented in-page, not more guessing from the outside.
 
 Cooling because the app is clean and the sweep is done. **A live message from David, or any defect
 a pass actually finds, resets this to `daily`.**
+
+**Cadence note (17:13Z, 2026-10-07, due at 168.0h exactly):** 594 pass, sim in band, break clean
+across 39 cases. **Nothing changed in the app.**
+
+§6.5, real input — least recently rotated (2026-09-11). The input handling here is already the most
+carefully reasoned code in the file: the IME `keyCode 229` case is handled, keystrokes are trusted
+only once the device has proved it reports them, and the jump test is chosen precisely because it
+fails permissively. The gap is not in the mechanism, it is in **which hand the keyboard belongs to**:
+`HER_OWN_HAND` covers typing, slow typing, an Android IME, a correction rubbed out and starting
+over — and not the one thing this app will meet most, a dyslexic child's misspelling being silently
+fixed by her phone. Measured it, found the hand-back, and it is now question 0 for David above.
+
+**I shipped nothing, and the reason is worth keeping.** I wrote the fix, ran it, and it turned a
+misspelling into "Yes — that's it." The hand-back I set out to remove was protecting something more
+important than the annoyance it caused. Verifying a fix means checking what it does to the thing you
+were not looking at, not only to the thing you were.
+
+Staying `weekly`: the app is clean, nothing was found wrong with it, and what the pass did turn up
+is David's to answer.
 
 **Cadence note (17:13Z, 2026-09-30, due at 168.0h exactly):** fresh container, `npm install`, then
 594 pass, sim in band, break clean across 39 cases. **Nothing found in the app; no app change.**
