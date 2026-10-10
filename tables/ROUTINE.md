@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: weekly
-last-run: 2026-10-03T18:03Z
+last-run: 2026-10-10T18:03Z
 ```
 
 On each firing:
@@ -717,8 +717,32 @@ leave 144 looking better than it found it. Rules of engagement:
      this is who it is") instead of denying her anything. Making the other four richer would work
      against that reading. **Look at the thing before repeating a note about it.**
 
-  **§6a is now closed except for item 2**, which is David's to approve, so this list is not a source
-  of work any more. Do not go looking for a replacement item: if a pass finds nothing, say so.
+  7. **🔴 THE LADDER'S LAST RUNG IS A BLUFF — level 45 changes nothing (found 2026-10-10).**
+     Measured, not read: rendered the buddy at cleared = 0, 14, 15, 29, 30, 44, 45 and 60 and
+     compared what is actually drawn.
+
+     | level | stage | what the buddy draws | what she is told |
+     |---|---|---|---|
+     | 0–14  | 0 | glow + gloss        | "asleep" |
+     | 15–29 | 1 | **+ filament**      | "stirring" |
+     | 30–44 | 2 | **+ eyes**          | "awake" |
+     | **45+** | **3** | **identical to stage 2** | "fully booted" |
+
+     `buddyInner()` ends `if(st===1) … ; return glow+eyes+gl;` — so stages 2 and 3 return the same
+     markup. Level 45 is the END OF THE ACQUISITION SPRINT, the biggest milestone in the whole plan,
+     and the only thing that changes is a word on the power screen. Fifteen levels of climbing —
+     weeks of evenings — for nothing she can see. §6.6 exists to ask exactly this question and the
+     answer here is no, the next unlock is not built.
+     **David's own concept already says what belongs there: "Lv45 Champ (gold + crown)"** (§4's
+     design trail). So this is not a design to invent, it is one to build — but building the
+     milestone look for the end of the sprint is a change he should see before it ships, which is
+     what §6a's own rule says to do with anything that needs the look re-approved. **Left in the
+     code untouched and written here as a proposal.** Nothing else changes at 45 either: the shell
+     picker locks at stage 2 (level 30), not 45, and phase 2 past 45 is the repeating cycle the
+     2026-09-06 pass measured.
+
+  **§6a now holds items 2 and 7, both David's to approve.** Neither is a source of work for a pass.
+  Do not go looking for a replacement item: if a pass finds nothing, say so.
 
   **How to look at the buddy** (it cost this pass half an hour): it bobs and its core breathes, so a
   plain screenshot catches a random frame and can look dead. Pause `animation` on `.bigcube` and
@@ -854,6 +878,25 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-10-10, 18:03–18:45Z (weekly pass, due at 168.0h exactly): the ladder's last rung is a
+  bluff.** 157 pass, `sim-daily` green, `sim.js` red on the one known band with identical numbers —
+  so nothing else moved. **No code change.**
+  **§6 item 6, the unlock ladder** — least recently rotated by a long way (2026-09-06, which
+  measured the ladder's SHAPE; this is the other question it asks: *is the next unlock actually
+  built, or is the ladder now a bluff?*). Rendered the buddy at eight levels across every stage
+  boundary and compared what is drawn. **Levels 15 and 30 deliver: a filament, then eyes. Level 45
+  delivers nothing** — stage 3 returns exactly stage 2's markup, and the only change she can see is
+  the word "awake" becoming "fully booted". That is the end of the acquisition sprint, fifteen
+  levels and weeks of evenings past the last real change. Written up as §6a item 7 with the table.
+  **Not built, deliberately.** David's concept already names what goes there ("Lv45 Champ — gold +
+  crown"), so it is a thing to build rather than invent — but it is the milestone look for the end
+  of the sprint, and §6a's rule is that anything needing the look re-approved goes in as a proposal
+  with the code left alone. She is also nowhere near level 45, so nothing is lost by his seeing it
+  first. **No test added either:** a test asserting the stages differ would be red today, and one
+  deliberate red in this harness is already one more than I want.
+  **Staying `weekly`.** The app is clean, and what the pass found is David's to approve.
+  **Still waiting on David: the box rule, the ladder, the watt sink (§7), §6a items 2 and 7, and
+  the phase-2 red in §5.** Acorn untouched.
 - **2026-10-03, 18:03–18:50Z (daily pass, due at 24.0h): the red characterised, and nothing new.
   DAILY → WEEKLY.** 157 pass, `sim-daily` green, and `sim.js` red on exactly the one band it was red
   on yesterday, with identical numbers — so nothing else moved.
