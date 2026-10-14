@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: weekly
-last-run: 2026-10-07T17:13Z
+last-run: 2026-10-14T17:13Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -553,6 +553,28 @@ were not looking at, not only to the thing you were.
 
 Staying `weekly`: the app is clean, nothing was found wrong with it, and what the pass did turn up
 is David's to answer.
+
+**Cadence note (17:13Z, 2026-10-14, due at 168.0h exactly): nothing found.** 594 pass, sim in band,
+break clean across 39 cases. No change to the app.
+
+§6.1, the visual look, and the one axis of it nobody had ever LOOKED at: **the four tints.**
+`contrast.spec.js` has measured them since August — every text node on every screen on cream and all
+four tints, light and dark — but measuring that the text clears AA is not the same as seeing whether
+the screen looks right, and every screenshot this routine has ever taken was on cream.
+
+Shot her word screen on all five grounds at 375px and looked. They are fine: each tint is a soft
+wash, the word box lifts off it, and the one accent (`--acc` is the same deep green on all five)
+reads on every one. The hue clash I went looking for — a green accent on the mint and blue
+grounds — is there in principle and invisible in practice.
+
+Then measured the place where tint and accent could actually collide, which is the garden: its cells
+are `--acc` over `--surface`, so on mint that is green on green. **It makes no difference** — the
+faintest cell sits at 1.27–1.28:1 against the ground on every tint and the strongest at 5.14–5.39:1,
+under 5% between the best tint and the worst. Mint and blue are not special cases. (The faintest
+cell being low is the design: a box-1 word is meant to be barely there, and the picture's information
+lives in its `aria-label`.)
+
+Staying `weekly`.
 
 **Cadence note (17:13Z, 2026-09-30, due at 168.0h exactly):** fresh container, `npm install`, then
 594 pass, sim in band, break clean across 39 cases. **Nothing found in the app; no app change.**
