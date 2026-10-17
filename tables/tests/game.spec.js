@@ -679,28 +679,64 @@ test.describe('sound', () => {
 test.describe('the words she reads', () => {
 
   test('nothing calls her wrong, failed, or bad at this', async ({page}) => {
+    /* Swept as every readable PHRASE, not as four named elements.
+       This used to read `#home`, `#cue` twice and `#power .scroll`, which is most of the
+       words but not all of them: the clear card, the meeting card and every `aria-label`
+       were outside it. Demonstrated 2026-10-17 by planting the word "bad" on the clear
+       card — **this test passed**, and a phrase sweep caught it three times over. A ban
+       on blame has to cover everywhere the blame could be, not the places it has been. */
     await open(page);
     await page.evaluate(() => { window.__144.state.prog.placed = true; window.__144.render(); });
+    const sweep = () => page.evaluate(() => {
+      const out = new Set(), norm = t => (t || '').replace(/\s+/g, ' ').trim();
+      document.querySelectorAll('*').forEach(e => {
+        const t = norm(e.innerText !== undefined ? e.innerText : e.textContent);
+        if(t && t.length < 300) out.add(t);
+        const al = e.getAttribute && e.getAttribute('aria-label');
+        if(al) out.add(norm(al));
+      });
+      return [...out];
+    });
     const seen = [];
-    seen.push(await page.locator('#home').innerText());
+    seen.push((await sweep()).join(' ~ '));
     await page.click('#nowlevel');
     await page.waitForTimeout(200);
+    seen.push((await sweep()).join(' ~ '));           // the meeting card, if it is up
+    for(let i = 0; i < 6; i++){
+      if(await page.evaluate(() => window.__144.meeting())){
+        await page.evaluate(() => window.__144.skipMeet()); await page.waitForTimeout(240);
+      } else break;
+    }
     await answer(page, false);                        // the miss wording
     await page.waitForTimeout(300);
-    seen.push(await page.locator('#cue').innerText());
+    const missCue = await page.locator('#cue').innerText();
+    seen.push((await sweep()).join(' ~ '));
     await answer(page, true);
     await page.waitForTimeout(300);
-    seen.push(await page.locator('#cue').innerText());
+    seen.push((await sweep()).join(' ~ '));
+    // all the way to the clear card, which nothing used to read
+    for(let g = 0; g < 80; g++){
+      const st = await page.evaluate(() => ({
+        cleared: !!document.querySelector('#clear.on'), meeting: window.__144.meeting()}));
+      if(st.cleared) break;
+      if(st.meeting){ await page.evaluate(() => window.__144.skipMeet()); await page.waitForTimeout(240); continue; }
+      if(!await page.evaluate(() => window.__144.answer(true))){ await page.waitForTimeout(200); continue; }
+      await page.waitForTimeout(260);
+    }
+    await page.waitForTimeout(500);
+    const sawClearCard = await page.evaluate(() => !!document.querySelector('#clear.on'));
+    expect(sawClearCard, 'never reached the clear card — it is not being swept').toBe(true);
+    seen.push((await sweep()).join(' ~ '));
     await page.evaluate(() => window.__144.go('power'));
     await page.waitForTimeout(200);
-    seen.push(await page.locator('#power .scroll').innerText());
+    seen.push((await sweep()).join(' ~ '));
 
     const all = seen.join(' | ').toLowerCase();
     for(const word of ['wrong answer', 'incorrect', 'failed', 'fail', 'bad', 'stupid',
                        'you lose', 'lost', 'error', 'try harder'])
       expect(all, `"${word}" is on her screen`).not.toContain(word);
     // and the miss still tells her something useful
-    expect(seen[1].toLowerCase()).toMatch(/not that one|another look|list/);
+    expect(missCue.toLowerCase()).toMatch(/not that one|another look|list/);
   });
 
   test('the app never says "her" — the buddy is just the buddy', async ({page}) => {

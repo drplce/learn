@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: weekly
-last-run: 2026-10-10T18:03Z
+last-run: 2026-10-17T18:03Z
 ```
 
 On each firing:
@@ -651,6 +651,11 @@ the ladder or the level goals. It is slow (~2 min); that is fine.
    at iPhone SE and 13, and LOOK. Motion honours `prefers-reduced-motion`.
 
 2. **The words she reads.** Never blame; never guilt about the battery; singular/plural agreement.
+   **Scope, settled 2026-10-17 so nobody re-opens it:** the agreement sweep covers `home` and
+   `power` and that is COMPLETE, not partial. Listed every numeric phrase the `play` screen shows —
+   sums, watts, percentages, the dial's stops — and there is no counted noun in prose anywhere on
+   it, so there is nothing there for a plural check to catch. The blame / guilt / "her" checks are a
+   different matter and DO belong on `play`; see below.
    **Sweep it as PHRASES, and on dates that make a count fall to one** (added 2026-09-22, which is
    how "1 days left this year" was found). A number and its noun are often sibling elements, so a
    line-split over `innerText` never sees them together; collapse each *element's* innerText
@@ -878,6 +883,29 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-10-17, 18:03–19:00Z (weekly pass, due at 168.0h exactly): the blame ban had a blind spot
+  in the test, not in the app.** 157 pass, `sim-daily` green, `sim.js` red on the one known band
+  with identical numbers. **No app change.**
+  **§6 item 2, the words she reads** — least recently rotated (2026-09-22). Swept the `play` screen,
+  which the committed agreement test does not cover, at a count of one and on 30 December.
+  **Nothing found — and the first green was worthless**, because the sweep never produced a count of
+  one on that screen. Rather than report it as clean, listed every numeric phrase `play` shows: they
+  are sums, watts, percentages and the dial's stops, with **no counted noun in prose at all**. So
+  the committed sweep's `home`/`power` coverage is complete rather than partial, and §6.2 now says
+  so to stop a future pass re-opening it.
+  **The real find was in the test.** `game.spec.js` "nothing calls her wrong, failed, or bad at
+  this" read four named elements — `#home`, `#cue` twice, `#power .scroll` — which is most of the
+  words and not all of them: the clear card, the meeting card and every `aria-label` sat outside it.
+  **Demonstrated rather than argued: planted the word "bad" on the clear card and the test passed**,
+  while a phrase sweep caught it three times over. Widened to sweep every readable phrase across
+  home, the meeting card, a miss, a right answer, the clear card and the power room, with an
+  assertion that it really reached the clear card so it cannot quietly stop short. Teeth-checked
+  with the same planted word: the old form passes, the new form fails naming it.
+  **The app was clean throughout** — nothing blaming, guilt-tripping or saying "her" anywhere in the
+  94 phrases swept. A ban has to cover everywhere the blame could be, not the places it has been.
+  **Staying `weekly`.** No defect in the app; the test got stronger. **Still waiting on David: the
+  box rule, the ladder, the watt sink (§7), §6a items 2 and 7, and the phase-2 red in §5.**
+  Acorn untouched.
 - **2026-10-10, 18:03–18:45Z (weekly pass, due at 168.0h exactly): the ladder's last rung is a
   bluff.** 157 pass, `sim-daily` green, `sim.js` red on the one known band with identical numbers —
   so nothing else moved. **No code change.**
