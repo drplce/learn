@@ -13,8 +13,8 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
 <!-- STATE — the routine reads these two values, and rewrites them at the end of a real pass.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
-interval: weekly
-last-run: 2026-10-14T17:13Z
+interval: daily
+last-run: 2026-10-21T17:09Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -576,6 +576,50 @@ lives in its `aria-label`.)
 
 Staying `weekly`.
 
+**Cadence note (17:09Z, 2026-10-21, due at 168.8h): the full suite came back RED, and the red was
+real.** `tests/audio-live.spec.js:101` — "the sitting is fetched ahead, and playing it asks the
+server for nothing" — failed with `because.wav` in the list of things the network was asked for.
+
+§5 told me what that failure was: one of two known parallel-load flakes, confirm in isolation and
+move on. **It was not.** Isolated, the file failed **1 run in 3**; the single test alone failed
+**2 of 10**. Acorn's config has `fullyParallel: true` and no `retries`, so every one of those was a
+genuine failure. The standing exception in §5 had been covering a real defect in the test for
+months, and I walked into it because the exception was there to be walked into.
+
+I also got the first reading of it wrong in a way worth recording. My summary command was
+`grep -E 'passed|failed' … | tail -1`, which returned "8 passed" for run 2 and dropped the
+"1 failed" line directly above it — so I told David the test passed in isolation when it had not.
+§5 has said *capture to a file and grep it properly, never `| grep | tail`* since August. Writing a
+lesson down is not the same as following it.
+
+**The defect, measured rather than reasoned at.** The test waited for `warmed() > 0`, opened a count
+of network requests, and only then picked which phrase to play. But the sitting warms the word she is
+on **last**, deliberately — `index.html` ~2072, "the word just spoken goes last, so the element's own
+request finishes first and this one comes off the browser's cache instead of racing it". So
+`warmed() > 0` can be true while that word's own fetch is still to come, and the count catches the
+fetching-ahead and reads it as the playing. A probe printing the warm set at the instant the count
+opened showed the chosen word (`because`) **missing from it in 2 of 12 runs**, while the test went
+on to choose it anyway. The fix settles which phrase will be played *before* opening the count, so
+its clip is provably already on the device and any later request for it can only be the playing.
+Six isolated runs clean, two full suites clean, one of them under `TZ=Australia/Sydney`.
+
+**What the teeth-check then showed, which is not flattering to the test.** Flipping `clipFor` to
+`clipUrl(k) || _blob[k]` — a real regression shape, someone "tidying" the fallback order — is caught,
+but by the *device* assertion, not by the request count. Once the race is gone the count has no
+independent teeth in this test, because the test builds its own `Audio` element instead of going
+through the app's hear-again path. So half the test's title is currently carried by the other half.
+Said plainly here rather than left as an unearned green; the stronger version is HAR-7 on the
+worklist and needs the write screen set up in that file.
+
+The other three harnesses: sim in band, break clean across 39 cases, 594 pass. **No change to the
+app, so no VERSION bump** — this was entirely a harness pass.
+
+**Warming `weekly → daily`.** The ladder says daily the moment a pass finds a defect, and this one
+found two: the test, and the §5 paragraph that had been excusing it. The second matters more. There
+is still one standing exception in §5 (`two-windows`), and it is now the only thing standing between
+a real failure and a shrug. A daily health check earns its keep until that one is either explained
+or removed.
+
 **Cadence note (17:13Z, 2026-09-30, due at 168.0h exactly):** fresh container, `npm install`, then
 594 pass, sim in band, break clean across 39 cases. **Nothing found in the app; no app change.**
 
@@ -628,10 +672,34 @@ node tests/sim.js       # pacing simulation: real engine, modelled learners; non
 node tests/break.js     # adversarial pass; non-zero on any finding
 ```
 
-`two-windows.spec.js` and the audio-live prefetch test flake under the parallel suite — confirm by
-re-running the named file in isolation before treating a failure as real. **This is a standing
-exception to the rule two paragraphs down, and it is on borrowed time.** `two-windows` fails about
-one full run in nine and has never failed in isolation.
+`two-windows.spec.js` flakes under the parallel suite — confirm by re-running that file in
+isolation before treating a failure as real. **This is a standing exception to the rule two
+paragraphs down, and it is on borrowed time.** `two-windows` fails about one full run in nine and
+has never failed in isolation.
+
+**The audio-live prefetch test was listed here too, for months, and it did not belong.** On
+2026-10-21 it came back red in the full run. Re-run in isolation it failed **1 run in 3**, and the
+single test alone **2 of 10** — so it was never a parallel-load flake; the standing exception had
+been covering a real defect in the test. Two lessons, both already in this file and both ignored:
+*treat any intermittent failure as a defect in the test until proven otherwise*, and
+**capture to a file and grep it properly** — my first summary ran `grep -E 'passed|failed' | tail -1`,
+which returned "8 passed" and silently dropped the "1 failed" line above it, and I reported the
+test as passing in isolation when it had not.
+
+The defect: the test waited for `warmed() > 0`, started counting network requests, and only *then*
+picked a phrase to play. But the sitting warms the word she is on **last**, on purpose
+(`index.html` ~2072 — the element's own request finishes first so the prefetch comes off the
+browser cache instead of racing it). So `warmed() > 0` could be true while that word's fetch was
+still to come, and the count caught the fetching-ahead and read it as the playing. Measured: a
+probe printing the warm set at the moment the counter opened showed `because` missing from it in
+2 of 12 runs, while the test went on to choose `because`. Fixed by settling which phrase will be
+played **before** opening the count, so its clip is provably already on the device.
+
+Honest limit of that test, now the race is gone: it builds its own `Audio` element rather than
+going through the app's own hear-again path, so "playing asks the server for nothing" follows from
+"it came off the device" and is belt-and-braces, not an independent check. A teeth-check confirmed
+this — flipping `clipFor` to `clipUrl(k) || _blob[k]` is caught, but by the device assertion. The
+stronger version (drive the real path) is HAR-7 on the worklist.
 
 **What the 2026-09-30 hunt RULED OUT, so the next attempt starts here rather than where I did:**
 - **240 trials of the exact scenario did not reproduce it once** — uniform, jittered between every

@@ -102,11 +102,18 @@ test.describe('kept on the device rather than fetched when she needs it', () => 
     async ({page}) => {
       await boot(page, ['because','be','cause','said']);
       await page.waitForFunction(() => window.__acorn.warmed() > 0, null, {timeout:10000});
+      // Which phrase gets played is settled BEFORE anything is counted. The sitting
+      // warms the word she is on last, on purpose, so warmed() > 0 can be true while
+      // that word's own fetch is still to come — and a count opened here would catch
+      // the fetching-ahead and read it as the playing. Pinning the phrase first means
+      // its clip is on the device already, so any request for it after this point can
+      // only have come from playing it.
+      const warm = await page.evaluate(() => window.__acorn.sittingPhrases()
+        .find(p => (window.__acorn.clipFor(p) || '').startsWith('blob:')));
+      expect(warm, 'nothing was on the device to play').toBeTruthy();
       const asked = [];
       page.on('request', r => { if(/\.wav$/.test(r.url())) asked.push(r.url()); });
-      const t = await page.evaluate(async () => {
-        const warm = window.__acorn.sittingPhrases()
-          .find(p => (window.__acorn.clipFor(p) || '').startsWith('blob:'));
+      const t = await page.evaluate(async (warm) => {
         const url = window.__acorn.clipFor(warm);
         const el = new Audio(url);
         const how = await new Promise(r => {
@@ -116,7 +123,7 @@ test.describe('kept on the device rather than fetched when she needs it', () => 
         });
         return {phrase: warm, how: how, fromDevice: url.startsWith('blob:'),
                 file: window.__acorn.clipUrl(warm).replace(/^.*\//, '')};
-      });
+      }, warm);
       expect(t.fromDevice, 'it did not come off the device').toBe(true);
       expect(t.how, `${t.phrase} ${t.how}`).toBe('loaded');
       expect(asked.filter(u => u.endsWith(t.file)),

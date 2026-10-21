@@ -65,6 +65,17 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
   **A fix was built and thrown away:** rescuing any whole-word arrival she had mostly typed herself
   stopped the hand-back and marked the misspelling **right**. Worse than the problem. Recorded so
   nobody rebuilds it. The autocorrect fixture is modelled, not captured from her phone.
+- ✅ **HAR-7 (2026-10-21)** — **the audio-live prefetch "flake" was a defect in the test**, listed
+  under ROUTINE.md §5's parallel-load exception for months. It reproduces in isolation — 1 run in 3
+  for the file, 2 of 10 for the single test. Cause: the test opened its network count after
+  `warmed() > 0` and only then chose which phrase to play, but the sitting warms the word she is on
+  **last** on purpose, so the count caught the fetching-ahead and read it as the playing. Measured
+  with a probe printing the warm set at the moment the count opened: the chosen word was missing
+  from it in 2 of 12 runs. Fixed by settling the phrase before opening the count. Six isolated runs
+  and two full suites clean (594 passed). **Still open:** the test builds its own `Audio` element,
+  so "asks the server for nothing" now follows from "it came off the device" rather than standing
+  on its own — teeth-checked and confirmed. Driving the app's own hear-again path would give it
+  real teeth, and needs the write screen set up in that file.
 - 🔨 **HAR-6 (2026-09-30)** — the two-window flake hunt: a negative, a correction, and a
   self-diagnosing test. 240 trials of the exact scenario (uniform, jittered, and ten with the
   `storage` listener removed) did not reproduce the loss once. **144's diagnosis does not transfer:**
