@@ -11,24 +11,27 @@
 const {test, expect} = require('@playwright/test');
 const {APP} = require('./helpers');
 
-/* These tests have flaked at roughly one full run in nine since August, always under
-   the parallel suite and never in isolation, and ROUTINE.md §5 has been telling readers
-   to re-run the file before believing a red. That is a standing exception to this
-   project's own rule that an intermittent failure is a test defect until proven
-   otherwise, and it has outlived its welcome.
+/* These flaked at roughly one full run in nine from August to 2026-10-22, always under the
+   parallel suite and never in isolation, and ROUTINE.md §5 told readers to re-run the file
+   before believing a red — a standing exception to this project's rule that an intermittent
+   failure is a defect in the test until proven otherwise.
 
-   What the 2026-09-30 hunt established, so the next attempt does not repeat it:
-     - 240 trials of the exact scenario — uniform, jittered between every step, and ten
-       with her window's `storage` listener removed entirely — did not reproduce it once.
+   It was a defect in the test. See the pair below `a sitting finished in each window` for
+   what it was and what replaced it. Two things from the hunt are worth keeping here:
+
+     - 240 trials of the scenario in isolation did not reproduce it once, and running the
+       FULL SUITE in a loop produced it on the first run. The load is not incidental to this
+       failure; it IS the failure. Do not try to reproduce a parallel-suite red in isolation.
      - The sibling app diagnosed an identical-looking flake in ITS two-window test as
        parallel tests sharing one `file://` localStorage, and fixed it with `workers: 1`.
        That does NOT apply here: measured on this harness, two workers cannot see each
        other's `file://` localStorage, and neither can two sequential tests in one worker.
-       The leading hypothesis is ruled out, not inherited.
-   So the cause is still unknown. Rather than guess at a fix, every window now records
-   what `save()` actually did — whether a merge ran, what was on disk, what the lists
-   were before and after — and the assertions below print it. The next time this goes red
-   in a real run, the failure explains itself instead of costing another day. */
+       Ruled out, not inherited — and the real cause was in neither app's workers.
+
+   Every window records what `save()` actually did — whether a merge ran, what was on disk,
+   what the lists were before and after — plus the `storage` events it received and when.
+   That log is what made the cause readable in one red after two months of guessing, so it
+   stays whether or not anything is currently flaking. */
 /* Wrapped at localStorage.setItem, NOT at `__acorn.save`. The first version of this
    wrapped the test hook, and the hook is not the path that matters: the app's own code
    calls the module-scope save() directly, so the write inside check() — the one this
@@ -39,11 +42,27 @@ const MERGE_LOG = () => {
   window.__saves = [];
   const names = v => { try { return (JSON.parse(v).words.lists || []).map(l => l.name); }
                        catch(e){ return 'unreadable'; } };
+  /* The merge turns on one comparison — `JSON.stringify(S.words.lists) === _listsSeen` —
+     and until 2026-10-22 nothing could see either side of it, so a red could only report
+     the outcome. Both sides are recorded on every write now, along with the storage
+     events this window received, because the question the flake asks is WHEN each window
+     heard about the other's work. */
+  const seen = () => { try { return (JSON.parse(window.__acorn.listsSeen()) || [])
+                               .map(l => l.name); } catch(e){ return 'unreadable'; } };
+  const mine = () => { try { return window.__acorn.state.words.lists.map(l => l.name); }
+                       catch(e){ return 'unreadable'; } };
+  const t0 = Date.now();
+  window.addEventListener('storage', e => {
+    if(e.key === 'acorn.v1') window.__saves.push({at: Date.now() - t0, heard: names(e.newValue)});
+  });
   const real = Storage.prototype.setItem;
   Storage.prototype.setItem = function(k, v){
     if(k === 'acorn.v1'){
       const raw = localStorage.getItem(k);
-      window.__saves.push({wrote: names(v), foundOnDisk: raw ? names(raw) : 'absent'});
+      window.__saves.push({at: Date.now() - t0, wrote: names(v),
+                           foundOnDisk: raw ? names(raw) : 'absent',
+                           held: mine(), listsSeen: seen(),
+                           untouched: JSON.stringify(mine()) === JSON.stringify(seen())});
     }
     return real.apply(this, arguments);
   };
@@ -202,20 +221,70 @@ test.describe('two windows on the same device', () => {
     expect(r.right).toBe(4);
   });
 
+  /* This pair replaces one test that flaked about one full run in nine from August to
+     2026-10-22, and that ROUTINE.md §5 excused as parallel load for two months.
+
+     It was a stopwatch in disguise. It opened two real windows, had him edit the list, and
+     then had her answer "while her window still holds the old name" — without waiting for
+     anything. The log it was given on 2026-09-30 finally printed on 2026-10-22 and showed
+     the margin: on an idle machine his edit reaches her window at 167ms and she answers at
+     175ms. Eight milliseconds. Under the parallel suite that margin goes, and worse, on
+     every ordinary run her window has ALREADY updated by the time she answers — so the test
+     usually exercised the opposite of the case its own comment described.
+
+     So the case is now built where it can be built exactly, in one window, and the live
+     two-window path waits for the thing it depends on instead of racing it. Neither can
+     flake. They are not two views of one thing: stubbing the merge's `untouched` branch
+     reds the one-window test and leaves the two-window one green, because by then her
+     window has heard and has nothing stale to merge. The first holds the merge rule; the
+     second holds the live path end to end. The old test was trying to be both and was
+     reliably neither. */
+
   test('a list this window has not touched is not reverted by it', async ({context}) => {
     /* If a window has not changed the lists since it read them, it has nothing to say about
-       them, and storage's copy — a grown-up's edit next door — wins outright. */
-    const her = await win(context);
-    const dad = await win(context);
+       them, and storage's copy — a grown-up's edit next door — wins outright. Built in one
+       window so the stale state is the state under test, not a state the clock has to
+       cooperate to produce. */
+    const her = await win(context, null, 'her');
+    await seed(her, ['said', 'rain'], 'Week 9');
+    const r = await her.evaluate(() => {
+      const a = window.__acorn;
+      // Next door, a grown-up fixes the list. This window has not heard yet: its own copy
+      // and its record of what it last saw are both still the old one.
+      const raw = JSON.parse(localStorage.getItem('acorn.v1'));
+      raw.words.lists = [{id: 'w', name: 'Week 9 fixed', words: ['said', 'rain', 'plain']}];
+      localStorage.setItem('acorn.v1', JSON.stringify(raw));
+      const before = {held: a.state.words.lists.map(l => l.name),
+                      seen: JSON.parse(a.listsSeen()).map(l => l.name)};
+      a.save();                                  // her next write, carrying the old copy
+      return {before: before,
+              after: JSON.parse(localStorage.getItem('acorn.v1')).words.lists.map(l => l.name)};
+    });
+    // The premise: this really is a window holding a list it has not changed.
+    expect(r.before.held, 'the window was not holding the old list').toEqual(['Week 9']);
+    expect(r.before.seen, 'the window had already been told').toEqual(['Week 9']);
+    expect(r.after, 'his edit to the list was reverted').toEqual(['Week 9 fixed']);
+  });
+
+  test('and the same thing with two real windows, once hers has heard', async ({context}) => {
+    const her = await win(context, null, 'her');
+    const dad = await win(context, null, 'dad');
     await seed(her, ['said', 'rain'], 'Week 9');
     await dad.evaluate(() => {
       const a = window.__acorn;
       a.state.words.lists = [{id: 'w', name: 'Week 9 fixed', words: ['said', 'rain', 'plain']}];
       a.save();
     });
-    await answerOne(her);                       // her window still holds the old name
+    // Wait for the thing the old test raced: her window hearing about it.
+    await expect.poll(() => her.evaluate(() => window.__acorn.state.words.lists.map(l => l.name)),
+      {timeout: 3000, message: 'her window never heard about his edit'}).toEqual(['Week 9 fixed']);
+    await answerOne(her);
     const after = await onDevice(her);
-    expect(after.lists, 'his edit to the list was reverted').toEqual(['Week 9 fixed']);
+    expect(after.lists,
+      'his edit to the list was reverted. What each window\'s save() did:'
+      + await story(her, dad))
+      .toEqual(['Week 9 fixed']);
+    expect(after.mastery.length, 'her answer was not recorded').toBeGreaterThan(0);
   });
 
   test('but a list this window did change is kept', async ({context}) => {

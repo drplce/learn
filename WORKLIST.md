@@ -65,6 +65,30 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
   **A fix was built and thrown away:** rescuing any whole-word arrival she had mostly typed herself
   stopped the hand-back and marked the misspelling **right**. Worse than the problem. Recorded so
   nobody rebuilds it. The autocorrect fixture is modelled, not captured from her phone.
+- ✅ **HAR-8 (2026-10-22)** — **the two-window flake is solved, and it was the test.** The last
+  standing exception in ROUTINE.md §5 is gone; §5 now says a red is a red. `a list this window has
+  not touched is not reverted by it` opened two windows, had a grown-up edit the list next door,
+  then had her answer "while her window still holds the old name" and waited for nothing. The
+  2026-09-30 instrumentation finally printed: **eight milliseconds of margin on an idle machine**
+  (his edit reaches her at 167ms, she answers at 175ms). And on every ordinary run her window had
+  already updated, so the test exercised the stale-window merge ONLY on the runs where it failed.
+  Replaced by two that cannot flake — the merge built in one window, and the live path with a wait
+  — kept separate because stubbing `untouched` reds the first and leaves the second green.
+  `__acorn.listsSeen()` added so the one-window test can assert its own premise.
+  **Method note:** 240 isolated trials had not reproduced it; running the full suite in a loop
+  produced it on the first run. Three mechanisms deduced from reading `mergeSaved` were wrong, two
+  of them surviving a teeth-check — the log settled it in one red. And the 2026-09-30 diagnostic
+  had been wired into the test two above the one that flaked.
+- ✅ **HAR-9 (2026-10-22)** — **the syllable splitter was measured over seventy words and shipped
+  to whatever a grown-up pastes.** `syllables-quality.spec.js` scored accuracy against seventy
+  reference words and checked its word-shape invariants over the same seventy. Added a test that
+  takes every word the app knows (built-in lists + both researched dictionaries), applies what a
+  school list applies (-s, -ed, -ing, -ly, -ness, un-, re-, over-, …) for 6,531 words, and holds
+  them to what must be true of any word: the chunks spell it, none empty, none ending on an
+  apostrophe, each sayable. **All four clean.** Teeth-checked, and the teeth are the point: a
+  one-letter slip in `suffixSplit`'s stem leaves all six existing tests GREEN and breaks 2,044 of
+  the 6,531 — `calling` → `cal·ing`, `morning` → `mor·ing`, `beautiful` → `beaut·ful`. No word in
+  the reference set takes that path with a letter to lose.
 - ✅ **HAR-7 (2026-10-21)** — **the audio-live prefetch "flake" was a defect in the test**, listed
   under ROUTINE.md §5's parallel-load exception for months. It reproduces in isolation — 1 run in 3
   for the file, 2 of 10 for the single test. Cause: the test opened its network count after

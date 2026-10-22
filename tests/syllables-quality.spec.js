@@ -102,6 +102,65 @@ test.describe('splitting a word nobody checked by hand', () => {
     expect(bad, 'chunks with no vowel in them').toEqual([]);
   });
 
+  test('the pieces spell the word back for thousands of words, not only the seventy',
+    async ({page}) => {
+    /* The seventy above are a REFERENCE set: they say how good the split is, measured
+       against two dictionaries. They do not say it is safe, because the word she meets next
+       week is not one of them — the whole premise of this file is that syllables() runs on
+       what a grown-up pastes in.
+
+       So this takes every word the app already knows (the built-in lists and both researched
+       dictionaries) and does to them what a school list does — plural, past, -ing, -ly, -ness,
+       un-, re-, over- — and holds the result to the one thing that must be true of ANY word,
+       checked or not: the chunks she is shown must spell it, none may be empty, none may end
+       on an apostrophe, and each must be something a person can say.
+
+       Measured 2026-10-22, and the reason this exists: a one-letter slip in suffixSplit's
+       stem leaves all six other tests in this file GREEN, and turns calling into cal·ing,
+       morning into mor·ing, talking into tal·ing, thoughtful into though·ful and beautiful
+       into beaut·ful — 2,044 of these 6,531 words. Not one word in the reference set takes
+       that path with a letter to lose. */
+    await open(page, '2026-08-01');
+    const r = await page.evaluate(() => {
+      const a = window.__acorn;
+      const base = new Set();
+      const add = w => { w = String(w || '').toLowerCase();
+                         if(/^[a-z][a-z'-]{0,19}$/.test(w)) base.add(w); };
+      a.allLists().forEach(l => a.wordsOf(l).forEach(add));
+      Object.keys(a.SYLLABLES).forEach(add);
+      Object.keys(a.COMPOUNDS).forEach(add);
+      // What a week's spelling list actually does to a word.
+      const SUF = ['s','es','ed','ing','er','est','ly','ness','ment','ful','less','able','ish','y'];
+      const PRE = ['un','re','dis','mis','pre','over','under'];
+      const words = new Set(base);
+      base.forEach(w => {
+        if(w.indexOf("'") >= 0) return;          // contractions take no suffix
+        SUF.forEach(x => words.add(w + x));
+        PRE.forEach(x => words.add(x + w));
+      });
+      const notSpelled = [], empty = [], apos = [], noVowel = [];
+      for(const w of words){
+        let parts;
+        try { parts = a.syllables(w); }
+        catch(e){ notSpelled.push(w + ' threw ' + e.message); continue; }
+        if(parts.join('') !== w) notSpelled.push(w + ' -> ' + parts.join('·'));
+        if(parts.some(p => p === '')) empty.push(w + ' -> ' + parts.join('·'));
+        if(parts.length < 2) continue;           // a one-piece word is the word
+        if(parts.slice(0, -1).some(p => p.slice(-1) === "'")) apos.push(w + ' -> ' + parts.join('·'));
+        if(parts.some(p => !/[aeiouy]/.test(p))) noVowel.push(w + ' -> ' + parts.join('·'));
+      }
+      const first = xs => xs.slice(0, 12);
+      return {n: words.size, notSpelled: first(notSpelled), nBad: notSpelled.length,
+              empty: first(empty), apos: first(apos), noVowel: first(noVowel)};
+    });
+    // Prove the corpus is a corpus before believing a clean result from it.
+    expect(r.n, 'the corpus did not build').toBeGreaterThan(5000);
+    expect(r.notSpelled, `${r.nBad} of ${r.n} do not spell their word`).toEqual([]);
+    expect(r.empty, 'a chunk with nothing in it').toEqual([]);
+    expect(r.apos, 'a chunk ending on an apostrophe').toEqual([]);
+    expect(r.noVowel, 'chunks with no vowel in them').toEqual([]);
+  });
+
   test('the researched dictionary spells every word it splits, and wins over the rule', async ({page}) => {
     /* SYLLABLES (and the every·/any·/some· COMPOUNDS) are checked one word at a time against a
        dictionary because the letter-rule gets the common ones wrong. A typo in one of those splits

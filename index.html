@@ -4756,6 +4756,12 @@ loadClips(); render(); },
   },
   warmClips: warmClips, sittingPhrases: sittingPhrases,
   clipUrl: clipUrl, warmed: function(){ return Object.keys(_blob).length; },
+  /* What this window believes the lists looked like when it last read or wrote them.
+     The two-window merge turns on `JSON.stringify(S.words.lists) === _listsSeen`, and a
+     test that cannot see _listsSeen can only watch the outcome and guess at the cause —
+     which is how the flake in two-windows.spec.js went unexplained from August to
+     October. Exposed so the failure can say which side of that comparison moved. */
+  listsSeen: function(){ return _listsSeen; },
   clipFor: clipFor,
   start: start, check: check, next: next, paceLabel: paceLabel, announce: announce,
   // Enough of a handle to drive a whole session from a script — the

@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-10-21T17:09Z
+last-run: 2026-10-22T17:09Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -620,6 +620,65 @@ is still one standing exception in §5 (`two-windows`), and it is now the only t
 a real failure and a shrug. A daily health check earns its keep until that one is either explained
 or removed.
 
+**Cadence note (17:09Z, 2026-10-22, due at 24.0h): the last standing exception is gone, and it
+was the test.** Two finds, one in the harness I was hunting and one in the engine I rotated to.
+
+**`two-windows.spec.js`.** Yesterday's pass warned that this was now the only thing between a real
+failure and a shrug, so it got the day. What worked was not more cleverness: **run the full suite
+in a loop, capturing each run to its own file.** It came red on the first run — against 240
+isolated trials on 2026-09-30 that had produced nothing. The load is not incidental to this
+failure; it IS the failure, and trying to reproduce it in isolation was always going to fail.
+
+Then I wasted an hour proving I should have read the log sooner. Three mechanisms deduced from
+reading `mergeSaved` — a stale second window in the sitting-count test, the else-branch dropping a
+same-id list, a late `storage` event alone — and **all three were wrong; two of them survived a
+teeth-check that should have killed them** (I stubbed `untouched` to false and the test passed,
+which should have told me immediately that my story was incomplete). The instrumentation settled it
+in one red. The lesson is the one this file already carries and I keep relearning: measure first.
+
+And the instrumentation had been **wired into the wrong test** — 2026-09-30 put `story()` on the
+test two above the one that actually flaked, so every red for three weeks printed nothing. Worth
+checking, when a diagnostic is added for a known red, that it is attached to the thing that reds.
+
+What it was: the test opened two real windows, had a grown-up edit the list next door, then had her
+answer *"while her window still holds the old name"* — waiting for nothing in between. The log gave
+the margin: **eight milliseconds on an idle machine**, his edit landing at 167ms and her answer at
+175ms. Under the parallel suite that margin goes. And the sharper half — on every ordinary run her
+window had **already** updated by the time she answered, so the test exercised the stale-window
+merge it was written for **only on the runs where it failed**. It was a stopwatch in disguise, the
+same shape as yesterday's audio-live defect, found a day apart. Replaced by two tests that cannot
+flake and that are not two views of one thing: the merge rule built in one window (where the stale
+state is the state under test, not something the clock has to cooperate to produce), and the live
+two-window path with a wait for the thing it depends on. Stubbing `untouched` reds the first and
+leaves the second green, which is why both are kept. `__acorn.listsSeen()` is new, so the
+one-window test can assert its own premise rather than hope for it.
+
+**§6.3, the engine — the syllable splitter, and the question of what its tests are measured over.**
+`syllables-quality.spec.js` scores the split against seventy reference words from Macquarie and
+Oxford. That is the right way to measure *accuracy*. But the file's own opening line says
+`syllables()` only ever runs on **what a grown-up pastes in** — and the invariant checks, the ones
+that are not about accuracy at all (the chunks spell the word, every chunk is sayable), were
+running over those same seventy. A word she meets next week is not one of them.
+
+So: every word the app already knows — the built-in lists and both researched dictionaries — put
+through what a school list does to a word (-s, -ed, -ing, -ly, -ness, -ment, un-, re-, over-, …),
+**6,531 words**, held to what must be true of any word whether anyone checked it or not. All four
+invariants clean. The splitter is in better shape than its test coverage suggested.
+
+The teeth-check is the part that earns it. A one-letter slip in `suffixSplit`'s stem leaves **all
+six existing tests in that file green** and turns `calling` into `cal·ing`, `morning` into
+`mor·ing`, `talking` into `tal·ing`, `beautiful` into `beaut·ful` — **2,044 of the 6,531**. Not one
+word in the reference set takes that path with a letter to lose. A dropped letter in her chunks is
+a misspelling on her screen and a wrong sound in her ear, and nothing would have caught it.
+
+Harnesses: 596 pass (two new tests), sim in band, break clean across 39 cases. **No change to the
+app she uses, so no VERSION bump** — the one edit to `index.html` is a test hook on `__acorn`.
+
+**Staying `daily`.** Two defects found and fixed. Also worth saying plainly, because it is the
+pattern of the last two days: both of this file's standing exceptions turned out to be real, and
+each took about an hour once it was treated as real rather than re-excused. §5 now says there are
+none left, and says why.
+
 **Cadence note (17:13Z, 2026-09-30, due at 168.0h exactly):** fresh container, `npm install`, then
 594 pass, sim in band, break clean across 39 cases. **Nothing found in the app; no app change.**
 
@@ -672,10 +731,11 @@ node tests/sim.js       # pacing simulation: real engine, modelled learners; non
 node tests/break.js     # adversarial pass; non-zero on any finding
 ```
 
-`two-windows.spec.js` flakes under the parallel suite — confirm by re-running that file in
-isolation before treating a failure as real. **This is a standing exception to the rule two
-paragraphs down, and it is on borrowed time.** `two-windows` fails about one full run in nine and
-has never failed in isolation.
+**There are no standing exceptions left. A red is a red.** Both of the ones this file used to
+carry turned out to be defects in the tests, found a day apart: the audio-live prefetch test on
+2026-10-21, and `two-windows.spec.js` on 2026-10-22. Each had been excused for months, and each
+took about an hour to pin once it was treated as real. If a future pass is tempted to write a new
+exception into this section, that is the history to weigh it against.
 
 **The audio-live prefetch test was listed here too, for months, and it did not belong.** On
 2026-10-21 it came back red in the full run. Re-run in isolation it failed **1 run in 3**, and the
@@ -701,7 +761,36 @@ going through the app's own hear-again path, so "playing asks the server for not
 this — flipping `clipFor` to `clipUrl(k) || _blob[k]` is caught, but by the device assertion. The
 stronger version (drive the real path) is HAR-7 on the worklist.
 
-**What the 2026-09-30 hunt RULED OUT, so the next attempt starts here rather than where I did:**
+**`two-windows` — SOLVED 2026-10-22. It was a stopwatch in disguise, and it was testing the
+opposite of what it claimed.** `a list this window has not touched is not reverted by it` opened
+two real windows, had a grown-up edit the list next door, then had her answer "while her window
+still holds the old name" — waiting for nothing in between. The 2026-09-30 instrumentation finally
+printed, and the margin was **eight milliseconds on an idle machine**: his edit reached her window
+at 167ms and she answered at 175ms. Under the parallel suite that margin goes. Worse, on every
+ordinary run her window had ALREADY updated by the time she answered, so the test was not
+exercising the stale-window merge it was written for — it only did so on the runs where it failed.
+
+Replaced by two tests that cannot flake: the stale-window merge built **in one window**, where the
+stale state is the state under test rather than something the clock has to cooperate to produce;
+and the live two-window path, which **waits** for her window to have heard before she answers. They
+are not two views of one thing — stubbing the merge's `untouched` branch reds the first and leaves
+the second green — so both are kept. `_listsSeen` is now exposed on `__acorn` (`listsSeen()`) so a
+test can assert the premise instead of hoping for it; without it the one-window test could not
+prove the window really was holding an untouched list.
+
+**The method that found it, after 240 trials had not:** stop trying to reproduce it in isolation
+and run the FULL SUITE in a loop, capturing each run to its own file — it came red on the first
+run. Then read the instrumentation rather than reasoning about the code: three separate mechanisms
+deduced from reading `mergeSaved` were all wrong, and two of them survived a teeth-check that
+should have killed them. The log settled it in one run.
+
+**And the instrumentation had been wired into the wrong test.** 2026-09-30 added `story()` to
+`and her answering does not erase the list he just saved`; the test that actually flaked was the
+one two below it, which printed nothing. Worth checking, when a diagnostic is added for a known
+red, that it is attached to the thing that goes red.
+
+**What the 2026-09-30 hunt RULED OUT (kept — it is still true, and it is why the 240 trials failed
+to reproduce something that reproduces on the first full run):**
 - **240 trials of the exact scenario did not reproduce it once** — uniform, jittered between every
   step, and ten with her window's `storage` listener removed entirely.
 - **The sibling app's diagnosis does not transfer.** 144 traced an identical-looking flake in ITS
@@ -711,11 +800,12 @@ stronger version (drive the real path) is HAR-7 on the worklist.
   neither can two sequential tests in one worker.** I asserted I had found it before running that
   check, and the check disagreed. Inherit a diagnosis only after measuring it here.
 
-Since the cause is still unknown, `two-windows.spec.js` now **instruments every write to storage**
-(wrapped at `Storage.prototype.setItem`, not at `__acorn.save` — the app's own code calls the
-module-scope `save()` directly, so a hook wrapper misses the write inside `check()`, which is the
-one the test is about) and prints both windows' write logs in the failure message. The next red
-says what happened instead of only what is missing.
+`two-windows.spec.js` **instruments every write to storage** (wrapped at
+`Storage.prototype.setItem`, not at `__acorn.save` — the app's own code calls the module-scope
+`save()` directly, so a hook wrapper misses the write inside `check()`, which is the one the test
+is about) and prints both windows' write logs in the failure message. Since 2026-10-22 it also
+records the `storage` events each window RECEIVED, with timings, and both sides of the comparison
+the merge turns on. That is what made the cause readable in a single red, and it is kept.
 
 **CAPTURE THE SUITE'S OUTPUT TO A FILE, AND RUN IT MORE THAN ONCE.**
 `npx playwright test --reporter=list > /tmp/run.txt 2>&1`, then grep the file — never
