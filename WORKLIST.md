@@ -79,6 +79,8 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
   produced it on the first run. Three mechanisms deduced from reading `mergeSaved` were wrong, two
   of them surviving a teeth-check — the log settled it in one red. And the 2026-09-30 diagnostic
   had been wired into the test two above the one that flaked.
+  **Confirmed:** ten full suites on the fixed build, 596 pass each, nothing named in any of them,
+  run the same way that caught it red on the first run. Plus one under `TZ=Australia/Sydney`.
 - ✅ **HAR-9 (2026-10-22)** — **the syllable splitter was measured over seventy words and shipped
   to whatever a grown-up pastes.** `syllables-quality.spec.js` scored accuracy against seventy
   reference words and checked its word-shape invariants over the same seventy. Added a test that

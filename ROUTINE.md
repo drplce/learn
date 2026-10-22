@@ -671,8 +671,11 @@ six existing tests in that file green** and turns `calling` into `cal·ing`, `mo
 word in the reference set takes that path with a letter to lose. A dropped letter in her chunks is
 a misspelling on her screen and a wrong sound in her ear, and nothing would have caught it.
 
-Harnesses: 596 pass (two new tests), sim in band, break clean across 39 cases. **No change to the
-app she uses, so no VERSION bump** — the one edit to `index.html` is a test hook on `__acorn`.
+Harnesses on the fixed build: **ten full suites, 596 pass every time, no test named in any of
+them** — run the same way that caught the flake red on the first run this morning, and against an
+old rate of about one in nine. One more under `TZ=Australia/Sydney`, also 596. Sim in band, break
+clean across 39 cases. **No change to the app she uses, so no VERSION bump** — the one edit to
+`index.html` is a test hook on `__acorn`.
 
 **Staying `daily`.** Two defects found and fixed. Also worth saying plainly, because it is the
 pattern of the last two days: both of this file's standing exceptions turned out to be real, and
