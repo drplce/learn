@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-10-22T17:09Z
+last-run: 2026-10-23T17:10Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -681,6 +681,57 @@ clean across 39 cases. **No change to the app she uses, so no VERSION bump** —
 pattern of the last two days: both of this file's standing exceptions turned out to be real, and
 each took about an hour once it was treated as real rather than re-excused. §5 now says there are
 none left, and says why.
+
+**Cadence note (17:10Z, 2026-10-23, due at 24.0h): §6.4, and the app had a way of going silent
+on her.** 13.45 — the first change to what she experiences since 2026-08-05.
+
+Went looking for an adversarial case `break.js` does not already have. Two candidates died cheaply
+by reading, which is the point of reading first: the clock running backwards is already guarded in
+`isDue`/`overdueRatio`/`recordWord` **and** already driven by §11 (Acorn is ahead of the sibling app
+here — 144 had that exact defect on 2026-10-17, and the rule about not inheriting a diagnosis cuts
+both ways); and a backup restored under a full disk is covered by §26 plus `restore()`'s own undo.
+
+The gap was the clip path. Nothing hammers it, and it is the surface this routine has been working
+on for two days. `playClips` says in its own comment that it "hands the whole thing back to the
+phone's voice if any clip fails to arrive — offline, or a bad deploy." It implements **errors**,
+not **fails to arrive**. A connection that accepts the request and then stalls fires neither
+`error` nor `ended`, so the sequence simply stopped.
+
+Measured before claiming it, with a control, against a server that sends headers and never a body:
+
+| what the server does | does the phone's voice take over |
+|---|---|
+| serves the clip | n/a, the clip plays |
+| 404 — a bad deploy | **yes, inside a second** |
+| accepts, then hangs | **no — still silent after ten seconds** |
+
+That is the worst case to be silent in. A bad connection is exactly what stops a clip being warmed
+ahead, and the first word of a sitting is said **before** warming finishes, straight off the
+network (`index.html` ~2068 — deliberately, so the element's own request wins the race). So the most
+exposed word in the app is the one she is looking at when she sits down, and what she got was a word
+screen with no word. Nothing in the harness could see it, because every audio test either stubs
+`Audio` or serves the file.
+
+Fixed with a stall timer on the element rather than a deadline: any progress re-arms it, so a
+slow-but-working clip is never cut short, and a warmed blob — which starts instantly — never reaches
+it. Two seconds, because that is about as long as a word screen can sit silent before it reads as
+broken, and because firing early costs only that she hears the phone voice instead of the recording,
+which is the graceful fallback by design. There is exactly one caller and it passes one clip, so
+the timer's scope is one clip at a time.
+
+Three tests, and they are not three views of one thing — removing the arming call reds the stall
+test and leaves the 404 control and "a clip that does arrive is not cut short" green. The budgets
+are deliberately four times the thing measured: `spokenIn` returns the moment she is spoken to, so
+the margin is only ever spent on a failing run. **Two tests in this project have been flaky for
+being timed tightly, both found this week; I was not going to write a third.**
+
+**VERSION 13.44 → 13.45.** She would notice this one: a word that used to be silent is spoken.
+
+Harnesses: 599 pass (three new tests), the audio-live file six times over on its own, sim in band,
+break clean across 39 cases.
+
+**Staying `daily`.** A defect found and fixed, and it is in the app this time rather than the
+harness.
 
 **Cadence note (17:13Z, 2026-09-30, due at 168.0h exactly):** fresh container, `npm install`, then
 594 pass, sim in band, break clean across 39 cases. **Nothing found in the app; no app change.**

@@ -27,6 +27,12 @@ const TYPES = {'.html':'text/html', '.wav':'audio/wav', '.json':'application/jso
                '.png':'image/png', '.webmanifest':'application/manifest+json'};
 
 let server, base, root;
+/* Set by the stall test: the server accepts the request for a clip, sends headers, and
+   never sends a body — a thin or wedged connection, which is not the same thing as a
+   missing file and used to be handled very differently. The sockets are held so they can
+   be destroyed afterwards; server.close() waits for live connections otherwise. */
+let stallWav = false;
+const hung = [];
 
 test.beforeAll(async () => {
   // Served from a subdirectory, the way GitHub Pages serves this repo, so a
@@ -40,6 +46,11 @@ test.beforeAll(async () => {
 
   server = http.createServer((req, res) => {
     const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '');
+    if(stallWav && /\.wav$/.test(rel)){
+      res.writeHead(200, {'content-type': 'audio/wav', 'content-length': '100000'});
+      hung.push(res);                                  // headers sent, body never
+      return;
+    }
     const file = path.join(root, rel);
     if(!file.startsWith(root)) { res.writeHead(403).end(); return; }
     try {
@@ -54,6 +65,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
+  hung.forEach(r => { try{ r.destroy(); }catch(e){} });
   await new Promise(r => server.close(r));
   rmSync(root, {recursive: true, force: true});
 });
@@ -293,6 +305,87 @@ test.describe('the audio path for real', () => {
       if(cmp === 'slower') expect(first.rate).toBeLessThan(1);
       else expect(first.rate).toBeGreaterThan(1);
     }
+  });
+
+});
+
+test.describe('when the clip does not come', () => {
+
+  /* Two ways a clip can fail to arrive, and the app used to handle only one of them.
+     A missing file errors, and the phone's voice takes the word over inside a second —
+     that has always worked. A connection that ACCEPTS the request and then stalls fires
+     neither `error` nor `ended`, so playClips simply stopped: measured 2026-10-23, still
+     silent after ten seconds, on a word screen with nothing but a word she cannot hear.
+
+     That is the worst case to be silent in, because it is a bad connection that causes it
+     and a bad connection is also what stops the clip being warmed ahead — the first word
+     of a sitting is said before warming finishes, straight off the network. A stall timer
+     on the element covers it now: any progress re-arms it, so a slow-but-working clip is
+     never cut short, and a warmed blob starts instantly and never reaches it. */
+
+  test.afterEach(() => {
+    stallWav = false;
+    hung.splice(0).forEach(r => { try{ r.destroy(); }catch(e){} });
+  });
+
+  const spokenIn = async (page, ms) => {
+    const until = Date.now() + ms;
+    while(Date.now() < until){
+      const said = await page.evaluate(() => window.__spoke.slice());
+      if(said.length) return said;
+      await page.waitForTimeout(200);
+    }
+    return [];
+  };
+  const bootWatching = async (page, clips) => {
+    await page.goto(base + 'index.html');
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    await page.waitForFunction(() => !!window.__acorn);
+    await page.evaluate(o => {
+      const a = window.__acorn;
+      a.setToday('2026-08-01');
+      a.setClips(o.clips, '.wav');
+      a.state.words.lists = [{id:'w1', name:'T', words:['because','said','rain']}];
+      a.state.words.activeId = 'w1'; a.state.words.mastery = {}; a.state.words.sessions = [];
+      a.save();
+      // What the phone's own voice is asked to say, which is the thing under test.
+      window.__spoke = [];
+      const real = speechSynthesis.speak.bind(speechSynthesis);
+      speechSynthesis.speak = u => { window.__spoke.push(String(u.text)); return real(u); };
+      a.go('parent'); a.go('day');
+    }, {clips});
+  };
+
+  test('a clip missing from the deploy is read out by the phone instead', async ({page}) => {
+    // The control, and the half that always worked: a 404 is an error, and errors fall back.
+    rmSync(path.join(root, 'learn', 'audio', 'because.wav'));
+    try {
+      await bootWatching(page, ['because', 'be', 'cause', 'said']);
+      /* The budget is far longer than the thing being measured (a 404 falls back inside a
+         second) because `spokenIn` returns the moment she is spoken to: a passing run costs
+         what it costs, and the margin is only ever spent on a failing one. Two tests in this
+         project have been flaky for being timed tightly; this one will not be a third. */
+      expect(await spokenIn(page, 15000),
+             'a missing clip left her with no word at all').toContain('because');
+    } finally {
+      writeFileSync(path.join(root, 'learn', 'audio', 'because.wav'), silentWav());
+    }
+  });
+
+  test('and so is one whose connection accepts the request and then stalls', async ({page}) => {
+    stallWav = true;
+    await bootWatching(page, ['because', 'be', 'cause', 'said']);
+    expect(await spokenIn(page, 15000),                 // the stall timer is 2s; see above
+           'a stalled clip left her on a word screen with no word').toContain('because');
+  });
+
+  test('a clip that does arrive is not cut short by the stall timer', async ({page}) => {
+    // The other side of it: the timer must not take the recording off her when it works.
+    await bootWatching(page, ['because', 'be', 'cause', 'said']);
+    await page.waitForTimeout(4000);               // twice the stall window
+    expect(await page.evaluate(() => window.__spoke.slice()),
+           'the phone voice talked over a clip that was playing fine').toEqual([]);
   });
 
 });

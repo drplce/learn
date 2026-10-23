@@ -692,7 +692,7 @@ main{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
 /* Bumped on every push, so a glance at the bottom of the grown-ups screen says
    whether the phone has the current build. Major goes up for a change she would
    notice; minor for a fix. */
-var VERSION = '13.44';
+var VERSION = '13.45';
 var KEY = 'acorn.v1';
 
 /* =========================================================
@@ -1172,8 +1172,18 @@ function haveClips(list){
   for(var i = 0; i < list.length; i++) if(!clipFor(list[i])) return false;
   return true;
 }
+/* How long a clip may make no progress before the phone's voice takes over. It is a
+   STALL timer, not a deadline: any progress at all re-arms it, so a slow-but-working
+   clip is never cut off and a warmed blob — which starts instantly — never reaches it.
+   Two seconds because that is about as long as a word screen can sit silent before it
+   reads as broken, and because the cost of firing early is only that she hears the
+   phone voice instead of the recording, which is the graceful fallback by design. */
+var CLIP_STALL_MS = 2000;
+var _clipWatch = null;
+function clearClipWatch(){ if(_clipWatch){ try{ clearTimeout(_clipWatch); }catch(e){} _clipWatch = null; } }
 function stopClips(){
   _clipSeq++;
+  clearClipWatch();
   if(_clipEl){ try{ _clipEl.pause(); }catch(e){} }
 }
 // Plays through a list of [text, rate] pairs, and hands the whole thing back to
@@ -1186,15 +1196,34 @@ function playClips(items, onFail){
     var it = items[i++], src = clipFor(it[0]);
     if(!src) return onFail && onFail();
     var el = _clipEl || (_clipEl = new Audio());
-    el.onended = el.onerror = null;
+    el.onended = el.onerror = el.ontimeupdate = null;
+    clearClipWatch();
     el.setAttribute('data-phrase', it[0]);        // a blob URL carries no name
     el.src = src;
     el.playbackRate = it[1] || 1;
     if('preservesPitch' in el) el.preservesPitch = true;
-    el.onended = function(){ _clipPlays++; next(); };
-    el.onerror = function(){ _clipFalls++; if(mine === _clipSeq && onFail) onFail(); };
+    /* A clip that FAILS hands back to the phone voice. A clip that never ARRIVES used to
+       hand back nothing at all: a connection that accepts the request and then stalls
+       fires neither error nor ended, so the sequence stopped and she was left looking at a
+       word screen with no word on a bad connection — which is exactly when she most needs
+       the phone voice. Measured 2026-10-23 against a server that sends headers and no
+       body: a 404 fell back inside a second, a stalled body was still silent after ten.
+       The comment on this function always claimed "fails to arrive"; only now does it. */
+    function stall(){
+      clearClipWatch();
+      _clipWatch = setTimeout(function(){
+        _clipWatch = null;
+        if(mine !== _clipSeq) return;             // something newer started
+        _clipFalls++;
+        if(onFail) onFail();
+      }, CLIP_STALL_MS);
+    }
+    el.onended = function(){ _clipPlays++; clearClipWatch(); next(); };
+    el.onerror = function(){ _clipFalls++; clearClipWatch(); if(mine === _clipSeq && onFail) onFail(); };
+    el.ontimeupdate = stall;                      // progress re-arms it
+    stall();
     var p = el.play();
-    if(p && p.catch) p.catch(function(){ _clipFalls++; if(mine === _clipSeq && onFail) onFail(); });
+    if(p && p.catch) p.catch(function(){ _clipFalls++; clearClipWatch(); if(mine === _clipSeq && onFail) onFail(); });
   }
   next();
   return true;

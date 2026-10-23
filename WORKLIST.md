@@ -65,6 +65,19 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
   **A fix was built and thrown away:** rescuing any whole-word arrival she had mostly typed herself
   stopped the hand-back and marked the misspelling **right**. Worse than the problem. Recorded so
   nobody rebuilds it. The autocorrect fixture is modelled, not captured from her phone.
+- ✅ **13.45 (2026-10-23)** — **a clip that never arrives now hands the word to the phone's voice.**
+  `playClips` has always said it "hands the whole thing back to the phone's voice if any clip fails
+  to arrive — offline, or a bad deploy". It implemented *errors*, not *fails to arrive*: a
+  connection that accepts the request and then stalls fires neither `error` nor `ended`, so the
+  sequence stopped and she was left on a word screen with no word. Measured against a server that
+  sends headers and no body — a 404 falls back inside a second, **a stalled body was still silent
+  after ten.** Worst case to be silent in, because a bad connection is also what stops the clip
+  being warmed ahead, and the first word of a sitting is said straight off the network before
+  warming finishes. Fixed with a 2s STALL timer on the element: any progress re-arms it, so a
+  slow-but-working clip is never cut short and a warmed blob never reaches it. Three tests in
+  `audio-live.spec.js` (404 control, the stall, and "not cut short"), teeth-checked — removing the
+  arming call reds the stall test and only it. **VERSION bumped: she hears a word she used to not
+  hear.**
 - ✅ **HAR-8 (2026-10-22)** — **the two-window flake is solved, and it was the test.** The last
   standing exception in ROUTINE.md §5 is gone; §5 now says a red is a red. `a list this window has
   not touched is not reverted by it` opened two windows, had a grown-up edit the list next door,
