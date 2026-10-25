@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-10-23T17:10Z
+last-run: 2026-10-25T17:09Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -732,6 +732,58 @@ break clean across 39 cases.
 
 **Staying `daily`.** A defect found and fixed, and it is in the app this time rather than the
 harness.
+
+**Cadence note (17:09Z, 2026-10-25, due at 47.98h — a day was lost to the gate itself, see the
+end): §6.5, real input.** Nothing wrong with the app; a sentence I had made untrue two days ago,
+and a test with teeth nothing else has.
+
+**First, the copy I broke myself.** 13.45 made `_clipFalls` count a recording that never *arrives*,
+not only one that will not play. The hint under those counts on the grown-ups screen still read
+"A recording that **will not play** falls back to the phone voice" — and it sits directly under
+"This phone can play .m4a: yes/no", so it points a grown-up at a codec diagnosis for what may be a
+connection. Exactly the §6.2 sweep, applied to my own edit: a sentence that was true when written
+and was falsified by something that changed later. It now names both causes and says what a rising
+count means when the phone says yes — the recordings are not reaching her, which is the connection
+or the deploy rather than the phone. No test pinned the wording, which is the §6.2 design working.
+
+**Then §6.5 proper, and four candidates that died by reading** — worth listing, because reading
+first is what made them cheap: a curly apostrophe (folded in `tidyPunct`, and iOS Smart Punctuation
+is called out by name in a comment at ~1450), an accented letter (NFD, with the café/caf and
+naive/nave incident recorded), a substituted dash, and a trailing full stop from a double-tapped
+space (the "said." incident, which cost her a box on a real phone and is why `typedLetters`
+exists). This path is in better shape than I expected to find it.
+
+So the question became whether ALL the shapes are covered, which is a measurement rather than a
+read. `real-typing.spec.js` drove twelve hand-picked shapes — all ASCII, all on one plain word.
+The app's own lists hold words with apostrophes and hyphens in them, which are the two characters
+`typedLetters` deliberately keeps and therefore the two most likely to be substituted out from
+under her. Added the cross-product: three kinds of word (`said`, `they're`, `mother-in-law`) by
+twelve shapes a phone really makes, driven one keystroke at a time. **All 36 correct**, and a
+control test of seven genuine misspellings that must still miss — without which the first could
+pass by marking everything right.
+
+**What the teeth-check measured, which is the reason to keep it:** widen the keep-list in
+`typedLetters` so a zero-width character survives on the end of her answer, and **exactly one test
+in 601 goes red — this one.** An invisible character on the end of a correctly spelled word marked
+her wrong and nothing else noticed. Also recorded honestly: the hard space (U+00A0) did NOT red,
+because `.trim()` removes it anyway, so that shape is belt-and-braces rather than an independent
+check. Said in the test's own comment rather than left as an unearned green.
+
+Harnesses: 601 pass, sim in band, break clean across 39 cases. **No VERSION bump** — the only app
+change is grown-ups copy.
+
+**Staying `daily`.**
+
+**The gate lost a day, and it is the gate's own trap.** 2026-10-24 fired at 17:09:18 against a
+`last-run` of 17:10 — **24 hours minus 72 seconds**, so the pass was skipped. The trigger's fire
+minute wanders (17:09:42, 17:10:20, 17:09:18, 17:09:15 over four days) and step 4 stamps the minute
+it fired, so at `daily` roughly every other firing lands just short. 144 hit the same thing an hour
+later at 167.97h against `weekly`. Step 4 already records this failure once — the sibling routine's
+167.9h — and the fix adopted then cured the *finish-time* drift but not jitter in the firing time
+itself. It loses days; it does not deadlock, which is why today reads 47.98h and is due. **Reported
+to David rather than fixed here: only he changes the cadence rules.** The two repairs offered were
+a tolerance on the comparison (treat ≥ interval − 15 min as due) or stamping the trigger's
+scheduled time rather than its actual fire time.
 
 **Cadence note (17:13Z, 2026-09-30, due at 168.0h exactly):** fresh container, `npm install`, then
 594 pass, sim in band, break clean across 39 cases. **Nothing found in the app; no app change.**

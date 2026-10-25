@@ -57,6 +57,68 @@ test.describe('typing it on a phone', () => {
     expect(errorsOf(page)).toEqual([]);
   });
 
+  test('every shape a phone keyboard really makes of a word', async ({page}) => {
+    /* The test above is twelve hand-picked shapes on one plain word, all of them ASCII.
+       A real keyboard produces Unicode, and the app's own lists hold words with
+       apostrophes and hyphens in them — the two characters `typedLetters` deliberately
+       keeps, and so the two most likely to be substituted out from under her. Smart
+       Punctuation is ON by default on iOS, and autocorrect="off" does not touch it.
+
+       So: each kind of word crossed with each shape the keyboard actually makes, driven
+       one keystroke at a time like the rest of this file. Every one of these IS the word
+       spelled correctly, and none of them may cost her a box.
+
+       Teeth-checked 2026-10-25 and worth recording what it measured: widening the keep-list
+       in `typedLetters` so a zero-width character survives at the end of her answer is
+       caught by THIS test and by nothing else in the suite — one red out of 601. An
+       invisible character on the end of a correctly spelled word marked her wrong. */
+    await open(page, '2026-08-01');
+    const shapes = [
+      ['plain',            w => w],
+      ['autocapitalised',  w => w[0].toUpperCase() + w.slice(1)],
+      ['shouted',          w => w.toUpperCase()],
+      ['a space after',    w => w + ' '],              // the swipe and suggestion bar both add one
+      ['a space before',   w => ' ' + w],
+      ['double-space stop',w => w + '. '],             // iOS inserts ". " on a double space
+      ['a stray comma',    w => w + ','],              // the comma key is against the space bar
+      // U+00A0: belt and braces rather than an independent check — `.trim()` already
+      // removes it, which the teeth-check below showed by not reding on this shape.
+      ['a hard space',     w => w + '\u00a0'],
+      ['smart apostrophe', w => w.replace(/'/g, '\u2019')],
+      ['an en dash',       w => w.replace(/-/g, '\u2013')],
+      ['an em dash',       w => w.replace(/-/g, '\u2014')],
+      ['a zero-width tail',w => w + '\u200b'],         // invisible, and \s does not match it
+    ];
+    const words = ["said", "they're", "mother-in-law"];
+    const refused = [];
+    for(const w of words){
+      for(const [name, shape] of shapes){
+        const typed = shape(w);
+        const r = await typeReal(page, w, typed);
+        if(!r.right || r.wrong !== 0)
+          refused.push(`${w} as ${name} (${JSON.stringify(typed)}): ` +
+                       (r.right ? `marked right but cost a box` : `marked a miss — "${r.verdict}"`));
+      }
+    }
+    expect(refused, 'she spelled it correctly and was not given it').toEqual([]);
+    expect(errorsOf(page)).toEqual([]);
+  });
+
+  test('and a shape that is NOT the word is still not the word', async ({page}) => {
+    /* The control for the test above, without which it could pass by marking everything
+       right. These are the same words genuinely misspelled, and each must still miss. */
+    await open(page, '2026-08-01');
+    const wrong = [['said', 'sa id'], ['said', 'sed'], ['said', 'saidd'],
+                   ["they're", 'theyre'], ["they're", "they'er"],
+                   ['mother-in-law', 'motherinlaw'], ['mother-in-law', 'mother-in-lor']];
+    const accepted = [];
+    for(const [w, typed] of wrong){
+      const r = await typeReal(page, w, typed);
+      if(r.right) accepted.push(`${JSON.stringify(typed)} was accepted as ${w}`);
+    }
+    expect(accepted, 'a misspelling was marked right').toEqual([]);
+  });
+
   test('a space inside the word is still not the word', async ({page}) => {
     // Only the ends are tidied. "sa id" is not a spelling of "said", and pretending it
     // is would let her past a word she cannot write.

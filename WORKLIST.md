@@ -65,6 +65,23 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
   **A fix was built and thrown away:** rescuing any whole-word arrival she had mostly typed herself
   stopped the hand-back and marked the misspelling **right**. Worse than the problem. Recorded so
   nobody rebuilds it. The autocorrect fixture is modelled, not captured from her phone.
+- ✅ **HAR-10 (2026-10-25)** — **§6.5 real input, measured instead of read.** `real-typing.spec.js`
+  drove twelve hand-picked shapes, all ASCII, all on one plain word, while the app's own lists hold
+  words with apostrophes and hyphens — the two characters `typedLetters` deliberately keeps and so
+  the two most likely to be substituted out from under her. Added the cross-product: `said`,
+  `they're`, `mother-in-law` × twelve shapes a phone really makes (autocapitalised, a space after,
+  iOS's ". " on a double space, a stray comma, a hard space, a smart apostrophe, en and em dashes,
+  a zero-width tail), driven one keystroke at a time. All 36 correct, plus a control of seven real
+  misspellings that must still miss. **Teeth-check: a keep-list slip letting a zero-width character
+  survive on the end of her answer reds this test and NOTHING else in 601.** The hard space did not
+  red — `.trim()` removes it anyway — and that is said in the test rather than left as an unearned
+  green. Four other candidates died by reading (curly apostrophe, accents/NFD, substituted dashes,
+  the trailing full stop), each already handled with the real incident recorded beside it.
+- ✅ **copy (2026-10-25)** — the clip-report hint on the grown-ups screen still said a recording
+  "will not play" falls back, two days after 13.45 made the count include one that never *arrives*,
+  and it sits under "This phone can play .m4a: yes/no" — pointing a grown-up at a codec diagnosis
+  for a connection problem. Now names both causes and what a rising count means when the phone says
+  yes. My own sentence, caught by the §6.2 standing sweep. No test pinned the wording, by design.
 - ✅ **13.45 (2026-10-23)** — **a clip that never arrives now hands the word to the phone's voice.**
   `playClips` has always said it "hands the whole thing back to the phone's voice if any clip fails
   to arrive — offline, or a bad deploy". It implemented *errors*, not *fails to arrive*: a
