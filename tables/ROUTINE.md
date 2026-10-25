@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: weekly
-last-run: 2026-10-17T18:03Z
+last-run: 2026-10-25T18:01Z
 ```
 
 On each firing:
@@ -242,6 +242,14 @@ cases — the tests are what make an autonomous loop safe.
 
 Acorn's suite (`npx playwright test` from the root) must stay green too, and should be untouched by
 anything done here. Run it if a change could plausibly reach it; otherwise trust the separation.
+
+**AND NOTE WHAT THAT RUN CANNOT TELL YOU** (added 2026-10-25): a `TZ=` run only exercises the
+dates the tests happen to pick, and every battery test picked September. The test that actually
+crosses a clock change pins `timezoneId` on the Playwright context instead, so it holds under any
+host clock. Measured the same day: switching `wakingHoursBetween` to UTC getters drains every night
+of the year and reds that one test alone out of 158 — under a plain UTC run the defect is invisible,
+because local and UTC are then the same thing. **Where a function reads LOCAL time, pin the
+timezone in the test rather than hoping the run was launched with the right `TZ`.**
 
 **RUN IT IN A TIMEZONE WITH DAYLIGHT SAVING NOW AND AGAIN** (added 2026-09-23):
 `TZ=Australia/Sydney npx playwright test -c tables/playwright.config.js`. Every run this suite ever
@@ -883,6 +891,37 @@ minutes, every time:
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
 
+- **2026-10-25, 18:01Z (weekly pass, due at 191.97h — a week and a day, see the cadence note at the
+  end): the battery's clock was unguarded against the one confusion that would flatten it.**
+  158 pass, `sim-daily` green, `sim.js` red on the one known band with identical numbers
+  (77.8 → 77.4). **No app change, so no VERSION bump.**
+  **§6 item 4, the economy** — least recently rotated. `wakingHoursBetween` builds LOCAL dates: it
+  asks what 7am and 8pm mean on each day and sums the real time between them. Her phone is in
+  Sydney. The suite runs under UTC, **which has no clock changes at all**, and the three committed
+  battery tests are hand-picked points in September, so even the occasional Sydney run never crossed
+  a transition. Nothing had ever measured one.
+  Measured a whole year of nights with the timezone pinned on the context (so it holds whatever
+  clock the suite is run under, and a future UTC-only run cannot turn it into a green that measured
+  nothing): **no night drains, every waking day is thirteen hours**, and the premise is asserted
+  too — the year really does contain the two nights this is for, one of 10 hours and one of 12
+  (3 October and 4 April). The app is correct here.
+  **The teeth-check is why it is worth keeping, and it took two goes.** A fixed 24-hour `dayEnd`
+  instead of local midnight changed nothing, so that is NOT what this guards — said plainly rather
+  than claimed. What it does guard: switching the function's getters to UTC — a plausible "use UTC
+  for consistency" tidy — makes **every night of the year drain the full eleven hours**, so she
+  would wake to a flat buddy every morning, and it reds **exactly one test in 158: this one.** The
+  four existing battery tests stay green, because under UTC local and UTC are the same thing. The
+  whole battery clock was unguarded against that, invisibly, because of where the suite runs.
+  **Method note, from a mistake I made in this pass:** the first harness run came back red on
+  `game.spec.js:521` (the charge drains across her day). It was my own injected build bleeding into
+  a run that was still in flight. Re-run on a clean tree: 158 pass. **Do not run an injected build
+  while a harness run is going** — and do not report such a red without re-running, either.
+  **Cadence:** the gate's own arithmetic lost a day here, as it did on Acorn. 2026-10-24 fired at
+  18:01:22 against a `last-run` of 18:03 — **168 hours minus two minutes** — so the weekly pass was
+  skipped and today reads 191.97h. The trigger's fire minute wanders and §1 step 4 stamps the minute
+  it fired. §1 already records this exact failure once (the 2026-09-14 pass, 167.9h, "not due by six
+  minutes"); stamping the firing time cured the finish-time drift but not jitter in the firing time.
+  **Reported to David, not fixed here — only he changes the cadence rules.**
 - **2026-10-17, 18:03–19:00Z (weekly pass, due at 168.0h exactly): the blame ban had a blind spot
   in the test, not in the app.** 157 pass, `sim-daily` green, `sim.js` red on the one known band
   with identical numbers. **No app change.**

@@ -106,6 +106,55 @@ test.describe('the battery sleeps when she does', () => {
     expect(errorsOf(page)).toEqual([]);
   });
 
+  /* The three tests above are three hand-picked points, all of them in September, and
+     `wakingHoursBetween` builds LOCAL dates — it asks what 7am and 8pm mean on each day
+     and sums the real time between them. Her phone is in Sydney, where two nights a year
+     are not eleven hours long. Nothing had ever measured one: the suite runs under UTC,
+     which has no transitions at all, and the occasional Sydney run still only hit these
+     September dates.
+
+     The timezone is pinned on the context rather than left to the host, so this crosses
+     both transitions whatever clock the suite is run under, and so a future UTC-only run
+     cannot turn it into a green that measured nothing. */
+  test.describe('across the two nights a year that are not eleven hours', () => {
+    test.use({timezoneId: 'Australia/Sydney'});
+
+    test('no night of the year drains the battery, and no waking day is misread',
+      async ({page}) => {
+        await open(page);
+        const r = await page.evaluate(() => {
+          const a = window.__144;
+          const drained = [], oddDay = [], clockChanged = [];
+          for(let d = new Date(2026, 0, 1); d.getFullYear() === 2026; d.setDate(d.getDate() + 1)){
+            const y = d.getFullYear(), m = d.getMonth(), day = d.getDate();
+            const bed = new Date(y, m, day, 20).getTime();        // SLEEP
+            const up  = new Date(y, m, day + 1, 7).getTime();     // WAKE
+            const night = a.wakingHoursBetween(bed, up);
+            if(night > 0.001) drained.push(`${y}-${m+1}-${day}: ${night.toFixed(3)}h`);
+            // How long that night really was, which is what the transitions change.
+            const real = (up - bed) / 3600000;
+            if(Math.abs(real - 11) > 0.001) clockChanged.push(`${y}-${m+1}-${day}: ${real}h`);
+            const waking = a.wakingHoursBetween(new Date(y, m, day, 7).getTime(),
+                                                new Date(y, m, day, 20).getTime());
+            if(Math.abs(waking - 13) > 0.001) oddDay.push(`${y}-${m+1}-${day}: ${waking.toFixed(3)}h`);
+          }
+          return {drained, oddDay, clockChanged,
+                  tz: Intl.DateTimeFormat().resolvedOptions().timeZone};
+        });
+        /* The premise first. A clean result here is worth nothing unless the year really
+           did contain the two nights this test exists for — one of 10 hours and one of
+           12. Without this the whole thing passes trivially under UTC. */
+        expect(r.tz, 'the context did not take the timezone').toBe('Australia/Sydney');
+        expect(r.clockChanged.length,
+          `the year under test contained no clock change at all: ${JSON.stringify(r.clockChanged)}`)
+          .toBe(2);
+        expect(r.drained,
+          'she slept through a clock change and woke to a buddy that had run down').toEqual([]);
+        expect(r.oddDay,
+          'a waking day was not thirteen hours of being awake').toEqual([]);
+      });
+  });
+
   test('a long absence empties it and stops there', async ({page}) => {
     /* Only the FLOOR is asserted here. An earlier version also claimed to check the
        ceiling, by setting `charge = 100` and reading it straight back — which tests
