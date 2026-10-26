@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-10-25T17:09Z
+last-run: 2026-10-26T17:10Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -35,6 +35,12 @@ The trigger fires once a day, but you only do a **full pass** as often as `inter
    If the working tree is NOT clean, stop and say so rather than merging over it. If `node_modules`
    is missing (a fresh container has none), `npm install` — it is quick, and the browsers are
    already on the image.
+
+   **This really happens, and it happened again on 2026-10-26** — the container restarted
+   mid-pass and came back three commits behind with no `node_modules`. Nothing was lost. But
+   the image had also changed shape underneath (see §5 on `findChromium`), so **after
+   `npm install`, run something small before trusting a red**: a single spec file is enough to
+   prove a browser launches at all.
 
 1. Read `interval` and `last-run` above. Run `date -u +"%Y-%m-%dT%H:%MZ"` for now.
 2. Hours per interval: `daily`=24, `weekly`=168. (`hourly`/`2h` are retired — see the ladder.)
@@ -785,6 +791,48 @@ to David rather than fixed here: only he changes the cadence rules.** The two re
 a tolerance on the comparison (treat ≥ interval − 15 min as due) or stamping the trigger's
 scheduled time rather than its actual fire time.
 
+**Cadence note (17:10Z, 2026-10-26, due at 24.02h): the harness could not start, and the thing it
+could not see.**
+
+**First, the harness was dead and it was not the app.** The container restarted mid-pass and came
+back three commits behind with no `node_modules` — the §1 step 0 case, handled. But it had also
+come back with `chromium-1243/chrome-linux64/chrome` and a symlink at `chromium`, where the image
+had been shipping `chromium-<rev>/chrome-linux/chrome`. `findChromium()` knew only the old layout,
+returned undefined, and Playwright fell back to its own pinned revision, which this image does not
+carry. **Every test in the suite failed to launch a browser, on a build nobody had touched.** That
+is the worst kind of red — it arrives on its own, for a reason that is not the app, and it looks
+exactly like the app. The config now tries both layouts and accepts the entry itself when it is the
+binary, because the image's layout is not ours and it moves. §1 step 0 now says to prove a browser
+launches before trusting a red on a fresh container.
+
+**Then the pass proper: §6.1's rotation gave way to something the sibling app taught yesterday.**
+144's routine found that `wakingHoursBetween` read local time while its suite ran under UTC, where
+local and UTC are the same thing, so the defect was structurally invisible. §5's standing rule is to
+measure a sibling diagnosis here rather than inherit it, so I did both halves.
+
+*Does the defect transfer?* **No.** `iso()` uses local getters and `parseISO` builds local
+midnights, consistently; `dayDiff`'s `Math.round` genuinely absorbs 23- and 25-hour days (the error
+would need about six years of transitions in one span to reach 0.5, against a 60-day maximum box).
+Acorn is correct here. Read, not assumed.
+
+*Does the GAP transfer?* **Yes, completely.** Nothing in this suite pinned a timezone, and the
+suite picks 22 distinct dates, nearly all in June–August. So: `her-day.spec.js`, three tests with
+`timezoneId` pinned on the context, each asserting its own premise (that the fixture really is a
+moment when UTC is a day behind) so it cannot pass for free. **The teeth-check is the argument:
+replacing `iso()` with `d.toISOString().slice(0, 10)` reds those three and nothing else out of
+604.** 9am on a Sydney Saturday came back as the Friday. On her phone that is every morning
+practice filed under yesterday — the sitting on the wrong day, `lastSeen` a day out on every word
+she met, and "finished today" answering for a day she has not had.
+
+Harnesses: 604 pass, sim in band, break clean across 39 cases. **No VERSION bump** — no change to
+the app.
+
+**144's harness is broken the same way and this pass must not fix it.** `tables/playwright.config.js`
+line 15 carries the identical `chrome-linux` assumption, confirmed by reading it. Its own next pass
+is due 2026-11-01 and will hit it immediately. Flagged to David rather than crossed into.
+
+**Staying `daily`.**
+
 **Cadence note (17:13Z, 2026-09-30, due at 168.0h exactly):** fresh container, `npm install`, then
 594 pass, sim in band, break clean across 39 cases. **Nothing found in the app; no app change.**
 
@@ -920,6 +968,17 @@ a fortnight with a known-but-unidentified intermittent failure for exactly that 
 captured runs on 2026-09-02 found it was **two** unrelated flaky tests, both harness defects. A
 single green run says less than it looks: **treat any intermittent failure as a defect in the test
 until proven otherwise** — every one in this project has been.
+
+**AND NOTE WHAT A `TZ=` RUN CANNOT TELL YOU** (added 2026-10-26, learned on the sibling app the
+day before and then measured here). A `TZ=` run only exercises the dates the tests happen to pick,
+and this suite picks 22 distinct dates, nearly all of them in June–August. Worse: where a function
+reads LOCAL time, a UTC host cannot see the defect at all, because local and UTC are then the same
+thing. **Pin `timezoneId` on the Playwright context instead of hoping the run was launched with the
+right `TZ`.** `her-day.spec.js` does that, and the measurement is the argument for it — replacing
+`iso()` with `d.toISOString().slice(0, 10)`, a tempting one-line tidy, reds those three tests and
+**nothing else out of 604**. On her phone in Sydney it would file every practice before 10am under
+yesterday: the sitting on the wrong day, `lastSeen` a day out on every word, "finished today"
+answering for a day she has not had.
 
 **AND RUN IT IN A TIMEZONE WITH DAYLIGHT SAVING** (added 2026-09-23): `TZ=Australia/Sydney npx
 playwright test`. Every run this suite has ever had was under UTC, and the engine measures its

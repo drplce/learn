@@ -65,6 +65,20 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
   **A fix was built and thrown away:** rescuing any whole-word arrival she had mostly typed herself
   stopped the hand-back and marked the misspelling **right**. Worse than the problem. Recorded so
   nobody rebuilds it. The autocorrect fixture is modelled, not captured from her phone.
+- ✅ **HAR-12 (2026-10-26)** — **the harness could not launch a browser after the image changed.**
+  A restarted container came back with `chromium-1243/chrome-linux64/chrome`; `findChromium()` knew
+  only `chrome-linux/chrome`, so Playwright fell back to its own pinned revision and every test
+  failed on an untouched build. Config now tries both layouts and the `chromium` symlink.
+  **`tables/playwright.config.js` has the identical assumption and is still broken** — an Acorn
+  pass must not touch it, so it is flagged for 144's own pass (due 2026-11-01).
+- ✅ **HAR-11 (2026-10-26)** — **what day the app thinks it is was unguarded.** `iso()` reads local
+  getters, which is correct; nothing tested it, which was not. A UTC host cannot see the defect at
+  all, because local and UTC are then the same thing. `her-day.spec.js` pins `timezoneId` on the
+  context and asserts its own premise. **Teeth-check: `d.toISOString().slice(0, 10)` reds these
+  three tests and nothing else out of 604** — 9am on a Sydney Saturday came back as the Friday,
+  which on her phone is every morning practice filed under yesterday. The sibling app's defect
+  itself does NOT transfer (checked: `parseISO` is local too, and `dayDiff`'s `Math.round` absorbs
+  DST with ~6 years of headroom against a 60-day box) — only the blind spot in the harness did.
 - ✅ **HAR-10 (2026-10-25)** — **§6.5 real input, measured instead of read.** `real-typing.spec.js`
   drove twelve hand-picked shapes, all ASCII, all on one plain word, while the app's own lists hold
   words with apostrophes and hyphens — the two characters `typedLetters` deliberately keeps and so
