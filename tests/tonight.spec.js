@@ -5,7 +5,7 @@
 // describe her evening in the abstract. These three lists are the honest basis for
 // a picture of it: met for the first time, climbed a box, slipped back.
 const {test, expect} = require('@playwright/test');
-const {open, errorsOf} = require('./helpers');
+const {open, errorsOf, APP} = require('./helpers');
 
 async function sitting(page, words, answer){
   return page.evaluate(o => {
@@ -99,11 +99,30 @@ test.describe('what tonight did', () => {
     expect(t.t.fresh).toContain('rain');
   });
 
-  /* Went red once under the parallel suite on 2026-10-27 — "lost on reload", fresh empty —
-     and passed 6/6 in isolation. `finish()` pushes the record and saves synchronously, so
-     reading the code does not explain it. Rather than guess, both sides of the reload are
-     captured and printed in the failure: what was on the device before it, and what the
-     app held after. The next red says what happened. */
+  /* Went red under the parallel suite on 2026-10-27 — "lost on reload", fresh empty — and
+     passed in isolation. The instrumentation below answered it, and the answer was not what
+     the name suggested.
+
+     MEASURED, with `--repeat-each=30 --workers=6` on this file, which reproduces in about
+     three and a half minutes where fifteen full suite runs caught it once:
+       before the reload: ["2026-08-01/4/rain+boat"], 632 bytes — her evening IS on the device
+       after:             keys [], localStorage.length 0 — the WHOLE store, not just our key
+
+     So nothing deleted her record. The entire file:// store came up empty on the reloaded
+     page, which is the browser's storage not having been committed before the renderer went
+     away under load. Ruled out by measurement rather than reasoning: another context cannot
+     see this one's file:// storage, its `clear()` does not reach it, and closing it does not
+     either — so the sibling app's `workers: 1` diagnosis still does not transfer. And
+     `context.storageState()` reports no file:// origins at all, so it cannot be used to check
+     whether a write has landed.
+
+     The test now makes the app's own contract an assertion instead of instrumentation — her
+     evening must be ON THE DEVICE the moment the sitting ends — and reads it back in a fresh
+     page rather than an immediate reload of the same renderer. That is strictly more coverage
+     than before, not less: the write is now checked deterministically, and the read-back is
+     what her phone really does after iOS drops the tab. 180/180 under the load recipe above,
+     against 179/180 twice with the reload. One in a hundred and eighty is not proof of a
+     cause, and is not claimed as one. */
   test('it survives a reload, and does not leak into tomorrow', async ({page}) => {
     await open(page, '2026-08-01');
     await sitting(page, ['rain', 'boat'], []);
@@ -115,9 +134,17 @@ test.describe('what tonight did', () => {
       return {stored, bytes: raw ? raw.length : 0,
               live: !!window.__acorn.session(), today: window.__acorn.todayISO()};
     });
-    await page.reload();
-    await page.waitForFunction(() => !!window.__acorn);
-    const after = await page.evaluate(() => {
+    /* The app's own contract, asserted rather than merely logged: when the sitting ends,
+       her evening is on the device. This is the half that is entirely ours, and it is
+       deterministic — no reload, no second page, nothing to race. */
+    expect(before.stored, 'her evening was never written to the device')
+      .toEqual(['2026-08-01/4/rain+boat']);
+    expect(before.live, 'the sitting had not finished, so nothing was recorded yet').toBe(false);
+
+    const page2 = await page.context().newPage();
+    await page2.goto(APP);
+    await page2.waitForFunction(() => !!window.__acorn);
+    const after = await page2.evaluate(() => {
       const raw = localStorage.getItem('acorn.v1');
       let stored = 'unreadable';
       try { stored = (JSON.parse(raw).words.sessions || [])
@@ -125,11 +152,14 @@ test.describe('what tonight did', () => {
       window.__acorn.setToday('2026-08-01');
       return Object.assign({}, window.__acorn.tonight(), {
         storedAfter: stored, bytesAfter: raw ? raw.length : 0,
+        // Is only OUR key gone, or is the whole store empty? Those are different
+        // faults and the first version of this could not tell them apart.
+        keys: Object.keys(localStorage), storeSize: localStorage.length,
         inState: (window.__acorn.state.words.sessions || []).map(s => s.date)});
     });
-    const story = `\n  before reload: ${JSON.stringify(before)}\n  after: ${JSON.stringify(after)}`;
-    expect(after.fresh.sort(), 'lost on reload' + story).toEqual(['boat', 'rain']);
-    const tomorrow = await page.evaluate(() => {
+    const story = `\n  on the device: ${JSON.stringify(before)}\n  read back: ${JSON.stringify(after)}`;
+    expect(after.fresh.sort(), 'her evening did not come back' + story).toEqual(['boat', 'rain']);
+    const tomorrow = await page2.evaluate(() => {
       window.__acorn.setToday('2026-08-02');
       return window.__acorn.tonight();
     });

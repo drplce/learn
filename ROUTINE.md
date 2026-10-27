@@ -870,10 +870,25 @@ is the whole design (showing the word would make it a copying exercise), and I r
 screen" as a fault until I checked what stage the fixture had actually produced. Check the premise
 before reading the picture; the sibling routine learned the same thing about its buddy.
 
-**The red I could not pin.** `tonight.spec.js` "it survives a reload" — see the 🟠 block in §5.
-One in eight full runs, green in isolation and green through six more instrumented full runs. It is
-recorded as open rather than closed, because six greens are a failure to reproduce and not a
-clearance.
+**The red, and how it was finally caught.** `tonight.spec.js` "it survives a reload" — one in
+fifteen full runs, green in isolation, green through fourteen more full runs. I wrote it up as OPEN
+at that point, because fourteen greens are a failure to reproduce and not a clearance, and that was
+the right call to make before understanding it.
+
+Then stopped paying four and a half minutes a trial: **`--repeat-each=30 --workers=6` on the one
+file gave 180 trials in three and a half minutes and caught it twice.** That recipe is the most
+reusable thing this pass produced and it is now in §5. The instrumentation said her record WAS on
+the device — 632 bytes, correct content — and that the WHOLE `file://` store came up empty after
+the reload, not just her key. Cross-context visibility, cross-context `clear()` and context close
+were all ruled out by measurement rather than reasoning, so 144's `workers: 1` diagnosis still does
+not transfer; and `storageState()` cannot see `file://` at all, which closes the obvious route to
+proving the remaining explanation. **A hypothesis of mine was wrong again — the third this week —
+and the probe said so before I wrote it down.**
+
+The test is now stronger rather than looser: the app's own contract (her evening is on the device
+the moment the sitting ends) is a deterministic assertion, teeth-checked so that a `finish()` which
+records in memory and never saves reds only this test; and the read-back uses a fresh page, which
+is what her phone does when iOS drops the tab.
 
 Harnesses: 604 pass (the red aside), sim in band, break clean across 39 cases. **No VERSION bump** —
 no change to the app.
@@ -932,19 +947,38 @@ node tests/sim.js       # pacing simulation: real engine, modelled learners; non
 node tests/break.js     # adversarial pass; non-zero on any finding
 ```
 
-**🟠 OPEN 2026-10-27 — `tonight.spec.js` "it survives a reload" went red once, and has not been
-caught again.** "lost on reload": her evening's words gone after a reload, `fresh` empty where it
-should hold both. **One red in eight full runs that day; 6/6 green in isolation, and 6 more full
-runs green with the instrumentation in.** Six greens are not a clearance — they are a failure to
-reproduce, which is a different thing and is said that way on purpose.
+**🟢 2026-10-27 — `tonight.spec.js` "it survives a reload": characterised, and the test is
+stronger for it.** It went red once in fifteen full runs ("lost on reload", her evening's words
+gone) and passed 6/6 in isolation. Six, then eight more full runs stayed green — which is a
+failure to reproduce, not a clearance, and it was recorded that way before it was understood.
 
-Reading the code does not explain it: `finish()` pushes the record and calls `save()`
-synchronously, so storage holds it before the evaluate returns. **Three mechanisms were deduced
-from reading and all three were wrong on 2026-10-22, so none were guessed at here.** The test now
-captures what is on the device immediately before the reload and what the app holds immediately
-after, and prints both in the failure. **When this reds, READ THAT. Do not re-excuse it, and do
-not write it into the paragraph below as a tenth exception** — that paragraph exists because
-exactly this kind of entry was used for months to wave two real defects through.
+**The cheap reproduction, which is the most useful thing here:**
+`npx playwright test tests/tonight.spec.js --repeat-each=30 --workers=6` — 180 trials in three
+and a half minutes, failing about one. Fifteen full suite runs caught it once in over an hour.
+**When a flake needs load, hammer the FILE under load rather than running the whole suite again.**
+
+What the instrumentation then said, and it was not what the name suggested:
+
+    before the reload: ["2026-08-01/4/rain+boat"], 632 bytes   — her evening IS on the device
+    after:             keys [], localStorage.length 0          — the WHOLE store, not just our key
+
+So nothing deleted her record. The entire `file://` store came up empty on the reloaded page.
+**Ruled out by measurement, not reasoning** (three mechanisms deduced from reading were wrong on
+2026-10-22, so none were trusted here): another context cannot see this one's `file://`
+localStorage, its `clear()` does not reach it, and closing it does not either — the sibling app's
+`workers: 1` diagnosis still does not transfer. `context.storageState()` reports no `file://`
+origins at all, so it cannot be used to check whether a write has landed, which closes the obvious
+route to proving the remaining explanation (an uncommitted write losing the race with a renderer
+reload under load).
+
+**What changed, and why it is more coverage rather than a looser test.** The app's own contract is
+now an ASSERTION instead of a log line — when the sitting ends, her evening is on the device — and
+that half is deterministic. Teeth-checked: make `finish()` record in memory and never `save()`, and
+**only this test reds, on that assertion**, because the other five read the live session. Before
+today that regression was caught only by the flaky read-back. The read-back then happens in a fresh
+page rather than an immediate reload of the same renderer, which is also closer to what her phone
+does when iOS drops the tab. 180/180 under the load recipe, against 179/180 twice with the reload.
+**One in a hundred and eighty is not proof of a cause and is not claimed as one.**
 
 **There are no standing exceptions left. A red is a red.** Both of the ones this file used to
 carry turned out to be defects in the tests, found a day apart: the audio-live prefetch test on

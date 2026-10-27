@@ -65,11 +65,18 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
   **A fix was built and thrown away:** rescuing any whole-word arrival she had mostly typed herself
   stopped the hand-back and marked the misspelling **right**. Worse than the problem. Recorded so
   nobody rebuilds it. The autocorrect fixture is modelled, not captured from her phone.
-- 🔨 **HAR-14 (2026-10-27, OPEN)** — `tonight.spec.js` "it survives a reload" red once under the
-  parallel suite ("lost on reload", her evening's words gone), 1 in 8 full runs, green 6/6 isolated
-  and green through 6 more instrumented full runs. `finish()` saves synchronously, so reading does
-  not explain it. Both sides of the reload are captured and printed now; the next red explains
-  itself. **Recorded as open, not cleared — six greens are a failure to reproduce.**
+- ✅ **HAR-14 (2026-10-27)** — `tonight.spec.js` "it survives a reload" red once in 15 full runs.
+  **The useful find is the method:** `--repeat-each=30 --workers=6` on the one file reproduces it
+  in 3.5 minutes where fifteen full suites took over an hour. Hammer the FILE under load, not the
+  suite. The instrumentation then showed her record WAS on the device (632 bytes, correct content)
+  and the whole `file://` store came up empty after the reload — not our key, the lot. Ruled out by
+  measurement: cross-context visibility, cross-context `clear()`, context close — so 144's
+  `workers: 1` diagnosis still does not transfer; and `storageState()` cannot see `file://`, which
+  closes the route to proving the remaining explanation. **The test is stronger, not looser:** the
+  app's contract (her evening is on the device when the sitting ends) is now a deterministic
+  assertion — teeth-checked, a `finish()` that records in memory and never saves reds only this
+  test — and the read-back uses a fresh page, which is what her phone does when iOS drops the tab.
+  180/180 against 179/180 twice; not proof, and not claimed as such.
 - ✅ **HAR-13 (2026-10-27)** — **the contrast audit could not see two bits of text.** `#toast`
   lives outside `#app` by design and the audit walks `#app *`; the no-save banner only exists once
   a write has really failed, which no seed did. Both added. Measured: the toast is fine (8.2–11.3),
