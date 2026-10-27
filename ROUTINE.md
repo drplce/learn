@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-10-26T17:10Z
+last-run: 2026-10-27T17:12Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -833,6 +833,53 @@ is due 2026-11-01 and will hit it immediately. Flagged to David rather than cros
 
 **Staying `daily`.**
 
+**Cadence note (17:12Z, 2026-10-27, due at 24.03h): §6.1, and two bits of text the contrast audit
+could not see. Plus one red I could not pin, said as that.**
+
+Both of §6.1's measurable halves are in good shape, so the question was the one that has been
+paying all week: not *is this measured* but *what is it measured OVER, and is that set complete*.
+`scales.spec.js` reads the stylesheet out of the page and covers every declaration with reasons —
+nothing to add. `contrast.spec.js` is 2 schemes × 5 tints × 9 states with a premise check that the
+tint took. Thorough, and **the state list is hand-picked**, which is where the gap was.
+
+Two bits of text had never been measured, each invisible for its own reason. **`#toast` lives
+outside `#app`** — on purpose, and the comment says why: "never in the tab order, never announced,
+and never seen by anything that walks her screens." The audit walks `#app *`. And the **no-save
+banner only exists once a write has actually failed**, which no seed had ever made happen.
+
+Measured on adding them. The toast is comfortable, 8.2–11.3. The banner in LIGHT mode:
+
+| tint | cream | mint | peach | blue | grey |
+|---|---|---|---|---|---|
+| ratio | 4.74 | 4.63 | 4.56 | 4.54 | **4.52** |
+
+Against a requirement of 4.5. **Two hundredths of margin on grey**, on the one message a grown-up
+gets when her progress is silently vanishing. Not broken; entirely unheld.
+
+**Teeth-checked, and reported precisely rather than generously.** Dimming the toast reds all ten
+tint-by-scheme combinations at 1:1 — the old audit could not have seen that at all. The banner
+shares `--retry` with `#reset`, which WAS audited, so a token-level regression is caught either
+way; what the banner adds is that it is the **tighter** of the two (3.5 against 3.7 under the same
+injection), so it fails first. Two faults of my own, both caught by the guard I had just added:
+the audit labelled nodes by `className` and `#toast` has none, and my first wait measured a
+half-faded toast at 0.91. Nodes carry their id now, and the wait is for the settled opacity.
+
+Also looked, as §6.1 says to: her word screen at SE, 1× and 1.5×, light and dark. Nothing wrong —
+and **I nearly reported a correct screen as a defect.** The write stage renders an empty box, which
+is the whole design (showing the word would make it a copying exercise), and I read "no word on the
+screen" as a fault until I checked what stage the fixture had actually produced. Check the premise
+before reading the picture; the sibling routine learned the same thing about its buddy.
+
+**The red I could not pin.** `tonight.spec.js` "it survives a reload" — see the 🟠 block in §5.
+One in eight full runs, green in isolation and green through six more instrumented full runs. It is
+recorded as open rather than closed, because six greens are a failure to reproduce and not a
+clearance.
+
+Harnesses: 604 pass (the red aside), sim in band, break clean across 39 cases. **No VERSION bump** —
+no change to the app.
+
+**Staying `daily`.**
+
 **Cadence note (17:13Z, 2026-09-30, due at 168.0h exactly):** fresh container, `npm install`, then
 594 pass, sim in band, break clean across 39 cases. **Nothing found in the app; no app change.**
 
@@ -884,6 +931,20 @@ npx playwright test    # the full suite
 node tests/sim.js       # pacing simulation: real engine, modelled learners; non-zero if a band breaches
 node tests/break.js     # adversarial pass; non-zero on any finding
 ```
+
+**🟠 OPEN 2026-10-27 — `tonight.spec.js` "it survives a reload" went red once, and has not been
+caught again.** "lost on reload": her evening's words gone after a reload, `fresh` empty where it
+should hold both. **One red in eight full runs that day; 6/6 green in isolation, and 6 more full
+runs green with the instrumentation in.** Six greens are not a clearance — they are a failure to
+reproduce, which is a different thing and is said that way on purpose.
+
+Reading the code does not explain it: `finish()` pushes the record and calls `save()`
+synchronously, so storage holds it before the evaluate returns. **Three mechanisms were deduced
+from reading and all three were wrong on 2026-10-22, so none were guessed at here.** The test now
+captures what is on the device immediately before the reload and what the app holds immediately
+after, and prints both in the failure. **When this reds, READ THAT. Do not re-excuse it, and do
+not write it into the paragraph below as a tenth exception** — that paragraph exists because
+exactly this kind of entry was used for months to wave two real defects through.
 
 **There are no standing exceptions left. A red is a red.** Both of the ones this file used to
 carry turned out to be defects in the tests, found a day apart: the audio-live prefetch test on
