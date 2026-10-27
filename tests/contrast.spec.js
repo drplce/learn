@@ -38,7 +38,12 @@ const AUDIT = () => {
     out.push({what, ratio: Math.round(ratio(over(fg, bg), bg) * 100) / 100,
               need: large ? 3 : 4.5, px: Math.round(px)});
   };
-  document.querySelectorAll('#app *').forEach(el => {
+  /* `#toast` lives OUTSIDE #app on purpose — "it is not content: never in the tab order,
+     never announced, and never seen by anything that walks her screens." It is seen by a
+     grown-up, though, so it is walked here by name. Not everything outside #app: `#say` is
+     screen-reader-only (1px, clipped, not hidden) and would be measured as real text it is
+     not, and `#kbhold` holds the keyboard open and carries nothing to read. */
+  document.querySelectorAll('#app *, #toast').forEach(el => {
     const cs = getComputedStyle(el);
     if (cs.visibility === 'hidden' || cs.display === 'none') return;
     /* A disabled control is exempt — WCAG carves them out, and dimming one is exactly how a
@@ -63,7 +68,10 @@ const AUDIT = () => {
     // towards its background — the whole reason the three that failed were failing.
     const faded = c => c && [c[0], c[1], c[2], c[3] * fade];
     if (txt) record(el, faded(parse(cs.color)), bg, px, bold,
-                    (el.className || el.tagName.toLowerCase()) + ': ' + txt.slice(0, 30)
+                    // id first where there is one: the className of #toast is "on", which
+                    // says nothing about what failed.
+                    (el.id ? '#' + el.id : (el.className || el.tagName.toLowerCase()))
+                    + ': ' + txt.slice(0, 30)
                     + (fade < .99 ? ` [opacity ${fade.toFixed(2)}]` : ''));
     if (el.placeholder) {
       const p = getComputedStyle(el, '::placeholder');
@@ -98,11 +106,25 @@ async function seed(page, tint, screen, stage){
       a.state.words.activeId = 'h'; a.state.words.mastery = {}; a.state.words.sessions = [];
       a.save();
     }
+    if(o.stage === 'nosave'){
+      // A device that will not store anything, through the app's own write path.
+      const real = Storage.prototype.setItem;
+      Storage.prototype.setItem = function(){ throw new Error('no space'); };
+      try { a.save(); } finally { Storage.prototype.setItem = real; }
+      a.go('parent'); return;
+    }
     if(o.screen === 'parent'){ a.go('parent'); return; }
     if(o.stage === 'deadend'){
       a.state.words.lists = [{id:'e', name:'Empty', words:[]}];
       a.state.words.activeId = 'e'; a.state.words.mastery = {}; a.save();
       a.go('day'); return;                       // the one grown-up sentence she sees
+    }
+    if(o.stage === 'toast'){
+      // A real toast, raised the way a grown-up raises one: Restore with an empty box.
+      a.go('parent');
+      const btn = document.querySelector('#restoreGo');
+      if(btn) btn.click();                       // empty box -> "Paste the backup text in..."
+      return;
     }
     a.go('day'); a.start();
     if(o.stage === 'write' || o.stage === 'cued') a.cover();
@@ -130,8 +152,31 @@ for (const scheme of ['light', 'dark']) {
         const fails = [];
         for (const [screen, stage] of [['day','look'], ['day','write'], ['day','nearly'],
                                        ['day','right'], ['day','lost'], ['day','cued'],
-                                       ['day','done'], ['day','deadend'], ['parent','-']]) {
+                                       ['day','done'], ['day','deadend'], ['parent','-'],
+                                       /* Two the list did not have until 2026-10-26, each
+                                          invisible to it for a different reason: the toast
+                                          because it is outside #app, and the no-save banner
+                                          because it only exists when a write has actually
+                                          failed and no seed had ever made one fail. Measured
+                                          when they were added: the toast is comfortable at
+                                          8.2–11.3, and the banner in LIGHT mode runs
+                                          4.74 / 4.63 / 4.56 / 4.54 / 4.52 across the five
+                                          tints — grey clears 4.5 by two hundredths. It is
+                                          the one message a grown-up gets when her progress
+                                          is vanishing, and nothing was holding it. */
+                                       ['day','toast'], ['parent','nosave']]) {
           await seed(page, tint, screen, stage);
+          // It fades in over --m-quick, and a half-faded toast measures as a failure that
+          // nobody would ever see. Wait for the state she is actually shown.
+          /* `.on` settles at opacity .96, and measuring mid-fade gives a ratio nobody is
+             ever shown — the first version waited for >.9 and duly measured 0.91, 0.93 and
+             0.94 on different runs. Wait for the settled value, so the number is the one
+             she and a grown-up actually get. */
+          if(stage === 'toast')
+            await page.waitForFunction(() => {
+              const t = document.querySelector('#toast');
+              return t && Number(getComputedStyle(t).opacity) >= .955;
+            }, null, {timeout: 3000});
           /* That the seed took and nothing sanitised it away — not that the name is real.
              An unknown name sets the attribute and passes this check while changing no
              colour at all, which is how two of these were cream in disguise for months;
@@ -162,6 +207,14 @@ for (const scheme of ['light', 'dark']) {
           expect(rows.length, `${screen}/${stage} rendered nothing`)
             .toBeGreaterThanOrEqual(stage === 'deadend' ? 2 : stage === 'write' ? 0
                                   : stage === 'cued' ? 2 : stage === 'done' ? 0 : 3);
+          /* And for the two added in 2026-10-26, the guard has to be about the thing
+             itself: the grown-ups screen behind them renders plenty, so a row count
+             would pass with the toast missing entirely. Name them. */
+          if(stage === 'toast' || stage === 'nosave'){
+            const want = stage === 'toast' ? /#toast:/ : /#nosave:/;
+            expect(rows.some(r => want.test(r.what)),
+              `${stage} was not on the screen, so nothing about it was measured`).toBe(true);
+          }
           rows.filter(r => r.ratio < r.need)
               .forEach(r => fails.push(`${screen}/${stage} ${r.ratio}:1 (need ${r.need}) ${r.px}px — ${r.what}`));
         }

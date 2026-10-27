@@ -99,16 +99,36 @@ test.describe('what tonight did', () => {
     expect(t.t.fresh).toContain('rain');
   });
 
+  /* Went red once under the parallel suite on 2026-10-27 — "lost on reload", fresh empty —
+     and passed 6/6 in isolation. `finish()` pushes the record and saves synchronously, so
+     reading the code does not explain it. Rather than guess, both sides of the reload are
+     captured and printed in the failure: what was on the device before it, and what the
+     app held after. The next red says what happened. */
   test('it survives a reload, and does not leak into tomorrow', async ({page}) => {
     await open(page, '2026-08-01');
     await sitting(page, ['rain', 'boat'], []);
+    const before = await page.evaluate(() => {
+      const raw = localStorage.getItem('acorn.v1');
+      let stored = 'unreadable';
+      try { stored = (JSON.parse(raw).words.sessions || [])
+                       .map(s => `${s.date}/${s.asked}/${(s.fresh||[]).join('+')}`); } catch(e){}
+      return {stored, bytes: raw ? raw.length : 0,
+              live: !!window.__acorn.session(), today: window.__acorn.todayISO()};
+    });
     await page.reload();
     await page.waitForFunction(() => !!window.__acorn);
     const after = await page.evaluate(() => {
+      const raw = localStorage.getItem('acorn.v1');
+      let stored = 'unreadable';
+      try { stored = (JSON.parse(raw).words.sessions || [])
+                       .map(s => `${s.date}/${s.asked}/${(s.fresh||[]).join('+')}`); } catch(e){}
       window.__acorn.setToday('2026-08-01');
-      return window.__acorn.tonight();
+      return Object.assign({}, window.__acorn.tonight(), {
+        storedAfter: stored, bytesAfter: raw ? raw.length : 0,
+        inState: (window.__acorn.state.words.sessions || []).map(s => s.date)});
     });
-    expect(after.fresh.sort(), 'lost on reload').toEqual(['boat', 'rain']);
+    const story = `\n  before reload: ${JSON.stringify(before)}\n  after: ${JSON.stringify(after)}`;
+    expect(after.fresh.sort(), 'lost on reload' + story).toEqual(['boat', 'rain']);
     const tomorrow = await page.evaluate(() => {
       window.__acorn.setToday('2026-08-02');
       return window.__acorn.tonight();
