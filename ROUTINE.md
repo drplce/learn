@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-10-27T17:12Z
+last-run: 2026-10-28T17:14Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -892,6 +892,45 @@ is what her phone does when iOS drops the tab.
 
 Harnesses: 604 pass (the red aside), sim in band, break clean across 39 cases. **No VERSION bump** —
 no change to the app.
+
+**Staying `daily`.**
+
+**Cadence note (17:14Z, 2026-10-28, due at 24.03h): the app made the same mistake twice, and the
+second one had nothing watching it.**
+
+§6.4, robustness. Went looking for a mitigation that fails invisibly, which is the worst class this
+routine exists for, and found one: **`navigator.storage.persist()` is called once in `unlock()` and
+nothing tested it.** It is the only defence there is against iOS sweeping her progress away after
+about a week of the app not being opened — granted to a home-screen web app, a no-op otherwise. If
+it ever stopped being asked for, she would lose weeks of work, weeks later, with no symptom in
+between and nothing red.
+
+And looking at it turned up a real defect beside it. The call was wrapped in `try{…}catch(e){}`,
+which does not catch a REJECTED PROMISE — and `persist()` rejects where the origin is opaque or the
+browser simply refuses. **This is the identical mistake `warmOne` already found and fixed for
+`cache.put`**, whose comment says so in as many words: *"it rejects a promise rather than throwing —
+so the try/catch alone left an unhandled rejection per clip."* Made again, in a different place,
+and it survived because nothing was testing that line.
+
+Measured before claiming it: on this harness `persist()` resolves **false** (not granted), so the
+rejection path is not hit here — but stub it to reject and the rejection is unhandled and surfaces
+as a `pageerror`. Nothing she can act on either way, so it is caught and dropped; what matters is
+that the request is still made.
+
+**Two tests, and the teeth-check is what makes them worth having.** Restore the shape the code had
+this morning — the call with no `.catch` — and only the rejection test reds. Stop asking at all and
+only the first-tap test reds. Each catches its own regression and nothing else, and the first of
+those two is proof the fix is real rather than decorative. The first-tap test also pins that it is
+asked ONCE: `unlock()` runs on every tap, and asking on each one would be noise.
+
+Harnesses: 604 pass before the change, sim in band, break clean across 39 cases. **No VERSION
+bump** — nothing she can see changed; an unhandled rejection she never meets is not a thing she
+notices.
+
+**A note on where this came from, because the pattern is worth more than the fix.** The app had
+already written down this exact lesson, in a comment, next to the place it first bit. That did not
+stop it recurring thirty lines away. **A lesson recorded in a comment guards the line it sits on;
+only a test guards the behaviour.** Two of this week's finds have now been of that shape.
 
 **Staying `daily`.**
 

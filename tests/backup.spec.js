@@ -253,3 +253,75 @@ test.describe('putting a backup back', () => {
     expect(errorsOf(page)).toEqual([]);
   });
 });
+
+test.describe('keeping her progress on the device at all', () => {
+  /* A backup is the second line. The first is the browser not throwing her progress away,
+     and on iOS a web app that is not on the home screen has its storage swept after about a
+     week of not being opened. `navigator.storage.persist()` is the one mitigation there is —
+     granted only to an installed web app, a no-op otherwise — and until 2026-10-28 NOTHING
+     tested that it was still being asked for. It is the worst kind of thing to lose silently:
+     it would cost her weeks of work, weeks later, with no symptom in between. */
+
+  const watch = page => page.addInitScript(() => {
+    window.__persist = 0;
+    window.__unhandled = [];
+    addEventListener('unhandledrejection', e => window.__unhandled.push(String(e.reason)));
+    const wait = setInterval(() => {
+      if(!(navigator.storage && navigator.storage.persist)) return;
+      clearInterval(wait);
+      const real = navigator.storage.persist.bind(navigator.storage);
+      navigator.storage.persist = function(){ window.__persist++; return real(); };
+    }, 0);
+  });
+
+  test('her first tap asks the browser to keep her progress', async ({page}) => {
+    await watch(page);
+    await open(page, '2026-08-01');
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'w', name:'T', words:['said','rain']}];
+      a.state.words.activeId = 'w'; a.save(); a.go('day');
+    });
+    expect(await page.evaluate(() => window.__persist),
+      'it asked before she had touched anything').toBe(0);
+    await page.locator('body').click({position: {x: 10, y: 10}});
+    await page.waitForTimeout(200);
+    expect(await page.evaluate(() => window.__persist),
+      'her first tap did not ask the browser to keep her progress').toBe(1);
+    // And once only — unlock() is called on every tap, and asking on each one would be noise.
+    await page.locator('body').click({position: {x: 12, y: 12}});
+    await page.waitForTimeout(200);
+    expect(await page.evaluate(() => window.__persist), 'it asked again on the next tap').toBe(1);
+  });
+
+  test('and a browser that refuses does not throw an error at her', async ({page}) => {
+    /* persist() REJECTS where the origin is opaque or the browser simply refuses. A promise
+       that rejects is not caught by a try/catch round the call, which is exactly how this was
+       wrong until it was measured — and exactly the bug `warmOne` had already fixed once for
+       `cache.put`. Nothing she can act on, so it must be swallowed, not thrown. */
+    await page.addInitScript(() => {
+      window.__unhandled = [];
+      addEventListener('unhandledrejection', e => window.__unhandled.push(String(e.reason)));
+      const wait = setInterval(() => {
+        if(!(navigator.storage && navigator.storage.persist)) return;
+        clearInterval(wait);
+        navigator.storage.persist = () =>
+          Promise.reject(new DOMException('refused', 'SecurityError'));
+      }, 0);
+    });
+    await open(page, '2026-08-01');
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'w', name:'T', words:['said','rain']}];
+      a.state.words.activeId = 'w'; a.save(); a.go('day');
+    });
+    await page.locator('body').click({position: {x: 10, y: 10}});
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => window.__unhandled),
+      'a browser refusing to keep her progress threw an error nobody can act on').toEqual([]);
+    expect(errorsOf(page), 'and it reached the page as an error').toEqual([]);
+    // The app carried on regardless: the tap still did its real work.
+    expect(await page.evaluate(() => !!window.__acorn.session()),
+      'the refusal stopped her sitting').toBe(true);
+  });
+});

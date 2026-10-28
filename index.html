@@ -1262,7 +1262,18 @@ function unlock(){
   // Ask the browser to keep her progress durably (worklist DAT-1). Only granted to a
   // Home-Screen web app — a no-op in a normal Safari tab — so it costs nothing and, once
   // installed, moves her data out of reach of the timed-eviction sweep. Once, on first tap.
-  try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+  /* It REJECTS a promise rather than throwing where the origin is opaque or the browser
+     refuses, so the try/catch alone left an unhandled rejection on her first tap — the same
+     mistake `warmOne` already found and fixed for `cache.put`, made again here where nothing
+     was testing it. Measured 2026-10-28: a rejecting persist() surfaces as a pageerror.
+     Nothing she can act on either way, so it is caught and dropped; what matters is that the
+     REQUEST is made, because without it iOS sweeps her progress away after about a week. */
+  try{
+    if(navigator.storage && navigator.storage.persist){
+      var kept = navigator.storage.persist();
+      if(kept && kept.catch) kept.catch(function(){});
+    }
+  }catch(e){}
   audioCtx();
   try{ speechSynthesis.getVoices(); }catch(e){}
   pickVoice();

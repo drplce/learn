@@ -65,6 +65,17 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
   **A fix was built and thrown away:** rescuing any whole-word arrival she had mostly typed herself
   stopped the hand-back and marked the misspelling **right**. Worse than the problem. Recorded so
   nobody rebuilds it. The autocorrect fixture is modelled, not captured from her phone.
+- ✅ **DAT-2 (2026-10-28)** — **the one defence against iOS sweeping her progress away had nothing
+  watching it, and it carried a real defect.** `navigator.storage.persist()` is called once in
+  `unlock()` and was untested: if it ever stopped being asked for, she would lose weeks of work,
+  weeks later, with no symptom in between. Worse, it was wrapped in `try{…}catch(e){}`, which does
+  not catch a REJECTED PROMISE — and persist() rejects on an opaque origin or a refusing browser.
+  **The identical mistake `warmOne` had already found and fixed for `cache.put`**, made again
+  thirty lines away because no test guarded it. Measured: on this harness it resolves false, but
+  stubbed to reject it surfaces as an unhandled `pageerror`. Now caught and dropped, with two tests
+  — asked once on her first tap, and a refusal never thrown at her. Teeth-checked separately:
+  restoring this morning's shape reds only the rejection test, removing the call reds only the
+  other. No VERSION bump.
 - ✅ **HAR-14 (2026-10-27)** — `tonight.spec.js` "it survives a reload" red once in 15 full runs.
   **The useful find is the method:** `--repeat-each=30 --workers=6` on the one file reproduces it
   in 3.5 minutes where fifteen full suites took over an hour. Hammer the FILE under load, not the
