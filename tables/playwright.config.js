@@ -6,14 +6,26 @@ const {defineConfig, devices} = require('@playwright/test');
 
 // Prefer a Chromium the sandbox already ships (its revision rarely matches the
 // one this Playwright would download). Same detection Acorn uses.
+/* The image's layout is not ours and it moves. On 2026-10-26 a container came back with
+   `chromium-1243/chrome-linux64/chrome` and a convenience symlink at `chromium`, where it had
+   been `chromium-<rev>/chrome-linux/chrome`; this found neither, returned undefined, and
+   Playwright fell back to its own pinned revision, which the image does not carry. Acorn's
+   harness broke the same way on the same day and was fixed then; this one could not be, because
+   an Acorn pass must not touch tables/ — so 144's harness could not launch a browser at all for
+   four days. Try both layouts, and accept the entry itself when it is the binary. */
 function findChromium(){
   if(process.env.ACORN_CHROMIUM) return process.env.ACORN_CHROMIUM;
   const root = process.env.PLAYWRIGHT_BROWSERS_PATH;
   if(!root || !fs.existsSync(root)) return undefined;
+  const runnable = p => { try { fs.accessSync(p, fs.constants.X_OK);
+                                return fs.statSync(p).isFile(); } catch(e){ return false; } };
   for(const dir of fs.readdirSync(root)){
     if(!/^chromium(-\d+)?$/.test(dir)) continue;              // skip headless_shell builds
-    const exe = path.join(root, dir, 'chrome-linux', 'chrome');
-    if(fs.existsSync(exe)) return exe;
+    const here = path.join(root, dir);
+    for(const exe of [path.join(here, 'chrome-linux', 'chrome'),
+                      path.join(here, 'chrome-linux64', 'chrome'),
+                      here])                                   // a symlink straight to it
+      if(runnable(exe)) return exe;
   }
   return undefined;
 }

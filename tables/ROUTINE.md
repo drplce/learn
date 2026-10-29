@@ -110,6 +110,14 @@ gamified. What it inherits is not the look but the *soul*:
 
 ## 4. STATE OF THE APP
 
+**The 4× special edition (v1.28, David's live request 2026-10-29).** A run of eight levels over
+the twelve 4× facts, reached from a lime badge pinned to the top of the home screen. It exists
+because school is doing the 4s and the ladder would not reach them for months. **It is counted
+apart from the ladder** (`S.special.done`, never `prog.cleared`) and the pace plan is untouched;
+her answers in it count everywhere, like any other answer. If another table is ever wanted the
+same way, `SPECIAL_TABLE` is the one thing to change — but ask David first: which table is
+special, and when, is his call, not the loop's.
+
 `tables/index.html` is a single file with no build step, live on GitHub Pages at
 `/learn/tables/` with its own home-screen icon (`tables/apple-touch-icon.png` — opaque PNG, iOS
 composites transparency to black). Storage key `144.v1`.
@@ -890,6 +898,36 @@ minutes, every time:
 ## 9. LOG — what each pass actually changed
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
+
+- **2026-10-29 — DAVID ASKED, LIVE: "Can I get a 4x table special edition for 144". Built and
+  shipped as v1.28.** Not a cron pass; the weekly cadence state is untouched.
+  **What he chose, asked rather than assumed:** a special run INSIDE 144 (not a separate app, not
+  a reorder of the ladder), because school is doing the 4s now. The 4× table sits SEVENTH in
+  `TABLE_ORDER`, so the ladder would not have reached it for months.
+  **The shape:** `SPECIAL` — eight levels over the twelve 4× facts, the same shape a table gets
+  in the ladder (three meet-then-recall pairs, a mix, a boss). One or two a day is a school week.
+  It advances `S.special.done` and **nothing else**: letting it touch `prog.cleared` would march
+  her up a ladder she has not played, past tables she has not met, and drag the countdown and the
+  buddy's stages with it. Her ANSWERS still count everywhere — `record()` runs on every answer
+  whatever level it came from — so a week of 4s at school lands in the same boxes and watts.
+  **`sitKey` now prefixes `sp:`.** A special 4× `learn` of four facts and the ladder's 4× `learn`
+  of four facts were previously indistinguishable, so a half-finished one would have been handed
+  back as the other.
+  **The badge is STICKY, and that was a real find rather than a style choice.** The first build
+  put it above the path — but `renderHome()` scrolls the path to the level she is on, so at level
+  12 it was off-screen and she would have had to scroll back up forty stones to reach it.
+  Screenshotting the real home screen is what caught it. Lime, which no ladder node wears.
+  **Seven tests, three teeth-checked separately:** make the special run walk the ladder and only
+  the ladder test reds; drop the `sp:` prefix and only the confusion test reds; put a non-4 fact
+  in `SPECIAL` and only the first reds.
+  **Two things fixed on the way in.** (1) `tables/playwright.config.js` could not launch a browser
+  at all since 2026-10-26, when the image changed to `chrome-linux64` — Acorn's identical config
+  was fixed that day but an Acorn pass must not touch `tables/`, so this one sat dead for four
+  days until David's request made it in-scope. (2) `unlock()` called
+  `navigator.storage.persist()` inside a `try/catch`, which does not catch a REJECTED PROMISE —
+  **the third place this app family has made that exact mistake**, with the clip element on the
+  line directly above already guarding against it. Fixed, with the test ported from Acorn.
+  167 pass.
 
 - **2026-10-25, 18:01Z (weekly pass, due at 191.97h — a week and a day, see the cadence note at the
   end): the battery's clock was unguarded against the one confusion that would flatten it.**

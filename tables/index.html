@@ -134,6 +134,37 @@ main{flex:1; position:relative; overflow:hidden;}
 /* ---------- HOME: the path of levels — a neon wire she lights up ----------
    It meanders down the screen and carries NO WORDS at all: a level's state is
    its shape and its light, which a nine-year-old reads faster than a label. */
+/* The special run's way in. Lime, which no ladder node wears, and a quiet bar
+   rather than a number on a stone — it is the only worded thing on this screen and
+   it earns that by being a different kind of thing from the path below it. */
+/* STICKY, and that is not decoration. renderHome() scrolls the path to the level she
+   is on, which by level 12 is already far below the top — so a badge that merely sat
+   above the path was, in practice, invisible: she would have had to scroll back up
+   past forty stones to find it. Measured by screenshotting the real home screen at
+   level 12 and seeing nothing. It rides along the top instead. */
+#specwrap{position:sticky; top:0; z-index:4; padding:var(--s3) var(--s4);
+          background:linear-gradient(180deg, var(--bg) 0%, var(--bg) 62%, transparent 100%);}
+.spec{display:block; width:100%; min-height:var(--tap); text-align:left; cursor:pointer;
+      padding:var(--s3) var(--s4); border-radius:var(--r-md);
+      border:1px solid color-mix(in srgb, var(--n-lime) 55%, transparent);
+      background:linear-gradient(180deg,
+                 color-mix(in srgb, var(--n-lime) 13%, var(--bg2)) 0%, var(--bg2) 100%);
+      color:var(--ink); font:inherit;
+      box-shadow:0 0 18px color-mix(in srgb, var(--n-lime) 18%, transparent);
+      transition:transform var(--m-press) var(--ease), box-shadow var(--m-quick) var(--ease);}
+.spec:active{transform:scale(.985);}
+.spec.over{box-shadow:0 0 22px color-mix(in srgb, var(--n-lime) 30%, transparent);}
+.spectop{display:flex; align-items:baseline; justify-content:space-between; gap:var(--s3);}
+.specname{font-size:var(--t-lg); font-weight:800; letter-spacing:.01em;
+          color:var(--n-lime); text-shadow:0 0 12px color-mix(in srgb, var(--n-lime) 45%, transparent);}
+.specnum{font-size:var(--t-sm); font-weight:700; color:var(--ink-soft);}
+.specbar{display:block; height:6px; margin-top:var(--s2); border-radius:var(--r-pill);
+         background:color-mix(in srgb, var(--n-lime) 14%, transparent); overflow:hidden;}
+.specbar i{display:block; height:100%; border-radius:var(--r-pill); background:var(--n-lime);
+           box-shadow:0 0 10px var(--n-lime); transition:width var(--m-slow) var(--ease);}
+@media (prefers-reduced-motion: reduce){
+  .spec, .specbar i{transition:none;}
+}
 #path{position:relative; width:100%;}
 #wire{position:absolute; inset:0; width:100%; height:100%; pointer-events:none;}
 #wire .glowseg{fill:none; stroke-linecap:round; stroke-width:12; opacity:.28;}
@@ -501,7 +532,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
   <main>
     <!-- HOME: the path -->
     <section class="screen on" id="home">
-      <div class="scroll"><div id="path"></div></div>
+      <div class="scroll"><div id="specwrap"></div><div id="path"></div></div>
     </section>
 
     <!-- PLAY: Blast -->
@@ -579,7 +610,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.27';
+var VERSION = '1.28';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -627,7 +658,8 @@ function fresh(){
     power:{watts:0, charge:100, at:Date.now()},
     prog:{cleared:0, placed:false, startedOn:todayISO(), lastDay:'', sessions:0, days:0},
     set:{sound:true, dials:0},
-    sit:null,           // a level part-finished: {i, done, asked, round}
+    sit:null,           // a level part-finished: {i, sp, done, asked, round}
+    special:{done:0},   // the 4× special edition, counted apart from the ladder
     log:{days:bare(null), recent:[]},   // what actually happened, for the diagnostics export
     rev:0
   };
@@ -672,6 +704,8 @@ function sane(raw){
     if(typeof raw.prog.startedOn==='string' && /^\d{4}-\d\d-\d\d$/.test(raw.prog.startedOn)) t.prog.startedOn=raw.prog.startedOn;
     if(typeof raw.prog.lastDay==='string'  && /^\d{4}-\d\d-\d\d$/.test(raw.prog.lastDay))  t.prog.lastDay=raw.prog.lastDay;
   }
+  if(raw.special && typeof raw.special==='object')
+    t.special.done = Math.round(num(raw.special.done, 0, SPECIAL.length, 0));
   if(raw.set && typeof raw.set==='object'){
     t.set.sound = raw.set.sound !== false;
     t.set.dials = Math.round(num(raw.set.dials, 0, 1e6, 0));   // how often she has used the line
@@ -748,6 +782,7 @@ function mergeState(mine, theirs){
   // watts and levels are earned: never hand back what either window banked
   out.power.watts  = Math.max(mine.power.watts,  theirs.power.watts);
   out.prog.cleared = Math.max(mine.prog.cleared, theirs.prog.cleared);
+  out.special.done = Math.max((mine.special||{}).done || 0, (theirs.special||{}).done || 0);
   out.prog.days    = Math.max(mine.prog.days,    theirs.prog.days);
   out.prog.sessions= Math.max(mine.prog.sessions,theirs.prog.sessions);
   out.prog.placed  = mine.prog.placed || theirs.prog.placed;
@@ -857,6 +892,38 @@ var LEVELS = (function(){
   }
   return out;
 })();
+/* =========================================================
+   The special edition. David, 2026-10-29: "Can I get a 4x table special
+   edition for 144" — school is doing the 4s now, and the 4× table sits
+   SEVENTH in TABLE_ORDER, so the ladder would not reach it for months.
+
+   It is a run of its own, not a reordering: the ladder is left exactly where
+   she left it and the locked pace plan is untouched. What she answers here
+   counts though — record() runs on every answer whatever level it came from —
+   so a week of 4s at school lands in the same boxes, the same watts and the
+   same mastery as everything else. Nothing is duplicated and nothing is lost.
+
+   Eight levels, the same shape one table gets in the ladder: three pairs of
+   meet-them-then-recall across the twelve facts, a mix of all twelve, and the
+   boss. One or two a day is a school week.
+   ========================================================= */
+var SPECIAL_TABLE = 4;
+var SPECIAL = (function(){
+  var all = [], out = [], b;
+  for(b = 1; b <= 12; b++) all.push(key(SPECIAL_TABLE, b));
+  for(var i = 0; i < all.length; i += 4){
+    var chunk = all.slice(i, i + 4);
+    out.push({kind:'learn',  table:SPECIAL_TABLE, facts:chunk,          special:true});
+    out.push({kind:'recall', table:SPECIAL_TABLE, facts:chunk.slice(),  special:true});
+  }
+  out.push({kind:'mix',  table:SPECIAL_TABLE, facts:all.slice(), special:true});
+  out.push({kind:'boss', table:SPECIAL_TABLE, facts:all.slice(), special:true});
+  return out;
+})();
+function specialDone(){ return (S.special && S.special.done) || 0; }
+function specialIndex(){ return Math.min(specialDone(), SPECIAL.length - 1); }
+function specialOver(){ return specialDone() >= SPECIAL.length; }
+
 function goalOf(st){
   if(st.kind==='placement') return st.facts.length;          // one go at each
   if(st.kind==='learn') return st.facts.length*2;            // each one, twice
@@ -1589,7 +1656,32 @@ var NIB = {
   // a new-facts level: a spark, because that is where something arrives
   learn: '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="nib" d="M12 2.4 14.3 9.1 21 11.4 14.3 13.7 12 20.4 9.7 13.7 3 11.4 9.7 9.1Z"/></svg>'
 };
+/* The way in to the special run. It sits ABOVE the path rather than on it, because
+   the path carries no words (§4) and this one has to say what it is — it is an event,
+   not a stone. Lime, which no ladder node ever wears, so it reads as something else
+   entirely at a glance. Hidden until she has been placed, so her first open is still
+   the one short placement round and nothing else. */
+function renderSpecial(){
+  var host = el('#specwrap');
+  if(!host) return;
+  if(!S.prog.placed){ host.innerHTML = ''; return; }
+  var done = specialDone(), n = SPECIAL.length, over = specialOver();
+  var pct = Math.round(done / n * 100);
+  var label = over
+    ? 'Play the 4 times table special again — the boss, all 12 facts'
+    : 'Play the 4 times table special — ' + done + ' of ' + n + ' done';
+  host.innerHTML =
+      '<button class="spec' + (over ? ' over' : '') + '" id="specgo" aria-label="' + label + '">'
+    +   '<span class="spectop">'
+    +     '<span class="specname">4× special</span>'
+    +     '<span class="specnum">' + (over ? 'all done' : done + ' of ' + n) + '</span>'
+    +   '</span>'
+    +   '<span class="specbar"><i style="width:' + pct + '%"></i></span>'
+    + '</button>';
+}
+
 function renderHome(){
+  renderSpecial();
   var host = el('#path');
   var w = host.clientWidth || el('#home').clientWidth || 360;
   var idx = levelIndex();
@@ -1781,7 +1873,11 @@ try{
 /* What a level IS, not merely where it sits in the list. The ladder has already
    been rewritten once under her (v1.8 inserted the fill-the-gap levels), and a
    part-finished level must never be resumed onto a different one. */
-function sitKey(level){ return level.kind + ':' + (level.table || 0) + ':' + level.facts.length; }
+/* The special run's levels look exactly like ladder levels of the same kind and table
+   — a 4× `learn` of four facts either way — so without the prefix a half-finished
+   special level would be handed back as if it were the ladder's, and vice versa. */
+function sitKey(level){ return (level.special ? 'sp:' : '') + level.kind + ':'
+                             + (level.table || 0) + ':' + level.facts.length; }
 function start(level){
   W = {level:level, pool:level.facts.slice(), done:0, goal:goalOf(level),
        combo:0, best:0, round:1, watts:0, charge:0, per:bare(null), asked:0, cur:null,
@@ -1791,7 +1887,8 @@ function start(level){
   // time is a level she can never finish. Her answers always counted towards the
   // boxes and her watts; it was only the level's own counter that was thrown away.
   // The combo is NOT restored: a streak is something she is in the middle of.
-  if(level.kind !== 'placement' && S.sit && S.sit.i === levelIndex() &&
+  var mySp = !!level.special, myI = mySp ? specialIndex() : levelIndex();
+  if(level.kind !== 'placement' && S.sit && !!S.sit.sp === mySp && S.sit.i === myI &&
      S.sit.k === sitKey(level) && S.sit.done < W.goal){
     W.done = S.sit.done; W.asked = S.sit.asked; W.round = S.sit.round;
   }
@@ -2076,7 +2173,8 @@ function score(right, x, y, node, cls){
     }
     else el('#cue').textContent = pick(['Nice!','Boom!','Yes!','Pow!','Got it!']);
     if(W.level.kind !== 'placement' && W.done < W.goal)
-      S.sit = {i:levelIndex(), k:sitKey(W.level), done:W.done, asked:W.asked, round:W.round};
+      S.sit = {i: W.level.special ? specialIndex() : levelIndex(), sp: !!W.level.special,
+               k:sitKey(W.level), done:W.done, asked:W.asked, round:W.round};
     save();                                   // her answer is banked now, not at the next paint
     if(W.done>=W.goal){ setTimeout(clearLevel, 420); return; }
     setTimeout(next, gap ? 380 : 260);
@@ -2121,8 +2219,15 @@ function jackpot(){
 }
 function clearLevel(){
   var wasPlacement = W.level.kind==='placement';
+  var wasSpecial = !!W.level.special;
   addWatts(25); W.watts+=25; W.charge += addCharge(CHARGE_PER_LEVEL);
-  if(wasPlacement){
+  /* The special run advances ITSELF and nothing else. Letting it touch prog.cleared
+     would walk her up a ladder she has not played, past tables she has not met, and
+     would move the countdown and the buddy's stages with it. Her ANSWERS still count
+     everywhere — record() ran on each one long before this. */
+  if(wasSpecial){
+    S.special.done = Math.min(SPECIAL.length, specialDone() + 1);
+  } else if(wasPlacement){
     S.prog.placed = true;
     // Skip ahead past the tables she already owns: the first stone that still
     // has something to teach her is where she starts.
@@ -2140,8 +2245,12 @@ function clearLevel(){
   dayRow().s = S.prog.sessions;
   sfxClear(); save();
 
-  el('#clearBig').textContent = wasPlacement ? 'Great — now we know!' :
-    (W.level.kind==='boss' ? '👑 '+W.level.table+'× conquered!' : 'Level cleared!');
+  el('#clearBig').textContent =
+      wasPlacement ? 'Great — now we know!'
+    : W.level.kind==='boss' ? '👑 '+W.level.table+'× conquered!'
+    : wasSpecial && specialOver() ? '4× special — all of it!'
+    : wasSpecial ? '4× special — '+specialDone()+' of '+SPECIAL.length+' done'
+    : 'Level cleared!';
   el('#clearWatts').textContent = W.watts;
   // A full battery earns "full", not a deflating 0% after a good sitting.
   el('#clearCharge').textContent = W.charge < 0.5 && S.power.charge >= 100
@@ -2164,7 +2273,14 @@ function unlock(){ if(_unlocked) return; _unlocked=true; ac();
   try{ _clipEl = _clipEl || new Audio(); _clipEl.muted = true;
        var pr = _clipEl.play(); if(pr && pr.catch) pr.catch(function(){});
        setTimeout(function(){ try{ _clipEl.pause(); _clipEl.muted = false; }catch(e){} }, 30); }catch(e){}
-  try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){} }
+  /* It REJECTS a promise rather than throwing where the origin is opaque or the browser
+     refuses, so a try/catch round the call does not cover it — the same mistake the clip
+     element on the line above already guards against with `pr.catch`. Fixed in Acorn on
+     2026-10-28 and found here the next day, in the third place the app makes this call. */
+  try{ if(navigator.storage && navigator.storage.persist){
+         var kept = navigator.storage.persist();
+         if(kept && kept.catch) kept.catch(function(){});
+       } }catch(e){} }
 document.addEventListener('pointerdown', unlock, {once:false});
 
 document.addEventListener('click', function(ev){
@@ -2173,6 +2289,7 @@ document.addEventListener('click', function(ev){
   if(W && W.meeting && screen==='play' && t.closest('#play')){
     clearTimeout(W.meetT); if(W.meetGo) W.meetGo(); return;
   }
+  if(t.closest('#specgo')){ start(SPECIAL[specialIndex()]); return; }
   if(t.closest('#nowlevel')){
     start(S.prog.placed ? LEVELS[levelIndex()] : placementLevel()); return; }
   if(t.closest('#buddybtn')){ go('power'); return; }
@@ -2241,6 +2358,8 @@ window.__144 = {
   setToday:function(d){ _today=d; render(); },
   todayISO:todayISO, dayDiff:dayDiff, key:key, distractors:distractors, pickFact:pickFact,
   LEVELS:LEVELS, levelIndex:levelIndex, goalOf:goalOf, placementLevel:placementLevel,
+  SPECIAL:SPECIAL, SPECIAL_TABLE:SPECIAL_TABLE, specialIndex:specialIndex,
+  specialDone:specialDone, specialOver:specialOver,
   TABLE_ORDER:TABLE_ORDER, BOX_DAYS:BOX_DAYS, KNOWN_BOX:KNOWN_BOX,
   wakingHoursBetween:wakingHoursBetween, settleCharge:settleCharge, buddyStage:buddyStage,
   BATTERY_HOURS:function(){ return BATTERY_HOURS; },

@@ -222,3 +222,54 @@ test.describe('a clock that jumps', () => {
   });
 
 });
+
+test.describe('keeping her progress on the device at all', () => {
+  /* On iOS a web app that is not on the home screen has its storage swept after about
+     a week of not being opened, and `navigator.storage.persist()` is the only mitigation
+     there is. Nothing tested that it was still being asked for — and it was wrapped in a
+     try/catch, which does NOT catch a rejected promise, so a browser that refuses threw
+     an error nobody can act on. The same mistake Acorn had, fixed there on 2026-10-28 and
+     found here the next day; the clip element on the line above already guards against it
+     with `pr.catch`, which is what makes it worth a test rather than a comment. */
+
+  test('her first touch asks the browser to keep her progress, once', async ({page}) => {
+    await page.addInitScript(() => {
+      window.__persist = 0;
+      const wait = setInterval(() => {
+        if(!(navigator.storage && navigator.storage.persist)) return;
+        clearInterval(wait);
+        const real = navigator.storage.persist.bind(navigator.storage);
+        navigator.storage.persist = function(){ window.__persist++; return real(); };
+      }, 0);
+    });
+    await open(page);
+    expect(await page.evaluate(() => window.__persist),
+      'it asked before she had touched anything').toBe(0);
+    await page.mouse.click(10, 10);
+    await page.waitForTimeout(200);
+    expect(await page.evaluate(() => window.__persist),
+      'her first touch did not ask the browser to keep her progress').toBe(1);
+    await page.mouse.click(12, 12);
+    await page.waitForTimeout(200);
+    expect(await page.evaluate(() => window.__persist), 'it asked again').toBe(1);
+  });
+
+  test('and a browser that refuses does not throw an error at her', async ({page}) => {
+    await page.addInitScript(() => {
+      window.__unhandled = [];
+      addEventListener('unhandledrejection', e => window.__unhandled.push(String(e.reason)));
+      const wait = setInterval(() => {
+        if(!(navigator.storage && navigator.storage.persist)) return;
+        clearInterval(wait);
+        navigator.storage.persist = () =>
+          Promise.reject(new DOMException('refused', 'SecurityError'));
+      }, 0);
+    });
+    await open(page);
+    await page.mouse.click(10, 10);
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => window.__unhandled),
+      'a browser refusing to keep her progress threw an error nobody can act on').toEqual([]);
+    expect(errorsOf(page), 'and it reached the page as an error').toEqual([]);
+  });
+});
