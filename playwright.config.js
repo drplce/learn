@@ -33,6 +33,15 @@ const executablePath = findChromium();
 
 module.exports = defineConfig({
   testDir: './tests',
+  /* Playwright's default is 30s a test, and on 2026-10-30 that produced a red that was
+     not a defect: a container running at about half speed timed out waiting for the app
+     to BOOT — at the first line of open(), nothing to do with what the test asserts.
+     Measured on a good run, the two heaviest tests sit at 21.6s and 27.6s, which is 72%
+     and 92% of that budget. A suite with no headroom invents reds on slow machines at
+     random, and a false red is expensive here: §5 says a red is a red, and that rule is
+     only worth having while every red is real. Patience is not an assertion — nothing
+     waits longer when it passes. */
+  timeout: 90000,
   fullyParallel: true,
   reporter: [['list']],
   projects: [{

@@ -325,3 +325,118 @@ test.describe('keeping her progress on the device at all', () => {
       'the refusal stopped her sitting').toBe(true);
   });
 });
+
+test.describe('telling a grown-up the truth about the copy', () => {
+  /* The backup exists so that a wiped phone does not mean starting again from nothing.
+     That makes the ONE moment it must not lie the moment it says the copy worked: a
+     grown-up who is told "Progress copied." stops worrying, pastes nothing, and finds
+     out when the phone is already gone.
+
+     Two paths. On her phone — GitHub Pages, https — `navigator.clipboard.writeText`
+     runs and has always reported both outcomes correctly. The other path is the old
+     one: no clipboard API, a textarea and `execCommand('copy')`, which returns FALSE
+     when the browser declines. That return was thrown away until 2026-10-30, so the
+     refusal and the success said exactly the same words. */
+
+  const tapCopy = async (page, setup) => {
+    await page.addInitScript(setup);
+    await open(page, '2026-08-01');
+    await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'w', name:'Week 9', words:['said','rain']}];
+      a.state.words.activeId = 'w'; a.save(); a.go('parent');
+    });
+    const before = await page.evaluate(() => document.querySelectorAll('textarea').length);
+    await page.locator('#copy').click();
+    await page.waitForTimeout(350);
+    return page.evaluate(b2 => ({
+      said: (document.querySelector('#toast') || {}).textContent || '',
+      tried: window.__execTried || 0,
+      leaked: document.querySelectorAll('textarea').length - b2}), before);
+  };
+  // The old phone: no clipboard API, so the textarea path is the one that runs.
+  const noClipboard = () => {
+    try { Object.defineProperty(navigator, 'clipboard',
+                                {value: undefined, configurable: true}); } catch(e){}
+    window.__execTried = 0;
+  };
+
+  test('a copy the browser declines is not reported as a copy', async ({page}) => {
+    const r = await tapCopy(page, () => {
+      (function(){
+        try { Object.defineProperty(navigator, 'clipboard',
+                                    {value: undefined, configurable: true}); } catch(e){}
+        window.__execTried = 0;
+        document.execCommand = function(){ window.__execTried++; return false; };
+      })();
+    });
+    expect(r.tried, 'the old phone never reached the textarea path').toBe(1);
+    expect(r.said, 'a refused copy was reported as a copy').not.toMatch(/copied/i);
+    expect(r.said, 'and it said nothing at all').not.toBe('');
+  });
+
+  test('and one that works still says so', async ({page}) => {
+    const r = await tapCopy(page, () => {
+      (function(){
+        try { Object.defineProperty(navigator, 'clipboard',
+                                    {value: undefined, configurable: true}); } catch(e){}
+        window.__execTried = 0;
+        document.execCommand = function(){ window.__execTried++; return true; };
+      })();
+    });
+    expect(r.tried).toBe(1);
+    expect(r.said, 'a copy that worked was not reported').toMatch(/copied/i);
+  });
+
+  test('the box it copies through is never left on the screen', async ({page}) => {
+    // It is appended to the body to be selectable; it must not survive the copy.
+    for(const gives of [true, false]){
+      const r = await tapCopy(page, new Function(`
+        try { Object.defineProperty(navigator, 'clipboard',
+                                    {value: undefined, configurable: true}); } catch(e){}
+        window.__execTried = 0;
+        document.execCommand = function(){ window.__execTried++; return ${gives}; };`));
+      expect(r.leaked, `a textarea was left behind when the copy returned ${gives}`).toBe(0);
+    }
+  });
+});
+
+test.describe('midnight, while the app sits open', () => {
+  /* "Midnight must roll the day over, on resume and while the app sits open" — the
+     app's own comment, and until 2026-10-30 nothing held it. She leaves it open on the
+     sofa overnight and picks it up in the morning: without this she is still inside
+     yesterday's sitting, and the evening she does lands on yesterday's date. */
+
+  test('coming back to it the next day starts her on the new day', async ({page}) => {
+    /* Driven with a REAL clock, not the test date hook. `setToday()` also updates
+       `_renderedDay`, which is the very value `checkRollover()` compares against — so a
+       test that moves the day with it has already told the app the day has been
+       rendered, and the rollover it is checking can never fire. The first version of
+       this test did exactly that and reported a defect in the app that was mine. */
+    await page.clock.install({time: new Date('2026-08-01T23:58:00')});
+    await open(page);                                  // no faked date: use the clock
+    const started = await page.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id:'w', name:'T', words:['said','rain','boat']}];
+      a.state.words.activeId = 'w'; a.state.words.mastery = {}; a.state.words.sessions = [];
+      a.save(); a.go('day'); if(!a.session()) a.start();
+      return {today: a.todayISO(), day: a.session() ? a.session().day : null};
+    });
+    // The premise: she really is mid-sitting, on the day before.
+    expect(started.today).toBe('2026-08-01');
+    expect(started.day, 'the fixture did not start a sitting on the first').toBe('2026-08-01');
+
+    // It sits on the sofa through midnight, and she picks it up in the morning.
+    await page.clock.fastForward('10:00');             // ten minutes past midnight
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await page.waitForTimeout(200);
+    const after = await page.evaluate(() => {
+      const a = window.__acorn;
+      return {today: a.todayISO(), day: a.session() ? a.session().day : null};
+    });
+    expect(after.today, 'the clock did not reach the next day').toBe('2026-08-02');
+    expect(after.day,
+      "she was left inside yesterday's sitting after midnight").toBe('2026-08-02');
+    expect(errorsOf(page)).toEqual([]);
+  });
+});

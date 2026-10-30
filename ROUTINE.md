@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-10-28T17:14Z
+last-run: 2026-10-30T17:10Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -931,6 +931,57 @@ notices.
 already written down this exact lesson, in a comment, next to the place it first bit. That did not
 stop it recurring thirty lines away. **A lesson recorded in a comment guards the line it sits on;
 only a test guards the behaviour.** Two of this week's finds have now been of that shape.
+
+**Staying `daily`.**
+
+**Cadence note (17:10Z, 2026-10-30, due at 47.93h — yesterday's firing landed four minutes short
+and skipped): the app told a grown-up their backup was safe when it was not.**
+
+Ran the sweep that found last pass's defect, but systematically this time rather than by hunch:
+**list every browser API the app leans on, and ask which have no test at all.** Fourteen of them;
+two with nothing: `document.execCommand` and `document.visibilityState`.
+
+**`execCommand` was a real defect.** "Copy her progress" uses `navigator.clipboard.writeText` where
+it exists — handled correctly, both outcomes reported — and falls back on an older phone to a
+textarea and `document.execCommand('copy')`. **That returns FALSE when the browser declines the
+copy, and the return was thrown away**, so the toast said "Progress copied." whatever happened.
+Measured, with the clipboard API removed and `execCommand` refusing: the refusal's message was
+word-for-word identical to the success. A grown-up taking the backup before wiping the phone is
+told it worked, pastes nothing, and the year is gone. The whole point of the backup, in that
+file's own first line, is that "a wiped phone meant starting again from nothing" — so being told
+it failed is a thing they can act on, and being told it worked is not.
+
+**`visibilityState` was NOT a defect**, checked before claiming one: `_renderedDay` is initialised
+at boot, so the guard in `checkRollover()` is live and midnight does roll over. It simply had
+nothing holding it, and the app's own comment makes a promise — "Midnight must roll the day over,
+on resume and while the app sits open." It has a test now.
+
+**And that test caught me reporting a defect that was mine.** The first version moved the clock
+with `setToday()` — which also sets `_renderedDay`, the very value `checkRollover()` compares
+against. So the fixture had already told the app the new day was rendered, the rollover could
+never fire, and it looked exactly like the app leaving her inside yesterday's sitting. Driven with
+a real `page.clock` instead, through 23:58 to ten past midnight, it passes. **Check the premise
+before believing the red** — third time this week that has earned its place.
+
+Also measured and NOT a defect: the temporary textarea the copy goes through is removed on both
+paths. The count looked wrong until I measured the baseline — the grown-ups screen has two
+textareas of its own.
+
+**Teeth-checked, and A is the proof the fix is real:** restore the shape the code had this morning
+and the declined-copy test reds, alone. Break `checkRollover` and the midnight test reds, alone.
+
+**And a red in this pass's own baseline run that was NOT a defect — characterised rather than
+waved through.** `tap-targets` failed with a 30-second timeout **waiting for the app to boot**, at
+the first line of `open()`, nothing to do with tap targets. That run took 8.1 minutes against a
+usual 4.5: the container was at about half speed. Measured on a good run, the two heaviest tests
+sit at **21.6s and 27.6s against Playwright's default 30s budget — 72% and 92%**. So the suite had
+almost no headroom and would invent reds on slow machines at random. The per-test timeout is 90s
+now. That is plumbing, not an assertion: nothing waits longer when it passes, no claim is
+weakened, and a false red is expensive precisely because §5 says a red is a red — a rule only
+worth having while every red is real.
+
+Harnesses: 610 pass, sim in band, break clean across 39 cases. **No VERSION bump** — the grown-ups
+screen, as with the other copy fixes.
 
 **Staying `daily`.**
 

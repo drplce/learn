@@ -65,6 +65,17 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
   **A fix was built and thrown away:** rescuing any whole-word arrival she had mostly typed herself
   stopped the hand-back and marked the misspelling **right**. Worse than the problem. Recorded so
   nobody rebuilds it. The autocorrect fixture is modelled, not captured from her phone.
+- ✅ **DAT-3 (2026-10-30)** — **"Progress copied." was said whether or not it had been.** Found by
+  listing every browser API the app uses and asking which had NO test: two did, `execCommand` and
+  `visibilityState`. The copy falls back on an older phone to a textarea and
+  `document.execCommand('copy')`, which returns FALSE when the browser declines — and that return
+  was discarded, so a grown-up taking the backup before wiping the phone was told it worked,
+  pasted nothing, and lost the year. Measured: the refusal's message was word-for-word the
+  success's. Now reports both, matching the clipboard path. Teeth-checked — the old shape reds the
+  new test alone. `visibilityState` was NOT a defect (`_renderedDay` is initialised at boot) but
+  had nothing holding the app's own promise that midnight rolls over; it has a test now, driven
+  with a real clock. **That test first reported a defect that was mine** — it moved the day with
+  `setToday()`, which also sets the value `checkRollover()` compares against. No VERSION bump.
 - ✅ **DAT-2 (2026-10-28)** — **the one defence against iOS sweeping her progress away had nothing
   watching it, and it carried a real defect.** `navigator.storage.persist()` is called once in
   `unlock()` and was untested: if it ever stopped being asked for, she would lose weeks of work,

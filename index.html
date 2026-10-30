@@ -4516,9 +4516,19 @@ document.addEventListener('click', function(ev){
         navigator.clipboard.writeText(text).then(function(){ toast('Progress copied.'); },
                                                  function(){ toast('Could not copy.'); });
       else {
+        /* The old phone's path, and it used to say "Progress copied." whatever happened.
+           execCommand returns FALSE when the browser declines the copy, and that return
+           was thrown away — so a grown-up taking a backup before wiping the phone was
+           told it had worked, pasted nothing, and lost the year. Measured 2026-10-30
+           with the clipboard API removed and execCommand refusing: the toast was
+           word-for-word the same as the one on success. Being told it failed is a thing
+           they can act on; being told it worked is not. */
         var a = document.createElement('textarea');
         a.value = text; document.body.appendChild(a); a.select();
-        document.execCommand('copy'); a.remove(); toast('Progress copied.');
+        var copied = false;
+        try{ copied = document.execCommand('copy') !== false; }catch(e){ copied = false; }
+        a.remove();
+        toast(copied ? 'Progress copied.' : 'Could not copy.');
       }
     }catch(e){ toast('Could not copy.'); }
     return;
