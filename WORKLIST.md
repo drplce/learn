@@ -65,6 +65,22 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
   **A fix was built and thrown away:** rescuing any whole-word arrival she had mostly typed herself
   stopped the hand-back and marked the misspelling **right**. Worse than the problem. Recorded so
   nobody rebuilds it. The autocorrect fixture is modelled, not captured from her phone.
+- ✅ **HAR-15 (2026-11-01)** — **reloading a `file://` page can come back to an EMPTY store, and it
+  is a class.** Confirmed on a second unrelated test (`spelling.spec.js` tint, after
+  `tonight.spec.js` on 10-27), same signature — setting on the device before, `keys []` and
+  `length 0` after. **Measured at 3%: 6 failures in 200 trials.** Not the app: the bytes were on
+  disk, and her phone runs over https where this does not arise. `helpers.js` now exports
+  `reopen(page)` (a fresh page in the same context), and both repaired tests assert the app's own
+  half — her work is on the device the moment she does it — deterministically first. 100/100 after.
+  §5 carries the rate, the reproduction recipe and the ~two dozen reloads still exposed on purpose.
+- ✅ **ENG-1 (2026-11-01)** — **§6.3, the marking: the engine was right, its test list was short.**
+  `how-she-gets-it-wrong.spec.js` opens by naming five shapes a dyslexic nine-year-old's spelling
+  takes and listed three; phonetic respelling and dropped syllables were covered only BELOW the
+  half-matched threshold. Added eight cases with the expected letters **written down before the
+  engine was asked** — it agreed on all eight, including the silent `gh` of `night` and the `ch` of
+  `school`. Teeth-check: narrowing the threshold .5 → .7 reds exactly one row, `sed` for `said`, a
+  new one — the old list could not notice that boundary at all. Also checked and NOT a defect: a
+  transposition is not mis-read as an extra letter, because `matched()` is an LCS.
 - ✅ **DAT-3 (2026-10-30)** — **"Progress copied." was said whether or not it had been.** Found by
   listing every browser API the app uses and asking which had NO test: two did, `execCommand` and
   `visibilityState`. The copy falls back on an older phone to a textarea and

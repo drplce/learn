@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-10-30T17:10Z
+last-run: 2026-11-01T17:09Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -985,6 +985,45 @@ screen, as with the other copy fixes.
 
 **Staying `daily`.**
 
+**Cadence note (17:09Z, 2026-11-01, due at 47.98h): a pass that found no defect in the app, and
+one in the harness that had been there all along.**
+
+**§6.3, the engine — the marking.** The part §6 names and I had not looked at: what she is TOLD
+when she misses. The verdict machinery turns on `matched()`, which is a longest-common-subsequence,
+and I went in expecting to find a transposition mis-diagnosed as an extra letter — `becuase` has
+exactly the letters of `because`, so `missing === 0` looked like it would fire the "extra bit"
+branch. **It does not.** LCS gives `missing = 1` for a transposition, so she is correctly told to
+look at one letter. Checked before writing it down; the hypothesis was wrong.
+
+What was wrong was smaller and real: **this file's own opening names five shapes a dyslexic
+nine-year-old's spelling takes — transpositions, reversals, doubled letters, spelling it the way it
+sounds, and dropped syllables — and the list underneath it had three.** Phonetic respelling and
+dropped syllables appeared only BELOW the half-matched threshold, in the barely-recognisable test;
+above it, where she is actually pointed at letters, neither had a single case.
+
+So I wrote down what a teacher would point at **before** asking the engine, which is the only way
+this kind of test is worth anything — otherwise it blesses whatever the code does. Eight cases, and
+**the engine agreed on all eight**, including the two that are the whole lesson: the silent `gh` of
+`night` for `nite`, and the `ch` of `school` for `skool`. It also correctly marks NOTHING for `woz`,
+which is below the threshold and would only be made worse by a word covered in orange. The engine
+was right before the test existed; what was missing was anything holding it there.
+
+**Teeth-checked, and the number is the point:** narrow the "close enough to mark" threshold from .5
+to .7 and **only one row reds — `sed` for `said`, one of the new ones.** Every pre-existing row sits
+comfortably above .7, so the old list could not notice a change to that boundary at all.
+
+**Then the baseline run went red, and it was the 10-27 finding again.** `spelling.spec.js` "text
+size and tint apply and stick" — her tint not surviving a reload. Reproduced at **3%, 6 in 200**,
+with the identical signature: the setting on the device before, the whole `file://` store empty
+after. That makes it a CLASS rather than one odd test, which is a real upgrade on what was known a
+week ago — see the 🟢 block in §5, which now carries the rate, the recipe and `reopen()`.
+
+Harnesses: 610 pass, sim in band, break clean across 39 cases. **No change to `index.html` at all
+today, so no VERSION bump** — and that is worth saying plainly rather than dressing up: the app was
+right on everything this pass looked at.
+
+**Staying `daily`.**
+
 **Cadence note (17:13Z, 2026-09-30, due at 168.0h exactly):** fresh container, `npm install`, then
 594 pass, sim in band, break clean across 39 cases. **Nothing found in the app; no app change.**
 
@@ -1037,38 +1076,42 @@ node tests/sim.js       # pacing simulation: real engine, modelled learners; non
 node tests/break.js     # adversarial pass; non-zero on any finding
 ```
 
-**🟢 2026-10-27 — `tonight.spec.js` "it survives a reload": characterised, and the test is
-stronger for it.** It went red once in fifteen full runs ("lost on reload", her evening's words
-gone) and passed 6/6 in isolation. Six, then eight more full runs stayed green — which is a
-failure to reproduce, not a clearance, and it was recorded that way before it was understood.
+**🟢 RELOADING A `file://` PAGE CAN COME BACK TO AN EMPTY STORE. Confirmed on two unrelated
+tests; it is a class, not a quirk.** First seen 2026-10-27 as `tonight.spec.js` "it survives a
+reload", then again 2026-11-01 as `spelling.spec.js` "text size and tint apply and stick". Same
+signature both times, and it is specific enough to recognise instantly:
 
-**The cheap reproduction, which is the most useful thing here:**
-`npx playwright test tests/tonight.spec.js --repeat-each=30 --workers=6` — 180 trials in three
-and a half minutes, failing about one. Fifteen full suite runs caught it once in over an hour.
-**When a flake needs load, hammer the FILE under load rather than running the whole suite again.**
+    before the reload: her setting IS on the device — 296 bytes, correct content
+    after:             keys [], localStorage.length 0 — the WHOLE store, not just our key
 
-What the instrumentation then said, and it was not what the name suggested:
+**The rate, measured: about 3%** — 6 failures in 200 trials of the tint test under load, and
+roughly 1 in 180 for the other. The app is not at fault either time: the bytes were on disk before
+the reload. It is the browser's `file://` storage not having been committed before the renderer
+went away under load, and it does not arise on her phone, which runs over https with an ordinary
+origin.
 
-    before the reload: ["2026-08-01/4/rain+boat"], 632 bytes   — her evening IS on the device
-    after:             keys [], localStorage.length 0          — the WHOLE store, not just our key
+**The cheap reproduction, which is the most reusable thing here:**
+`npx playwright test <the file> -g "<the test>" --repeat-each=200 --workers=6` — 200 trials in a
+couple of minutes. Fifteen full suite runs caught the first one once, in over an hour. **When a
+flake needs load, hammer the FILE under load; do not run the whole suite again.**
 
-So nothing deleted her record. The entire `file://` store came up empty on the reloaded page.
 **Ruled out by measurement, not reasoning** (three mechanisms deduced from reading were wrong on
-2026-10-22, so none were trusted here): another context cannot see this one's `file://`
-localStorage, its `clear()` does not reach it, and closing it does not either — the sibling app's
-`workers: 1` diagnosis still does not transfer. `context.storageState()` reports no `file://`
-origins at all, so it cannot be used to check whether a write has landed, which closes the obvious
-route to proving the remaining explanation (an uncommitted write losing the race with a renderer
-reload under load).
+2026-10-22, so none were trusted): another context cannot see this one's `file://` localStorage,
+its `clear()` does not reach it, and closing it does not either — so the sibling app's `workers: 1`
+diagnosis still does not transfer. `context.storageState()` reports no `file://` origins at all, so
+it cannot be used to check whether a write has landed.
 
-**What changed, and why it is more coverage rather than a looser test.** The app's own contract is
-now an ASSERTION instead of a log line — when the sitting ends, her evening is on the device — and
-that half is deterministic. Teeth-checked: make `finish()` record in memory and never `save()`, and
-**only this test reds, on that assertion**, because the other five read the live session. Before
-today that regression was caught only by the flaky read-back. The read-back then happens in a fresh
-page rather than an immediate reload of the same renderer, which is also closer to what her phone
-does when iOS drops the tab. 180/180 under the load recipe, against 179/180 twice with the reload.
-**One in a hundred and eighty is not proof of a cause and is not claimed as one.**
+**What to do when a test reds this way.** `helpers.js` now exports **`reopen(page)`** — a fresh page
+in the same context. It reads the same storage, is closer to what her phone does when iOS drops the
+tab, and does not race a renderer restart. Both repaired tests also now assert the app's OWN half
+deterministically first — her work is on the device the moment she does it — which is the part that
+is ours and cannot flake. Measured after: 100/100 and 180/180 under the load recipe.
+
+**Still exposed, on purpose rather than by oversight:** about two dozen other `page.reload()` calls
+across eleven files. Some are tests OF reloading, where the reload is the point. They have not been
+converted wholesale because changing tests that are not red is speculative — but when one of them
+goes red with the signature above, it is a five-minute job, not another day's hunt. `open()`'s own
+reload in `helpers.js` is harmless: it happens before any state is seeded.
 
 **There are no standing exceptions left. A red is a red.** Both of the ones this file used to
 carry turned out to be defects in the tests, found a day apart: the audio-live prefetch test on

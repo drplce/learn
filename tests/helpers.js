@@ -71,4 +71,28 @@ async function write(page, text){
   return true;
 }
 
-module.exports = {APP, open, errorsOf, write};
+/* Come back to the app the way she does, WITHOUT reloading the same renderer.
+   `page.reload()` on a file:// page can come back to a COMPLETELY EMPTY localStorage
+   under parallel load — not our key missing, the whole store: measured at about 3% on
+   2026-11-01 (6 failures in 200 trials) and again in the tonight.spec.js hunt on
+   2026-10-27, on two unrelated tests with the identical signature. The app had written
+   correctly both times; the bytes were on disk before the reload and gone after it.
+
+   It is an environment behaviour, not a defect in the app — her phone runs over https
+   with an ordinary origin, where this does not arise. But in here it produces a false
+   red every so often, and a false red is expensive: ROUTINE.md §5 says a red is a red,
+   and that rule is only worth having while every red is real.
+
+   So where a test's claim is "her work is still there when she comes back", open a
+   fresh page in the same context instead. It reads the same storage, it is closer to
+   what her phone actually does when iOS drops the tab, and it does not race a renderer
+   restart. Where the claim really is about reloading THIS page, keep page.reload() and
+   expect the occasional empty store. */
+async function reopen(page){
+  const next = await page.context().newPage();
+  await next.goto(APP);
+  await next.waitForFunction(() => !!window.__acorn);
+  return next;
+}
+
+module.exports = {APP, open, errorsOf, write, reopen};

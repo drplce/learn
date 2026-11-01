@@ -28,6 +28,24 @@ const SLIPS = [
   ['together',  'togeather', 'a letter squeezed in', 'e'],
   ['remember',  'remeber',   'dropped a letter',  'm'],
   ['beautiful', 'beutiful',  'dropped a vowel',   'a'],
+  /* Added 2026-11-01. This file's own opening names five shapes — transpositions,
+     reversals, doubled letters, SPELLING IT THE WAY IT SOUNDS, and DROPPED SYLLABLES —
+     and the list underneath it had the first three. The two missing ones were covered
+     only below the half-matched threshold, by the barely-recognisable test ('becoz',
+     'fort'); above it, where she IS pointed at letters, neither had a single case.
+
+     The expected letters here were written down BEFORE the engine was asked, so these
+     record a teacher's answer rather than the app's. It agreed on every one, including
+     the two that are the whole lesson — the silent `gh` of night and the `ch` of school
+     that says k. The engine was right before the test existed; what was missing was
+     anything holding it there. */
+  ['said',      'sed',       'spelled as it sounds', 'ai'],
+  ['night',     'nite',      'spelled as it sounds', 'gh'],
+  ['school',    'skool',     'spelled as it sounds', 'ch'],
+  ['different', 'diffrent',  'dropped a syllable',   'e'],
+  ['remember',  'rember',    'dropped a syllable',   'em'],
+  ['every',     'evry',      'dropped a syllable',   'e'],
+  ['beautiful', 'beaudiful', 'reversal mid-word',    't'],
 ];
 
 async function ask(page, target, typed){

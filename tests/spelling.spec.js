@@ -1,6 +1,6 @@
 // Acorn — spelling practice. The whole app, as a child and a parent use it.
 const {test, expect} = require('@playwright/test');
-const {open, errorsOf, write} = require('./helpers');
+const {open, errorsOf, write, reopen} = require('./helpers');
 
 // Put a specific list in front of her, unseen, and start a session.
 async function startOn(page, words, mastery){
@@ -1185,9 +1185,18 @@ test.describe('the grown-ups area', () => {
     await page.locator('[data-sc="1.3"]').click();
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--scale').trim())).toBe('1.3');
     await page.locator('[data-tn="mint"]').click();
-    await page.reload();
-    await page.waitForFunction(() => !!window.__acorn);
-    expect(await page.evaluate(() => document.documentElement.getAttribute('data-tint'))).toBe('mint');
+    /* The app's own half, asserted rather than assumed: the tap put it on the device.
+       This is the part that is ours, and it is deterministic. */
+    expect(await page.evaluate(() => {
+      try { return JSON.parse(localStorage.getItem('acorn.v1')).settings.tint; }
+      catch(e){ return 'unreadable'; }
+    }), 'the tap did not write the tint to the device').toBe('mint');
+    // And it is still there when she comes back. See `reopen` in helpers for why this
+    // is not page.reload(): that loses the whole file:// store about 3% of the time
+    // under load, which was this test's red on 2026-11-01.
+    const back = await reopen(page);
+    expect(await back.evaluate(() => document.documentElement.getAttribute('data-tint'))).toBe('mint');
+    expect(await back.evaluate(() => window.__acorn.state.settings.textScale)).toBe(1.3);
   });
 
   test('erase needs two taps and leaves a working app', async ({page}) => {
