@@ -273,3 +273,51 @@ test.describe('keeping her progress on the device at all', () => {
     expect(errorsOf(page), 'and it reached the page as an error').toEqual([]);
   });
 });
+
+test.describe('the special run, when storage is hostile', () => {
+  /* New state gets new ways to be wrong. `S.special` arrived with v1.28 on 2026-10-29,
+     which means every phone that had played before then has storage with no `special`
+     key at all — the ordinary upgrade path, and the one nobody thinks to try. Measured
+     2026-11-01: all nine of these come out sane, nothing throws, and the badge always
+     reads something true. The guard is here so that stays so. */
+
+  const CASES = [
+    ['missing entirely — a phone that played before v1.28', undefined, 0],
+    ['null',                 null,            0],
+    ['a string',             'banana',        0],
+    ['an array',             [],              0],
+    ['done past the end',    {done: 999},     8],
+    ['done negative',        {done: -5},      0],
+    ['done not a number',    {done: 'lots'},  0],
+    ['done fractional',      {done: 3.7},     4],
+    ['done null',            {done: null},    0],
+  ];
+
+  test('every shape of it loads to something sane, and nothing throws', async ({page}) => {
+    await open(page);
+    for(const [what, value, wantDone] of CASES){
+      const r = await page.evaluate(([v, hasV]) => {
+        const a = window.__144;
+        const raw = {prog:{cleared:12, placed:true}, facts:{}, power:{watts:5, charge:50}};
+        if(hasV) raw.special = v;
+        try {
+          localStorage.setItem('144.v1', JSON.stringify(raw));
+          a.load(); a.render();
+          const b2 = document.querySelector('#specgo');
+          return {done: a.specialDone(), idx: a.specialIndex(),
+                  badge: b2 ? b2.innerText.replace(/\s+/g, ' ').trim() : '(none)'};
+        } catch(e){ return {threw: String(e && e.message)}; }
+      }, [value === undefined ? null : value, value !== undefined]);
+
+      expect(r.threw, `${what} threw`).toBeUndefined();
+      expect(r.done, `${what} loaded as ${r.done}`).toBe(wantDone);
+      // Whatever came out of storage, the index must be a real level of the run.
+      expect(r.idx, `${what} gave an index outside the run`).toBeGreaterThanOrEqual(0);
+      expect(r.idx, `${what} gave an index outside the run`).toBeLessThan(8);
+      expect(r.badge, `${what} left the badge saying nothing`).not.toBe('(none)');
+      expect(r.badge, `${what} put a wrong-looking count on the badge`)
+        .toMatch(/4× special (all done|[0-8] of 8)/);
+    }
+    expect(errorsOf(page)).toEqual([]);
+  });
+});

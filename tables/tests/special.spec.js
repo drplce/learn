@@ -145,6 +145,46 @@ test.describe('the 4× special edition', () => {
     expect(r.carried, 'the ladder level resumed from the special run').toBe(0);
   });
 
+  test('a half-finished special level does not light up the ladder', async ({page}) => {
+    /* Found 2026-11-01, two days after the special edition shipped, by the robustness
+       rotation looking at the new state. Both runs number their levels from zero, and
+       renderHome only compared the index — so with the ladder at 3 and the 4× run also
+       at 3, the ladder's node wore the SPECIAL level's progress: a 20% ring and "Carry
+       on level 4 — 2 of 10 done" on a level she had never touched. Tapping it started
+       from nothing, because start() DOES check which run the part-finished level
+       belongs to. So it showed her progress she never had and then took it away. */
+    await open(page);
+    const r = await page.evaluate(async () => {
+      const a = window.__144;
+      a.state.prog.placed = true;
+      a.state.prog.cleared = 3;        // the ladder is at index 3
+      a.state.special.done = 3;        // and so is the special run
+      a.save();
+      a.start(a.SPECIAL[a.specialIndex()]);
+      for(let i = 0; i < 4; i++){
+        if(a.meeting && a.meeting()) a.skipMeet();
+        a.answer(true);
+        await new Promise(r2 => setTimeout(r2, 320));
+      }
+      const sit = JSON.parse(JSON.stringify(a.state.sit || {}));
+      a.go('home'); a.render();
+      const node = document.querySelector('#nowlevel');
+      return {sit, ladderIdx: a.levelIndex(), specialIdx: a.specialIndex(),
+              part: node ? node.classList.contains('part') : null,
+              label: node ? node.getAttribute('aria-label') : ''};
+    });
+    // The premise: the two runs really are sitting on the same index, and she really
+    // is part-way through the SPECIAL one. Without this the test proves nothing.
+    expect(r.ladderIdx, 'the fixture did not put both runs on the same index')
+      .toBe(r.specialIdx);
+    expect(r.sit.sp, 'the fixture did not part-finish a special level').toBe(true);
+    expect(r.sit.done, 'she had not answered anything').toBeGreaterThan(0);
+
+    expect(r.part, "the ladder wore the special run's progress").toBe(false);
+    expect(r.label, 'the ladder offered to carry on something she had not started')
+      .not.toMatch(/carry on/i);
+  });
+
   test('nothing on it is unkind, and its counts agree with their nouns',
     async ({page}) => {
     await open(page);

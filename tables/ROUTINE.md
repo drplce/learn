@@ -16,7 +16,7 @@ routine returns the favour.
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: weekly
-last-run: 2026-10-25T18:01Z
+last-run: 2026-11-01T18:01Z
 ```
 
 On each firing:
@@ -898,6 +898,49 @@ minutes, every time:
 ## 9. LOG — what each pass actually changed
 
 Newest first. One or two lines each; enough that David can skim a week in a minute.
+
+- **2026-11-01, 18:01Z (weekly pass, due at 168.0h exactly): the special edition was showing her
+  progress she never had. v1.29.** 169 pass, `sim-daily` green, `sim.js` red on the one known band
+  with identical numbers (77.8 → 77.4).
+  **§6 item 5, robustness — pointed at the code shipped three days ago**, because new state gets
+  new ways to be wrong and the 4× run had never had the adversarial pass everything else has had.
+  **The defect, and it was mine.** Both runs number their levels from zero, and `renderHome` only
+  compared the index: `S.sit.i === idx`, with no check of `S.sit.sp`. So with the ladder at index 3
+  and the 4× run also at index 3, part-finishing a SPECIAL level lit the LADDER's node — a 20%
+  ring and *"Carry on level 4 — 2 of 10 done"* on a level she had never touched. Tapping it then
+  started from nothing, because `start()` DOES check. **The path showed a nine-year-old progress
+  she never had and then took it away.** One `!S.sit.sp` fixes it; teeth-checked, restoring the
+  two-day-old shape reds that test alone. **VERSION bumped: a false ring is a thing she sees.**
+  **Also measured, and NOT a defect:** nine hostile shapes of `S.special` in storage — missing
+  entirely (which is every phone that played before v1.28, the ordinary upgrade path and the one
+  nobody thinks to try), null, a string, an array, `done` at 999, negative, fractional, a string,
+  null. All nine load sane, nothing throws, and the badge always reads something true. Guarded in
+  `robust.spec.js` now rather than left to luck.
+  **And one candidate that died by reading before it cost anything:** "what about an old backup" —
+  144 has no restore path at all, only the diagnostics export. There is no backup to be stale.
+  **And a flaky test turned into a reliable one, after I made the same mistake twice.**
+  `picker.spec.js` "over a year of review, every fact in the pool actually comes up" went red
+  during this pass: one fact of 78 never drawn in 2,000. Measured rather than assumed — **no fact
+  is starved.** Over 40,000 draws every one of the 78 comes up; the weakest (8×8) takes 0.32%
+  against 1.28% for an even split, a 4× spread which is weak-first doing its job. At that share a
+  fact is missed in 2,000 draws about 0.16% of the time, summing to the ~1.7% flake rate measured
+  (1 in 60). So the picker was right and the test was under-sampled. **8,000 draws now** — which
+  measures the claim harder, not softer: a starved fact is still at zero, while the weakest honest
+  one is missed about once in 10^11.
+  **The part worth keeping is the mistake.** I also added a `minShare` floor as a second way to
+  say the same thing, and set its threshold at a quarter of an even share — which is exactly where
+  the real minimum sits. 25 failures out of 25. Re-measured over 25 runs, set it at 0.08 of even,
+  and over 240 runs the tail reached 0.078, so it flaked again. **Twice I put a threshold at the
+  edge of a distribution I had under-sampled — the second time having just written a comment in
+  that very test about the first.** It was removed rather than tuned a third time: a number
+  adjusted until it stops failing is a number that no longer catches anything. 300/300 after.
+  **A correction, on the record because it was told to David twice.** On 2026-10-30 I said this
+  suite had "the same no-headroom problem" Acorn had just been fixed for, and was "more exposed".
+  That was asserted without checking and it was wrong: the heavy tests here raise their own budget
+  with `test.setTimeout(180000)` in four files, where Acorn's sat at 72% and 92% of the 30s
+  default. Measured here: 36.2s and 32.7s, both covered by their own 180s. The real exposure is the
+  next tier at 16.6s against 30s, which a half-speed container would still tip — so a 90s floor is
+  in the config now, with that number rather than the inflated one.
 
 - **2026-10-29 — DAVID ASKED, LIVE: "Can I get a 4x table special edition for 144". Built and
   shipped as v1.28.** Not a cron pass; the weekly cadence state is untouched.

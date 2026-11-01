@@ -73,6 +73,10 @@ async function draw(page, n){
       distinct: Object.keys(counts).length,
       never: pool.filter(k => !counts[k]).length,
       topShare: Math.max(...Object.values(counts)) / count,
+      // The thinnest slice any fact gets — the direct way to ask whether one is
+      // being squeezed out, rather than inferring it from a zero that only shows
+      // up when the sample is small enough to be unlucky.
+      minShare: Math.min(...pool.map(k => counts[k] || 0)) / count,
       backToBack: backToBack,
       weakShare: share(pool.filter(k => rate(k) >= 0.5)),
       weakPop: pool.filter(k => rate(k) >= 0.5).length / pool.length,
@@ -89,10 +93,33 @@ async function draw(page, n){
 test.describe('what she gets asked', () => {
 
   test('over a year of review, every fact in the pool actually comes up', async ({page}) => {
+    /* 8,000 draws, not 2,000 — and that is measuring the claim harder, not loosening it.
+       At 2,000 this failed about one run in sixty (measured: 1 in 60, and once in a real
+       suite run on 2026-11-01) and the failure said nothing was wrong with the picker.
+       Checked properly over 40,000 draws: NO fact is starved. Every one of the 78 comes
+       up, the weakest (8×8) takes 0.32% against 1.28% for an even split — a 4× spread,
+       which is weak-first doing exactly its job. At that share a fact has a 0.16% chance
+       of being missed in 2,000 draws, and summed across the low tail that is the ~1-2%
+       flake rate seen. At 8,000 the same fact's chance of being missed is about 1 in
+       10^11, so a red here means a fact really is starved. The run costs ~2s.
+
+       A `minShare` floor was tried here as a second, more direct way to say "nothing is
+       squeezed out", and it was REMOVED after flaking twice — the episode is worth more
+       than the assertion was. First attempt: a quarter of an even share, which is exactly
+       where the real minimum sits; 25 failures out of 25. Second: 0.08 of even, set from
+       25 sampled runs whose lowest was 0.166 — and over 240 runs the tail reached 0.078,
+       so it flaked again. Setting a threshold at the edge of an under-sampled distribution,
+       twice, having just written a comment in this very test about the first time.
+
+       It went rather than being tuned a third time, because a number adjusted until it
+       stops failing is a number that no longer catches anything. `never === 0` at 8,000
+       draws already states the property and states it reliably: a genuinely starved fact
+       is at zero and fails it, while the weakest honest fact misses only about one run in
+       10^11. One assertion that bites beats two that need luck. */
     await open(page, PIN_TODAY);
     await pinned(page);
     await midYear(page);
-    const d = await draw(page, 2000);
+    const d = await draw(page, 8000);
     expect(d.pool).toBe(78);
     expect(d.never, 'facts she would never once be asked').toBe(0);
     expect(d.distinct).toBe(78);

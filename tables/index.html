@@ -610,7 +610,7 @@ p.hint{margin:0 0 var(--s3); font-size:var(--t-xs); color:var(--ink-soft); font-
 <script>
 (function(){
 'use strict';
-var VERSION = '1.28';
+var VERSION = '1.29';
 
 /* =========================================================
    1. Dates — always local, so a 9pm session never lands on
@@ -1755,7 +1755,14 @@ function renderHome(){
   var now = el('#path .level.now');
   if(now && S.prog.placed){
     var st = LEVELS[idx], goal = goalOf(st);
-    var doneIn = (S.sit && S.sit.i === idx) ? S.sit.done : 0;
+    /* ONLY the ladder's own part-finished level. The special run numbers its levels
+       from zero too, so with the ladder at index 3 and the 4× run also at index 3 this
+       lit the ladder's node with the SPECIAL level's progress: a 20% ring and "Carry on
+       level 4 — 2 of 10 done" on a level she had never touched. Tapping it then started
+       from nothing, because start() does check — so the path showed a nine-year-old
+       progress she never had and then took it away. Introduced with the special edition
+       on 2026-10-29 and found by the robustness rotation two days later. */
+    var doneIn = (S.sit && !S.sit.sp && S.sit.i === idx) ? S.sit.done : 0;
     if(doneIn > 0){
       now.classList.add('part');
       now.style.setProperty('--part', Math.min(100, Math.round(doneIn / goal * 100)) + '%');

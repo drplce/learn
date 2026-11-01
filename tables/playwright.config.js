@@ -41,6 +41,15 @@ module.exports = defineConfig({
   // unwatched loop is worse than a slower suite: the whole point of these tests is
   // that a failure means something. Costs ~50 seconds.
   workers: 1,
+  /* A floor under the slower containers, added 2026-11-01 — with the numbers, because the
+     claim that went with it was wrong the first time it was made. The heavy tests here
+     already raise their own budget (`test.setTimeout(180000)` in four files), so this suite
+     did NOT have Acorn's problem, which was tests at 72% and 92% of the default. What is
+     left is the next tier: 16.6s against the default 30s, which a container running at half
+     speed would still tip over, and Acorn saw exactly that on 2026-10-30. Patience is not an
+     assertion — nothing waits longer when it passes — and a false red is expensive while
+     §5 says a red is a red. */
+  timeout: 90000,
   fullyParallel: false,
   reporter: [['list']],
   projects: [{
