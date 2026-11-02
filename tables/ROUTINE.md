@@ -37,6 +37,24 @@ On each firing:
    is missing (a fresh container has none), `npm install` — it is quick, and the browsers are
    already on the image.
 
+
+   **AND CHECK WHAT SHE IS ACTUALLY RUNNING** (added 2026-11-02, after this went
+   unnoticed for eleven weeks). The branch is not the app. GitHub Pages serves `main`, and
+   on 2026-11-02 `main` had not moved since 13 August: **55 commits behind, 144 twelve versions back and Acorn one.** Every pass in that stretch tested, fixed
+   and reported on code she did not have. Nothing was lost and nothing was wrong with the
+   work — but "shipped" was never true, and no step in this file asked. So:
+
+   ```
+   git fetch origin main
+   git rev-list --count origin/main..HEAD      # commits she does not have yet
+   git show origin/main:tables/index.html | grep -m1 'var VERSION'
+   ```
+
+   **Say the number in the pass report when it is not zero.** Merging to `main` is the
+   deploy — it reaches her phone — so it is David's call and never the loop's, and he gave
+   it once, for one merge, on 2026-11-02. One firing's permission is not standing
+   permission. Report the gap and leave it.
+
 1. Read `interval` and `last-run`. Run `date -u +"%Y-%m-%dT%H:%MZ"` for now.
 2. Hours per interval: `30m`=0.5, `hourly`=1, `daily`=24, `weekly`=168.
 3. **If less than that has passed:** say one line — `not due (interval=X, Nh since last run)` — and

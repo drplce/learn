@@ -65,6 +65,16 @@ Status: ⬜ todo · 🔨 in progress · ✅ done · ⏸ gated · 🔬 research r
   **A fix was built and thrown away:** rescuing any whole-word arrival she had mostly typed herself
   stopped the hand-back and marked the misspelling **right**. Worse than the problem. Recorded so
   nobody rebuilds it. The autocorrect fixture is modelled, not captured from her phone.
+- ✅ **SHIP-1 (2026-11-02)** — **both apps went live, and had not been for eleven weeks.** David
+  asked whether the 4× special was live; it was not, and nor was anything since 13 August. `main`
+  (what GitHub Pages serves) was **55 commits behind** — Acorn 13.44 against 13.45, 144 **v1.17
+  against v1.29**. Every pass in that stretch reported on code she did not have. Verified on the
+  exact commit, fast-forwarded on his say-so, confirmed `origin/main` after. **Step 0 of both
+  routines now checks the gap and says the number**, because nothing in either file ever asked —
+  and records that merging is the deploy and is David's call every time, not a standing permission.
+  Post-deploy audit of the 39 published files, all clean: no absolute paths (both apps live in
+  subdirectories), both home-screen icons resolve, no secrets in the diff, name rule consistent
+  with being kept.
 - ✅ **HAR-15 (2026-11-01)** — **reloading a `file://` page can come back to an EMPTY store, and it
   is a class.** Confirmed on a second unrelated test (`spelling.spec.js` tint, after
   `tonight.spec.js` on 10-27), same signature — setting on the device before, `keys []` and

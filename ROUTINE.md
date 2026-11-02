@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-11-01T17:09Z
+last-run: 2026-11-02T17:39Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -41,6 +41,25 @@ The trigger fires once a day, but you only do a **full pass** as often as `inter
    the image had also changed shape underneath (see §5 on `findChromium`), so **after
    `npm install`, run something small before trusting a red**: a single spec file is enough to
    prove a browser launches at all.
+
+
+   **AND CHECK WHAT SHE IS ACTUALLY RUNNING** (added 2026-11-02, after this went
+   unnoticed for eleven weeks). The branch is not the app. GitHub Pages serves `main`, and
+   on 2026-11-02 `main` had not moved since 13 August: **55 commits behind, Acorn one
+   version back and 144 twelve versions back.** Every pass in that stretch tested, fixed
+   and reported on code she did not have. Nothing was lost and nothing was wrong with the
+   work — but "shipped" was never true, and no step in this file asked. So:
+
+   ```
+   git fetch origin main
+   git rev-list --count origin/main..HEAD      # commits she does not have yet
+   git show origin/main:index.html | grep -m1 'var VERSION'
+   ```
+
+   **Say the number in the pass report when it is not zero.** Merging to `main` is the
+   deploy — it reaches her phone — so it is David's call and never the loop's, and he gave
+   it once, for one merge, on 2026-11-02. One firing's permission is not standing
+   permission. Report the gap and leave it.
 
 1. Read `interval` and `last-run` above. Run `date -u +"%Y-%m-%dT%H:%MZ"` for now.
 2. Hours per interval: `daily`=24, `weekly`=168. (`hourly`/`2h` are retired — see the ladder.)
@@ -1023,6 +1042,52 @@ today, so no VERSION bump** — and that is worth saying plainly rather than dre
 right on everything this pass looked at.
 
 **Staying `daily`.**
+
+**Cadence note (17:39Z, 2026-11-02, due at 24.5h): the day both apps actually went live, and the
+day it became clear they had not been.**
+
+David asked, in the morning: *"is the 4x special live?"* It was not. Checking it properly turned up
+something much larger than the question: **`main` had not moved since 13 August.** GitHub Pages
+serves `main`; everything since then sat on `claude/discussion-5s3je6`, 55 commits ahead. Acorn was
+one version back on her phone (13.44 against 13.45) and **144 was twelve back — v1.17 against
+v1.29.** Eleven weeks of passes had tested, fixed and reported on code she did not have.
+
+Nothing was lost and nothing was wrong with the work. But "shipped" was never true, and **no step in
+this file ever asked.** The gate checks that the STATE block is not stale and that a browser
+launches; it never checked the one thing that decides whether any of it reaches her. Step 0 now
+does, in both routines, with the command and the eleven weeks written into it.
+
+He said merge it. Verified first on the exact commit that would ship rather than trusting the
+previous day's runs — 610 pass, sim in band, break clean; 144 169 pass, sim-daily green — then
+fast-forwarded (`main` was a strict ancestor, no conflicts) and confirmed `origin/main` afterwards:
+Acorn 13.45, 144 v1.29, `SPECIAL_TABLE` present. **One firing's permission is not standing
+permission, and the gate now says so: merging is the deploy, it reaches her phone, and it is his
+call every time.**
+
+**Then the pass proper: a post-deploy audit, because 55 commits had just become public and live.**
+Four checks, all clean, and worth listing because a clean result only means something when the
+checks are named:
+- **Nothing assumes it is served from the root.** Both apps are served from subdirectories
+  (`/learn/` and `/learn/tables/`) and both use relative paths throughout — no absolute `href`,
+  `src`, `url()` or `fetch()` anywhere in either.
+- **Each app's home-screen icon resolves.** Both ask for `apple-touch-icon.png` relative to
+  themselves, and both files exist in the right directory — 144 has its own, as §4 of its routine
+  intends.
+- **Nothing secret was published.** Scanned the whole 39-file diff for key/secret/token/bearer
+  shapes and for long base64 or hex blobs: the only hit was the phrase "token-level" in my own
+  prose.
+- **The name rule looks kept.** The fixtures use a scatter of invented placeholders (Albert,
+  Bubbles, Bahh, Daniel, Ivy), which is what that looks like when it is being followed, and
+  `her-name.spec.js` is about a long name breaking the praise box rather than about hard-coding
+  hers. **Deliberately not investigated further: hunting for her name to check it is absent is the
+  wrong way to honour a privacy rule.**
+
+Harnesses: 610 pass, sim in band, break clean across 39 cases. **No change to either app today, so
+no VERSION bump** — the only edits are to the two routines' step 0.
+
+**Staying `daily`**, and worth a sentence: she now has eleven weeks of change in one evening, so
+the next few passes should watch for anything she actually meets rather than only what the
+harnesses can reach.
 
 **Cadence note (17:13Z, 2026-09-30, due at 168.0h exactly):** fresh container, `npm install`, then
 594 pass, sim in band, break clean across 39 cases. **Nothing found in the app; no app change.**
