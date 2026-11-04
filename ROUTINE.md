@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-11-02T17:39Z
+last-run: 2026-11-04T17:11Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -1089,6 +1089,83 @@ no VERSION bump** — the only edits are to the two routines' step 0.
 the next few passes should watch for anything she actually meets rather than only what the
 harnesses can reach.
 
+**Cadence note (17:11Z, 2026-11-04, due at 47.6h — yesterday's firing was 29 minutes short and
+skipped): the suite went red, and the red was the browser, not the app — but the test was still
+at fault.**
+
+`two-windows.spec.js` "and her answering does not erase the list he just saved" failed in the
+baseline run, 609 passed and 1 failed. Its own log, added 2026-09-30 and finally pointing at the
+right test, made the cause readable in one red: her window read the device at her save and found
+the list **she** had seeded, not the one a grown-up had pasted 10ms earlier, and heard about his
+69ms later.
+
+**Measured before believing it, because three hypotheses in this project have been wrong by
+reading alone.** Two pages in one context, forty writes on an idle machine: the second page's
+first read of a value the first had already read back was **stale 1 time in 40, by about 2ms**.
+`localStorage` is a per-renderer cache with the browser process pushing changes across, so a page
+can write, read its own write, and the other page still not see it. §5 carries the numbers.
+
+**That makes it a defect in the test, and the same one twice.** The test was the surviving half of
+the pair rebuilt on 2026-10-22 — its sibling got a wait for "her window has heard" and this one,
+written in August, never did. Two more in the file had the same shape and had simply not been
+caught yet. All three wait now. And one line that had been quietly meaningless is gone with it:
+`expect((await onDevice(dad)).lists).toContain('Week 10')` asked the **writer** whether its write
+had landed, which it can only ever answer yes to. A write is on the device when another window
+can read it, and not before.
+
+**The teeth-check is the uncomfortable part, and it is why a test was added rather than three
+repaired.** Injecting regressions and reading which tests red: take `mergeSaved` out of `save()`
+altogether and **every live two-window test in the file stays green**, because each has by then
+waited for her window to hear and is carrying the right state anyway. What reds them is killing
+the `storage` listener — six of them at once. §5 has said since August that the listener keeps the
+screen fresh and the **merge** keeps the data; these tests are named for the data and were holding
+the view.
+
+So `and not even when her window has not been told` builds the stale window instead of waiting for
+it: `win(..., deaf)` suppresses the listeners the app registers as it loads, leaving a window that
+reads and writes storage normally and is simply never told. The state is constructed, not timed,
+so it cannot flake. Removing the merge reds it; disabling the `untouched` branch reds it; killing
+the listener correctly leaves it green. **It is the only test driving two real windows that
+notices any of that.** `break.js` §31 has used the same stubbing since August for her answers —
+this is that method applied to a grown-up's lists, in a real second window.
+
+**Then the repaired file was hammered, and it found a second thing — mine.** Every wait in it
+used a 3000ms budget, and under `--repeat-each=40 --workers=6` one ran out. I raised the budget,
+which was the obvious reading and the wrong one. A diagnostic attached to the wait — print what
+the window being waited on could actually see — settled it on the next run:
+`{"visibility":"visible","deaf":false,"onDiskFromHere":"unreadable","log":[]}`. An empty `file://`
+store and no storage event in fifteen seconds. That is the §5 🟢 class, and no budget cures it.
+**Measured against the pre-repair file under the identical hammer: 4 failures in 520 trials
+before, 2 in 560 after** — so the waits roughly halved it and what is left is the environment.
+The budget stays raised because it costs nothing on a green run, and the comment says plainly
+that raising it fixed nothing. §5 now carries the second signature of the class: a *second page*
+coming up empty, not only a reloaded one.
+
+**Also looked, per the last pass's note about eleven weeks landing on her phone at once:** the word
+screen and the finished garden on an iPhone SE, light and dark. Both correct, no page errors. The
+write stage's empty box is the design (it would be a copying exercise otherwise), and the garden
+reads bright-on-dark / deep-on-light, which is the 2026-09-20 finding the caption was reworded to
+survive. Nothing to report, which is worth saying plainly.
+
+**And §7 was corrected.** It still said "commit and push to `main` after every meaningful change",
+which §1 step 0 has contradicted since 2026-11-02 — pushing to `main` IS the deploy and is David's
+call. Two steps of this file told opposite stories for eleven weeks: the same defect §6.2 keeps
+finding in the app's copy, in the routine's own.
+
+Harnesses: **611 pass** (one new test), sim in band (first-go 92.5%, known material 87.1%), break
+clean across 39 cases. **No change to `index.html`, so no VERSION bump** — the app was right about
+everything this pass looked at; what was wrong was the harness and this file.
+
+**Staying `daily`:** a defect found and fixed.
+
+**The gate lost a fourth and fifth day, and will lose another tomorrow.** 2026-11-03 fired at
+17:10 against a `last-run` of 17:39 — 23.52h, short by 29 minutes, because 2026-11-02 fired late
+and that late minute was the one stamped. Today's firing is stamped 17:11 against a scheduled
+17:08, so tomorrow reads about 23.95h and skips too. Step 4 requires the firing time, and the
+cadence rules are David's alone, so this is reported for the third time rather than fixed:
+**either compare with a tolerance (≥ interval − 15 min is due) or stamp the trigger's SCHEDULED
+time**, which this session is told on every firing. One line either way.
+
 **Cadence note (17:13Z, 2026-09-30, due at 168.0h exactly):** fresh container, `npm install`, then
 594 pass, sim in band, break clean across 39 cases. **Nothing found in the app; no app change.**
 
@@ -1141,6 +1218,34 @@ node tests/sim.js       # pacing simulation: real engine, modelled learners; non
 node tests/break.js     # adversarial pass; non-zero on any finding
 ```
 
+**🟠 TWO PAGES DO NOT SHARE `localStorage` THE INSTANT ONE OF THEM WRITES (measured
+2026-11-04).** Each renderer holds its own cached copy of the storage area and the browser
+process pushes changes across; `getItem` reads the cache. So a page can write, read its own
+write back, and a second page still sees the old value.
+
+**Measured directly** — two pages in one context, forty writes, idle machine: the second page's
+first read was stale **1 time in 40, by about 2ms**. Under the parallel suite the window is wide
+enough to swallow a whole test.
+
+Two consequences, and the first is the one that had been quietly wrong in this project for months:
+
+- **Asking the writer whether its write landed proves nothing.** It reads its own cache. The only
+  evidence a value is on the device is ANOTHER window reading it back.
+- **A test with two real windows writing in turn must wait in between, or it is a stopwatch.**
+  Three in `two-windows.spec.js` did not and now do.
+
+**The app cannot close this, and that is not a dodge:** `getItem` is a page's only view of the
+store and nothing forces a fresh read. On her phone it would take a grown-up's paste and her
+answer landing within the same few milliseconds. Residual and unfixable in-page; recorded rather
+than papered over.
+
+**`break.js` §31 is exposed to it too, deliberately left alone.** It interleaves two windows with
+no waits, which is the point of it — taking turns is the easy case. A stale cache there would make
+a window clobber the other's answer and §31 would report it as a finding. That finding would be
+true (work really was lost) but the cause would be the browser, not the app. If §31 ever reports
+"words she had met went down" once and never again, check the two-window timing before believing
+it is a regression. It has never done so.
+
 **🟢 RELOADING A `file://` PAGE CAN COME BACK TO AN EMPTY STORE. Confirmed on two unrelated
 tests; it is a class, not a quirk.** First seen 2026-10-27 as `tonight.spec.js` "it survives a
 reload", then again 2026-11-01 as `spelling.spec.js` "text size and tint apply and stick". Same
@@ -1165,6 +1270,19 @@ flake needs load, hammer the FILE under load; do not run the whole suite again.*
 its `clear()` does not reach it, and closing it does not either — so the sibling app's `workers: 1`
 diagnosis still does not transfer. `context.storageState()` reports no `file://` origins at all, so
 it cannot be used to check whether a write has landed.
+
+**And it is not only reloads (added 2026-11-04). A second PAGE in the same context can come up
+on an empty store too**, and then it neither reads nor hears anything for as long as you wait.
+Signature, printed by `two-windows.spec.js`'s own wait when it times out:
+
+    {"visibility":"visible","deaf":false,"onDiskFromHere":"unreadable","log":[]}
+
+`localStorage.getItem` returns null and not one `storage` event has arrived in fifteen seconds —
+so it is not propagation lag and no timeout budget cures it. **Rate, measured under
+`--repeat-each=40 --workers=6` on that one file: 2 failures in 560 trials (~0.4%)**, against 4 in
+520 for the version of the file from before that day's repair. The full suite runs each test once,
+which is why it is rarely seen there. If a two-window test reds with an empty `onDiskFromHere` and
+an empty `log`, this is what it is — do not go looking for it in the app.
 
 **What to do when a test reds this way.** `helpers.js` now exports **`reopen(page)`** — a fresh page
 in the same context. It reads the same storage, is closer to what her phone does when iOS drops the
@@ -1364,7 +1482,14 @@ defects reading the code misses. Use all three. **Distrust your own probes as mu
 a green (or a red) can mean the probe measured the wrong thing (e.g. a 4.5:1 bar applied to
 large text that only needs 3:1). Add a regression test for every defect you fix and verify it
 fails on the broken version (inject the regression, watch it fail, revert). Commit and push to
-`main` after every meaningful change — Pages deploys automatically, no deploy step.
+**`claude/discussion-5s3je6`** after every meaningful change.
+
+**This line used to say "push to `main`", and it was stale from the day the work moved to a
+branch.** Pages serves `main`, so a push there IS the deploy and reaches her phone; §1 step 0 has
+said since 2026-11-02 that the merge is David's call every time and never the loop's. Two steps of
+the same file told opposite stories for eleven weeks, which is the same defect §6.2 keeps finding in
+the app's own copy — a sentence that was true when written and was falsified later by something
+else changing. Corrected 2026-11-04.
 
 **NOT NOW, unless asked:** PLAN.md §3a private-repo sync, §5B maths. Interleaving spelling
 patterns once a pattern is established is legitimate if you run out of higher-value work.

@@ -52,6 +52,10 @@ const MERGE_LOG = () => {
   const mine = () => { try { return window.__acorn.state.words.lists.map(l => l.name); }
                        catch(e){ return 'unreadable'; } };
   const t0 = Date.now();
+  /* A deaf window (see `win(..., deaf)`) suppresses only the listeners registered while the
+     app loads — this one, added afterwards, still has to work, or a deaf window's failure
+     would print nothing. */
+  window.__deaf = false;
   window.addEventListener('storage', e => {
     if(e.key === 'acorn.v1') window.__saves.push({at: Date.now() - t0, heard: names(e.newValue)});
   });
@@ -67,6 +71,74 @@ const MERGE_LOG = () => {
     return real.apply(this, arguments);
   };
 };
+/* WHY EVERY TWO-WINDOW TEST HERE WAITS, measured 2026-11-04.
+   `localStorage` is not shared between two pages the instant one of them writes. Each
+   renderer holds its own cached copy of the storage area and the browser process pushes
+   changes across; `getItem` reads the cache. So a page can write, read its own write back,
+   and a second page still sees the old value for a few milliseconds.
+
+   Measured directly, two pages in one context, forty writes on an idle machine: the second
+   page's first read was stale **1 time in 40, by about 2ms**. Under the parallel suite the
+   window is wide enough to swallow a whole test — which is exactly what happened to
+   `and her answering does not erase the list he just saved` on 2026-11-04, after 609 green:
+   her window read the device at her save and found the list she had seeded, not the one a
+   grown-up had pasted 10ms earlier, and heard about his 69ms later. Its log said so in one
+   red, which is what that log is for.
+
+   Two consequences for any test in this file:
+     - **Asking the writer whether its write landed proves nothing.** It is reading its own
+       cache. The only proof that a value is on the device is ANOTHER window reading it.
+     - **A test where two real windows write in turn must wait in between**, or it is a
+       stopwatch. `and the same thing with two real windows` already waited, having been
+       rebuilt on 2026-10-22; the three older tests around it did not, and now do.
+
+   The app cannot close this, and that is not a dodge: `getItem` is the only view a page has
+   of the store, and there is no API that forces a fresh read. On her phone it would need a
+   grown-up's paste and her answer to land within the same few milliseconds. Recorded rather
+   than papered over. */
+/* The budget is deliberately generous: `expect.poll` returns the moment the predicate holds, so
+   a long one is only ever spent on a run that is already failing. It was raised from 3000ms on
+   2026-11-04 after a wait ran out once in 40 trials under six workers — and **raising it was not
+   what that failure needed**, which is worth saying rather than quietly keeping the credit. With
+   the diagnostic below attached, the next run showed what the waiting window could actually see:
+
+     {"visibility":"visible","deaf":false,"onDiskFromHere":"unreadable","log":[]}
+
+   An empty `file://` store and not one storage event in fifteen seconds. That is the class
+   ROUTINE.md §5 already carries — a `file://` page coming up on a store that is not the shared
+   one — and no budget cures it. Measured against the version of this file from before today's
+   repair, under the identical hammer: **4 failures in 520 trials before, 2 in 560 after**, so the
+   waits roughly halved it and the residue is the environment. The budget stays generous anyway,
+   because it costs nothing on a green run. */
+const HEARD_MS = 15000;
+const WHAT_IT_SAW = () => {
+  let disk = 'unreadable';
+  try{ const o = JSON.parse(localStorage.getItem('acorn.v1') || '{}');
+       disk = {lists: (o.words.lists || []).map(l => l.name),
+               mastery: Object.keys(o.words.mastery || {}),
+               sessions: (o.words.sessions || []).length,
+               tint: (o.settings || {}).tint, name: (o.profile || {}).name}; }catch(e){}
+  return {visibility: document.visibilityState, deaf: !!window.__deaf,
+          onDiskFromHere: disk, log: window.__saves || []};
+};
+const heard = async (p, read, ok, what) => {
+  const t0 = Date.now();
+  try{
+    await expect.poll(() => p.evaluate(read).then(ok),
+      {timeout: HEARD_MS, message: 'the other window never heard about ' + what}).toBe(true);
+  }catch(e){
+    // A wait that times out has to say what the window it was watching could actually see,
+    // or it reports "never heard" for a page that was looking at the right thing all along.
+    const saw = await p.evaluate(WHAT_IT_SAW).catch(() => 'the page would not answer');
+    throw new Error(e.message + '\n  what that window saw: ' + JSON.stringify(saw));
+  }
+  const ms = Date.now() - t0;
+  if(ms > 500) console.log('[heard] ' + what + ': ' + ms + 'ms');   // the tail, when there is one
+};
+const LISTS = () => window.__acorn.state.words.lists.map(l => l.name);
+const MASTERY = () => Object.keys(window.__acorn.state.words.mastery || {});
+const SESSIONS = () => (window.__acorn.state.words.sessions || []).length;
+
 const savesOf = p => p.evaluate(() => window.__saves || []).catch(() => []);
 // Both windows' save logs, for a failure message that says what happened rather than
 // only what is missing.
@@ -76,12 +148,26 @@ async function story(...pages){
   return '\n  ' + out.join('\n  ');
 }
 
-async function win(context, today, tag){
+async function win(context, today, tag, deaf){
   const p = await context.newPage();
   const errs = [];
   p.on('pageerror', e => errs.push(e.message));
   p.__errs = errs;
   p.__tag = tag || 'window';
+  /* `deaf` gives a window that genuinely has not heard — the state the racing tests used to
+     reach by accident, now reached on purpose. The app registers its `storage` listener as
+     it loads, so suppressing registrations until the page has booted leaves a window that
+     reads and writes storage normally and is simply never told. break.js §31 does the same
+     thing for her answers, and for the same reason: the guard on a grown-up's work is the
+     merge in save(), not the listener, and only a window that cannot hear can prove it. */
+  if(deaf) await p.addInitScript(() => {
+    window.__deaf = true;
+    const real = window.addEventListener;
+    window.addEventListener = function(t, f, o){
+      if(t === 'storage' && window.__deaf) return;
+      return real.call(this, t, f, o);
+    };
+  });
   await p.goto(APP);
   await p.waitForFunction(() => !!window.__acorn);
   await p.evaluate(MERGE_LOG);
@@ -114,16 +200,21 @@ test.describe('two windows on the same device', () => {
 
   test('a grown-up changing a setting does not erase the word she just got',
     async ({context}) => {
-    const her = await win(context);
+    const her = await win(context, null, 'her');
     await seed(her, ['said', 'rain', 'beautiful']);
-    const dad = await win(context);           // opens holding the state as it is now
+    const dad = await win(context, null, 'dad');   // opens holding the state as it is now
     await answerOne(her);
     expect((await onDevice(her)).mastery, 'her answer was not recorded').toEqual(['said']);
-    // His window still holds the state from before she answered.
+    // His window has to have heard her answer before he writes over it, or this is a race
+    // against the browser rather than a test of the merge — see HEARD at the top.
+    await heard(dad, MASTERY, ws => ws.includes('said'), 'her answer');
     await dad.evaluate(() => { window.__acorn.go('parent'); });
     await dad.locator('[data-tn="mint"]').click();
     const after = await onDevice(dad);
-    expect(after.mastery, 'her answer was erased by a tap next door').toEqual(['said']);
+    expect(after.mastery,
+      'her answer was erased by a tap next door. What each window\'s save() did:'
+      + await story(her, dad))
+      .toEqual(['said']);
     expect(after.tint, 'his tap did not take').toBe('mint');
   });
 
@@ -137,7 +228,9 @@ test.describe('two windows on the same device', () => {
       a.state.words.activeId = 'new';
       a.save();
     });
-    expect((await onDevice(dad)).lists).toContain('Week 10');
+    // NOT `onDevice(dad)`: a page reads its own renderer's cached copy, so asking the
+    // writer whether the write landed can only ever say yes. See HEARD at the top.
+    await heard(her, LISTS, ls => ls.includes('Week 10'), 'the list he pasted');
     await answerOne(her);
     const after = await onDevice(her);
     expect(after.lists,
@@ -147,10 +240,50 @@ test.describe('two windows on the same device', () => {
     expect(after.mastery.length, 'her answer was not recorded').toBeGreaterThan(0);
   });
 
+  test('and not even when her window has not been told', async ({context}) => {
+    /* The twin of the test above, and the one with teeth on the merge rather than on the
+       listener. Measured 2026-11-04, by injecting regressions and reading which tests red:
+       take the merge out of save() altogether and every LIVE two-window test in this file
+       stays green, because by then each one has waited for her window to hear and her
+       window is carrying the right state anyway. What reds them is killing the `storage`
+       listener. That is worth having — but it is the view, not the data, and their titles
+       are about the data.
+
+       So this one makes her window deaf instead of waiting: it reads his write off the
+       device when it saves, exactly as `save()` does, and has never been told. Deterministic
+       — the deafness is built, not timed. Taking the merge out of save() reds it, and
+       disabling the `untouched` branch alone reds it: it is the only test driving two real
+       windows that notices either. Killing the listener leaves it green, correctly, because
+       it was never listening. */
+    const her = await win(context, null, 'her', true);
+    const dad = await win(context, null, 'dad');
+    await seed(her, ['said', 'rain']);
+    await dad.evaluate(() => {
+      const a = window.__acorn;
+      a.state.words.lists = [{id: 'new', name: 'Week 10', words: ['through', 'thought']}];
+      a.state.words.activeId = 'new';
+      a.save();
+    });
+    // His write has reached HER renderer — read from her page, which is the only reading
+    // that is evidence about the device — while her window's own state has not moved.
+    await heard(her, () => (JSON.parse(localStorage.getItem('acorn.v1') || '{}')
+        .words.lists || []).map(l => l.name),
+      ls => ls.includes('Week 10'), 'his write reaching her renderer');
+    expect(await her.evaluate(LISTS), 'her window was told after all — it is not deaf')
+      .toEqual(['Week 9']);
+    await answerOne(her);
+    const after = await onDevice(her);
+    expect(after.lists,
+      'a window that had not heard wrote the pasted list away. What each window\'s save() did:'
+      + await story(her, dad))
+      .toContain('Week 10');
+    expect(after.mastery.length, 'her answer was not recorded').toBeGreaterThan(0);
+  });
+
   test('a sitting finished in each window leaves two sittings, not one',
     async ({context}) => {
-    const a = await win(context);
-    const b = await win(context);
+    const a = await win(context, null, 'first');
+    const b = await win(context, null, 'second');
     await seed(a, ['said', 'rain']);
     const finish = p => p.evaluate(() => {
       const x = window.__acorn;
@@ -162,9 +295,24 @@ test.describe('two windows on the same device', () => {
         x.next();
       }
     });
+    // The second window was opened before the list existed, so it only has one by hearing
+    // about it; and it must have heard the first sitting before it writes its own, or the
+    // merge it is being asked about never sees the record it is supposed to keep.
+    await heard(b, LISTS, ls => ls.length > 0, 'the list');
     await finish(a);
+    await heard(b, SESSIONS, n => n === 1, "the first window's sitting");
+    const beforeB = (await savesOf(a)).length;
     await finish(b);
-    expect((await onDevice(a)).sessions, 'one of the two sittings was lost').toBe(2);
+    /* And read it back from the window that did NOT write last — by the note at the top,
+       that is the only reading which is evidence about the device rather than about a
+       cache. The wait is on a's storage events ARRIVING, deliberately, not on them saying
+       the right thing: a wait that already asserts the answer turns a real defect into a
+       three-second timeout with a misleading message. */
+    await heard(a, () => (window.__saves || []).length, n => n > beforeB,
+      'the second window writing at all');
+    expect((await onDevice(a)).sessions,
+      'one of the two sittings was lost. What each window\'s save() did:' + await story(a, b))
+      .toBe(2);
   });
 
   test('two sittings on the same day are two sittings', async ({context}) => {
@@ -276,8 +424,7 @@ test.describe('two windows on the same device', () => {
       a.save();
     });
     // Wait for the thing the old test raced: her window hearing about it.
-    await expect.poll(() => her.evaluate(() => window.__acorn.state.words.lists.map(l => l.name)),
-      {timeout: 3000, message: 'her window never heard about his edit'}).toEqual(['Week 9 fixed']);
+    await heard(her, LISTS, ls => ls.length === 1 && ls[0] === 'Week 9 fixed', 'his edit');
     await answerOne(her);
     const after = await onDevice(her);
     expect(after.lists,
@@ -312,8 +459,8 @@ test.describe('two windows on the same device', () => {
       window.__acorn.state.profile.name = 'Ivy';
       window.__acorn.save();
     });
-    await expect.poll(() => two.evaluate(() => window.__acorn.state.profile.name),
-      {timeout: 3000, message: 'the other window never noticed'}).toBe('Ivy');
+    await heard(two, () => window.__acorn.state.profile.name, n => n === 'Ivy',
+      'the name set next door');
   });
 
   test('and noticing does not take the word out from under her', async ({context}) => {
@@ -335,8 +482,8 @@ test.describe('two windows on the same device', () => {
       window.__acorn.state.settings.tint = 'mint';
       window.__acorn.save();
     });
-    await expect.poll(() => her.evaluate(() => window.__acorn.state.settings.tint),
-      {timeout: 3000}).toBe('mint');
+    await heard(her, () => window.__acorn.state.settings.tint, t => t === 'mint',
+      'the tint he changed');
     const r = await her.evaluate(() => ({
       typed: (document.querySelector('#type') || {}).value,
       word: window.__acorn.session().words[window.__acorn.session().i],
