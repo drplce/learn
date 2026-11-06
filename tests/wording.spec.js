@@ -171,61 +171,173 @@ test.describe('what the words claim', () => {
   });
 
   test('nothing she reads calls it wrong, failed, or her fault', async ({page}) => {
-    // Every state she can reach, harvested and swept. The engine records "wrong" and
-    // that is fine; she must never read it.
+    /* The engine records "wrong" and that is fine; she must never read it.
+
+       The state list used to be eight strings of one shape — one list, one fresh sitting,
+       the word screen. That is the same gap `contrast.spec.js` had on 2026-10-27: a
+       hand-picked set of states, thorough within itself, silent about everything outside
+       it. Widened 2026-11-06 to the states she can actually land in, including the three
+       that only exist when something has gone sideways for her: a fumbled submit, a phone
+       that spelled the word for her, and a grown-up who has left her an empty list.
+
+       Each state proves it reached the state it names before its words are read. Twice in
+       the last fortnight this routine has read a screen without checking which screen it
+       was — once nearly reporting a correct one as a defect, once accusing the app of a
+       rollover bug that was the fixture's. A sweep over states that silently failed to
+       build would be a green that means nothing. */
     await open(page, '2026-08-01');
     const BANNED = /\b(wrong|incorrect|failed|fail|error|mistake|bad|oops|no good|try harder|should have)\b/i;
-    const seen = [];
+    const W3 = ['said', 'thought', 'rain'];
+    const ALL = 'for(let g=0;g<90&&a.session();g++){const W=a.session();'
+              + 'if(W.stage==="look"){a.cover();continue;}'
+              + 'if(W.stage==="write"){a.type(ANS);a.check();a.next();continue;} a.next();}';
     const STATES = [
-      'if(!a.session()) a.start();',
-      'if(!a.session()) a.start(); a.cover();',
-      'if(!a.session()) a.start(); a.cover(); a.check();',
-      'if(!a.session()) a.start(); a.cover(); a.type("zzz"); a.check();',
-      'if(!a.session()) a.start(); a.cover(); a.type("siad"); a.check();',
-      'if(!a.session()) a.start(); a.cover(); a.type(a.session().words[a.session().i]); a.check();',
-      'if(!a.session()) a.start(); for(let g=0;g<90&&a.session();g++){const W=a.session();' +
-        'if(W.stage==="look"){a.cover();continue;}' +
-        'if(W.stage==="write"){a.type("zzz");a.check();a.next();continue;} a.next();}',
-      'if(!a.session()) a.start(); for(let g=0;g<90&&a.session();g++){const W=a.session();' +
-        'if(W.stage==="look"){a.cover();continue;}' +
-        'if(W.stage==="write"){a.type(W.words[W.i]);a.check();a.next();continue;} a.next();}',
+      {name: 'the trace', words: W3, drive: 'if(!a.session()) a.start();',
+       want: r => r.stage === 'look'},
+      {name: 'the write box', words: W3, drive: 'if(!a.session()) a.start(); a.cover();',
+       want: r => r.stage === 'write' && r.toast === '' && r.tries === 0},
+      {name: 'a fumbled submit with nothing in the box', words: W3,
+       drive: 'if(!a.session()) a.start(); a.cover(); a.check();',
+       want: r => r.stage === 'write' && r.tries === 0 && r.toast !== ''},
+      {name: 'a submit of a single stray full stop', words: W3,
+       drive: 'if(!a.session()) a.start(); a.cover(); a.type("."); a.check();',
+       want: r => r.stage === 'write' && r.tries === 0 && r.toast !== ''},
+      {name: 'a miss nothing like the word', words: W3,
+       drive: 'if(!a.session()) a.start(); a.cover(); a.type("zzz"); a.check();',
+       want: r => r.stage === 'check' && r.tries > 0 && r.right === 0},
+      {name: 'a near miss', words: ['said'],
+       drive: 'if(!a.session()) a.start(); a.cover(); a.type("siad"); a.check();',
+       want: r => r.stage === 'check' && r.tries > 0 && r.right === 0},
+      {name: 'the mark left off a contraction', words: ["don't"],
+       drive: 'if(!a.session()) a.start(); a.cover(); a.type("dont"); a.check();',
+       want: r => r.stage === 'check' && r.tries > 0 && r.right === 0},
+      {name: 'right first go', words: W3,
+       drive: 'if(!a.session()) a.start(); a.cover(); a.type(a.session().words[a.session().i]); a.check();',
+       want: r => r.stage === 'check' && r.right > 0},
+      {name: 'the word a miss sends back to her', words: ['said'],
+       /* A miss does not advance: the word is requeued and she copies it. `retrace` is
+          true on the verdict itself, and the next step is the same word again at i+1 —
+          measured, not assumed; the first version of this state looked for `retrace`
+          after `next()` and found a plain write box. */
+       drive: 'if(!a.session()) a.start(); a.cover(); a.type("zzz"); a.check(); a.next();',
+       want: r => r.stage === 'write' && r.i === 1 && r.words === 2},
+      {name: 'getting there after a miss', words: ['said'],
+       drive: 'if(!a.session()) a.start(); a.cover(); a.type("zzz"); a.check(); a.next();'
+            + ' a.cover(); a.type("said"); a.check();',
+       want: r => r.stage === 'check' && r.right > 0 && r.i === 1},
+      {name: 'the word her phone spelled for her', words: ['said'],
+       /* The hand-back clears `notWritten` on its way out and says the word through the
+          phone's voice, not through the live region — "nothing on the screen" is the whole
+          design of it. So the marker is the box: full when she submitted, empty after,
+          with nothing counted. A fumbled submit leaves the box alone and raises a toast,
+          and an ordinary write box was never filled, so no other state looks like this. */
+       drive: 'a.state.settings.sawKeys = true; a.save();'
+            + ' if(!a.session()) a.start(); a.cover(); a.type("said");'
+            + ' window.__box0 = document.querySelector("#type").value; a.check();',
+       want: r => r.stage === 'write' && r.tries === 0 && r.toast === ''
+                  && r.box0 === 'said' && r.box === ''},
+      {name: 'the garden at the end of a perfect evening', words: W3,
+       /* Wordless since 13.37: the map case renders only the garden, and the line and the
+          praise go to the spoken channel. So the premise is the picture, not any text. */
+       drive: 'if(!a.session()) a.start(); ' + ALL.replace('ANS', 'W.words[W.i]'),
+       want: r => r.stage === null && r.svg > 0},
+      {name: 'the garden at the end of an evening she missed everything', words: W3,
+       drive: 'if(!a.session()) a.start(); ' + ALL.replace('ANS', '"zzz"'),
+       want: r => r.stage === null && r.svg > 0},
+      {name: 'the dead end a grown-up left her on', words: [],
+       /* An empty list of her own, not no list: the app ships seven built-in lists and
+          clearing `state.words.lists` just falls back to those. */
+       drive: '', want: r => r.stage === null && /no words/i.test(r.screenText)},
+      {name: 'her birthday', words: W3, today: '2026-08-05',
+       /* showBirthday() is a no-op off the day, so the fixture has to BE the day. */
+       drive: 'if(!a.session()) a.start(); a.showBirthday();',
+       want: r => /happy birthday/i.test(r.bodyText)},
     ];
-    for(const src of STATES){
-      const txt = await page.evaluate(s => {
+    const wrong = [], unbuilt = [];
+    for(const st of STATES){
+      const r = await page.evaluate(({ws, src, day}) => {
         const a = window.__acorn;
-        a.state.words.lists = [{id: 'x', name: 'T', words: ['said', 'thought', 'rain']}];
+        a.clearBirthday();
+        a.setToday(day);
+        // An empty list of her OWN is the dead end; `lists: []` falls back to the built-ins.
+        a.state.words.lists = [{id: 'x', name: 'T', words: ws}];
         a.state.words.activeId = 'x';
         a.state.words.mastery = {}; a.state.words.sessions = [];
-        a.save(); a.go('parent'); a.go('day');
-        new Function('a', s)(a);
-        return [(document.querySelector('#screen') || {}).innerText || '',
-                (document.querySelector('#act') || {}).innerText || '',
-                (document.querySelector('#say') || {}).textContent || '',
-                (document.querySelector('#toast') || {}).textContent || ''].join(' — ');
-      }, src);
-      if(BANNED.test(txt)) seen.push(txt.match(BANNED)[0] + '  in: ' + txt.slice(0, 90));
+        a.state.settings.sawKeys = false;
+        a.clearSession(); a.save(); a.go('parent'); a.go('day');
+        // Both of these keep their text after they have had their moment, so a stale one
+        // would be read as this state's and a state would be judged on last state's words.
+        const el = id => document.querySelector(id) || {};
+        el('#toast').textContent = ''; el('#say').textContent = '';
+        window.__box0 = null;
+        if(src) new Function('a', src)(a);
+        const S = a.session();
+        return {stage: S ? S.stage : null, tries: S ? S.tries : 0, right: S ? S.right : 0,
+                i: S ? S.i : -1, words: S ? S.words.length : 0,
+                box: el('#type').value === undefined ? null : el('#type').value,
+                box0: window.__box0, svg: document.querySelectorAll('#screen svg').length,
+                screenText: (el('#screen').innerText || '').trim(),
+                /* Harvest the whole rendered body, not four chosen ids: the birthday
+                   overlay is a fixed-position child of the body and nothing in the old
+                   list would have seen a word of it. innerText skips what is not
+                   rendered, so a hidden screen cannot contribute. */
+                bodyText: (document.body.innerText || ''),
+                toast: (el('#toast').textContent || '').trim(),
+                say: (el('#say').textContent || '').trim()};
+      }, {ws: st.words, src: st.drive, day: st.today || '2026-08-01'});
+      if(!st.want(r)) unbuilt.push(st.name + ' — ' + JSON.stringify(r).slice(0, 180));
+      const txt = [r.bodyText, r.toast, r.say].join(' — ');
+      if(BANNED.test(txt)) wrong.push(st.name + ': "' + txt.match(BANNED)[0] + '" in: '
+                                      + txt.replace(/\s+/g, ' ').slice(0, 120));
     }
-    expect(seen).toEqual([]);
+    expect(unbuilt, 'a state did not build, so its words were never really read').toEqual([]);
+    expect(wrong).toEqual([]);
+    expect(errorsOf(page)).toEqual([]);
   });
 
   test('her own spelling is never on the screen or in the announcement', async ({page}) => {
+    /* Widened 2026-11-06 past the verdict. The verdict is the obvious place for her
+       attempt to come back at her, and it was the only place this looked — but a miss does
+       not end there: she is handed the word again to copy, and then the evening ends. Both
+       of those render after the attempt was taken, and neither was being read.
+
+       The typos are deliberately not substrings of "said": the check is `not.toContain`,
+       and the correct word is on the screen on purpose, so "sai" would fail against a
+       perfectly good screen. Said here rather than left as a trap for whoever adds the
+       next one. */
     await open(page, '2026-08-01');
-    for(const typed of ['siad', 'thort', 'togeather', 'zzz', 'SAID', 'sa id']){
-      const txt = await page.evaluate(t => {
+    for(const typed of ['siad', 'thort', 'togeather', 'zzz', 'sa id', 'saiiid']){
+      const seen = await page.evaluate(t => {
         const a = window.__acorn;
+        const read = () => [(document.querySelector('#screen') || {}).innerText || '',
+                            (document.querySelector('#say') || {}).textContent || '',
+                            (document.querySelector('#toast') || {}).textContent || '',
+                            (document.querySelector('#type') || {}).value || ''].join(' ');
         a.state.words.lists = [{id: 'x', name: 'T', words: ['said']}];
         a.state.words.activeId = 'x';
         a.state.words.mastery = {}; a.state.words.sessions = [];
-        a.save(); a.go('parent'); a.go('day');
+        a.clearSession(); a.save(); a.go('parent'); a.go('day');
         if(!a.session()) a.start();
         if(a.session().stage === 'look') a.cover();
         a.type(t); a.check();
-        return [(document.querySelector('#screen') || {}).innerText || '',
-                (document.querySelector('#say') || {}).textContent || ''].join(' ');
+        const out = {verdict: read()};
+        a.next();                              // the word handed back to her to copy
+        out.again = read();
+        for(let g = 0; g < 20 && a.session(); g++){     // and on to the end of the evening
+          const W = a.session();
+          if(W.stage === 'look'){ a.cover(); continue; }
+          if(W.stage === 'write'){ a.type(W.words[W.i]); a.check(); a.next(); continue; }
+          a.next();
+        }
+        out.finished = read();
+        out.stillGoing = !!a.session();
+        return out;
       }, typed);
-      // "said" itself is on screen, correctly, so only look for the misspelling.
-      if(typed.toLowerCase() !== 'said')
-        expect(txt.toLowerCase(), `her own "${typed}" came back at her`)
+      // The premise: these really are three different screens, not one screen read thrice.
+      expect(seen.stillGoing, 'the evening never ended, so the last read was not the garden')
+        .toBe(false);
+      for(const where of ['verdict', 'again', 'finished'])
+        expect(seen[where].toLowerCase(), `her own "${typed}" came back at her on ${where}`)
           .not.toContain(typed.toLowerCase());
     }
     expect(errorsOf(page)).toEqual([]);

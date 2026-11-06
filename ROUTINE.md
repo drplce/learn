@@ -14,7 +14,7 @@ editing this file; he alone changes the trigger's schedule itself (the routine n
      Keep them on these exact lines in this exact format; nothing else parses them. -->
 ```
 interval: daily
-last-run: 2026-11-04T17:11Z
+last-run: 2026-11-06T17:09Z
 ```
 
 The trigger fires once a day, but you only do a **full pass** as often as `interval` says — so on a
@@ -1166,6 +1166,57 @@ cadence rules are David's alone, so this is reported for the third time rather t
 **either compare with a tolerance (≥ interval − 15 min is due) or stamp the trigger's SCHEDULED
 time**, which this session is told on every firing. One line either way.
 
+**Cadence note (17:09Z, 2026-11-06, due at 47.98h — yesterday's firing was 90 seconds short and
+skipped, exactly as the note above predicted): §6.2, and nothing wrong with the app.**
+
+All three green first: 611 pass, sim in band (first-go 92.5%, known material 87.1%), break clean
+across 39 cases.
+
+§6.2 was the least recently rotated, and its named sweep of explanatory copy has been exhausted
+since 2026-09-22. So the question was the OTHER half of it — never blame, never her own
+misspelling — and not *do the rules hold* but **what are they checked OVER**. Both tests ran over
+a hand-picked set of states of one shape: one list, one fresh sitting, the word screen. That is
+precisely the gap `contrast.spec.js` had on 2026-10-27, where the measured part was thorough and
+the state list was silent about everything outside it.
+
+**Widened to fifteen states she can actually land in**, including the three that only exist when
+something has gone sideways for her: a fumbled submit with nothing in the box, a phone that
+spelled the word for her, and a grown-up who has left her an empty list. Also the birthday
+overlay, which is a child of the BODY rather than of `#screen` — the old harvest read four chosen
+ids and could not have seen a word of it. The harvest is the rendered body now.
+
+**Five of the fifteen did not build on the first run, and that is the whole value of the premise
+assertions.** Each state has to prove it reached the state it names before its words are read, and
+the five told me five things I had assumed and not checked: `retrace` is true on the *verdict*,
+not after `next()`; `tries` resets per word, so "getting there after a miss" is tries 1 at i 1, not
+tries 2; the hand-back clears `notWritten` on its way out and says the word through the phone's
+voice, not the live region, so the marker is the box emptying; clearing `state.words.lists` does
+not give a dead end, because the app ships seven built-in lists to fall back on; and
+`showBirthday()` is a no-op off the day, so the fixture has to BE the day. A sweep over five
+states that silently failed to build would have been a green meaning nothing — the third time in
+three weeks that checking the premise has caught me reading the wrong screen.
+
+**The app is clean.** No banned word in any of the fifteen, and that is the finding: said plainly
+rather than dressed up.
+
+**The teeth-check is what earns the widening, and it was measured against the old test rather
+than argued.** A banned word in the dead end, and a banned word in the birthday overlay: each reds
+the widened sweep and leaves the version from this morning green. Then the second test —
+"her own spelling is never on the screen" — was widened past the verdict, which was the only place
+it looked, to the word being handed back and to the end of the evening. Teeth: delete
+`W.attempt = ''` from `next()`, so her misspelling is still sitting in the box when the word comes
+back for her to copy. The old test cannot see it; the new one reds, along with two focus tests
+that notice it for their own reasons. That is a one-token tidy away from being real.
+
+**No change to `index.html`, so no VERSION bump** — sim and break were run on the same bytes at the
+top of the pass and stand.
+
+**Staying `daily`, with the reason stated in advance so the next pass does not have to guess.** The
+2026-11-02 note asked the next few passes to watch what she actually meets, now that eleven weeks
+of change reached her phone in one evening. Two have: the look at her screens on 11-04 and this
+copy sweep. The engine and robustness have not been looked at since the deploy. **If the next pass
+finds nothing either, cool to `weekly` and do not go looking for a replacement item.**
+
 **Cadence note (17:13Z, 2026-09-30, due at 168.0h exactly):** fresh container, `npm install`, then
 594 pass, sim in band, break clean across 39 cases. **Nothing found in the app; no app change.**
 
@@ -1463,6 +1514,15 @@ tune the engine.
    "Australian first" and recommended Karen on phones with no Australian voice) and is fixed; the
    saved-lists drip hint and the backup summary were both checked and are fine. **The named list is
    exhausted — this is a question to ask of NEW copy, not a backlog to work through.**
+   **The OTHER half of §6.2 — never blame, never her own misspelling — was swept on 2026-11-06,
+   and the question was not whether the rules hold but what they are checked OVER.** Both tests
+   ran over a hand-picked set of word-screen states, the same gap `contrast.spec.js` had on
+   2026-10-27. They now cover fifteen states she can land in, including the three that only exist
+   when something has gone sideways for her — a fumbled submit, a phone that spelled the word for
+   her, an empty list — and each proves it built the state it names before its words are read.
+   Nothing was found wrong with the app. **Ask this of a NEW screen or a new transient message,
+   not of these again.**
+
 3. **The engine.** Scheduling, pacing, session building, the comparison of her attempt against
    the mistakes a dyslexic child actually makes, syllable splitting (`SYLLABLES` dictionary +
    `COMPOUNDS` + the rule; researched splits win over the rule).
